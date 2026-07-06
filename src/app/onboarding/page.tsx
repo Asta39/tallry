@@ -4,7 +4,6 @@ import { useState, useTransition, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { saveOrgProfile } from "@/lib/actions";
-import Image from "next/image";
 
 export default function OnboardingPage() {
   const router = useRouter();
@@ -125,11 +124,10 @@ export default function OnboardingPage() {
                 aria-label="Upload business logo"
               >
                 {logoPreview ? (
-                  <Image
+                  <img
                     src={logoPreview}
                     alt="Logo preview"
-                    fill
-                    className="object-cover rounded-[14px]"
+                    className="object-cover w-full h-full rounded-[14px]"
                   />
                 ) : (
                   <div className="text-center">

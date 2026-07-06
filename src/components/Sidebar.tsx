@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { SignOutButton } from "./SignOutButton";
 
@@ -67,7 +66,7 @@ export function Sidebar({ orgName, orgEmail, logoUrl }: SidebarProps) {
         <div className="flex items-center gap-2.5">
           <div className={`shrink-0 w-14 h-14 rounded-xl overflow-hidden flex items-center justify-center ${logoUrl ? "" : "bg-[var(--color-accent-500)] shadow-[0_1px_3px_rgba(0,0,0,0.12)]"}`}>
             {logoUrl ? (
-              <Image
+              <img
                 src={logoUrl}
                 alt={displayName}
                 width={56}
