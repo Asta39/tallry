@@ -558,8 +558,9 @@ export async function saveOrgProfile(data: {
   const user = await getUser();
   if (!user) throw new Error("Not authenticated");
   await db
-    .update(org)
-    .set({
+    .insert(org)
+    .values({
+      userId: user.id,
       name: data.name,
       kraPin: data.kraPin,
       vatRegistered: data.vatRegistered,
@@ -569,7 +570,19 @@ export async function saveOrgProfile(data: {
       invoicePrefix: data.invoicePrefix || "INV-",
       ...(data.logoUrl !== undefined ? { logoUrl: data.logoUrl } : {}),
     })
-    .where(eq(org.userId, user.id));
+    .onConflictDoUpdate({
+      target: org.userId,
+      set: {
+        name: data.name,
+        kraPin: data.kraPin,
+        vatRegistered: data.vatRegistered,
+        address: data.address,
+        phone: data.phone,
+        email: data.email,
+        invoicePrefix: data.invoicePrefix || "INV-",
+        ...(data.logoUrl !== undefined ? { logoUrl: data.logoUrl } : {}),
+      },
+    });
   revalidatePath("/settings");
   revalidatePath("/");
 }
