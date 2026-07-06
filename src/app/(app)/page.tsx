@@ -23,10 +23,11 @@ export default async function Dashboard() {
       .limit(8);
 
     return (
-      <PageHeader
-        title={`Good ${greeting()}, ${o?.name ?? "there"}`}
-        subtitle={new Date().toLocaleDateString("en-KE", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
-      />
+      <>
+        <PageHeader
+          title={`Good ${greeting()}, ${o?.name ?? "there"}`}
+          subtitle={new Date().toLocaleDateString("en-KE", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+        />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard label="Cash & M-Pesa" hint="across all money accounts" cents={stats.cashCents} />
@@ -94,6 +95,7 @@ export default async function Dashboard() {
           </tbody>
         </TableCard>
       )}
+      </>
     );
   } catch (err: any) {
     return (
