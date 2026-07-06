@@ -1,0 +1,21 @@
+# Auth Implementation Tasks
+
+- [x] Install @supabase/ssr + @supabase/supabase-js
+- [x] Update .env.local with Supabase keys
+- [x] Create src/lib/supabase/client.ts
+- [x] Create src/lib/supabase/server.ts
+- [x] Create src/middleware.ts
+- [x] Update src/db/schema.ts (userId, logoUrl on org)
+- [x] Update src/db/migration.sql (ALTER TABLE)
+- [x] Create src/app/(auth)/layout.tsx
+- [x] Create src/app/(auth)/login/page.tsx
+- [x] Create src/app/(auth)/signup/page.tsx
+- [x] Create src/app/auth/callback/route.ts
+- [x] Create src/app/onboarding/page.tsx + action
+- [x] Create src/components/OrgProfileForm.tsx (shared, used in onboarding + settings)
+- [x] Create src/components/SignOutButton.tsx
+- [x] Update src/components/Sidebar.tsx (org name + logo + sign out)
+- [x] Update src/app/layout.tsx (pass org to Sidebar)
+- [x] Update src/lib/actions.ts (getOrg by user_id, saveOrg adds logoUrl)
+- [x] Update src/app/settings/page.tsx (use shared form + logo upload)
+- [x] Run db migration

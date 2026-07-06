@@ -1,0 +1,75 @@
+@import "tailwindcss";
+
+/*
+  Design language: "Apple calm"
+  Direction locked per refero-design methodology: dominant reference is Apple HIG
+  (macOS Sonoma settings/Numbers): SF-adjacent type, hairline separators, translucent
+  chrome, one restrained accent, soft 12px-radius cards, large quiet numerals for money.
+  Secondary reference (Linear): sidebar density + keyboard-first quick actions.
+*/
+
+@theme {
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Inter,
+    Roboto, "Helvetica Neue", Arial, sans-serif;
+
+  /* Accent: deep Kenya-forest teal-blue — calm, not corporate blue */
+  --color-accent-50: #eef6f4;
+  --color-accent-100: #d5eae5;
+  --color-accent-500: #0f766e;
+  --color-accent-600: #0d635d;
+  --color-accent-700: #0a504b;
+
+  --color-ink-900: #1d1d1f;
+  --color-ink-600: #515154;
+  --color-ink-400: #86868b;
+  --color-ink-200: #d2d2d7;
+  --color-ink-100: #e8e8ed;
+  --color-ink-50: #f5f5f7;
+
+  --color-good: #1f8a4c;
+  --color-warn: #b8860b;
+  --color-bad: #c0392b;
+
+  --radius-card: 12px;
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 16px rgba(0, 0, 0, 0.04);
+}
+
+html {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  color: var(--color-ink-900);
+  background: var(--color-ink-50);
+}
+
+/* Hairline borders like macOS */
+.hairline { border: 0.5px solid var(--color-ink-200); }
+.hairline-b { border-bottom: 0.5px solid var(--color-ink-200); }
+.hairline-t { border-top: 0.5px solid var(--color-ink-200); }
+
+.card {
+  background: white;
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  border: 0.5px solid var(--color-ink-100);
+}
+
+/* Large quiet money numerals */
+.money-lg {
+  font-size: 1.75rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.tnum { font-variant-numeric: tabular-nums; }
+
+/* Translucent sidebar chrome */
+.sidebar-chrome {
+  background: rgba(245, 245, 247, 0.85);
+  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+}
+
+@media print {
+  .no-print { display: none !important; }
+  html, body { background: white; }
+}
