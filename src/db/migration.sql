@@ -190,3 +190,17 @@ CREATE INDEX IF NOT EXISTS idx_jlines_entry ON journal_lines(entry_id);
 CREATE INDEX IF NOT EXISTS idx_jlines_account ON journal_lines(account_id);
 CREATE INDEX IF NOT EXISTS idx_docs_type ON documents(type, status);
 CREATE INDEX IF NOT EXISTS idx_lots_item ON stock_lots(item_id, date);
+
+-- Multi-tenancy additions
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS org_id INTEGER;
+ALTER TABLE contacts ADD COLUMN IF NOT EXISTS org_id INTEGER;
+ALTER TABLE deals ADD COLUMN IF NOT EXISTS org_id INTEGER;
+ALTER TABLE items ADD COLUMN IF NOT EXISTS org_id INTEGER;
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS org_id INTEGER;
+ALTER TABLE document_lines ADD COLUMN IF NOT EXISTS org_id INTEGER;
+ALTER TABLE bank_accounts ADD COLUMN IF NOT EXISTS org_id INTEGER;
+ALTER TABLE bank_transactions ADD COLUMN IF NOT EXISTS org_id INTEGER;
+ALTER TABLE journal_entries ADD COLUMN IF NOT EXISTS org_id INTEGER;
+ALTER TABLE journal_lines ADD COLUMN IF NOT EXISTS org_id INTEGER;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS org_id INTEGER;
+ALTER TABLE activities ADD COLUMN IF NOT EXISTS org_id INTEGER;
