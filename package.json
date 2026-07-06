@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
+    "dev": "next dev --turbopack",
+    "build": "drizzle-kit push && next build",
     "start": "next start",
     "db:seed": "tsx src/db/seed.ts",
     "test": "tsx --test src/lib/__tests__/*.test.ts",
