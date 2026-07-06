@@ -1,3 +1,4 @@
+import { withOrg } from "@/lib/org";
 import { getOrg } from "@/lib/org";
 import { notFound } from "next/navigation";
 import { db, accounts } from "@/db";
@@ -13,7 +14,7 @@ export default async function LedgerPage({ params }: { params: Promise<{ id: str
   const { id } = await params;
   const [account] = await db.select().from(accounts).where(and(eq(accounts.orgId, o.id), eq(accounts.id, Number(id)))).limit(1);
   if (!account) notFound();
-  const rows = await generalLedger(account.id);
+  const rows = await withOrg(() => generalLedger(account.id));
 
   let running = 0;
   const debitNature = account.type === "asset" || account.type === "expense";

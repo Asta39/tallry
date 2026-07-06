@@ -1,3 +1,4 @@
+import { withOrg } from "@/lib/org";
 import { eq, and } from "drizzle-orm";
 import { getOrg } from "@/lib/org";
 import { redirect } from "next/navigation";
@@ -18,7 +19,7 @@ export default async function BankingPage() {
     .from(bankTransactions).where(eq(bankTransactions.orgId, o.id))
     .orderBy(desc(bankTransactions.date), desc(bankTransactions.id))
     .limit(50);
-  const balances = await accountBalances({});
+  const balances = await withOrg(() => accountBalances({}));
   const categories = await db
     .select()
     .from(accounts)

@@ -1,3 +1,4 @@
+import { withOrg } from "@/lib/org";
 import { profitAndLoss } from "@/lib/reports";
 import { fmtKES } from "@/lib/money";
 import { PageHeader, TableCard, Th, Td } from "@/components/ui";
@@ -11,7 +12,7 @@ export default async function PnlPage({
   searchParams: Promise<{ from?: string; to?: string }>;
 }) {
   const { from, to } = periodFromSearch(await searchParams);
-  const pl = await profitAndLoss(from, to);
+  const pl = await withOrg(() => profitAndLoss(from, to));
 
   const Section = ({ title, rows, total }: { title: string; rows: typeof pl.income; total: number }) => (
     <>

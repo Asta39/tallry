@@ -1,3 +1,4 @@
+import { withOrg } from "@/lib/org";
 import { eq, and } from "drizzle-orm";
 import { getOrg } from "@/lib/org";
 import Link from "next/link";
@@ -19,8 +20,8 @@ const bucketLabels = [
 export default async function AgingPage() {
   const o = await getOrg();
   const today = todayISO();
-  const ar = await aging("invoice", today);
-  const ap = await aging("bill", today);
+  const ar = await withOrg(() => aging("invoice", today));
+  const ap = await withOrg(() => aging("bill", today));
   const allContacts = await db.select().from(contacts).where(eq(contacts.orgId, o.id));
   const cname = (id: number | null) => allContacts.find((c) => c.id === id)?.displayName ?? "—";
 

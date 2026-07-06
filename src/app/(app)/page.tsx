@@ -1,3 +1,4 @@
+import { withOrg } from "@/lib/org";
 import { getOrg } from "@/lib/org";
 import Link from "next/link";
 import { db, documents, org } from "@/db";
@@ -11,7 +12,7 @@ export const dynamic = "force-dynamic";
 export default async function Dashboard() {
   const o = await getOrg();
   const today = todayISO();
-  const stats = await dashboardStats(today);
+  const stats = await withOrg(() => dashboardStats(today));
 
 
   const recentDocs = await db

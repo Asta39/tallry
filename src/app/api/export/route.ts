@@ -1,3 +1,4 @@
+import { withOrg } from "@/lib/org";
 import { NextRequest } from "next/server";
 import { accountBalances, profitAndLoss, vatReturn } from "@/lib/reports";
 import { db, documents, contacts } from "@/db";
@@ -22,11 +23,11 @@ export async function GET(req: NextRequest) {
   let rows: (string | number)[][] = [];
   if (report === "trial-balance") {
     rows = [["Code", "Account", "Type", "Debits", "Credits", "Balance"]];
-    for (const r of await accountBalances({ to })) {
+    for (const r of await withOrg(() => accountBalances({ to }))) {
       rows.push([r.code, r.name, r.type, money(r.debitCents), money(r.creditCents), money(r.balanceCents)]);
     }
   } else if (report === "pnl") {
-    const pl = await profitAndLoss(from, to);
+    const pl = await withOrg(() => profitAndLoss(from, to));
     rows = [["Section", "Account", "Amount"]];
     pl.income.forEach((r) => rows.push(["Income", r.name, money(r.balanceCents)]));
     pl.cogs.forEach((r) => rows.push(["COGS", r.name, money(r.balanceCents)]));
@@ -34,7 +35,7 @@ export async function GET(req: NextRequest) {
     rows.push(["", "Gross profit", money(pl.grossProfit)]);
     rows.push(["", "Net profit", money(pl.netProfit)]);
   } else if (report === "vat") {
-    const v = await vatReturn(from, to);
+    const v = await withOrg(() => vatReturn(from, to));
     rows = [["Side", "Class", "Taxable value", "VAT"]];
     for (const [cls, x] of Object.entries(v.sales)) rows.push(["Sales", cls, money(x.net), money(x.tax)]);
     for (const [cls, x] of Object.entries(v.purchases)) rows.push(["Purchases", cls, money(x.net), money(x.tax)]);

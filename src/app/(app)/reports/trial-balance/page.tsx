@@ -1,3 +1,4 @@
+import { withOrg } from "@/lib/org";
 import { accountBalances } from "@/lib/reports";
 import { fmtKES } from "@/lib/money";
 import { PageHeader, TableCard, Th, Td } from "@/components/ui";
@@ -11,7 +12,7 @@ export default async function TrialBalancePage({
   searchParams: Promise<{ from?: string; to?: string }>;
 }) {
   const { from, to } = periodFromSearch(await searchParams);
-  const rows = (await accountBalances({ to })).filter((r) => r.debitCents || r.creditCents);
+  const rows = (await withOrg(() => accountBalances({ to }))).filter((r) => r.debitCents || r.creditCents);
   const totalDr = rows.reduce((s, r) => s + r.debitCents, 0);
   const totalCr = rows.reduce((s, r) => s + r.creditCents, 0);
 

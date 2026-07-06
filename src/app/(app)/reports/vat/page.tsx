@@ -1,3 +1,4 @@
+import { withOrg } from "@/lib/org";
 import { vatReturn } from "@/lib/reports";
 import { fmtKES } from "@/lib/money";
 import { PageHeader, TableCard, Th, Td } from "@/components/ui";
@@ -18,7 +19,7 @@ export default async function VatPage({
   searchParams: Promise<{ from?: string; to?: string }>;
 }) {
   const { from, to } = periodFromSearch(await searchParams);
-  const v = await vatReturn(from, to);
+  const v = await withOrg(() => vatReturn(from, to));
 
   const Block = ({ title, data }: { title: string; data: typeof v.sales }) => (
     <TableCard>

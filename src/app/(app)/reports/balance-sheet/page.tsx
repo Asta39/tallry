@@ -1,3 +1,4 @@
+import { withOrg } from "@/lib/org";
 import { balanceSheet } from "@/lib/reports";
 import { fmtKES, todayISO } from "@/lib/money";
 import { PageHeader, TableCard, Th, Td } from "@/components/ui";
@@ -11,7 +12,7 @@ export default async function BalanceSheetPage({
 }) {
   const sp = await searchParams;
   const asOf = sp.to || todayISO();
-  const bs = await balanceSheet(asOf);
+  const bs = await withOrg(() => balanceSheet(asOf));
 
   const Rows = ({ rows }: { rows: typeof bs.assets }) => (
     <>

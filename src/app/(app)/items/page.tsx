@@ -1,3 +1,4 @@
+import { withOrg } from "@/lib/org";
 import { getOrg } from "@/lib/org";
 import { redirect } from "next/navigation";
 import { db, items } from "@/db";
@@ -18,7 +19,7 @@ export default async function ItemsPage() {
     rows
       .filter((it) => it.trackInventory)
       .map(async (it) => {
-        stock.set(it.id, { qty: await stockOnHand(it.id), value: await stockValueCents(it.id) });
+        stock.set(it.id, { qty: await withOrg(() => stockOnHand(it.id)), value: await withOrg(() => stockValueCents(it.id)) });
       })
   );
 
