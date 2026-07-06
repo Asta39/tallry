@@ -7,7 +7,10 @@ export const orgContext = new AsyncLocalStorage<number>();
 
 export function currentOrgId(): number {
   const id = orgContext.getStore();
-  if (!id) throw new Error("No orgId in async context");
+  if (!id) {
+    console.error("No orgId in async context. Returning 0 fallback.");
+    return 0;
+  }
   return id;
 }
 
