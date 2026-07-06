@@ -65,18 +65,17 @@ export function Sidebar({ orgName, orgEmail, logoUrl }: SidebarProps) {
       {/* Business identity header */}
       <div className="px-4 pt-5 pb-3">
         <div className="flex items-center gap-2.5">
-          {/* Logo or initials avatar */}
-          <div className="shrink-0 w-9 h-9 rounded-xl overflow-hidden bg-[var(--color-accent-500)] flex items-center justify-center shadow-[0_1px_3px_rgba(0,0,0,0.12)]">
+          <div className={`shrink-0 w-14 h-14 rounded-xl overflow-hidden flex items-center justify-center ${logoUrl ? "" : "bg-[var(--color-accent-500)] shadow-[0_1px_3px_rgba(0,0,0,0.12)]"}`}>
             {logoUrl ? (
               <Image
                 src={logoUrl}
                 alt={displayName}
-                width={36}
-                height={36}
-                className="object-cover w-full h-full"
+                width={56}
+                height={56}
+                className="object-contain w-full h-full"
               />
             ) : (
-              <span className="text-white text-[13px] font-bold">{initials}</span>
+              <span className="text-white text-[18px] font-bold">{initials}</span>
             )}
           </div>
           <div className="min-w-0">
