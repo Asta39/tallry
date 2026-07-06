@@ -10,20 +10,19 @@ import { PageHeader, StatCard, StatusPill, TableCard, Th, Td } from "@/component
 export const dynamic = "force-dynamic";
 
 export default async function Dashboard() {
-  const o = await getOrg();
-  const today = todayISO();
-  const stats = await withOrg(() => dashboardStats(today));
+  try {
+    const o = await getOrg();
+    const today = todayISO();
+    const stats = await withOrg(() => dashboardStats(today));
 
+    const recentDocs = await db
+      .select()
+      .from(documents)
+      .where(and(eq(documents.orgId, o.id), inArray(documents.type, ["invoice", "bill", "expense"])))
+      .orderBy(desc(documents.createdAt))
+      .limit(8);
 
-  const recentDocs = await db
-    .select()
-    .from(documents)
-    .where(and(eq(documents.orgId, o.id), inArray(documents.type, ["invoice", "bill", "expense"])))
-    .orderBy(desc(documents.createdAt))
-    .limit(8);
-
-  return (
-    <>
+    return (
       <PageHeader
         title={`Good ${greeting()}, ${o?.name ?? "there"}`}
         subtitle={new Date().toLocaleDateString("en-KE", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
@@ -95,8 +94,16 @@ export default async function Dashboard() {
           </tbody>
         </TableCard>
       )}
-    </>
-  );
+    );
+  } catch (err: any) {
+    return (
+      <div className="p-12 font-mono text-sm text-red-600 break-words">
+        <h1 className="text-xl font-bold mb-4">Dashboard Server Error</h1>
+        <p className="mb-2"><strong>Message:</strong> {err?.message}</p>
+        <pre className="whitespace-pre-wrap">{err?.stack}</pre>
+      </div>
+    );
+  }
 }
 
 function greeting() {
