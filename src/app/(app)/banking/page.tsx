@@ -55,7 +55,7 @@ export default async function BankingPage() {
     <>
       <PageHeader title="Bank & M-Pesa" subtitle="Your money accounts, per the ledger" />
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {banks.map((b) => {
           const bal = balances.find((x) => x.accountId === b.accountId)?.balanceCents ?? 0;
           return (

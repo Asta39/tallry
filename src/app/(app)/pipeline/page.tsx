@@ -73,12 +73,12 @@ export default async function PipelinePage() {
         </button>
       </form>
 
-      <div className="grid grid-cols-6 gap-3 items-start">
+      <div className="flex gap-3 items-start overflow-x-auto pb-2 lg:grid lg:grid-cols-6">
         {STAGES.map((stage) => {
           const stageDeals = rows.filter((r) => r.deal.stage === stage.key);
           const total = stageDeals.reduce((s, r) => s + r.deal.amountCents, 0);
           return (
-            <div key={stage.key} className="min-h-[120px]">
+            <div key={stage.key} className="min-h-[120px] w-[200px] shrink-0 lg:w-auto">
               <div className="flex items-baseline justify-between px-1 pb-2">
                 <span className="text-[12px] font-semibold text-[var(--color-ink-600)]">{stage.label}</span>
                 <span className="text-[11px] text-[var(--color-ink-400)] tnum">

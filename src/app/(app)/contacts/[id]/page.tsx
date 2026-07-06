@@ -56,14 +56,14 @@ export default async function ContactDetail({ params }: { params: Promise<{ id: 
         subtitle={[c.kind, c.city, c.kraPin && `PIN ${c.kraPin}`, c.phone].filter(Boolean).join(" · ")}
       />
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <StatCard label="They owe you" cents={owedToYou} tone={owedToYou > 0 ? "warn" : "neutral"} />
         <StatCard label="You owe them" cents={youOwe} />
         <StatCard label="Lifetime sales" cents={lifetime} tone="good" />
       </div>
 
-      <div className="grid grid-cols-5 gap-6 mt-7">
-        <div className="col-span-3">
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 mt-7">
+        <div className="lg:col-span-3">
           <h2 className="text-[15px] font-semibold mb-3">Documents</h2>
           {docs.length === 0 ? (
             <div className="card px-5 py-8 text-center text-[13px] text-[var(--color-ink-400)]">
@@ -121,7 +121,7 @@ export default async function ContactDetail({ params }: { params: Promise<{ id: 
           )}
         </div>
 
-        <div className="col-span-2">
+        <div className="lg:col-span-2">
           <h2 className="text-[15px] font-semibold mb-3">Activity</h2>
           <form action={note} className="card p-3 mb-3">
             <div className="flex gap-2">

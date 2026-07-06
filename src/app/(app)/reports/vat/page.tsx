@@ -48,7 +48,7 @@ export default async function VatPage({
       />
       <PeriodPicker from={from} to={to} extra={<CsvLink report="vat" from={from} to={to} />} />
 
-      <div className="grid grid-cols-2 gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         <div>
           <h2 className="text-[13px] font-semibold text-[var(--color-ink-600)] mb-2">Sales (Output VAT)</h2>
           <Block title="Supplies" data={v.sales} />

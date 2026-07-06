@@ -30,7 +30,7 @@ export default async function ReportsPage() {
       {reports.map((g) => (
         <div key={g.group} className="mb-7">
           <h2 className="text-[13px] font-semibold text-[var(--color-ink-600)] mb-3">{g.group}</h2>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {g.items.map((r) => (
               <Link key={r.href} href={r.href} className="card px-5 py-4 hover:shadow-md transition-shadow">
                 <div className="text-[14px] font-semibold">{r.title}</div>

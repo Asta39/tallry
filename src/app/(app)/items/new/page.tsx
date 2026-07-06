@@ -34,7 +34,7 @@ export default async function NewItemPage() {
   return (
     <>
       <PageHeader title="New item" />
-      <form action={create} className="card p-6 max-w-2xl grid grid-cols-2 gap-4">
+      <form action={create} className="card p-6 max-w-2xl grid grid-cols-1 sm:grid-cols-2 gap-4">
         <label className="block">
           <span className={label}>Type</span>
           <select name="kind" className={input}>

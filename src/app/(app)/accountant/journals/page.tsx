@@ -27,7 +27,7 @@ export default async function JournalsPage() {
         {entries.map((e) => {
           const eLines = lines.filter((l) => l.entryId === e.id);
           return (
-            <div key={e.id} className="card overflow-hidden">
+            <div key={e.id} className="card overflow-x-auto">
               <div className="px-4 py-2.5 hairline-b flex items-center gap-3 text-[12.5px]">
                 <span className="text-[var(--color-ink-400)] tnum">#{e.id}</span>
                 <span className="text-[var(--color-ink-400)]">{e.date}</span>
@@ -36,7 +36,7 @@ export default async function JournalsPage() {
                   {e.sourceType}
                 </span>
               </div>
-              <table className="w-full">
+              <table className="w-full min-w-[480px]">
                 <thead>
                   <tr><Th>Account</Th><Th right>Debit</Th><Th right>Credit</Th></tr>
                 </thead>

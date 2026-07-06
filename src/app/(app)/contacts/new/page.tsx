@@ -30,7 +30,7 @@ export default async function NewContactPage() {
   return (
     <>
       <PageHeader title="New contact" />
-      <form action={create} className="card p-6 max-w-2xl grid grid-cols-2 gap-4">
+      <form action={create} className="card p-6 max-w-2xl grid grid-cols-1 sm:grid-cols-2 gap-4">
         <label className="block">
           <span className={label}>They are a…</span>
           <select name="kind" className={input}>

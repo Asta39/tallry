@@ -212,3 +212,35 @@ export async function generalLedger(accountId: number, from?: string, to?: strin
     .where(and(...conds))
     .orderBy(journalEntries.date, journalEntries.id);
 }
+
+/** Income vs expense per month for the dashboard chart (last n months, oldest first). */
+export async function monthlyIncomeExpense(months = 6): Promise<
+  { month: string; label: string; incomeCents: number; expenseCents: number }[]
+> {
+  const rows = await db
+    .select({
+      month: sql<string>`substr(${journalEntries.date}, 1, 7)`,
+      type: accounts.type,
+      debit: sql<number>`coalesce(sum(${journalLines.debitCents}), 0)`,
+      credit: sql<number>`coalesce(sum(${journalLines.creditCents}), 0)`,
+    })
+    .from(journalLines)
+    .innerJoin(journalEntries, eq(journalLines.entryId, journalEntries.id))
+    .innerJoin(accounts, eq(journalLines.accountId, accounts.id))
+    .where(and(eq(journalLines.orgId, currentOrgId()), inArray(accounts.type, ["income", "expense"])))
+    .groupBy(sql`substr(${journalEntries.date}, 1, 7)`, accounts.type);
+
+  const now = new Date();
+  const out: { month: string; label: string; incomeCents: number; expenseCents: number }[] = [];
+  for (let i = months - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    const label = d.toLocaleDateString("en-KE", { month: "short" });
+    const income = rows.filter((r) => r.month === key && r.type === "income")
+      .reduce((s, r) => s + Number(r.credit) - Number(r.debit), 0);
+    const expense = rows.filter((r) => r.month === key && r.type === "expense")
+      .reduce((s, r) => s + Number(r.debit) - Number(r.credit), 0);
+    out.push({ month: key, label, incomeCents: Math.max(0, income), expenseCents: Math.max(0, expense) });
+  }
+  return out;
+}

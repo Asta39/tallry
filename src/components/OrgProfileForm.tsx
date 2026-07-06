@@ -151,7 +151,7 @@ export function OrgProfileForm({ initial }: { initial: OrgData }) {
           </label>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <label className="block">
             <span className={labelCls}>KRA PIN</span>
             <input
@@ -191,7 +191,7 @@ export function OrgProfileForm({ initial }: { initial: OrgData }) {
         <div className="text-[11px] font-semibold uppercase tracking-wider text-[var(--color-ink-400)] mb-4">
           Contact details
         </div>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <label className="block">
             <span className={labelCls}>Phone</span>
             <input

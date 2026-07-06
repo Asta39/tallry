@@ -52,8 +52,8 @@ export async function DocDetail({ id, printHref }: { id: number; printHref?: str
         printHref={printHref}
       />
 
-      <div className="card mt-5 overflow-hidden">
-        <table className="w-full">
+      <div className="card mt-5 overflow-x-auto">
+        <table className="w-full min-w-[560px]">
           <thead className="hairline-b">
             <tr>
               <Th>Description</Th>
@@ -110,7 +110,7 @@ export async function DocDetail({ id, printHref }: { id: number; printHref?: str
       </div>
 
       {doc.cuInvoiceNumber && (
-        <div className="card mt-4 px-5 py-3.5 text-[12.5px] text-[var(--color-ink-600)] flex items-center gap-6">
+        <div className="card mt-4 px-5 py-3.5 text-[12.5px] text-[var(--color-ink-600)] flex flex-wrap items-center gap-x-6 gap-y-1">
           <span className="font-medium text-[var(--color-ink-900)]">KRA eTIMS</span>
           <span>CU Invoice No: <span className="tnum font-medium">{doc.cuInvoiceNumber}</span></span>
           <span>CU Serial: <span className="tnum">{doc.cuSerial}</span></span>
@@ -121,8 +121,8 @@ export async function DocDetail({ id, printHref }: { id: number; printHref?: str
       {pays.length > 0 && (
         <>
           <h2 className="text-[15px] font-semibold mt-7 mb-3">Payments</h2>
-          <div className="card overflow-hidden">
-            <table className="w-full">
+          <div className="card overflow-x-auto">
+            <table className="w-full min-w-[560px]">
               <thead className="hairline-b">
                 <tr>
                   <Th>Date</Th>

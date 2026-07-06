@@ -149,7 +149,7 @@ export function DocumentEditor({
   return (
     <div className="space-y-5">
       {/* Header fields */}
-      <div className="card p-5 grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="card p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {!isExpense && (
           <label className="block col-span-2">
             <span className="text-[12px] font-medium text-[var(--color-ink-600)]">
@@ -216,8 +216,8 @@ export function DocumentEditor({
       </div>
 
       {/* Lines */}
-      <div className="card overflow-visible">
-        <table className="w-full">
+      <div className="card overflow-x-auto">
+        <table className="w-full min-w-[720px]">
           <thead className="hairline-b">
             <tr className="text-[11.5px] uppercase tracking-wide text-[var(--color-ink-400)]">
               <th className="text-left px-4 py-2.5 font-semibold w-[34%]">Item / description</th>
@@ -342,7 +342,7 @@ export function DocumentEditor({
       </div>
 
       {/* Totals + notes */}
-      <div className="grid grid-cols-2 gap-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
         <label className="block">
           <span className="text-[12px] font-medium text-[var(--color-ink-600)]">Notes (shown on document)</span>
           <textarea

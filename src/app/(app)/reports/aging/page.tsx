@@ -30,7 +30,7 @@ export default async function AgingPage() {
   const Section = ({ title, data, href }: { title: string; data: typeof ar; href: (id: number) => string }) => (
     <div className="mb-8">
       <h2 className="text-[15px] font-semibold mb-3">{title}</h2>
-      <div className="grid grid-cols-5 gap-3 mb-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-4">
         {bucketLabels.map(([k, label]) => (
           <div key={k} className="card px-4 py-3">
             <div className="text-[11.5px] text-[var(--color-ink-400)]">{label}</div>

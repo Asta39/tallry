@@ -147,8 +147,8 @@ export function Td({
 
 export function TableCard({ children }: { children: React.ReactNode }) {
   return (
-    <div className="card overflow-hidden">
-      <table className="w-full">{children}</table>
+    <div className="card overflow-x-auto">
+      <table className="w-full min-w-[560px]">{children}</table>
     </div>
   );
 }
