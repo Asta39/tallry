@@ -1,8 +1,10 @@
 import { DocList } from "@/components/DocList";
+import { requirePerm } from "@/lib/guard";
 
 export const dynamic = "force-dynamic";
 
-export default function BillsPage() {
+export default async function BillsPage() {
+  await requirePerm("bills");
   return (
     <DocList
       type="bill"

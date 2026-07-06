@@ -1,4 +1,5 @@
 import { eq, and } from "drizzle-orm";
+import { requirePerm } from "@/lib/guard";
 import { getOrg } from "@/lib/org";
 import { redirect } from "next/navigation";
 import { db, accounts } from "@/db";
@@ -11,6 +12,7 @@ export const dynamic = "force-dynamic";
 const ROWS = 6;
 
 export default async function NewJournalPage() {
+  await requirePerm("accountant");
   const o = await getOrg();
   const accts = await db.select().from(accounts).where(eq(accounts.orgId, o.id));
 

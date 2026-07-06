@@ -1,4 +1,5 @@
 import { withOrg } from "@/lib/org";
+import { requirePerm } from "@/lib/guard";
 import { eq, and } from "drizzle-orm";
 import { getOrg } from "@/lib/org";
 import { redirect } from "next/navigation";
@@ -8,10 +9,12 @@ import { fmtKES, parseKES, todayISO } from "@/lib/money";
 import { addBankTransaction, categorizeTransaction } from "@/lib/actions";
 import { accountBalances } from "@/lib/reports";
 import { PageHeader, StatusPill, TableCard, Th, Td } from "@/components/ui";
+import { BankImport } from "@/components/BankImport";
 
 export const dynamic = "force-dynamic";
 
 export default async function BankingPage() {
+  await requirePerm("banking");
   const o = await getOrg();
   const banks = await db.select().from(bankAccounts).where(and(eq(bankAccounts.orgId, o.id), eq(bankAccounts.archived, false)));
   const txns = await db
@@ -64,6 +67,9 @@ export default async function BankingPage() {
           );
         })}
       </div>
+
+      <h2 className="text-[15px] font-semibold mt-8 mb-3">Import statement</h2>
+      <BankImport banks={banks.map((b) => ({ id: b.id, label: b.name }))} />
 
       <h2 className="text-[15px] font-semibold mt-8 mb-3">Add a transaction</h2>
       <form action={addTxn} className="card p-3 flex gap-2 items-center flex-wrap">

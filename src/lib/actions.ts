@@ -15,7 +15,7 @@ import {
   accounts,
 } from "@/db";
 import { eq, and } from "drizzle-orm";
-import { currentOrgId, withOrg } from "@/lib/org";
+import { currentOrgId, withOrg, seedOrgDefaults } from "@/lib/org";
 import { revalidatePath as nextRevalidatePath } from "next/cache";
 import { computeDocument, type TaxClass, TAX_CLASSES } from "./tax";
 import {
@@ -81,7 +81,7 @@ async function nextNumber(kind: NumberKind): Promise<string> {
 
 /* ---------------- Contacts & CRM ---------------- */
 
-export async function saveContact(data: {
+async function _saveContact(data: {
   id?: number;
   kind: string;
   displayName: string;
@@ -102,14 +102,14 @@ export async function saveContact(data: {
   revalidatePath("/contacts");
 }
 
-export async function addActivity(contactId: number, kind: string, content: string) {
+async function _addActivity(contactId: number, kind: string, content: string) {
   await db
     .insert(activities)
     .values({ orgId: currentOrgId(), contactId, kind, content, date: todayISO(), createdAt: nowISO() });
   revalidatePath(`/contacts/${contactId}`);
 }
 
-export async function saveDeal(data: {
+async function _saveDeal(data: {
   id?: number;
   contactId: number;
   title: string;
@@ -129,14 +129,14 @@ export async function saveDeal(data: {
   revalidatePath("/pipeline");
 }
 
-export async function moveDealStage(dealId: number, stage: string) {
+async function _moveDealStage(dealId: number, stage: string) {
   await db.update(deals).set({ stage, updatedAt: nowISO() }).where(and(eq(deals.orgId, currentOrgId()), eq(deals.id, dealId)));
   revalidatePath("/pipeline");
 }
 
 /* ---------------- Items ---------------- */
 
-export async function saveItem(data: {
+async function _saveItem(data: {
   id?: number;
   kind: string;
   name: string;
@@ -151,7 +151,11 @@ export async function saveItem(data: {
   openingQty?: number;
   openingUnitCostCents?: number;
 }) {
-  const [salesAcc] = await db.select().from(accounts).where(eq(accounts.code, SYS.SALES)).limit(1);
+  const [salesAcc] = await db
+    .select()
+    .from(accounts)
+    .where(and(eq(accounts.orgId, currentOrgId()), eq(accounts.code, SYS.SALES)))
+    .limit(1);
   if (data.id) {
     await db
       .update(items)
@@ -208,7 +212,7 @@ export async function saveItem(data: {
   revalidatePath("/items");
 }
 
-export async function adjustStock(itemId: number, qtyDelta: number, unitCostCents: number, reason: string) {
+async function _adjustStock(itemId: number, qtyDelta: number, unitCostCents: number, reason: string) {
   const value = Math.round(Math.abs(qtyDelta) * unitCostCents);
   if (qtyDelta > 0) {
     await addLot({ itemId, date: todayISO(), qty: qtyDelta, unitCostCents, sourceType: "adjustment" });
@@ -250,7 +254,7 @@ export interface DocLineInput {
   accountId?: number | null;
 }
 
-export async function saveDocument(data: {
+async function _saveDocument(data: {
   id?: number;
   type: "quote" | "invoice" | "credit_note" | "bill" | "purchase_order" | "expense";
   contactId?: number | null;
@@ -346,7 +350,7 @@ export async function saveDocument(data: {
 }
 
 /** Issue (post) a draft document. For invoices this also signs via the tax device. */
-export async function issueDocument(docId: number) {
+async function _issueDocument(docId: number) {
   const [doc] = await db.select().from(documents).where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, docId))).limit(1);
   if (!doc) throw new Error("Not found");
   if (doc.status !== "draft") throw new Error("Already issued");
@@ -391,19 +395,19 @@ export async function issueDocument(docId: number) {
   revalidatePath("/purchases");
 }
 
-export async function voidDoc(docId: number) {
+async function _voidDoc(docId: number) {
   await voidDocument(docId, todayISO());
   revalidatePath("/sales");
   revalidatePath("/purchases");
 }
 
-export async function markQuote(docId: number, status: "accepted" | "declined") {
+async function _markQuote(docId: number, status: "accepted" | "declined") {
   await db.update(documents).set({ status }).where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, docId)));
   revalidatePath("/sales");
 }
 
 /** Convert an accepted quote into a draft invoice. */
-export async function convertQuoteToInvoice(quoteId: number): Promise<number> {
+async function _convertQuoteToInvoice(quoteId: number): Promise<number> {
   const [quote] = await db.select().from(documents).where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, quoteId))).limit(1);
   if (!quote || quote.type !== "quote") throw new Error("Quote not found");
   const lines = await db.select().from(documentLines).where(eq(documentLines.documentId, quoteId));
@@ -434,7 +438,7 @@ export async function convertQuoteToInvoice(quoteId: number): Promise<number> {
 
 /* ---------------- Payments ---------------- */
 
-export async function recordPayment(data: {
+async function _recordPayment(data: {
   direction: "in" | "out";
   documentId: number;
   date: string;
@@ -470,7 +474,7 @@ export async function recordPayment(data: {
 
 /* ---------------- Banking ---------------- */
 
-export async function addBankTransaction(data: {
+async function _addBankTransaction(data: {
   bankAccountId: number;
   date: string;
   description: string;
@@ -481,7 +485,7 @@ export async function addBankTransaction(data: {
 }
 
 /** Categorize an uncategorized bank line: creates the journal. */
-export async function categorizeTransaction(txnId: number, categoryAccountId: number) {
+async function _categorizeTransaction(txnId: number, categoryAccountId: number) {
   const [txn] = await db.select().from(bankTransactions).where(eq(bankTransactions.id, txnId)).limit(1);
   if (!txn) throw new Error("Transaction not found");
   const [bank] = await db
@@ -516,7 +520,7 @@ export async function categorizeTransaction(txnId: number, categoryAccountId: nu
 
 /* ---------------- Manual journals ---------------- */
 
-export async function createManualJournal(data: {
+async function _createManualJournal(data: {
   date: string;
   memo: string;
   lines: { accountId: number; debitCents: number; creditCents: number }[];
@@ -536,6 +540,7 @@ export async function saveOrg(data: {
   email?: string;
   invoicePrefix: string;
   logoUrl?: string;
+  brandColor?: string;
 }) {
   const user = await getUser();
   if (!user) throw new Error("Not authenticated");
@@ -553,10 +558,11 @@ export async function saveOrgProfile(data: {
   email?: string;
   invoicePrefix: string;
   logoUrl?: string;
+  brandColor?: string;
 }) {
   const user = await getUser();
   if (!user) throw new Error("Not authenticated");
-  await db
+  const [saved] = await db
     .insert(org)
     .values({
       userId: user.id,
@@ -568,6 +574,7 @@ export async function saveOrgProfile(data: {
       email: data.email,
       invoicePrefix: data.invoicePrefix || "INV-",
       ...(data.logoUrl !== undefined ? { logoUrl: data.logoUrl } : {}),
+      ...(data.brandColor !== undefined ? { brandColor: data.brandColor } : {}),
     })
     .onConflictDoUpdate({
       target: org.userId,
@@ -580,12 +587,174 @@ export async function saveOrgProfile(data: {
         email: data.email,
         invoicePrefix: data.invoicePrefix || "INV-",
         ...(data.logoUrl !== undefined ? { logoUrl: data.logoUrl } : {}),
+        ...(data.brandColor !== undefined ? { brandColor: data.brandColor } : {}),
       },
-    });
+    })
+    .returning();
+  // New org: seed Kenyan chart of accounts + default money accounts
+  await seedOrgDefaults(saved.id);
   revalidatePath("/settings");
   revalidatePath("/");
 }
 
 export async function getTaxClasses() {
   return TAX_CLASSES;
+}
+
+/* ---- org-context wrappers: every action runs inside withOrg so currentOrgId() is set ---- */
+export async function saveContact(data: Parameters<typeof _saveContact>[0]) {
+  return withOrg(() => _saveContact(data));
+}
+export async function addActivity(contactId: number, kind: string, content: string) {
+  return withOrg(() => _addActivity(contactId, kind, content));
+}
+export async function saveDeal(data: Parameters<typeof _saveDeal>[0]) {
+  return withOrg(() => _saveDeal(data));
+}
+export async function moveDealStage(dealId: number, stage: string) {
+  return withOrg(() => _moveDealStage(dealId, stage));
+}
+export async function saveItem(data: Parameters<typeof _saveItem>[0]) {
+  return withOrg(() => _saveItem(data));
+}
+export async function adjustStock(itemId: number, qtyDelta: number, unitCostCents: number, reason: string) {
+  return withOrg(() => _adjustStock(itemId, qtyDelta, unitCostCents, reason));
+}
+export async function saveDocument(data: Parameters<typeof _saveDocument>[0]) {
+  return withOrg(() => _saveDocument(data));
+}
+export async function issueDocument(docId: number) {
+  return withOrg(() => _issueDocument(docId));
+}
+export async function voidDoc(docId: number) {
+  return withOrg(() => _voidDoc(docId));
+}
+export async function markQuote(docId: number, status: "accepted" | "declined") {
+  return withOrg(() => _markQuote(docId, status));
+}
+export async function convertQuoteToInvoice(quoteId: number) {
+  return withOrg(() => _convertQuoteToInvoice(quoteId));
+}
+export async function recordPayment(data: Parameters<typeof _recordPayment>[0]) {
+  return withOrg(() => _recordPayment(data));
+}
+export async function addBankTransaction(data: Parameters<typeof _addBankTransaction>[0]) {
+  return withOrg(() => _addBankTransaction(data));
+}
+export async function categorizeTransaction(txnId: number, categoryAccountId: number) {
+  return withOrg(() => _categorizeTransaction(txnId, categoryAccountId));
+}
+export async function createManualJournal(data: Parameters<typeof _createManualJournal>[0]) {
+  return withOrg(() => _createManualJournal(data));
+}
+
+/* ---------------- Credit note from invoice / PO → bill ---------------- */
+
+async function _createCreditNoteFromInvoice(invoiceId: number): Promise<number> {
+  const [inv] = await db
+    .select()
+    .from(documents)
+    .where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, invoiceId)))
+    .limit(1);
+  if (!inv || inv.type !== "invoice") throw new Error("Invoice not found");
+  const lines = await db
+    .select()
+    .from(documentLines)
+    .where(and(eq(documentLines.orgId, currentOrgId()), eq(documentLines.documentId, invoiceId)));
+  const cnId = await _saveDocument({
+    type: "credit_note",
+    contactId: inv.contactId,
+    date: todayISO(),
+    taxInclusive: inv.taxInclusive,
+    notes: `Credit note for invoice ${inv.number}`,
+    lines: lines.map((l) => ({
+      itemId: l.itemId,
+      description: l.description,
+      qty: l.qty,
+      unitPriceCents: l.unitPriceCents,
+      discountPct: l.discountPct,
+      taxClass: l.taxClass as TaxClass,
+      accountId: l.accountId,
+    })),
+  });
+  await db
+    .update(documents)
+    .set({ sourceDocId: invoiceId })
+    .where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, cnId)));
+  return cnId;
+}
+
+async function _convertPoToBill(poId: number): Promise<number> {
+  const [po] = await db
+    .select()
+    .from(documents)
+    .where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, poId)))
+    .limit(1);
+  if (!po || po.type !== "purchase_order") throw new Error("Purchase order not found");
+  const lines = await db
+    .select()
+    .from(documentLines)
+    .where(and(eq(documentLines.orgId, currentOrgId()), eq(documentLines.documentId, poId)));
+  const billId = await _saveDocument({
+    type: "bill",
+    contactId: po.contactId,
+    date: todayISO(),
+    taxInclusive: po.taxInclusive,
+    billNumber: `BILL-${po.number}`,
+    notes: po.notes ?? undefined,
+    lines: lines.map((l) => ({
+      itemId: l.itemId,
+      description: l.description,
+      qty: l.qty,
+      unitPriceCents: l.unitPriceCents,
+      discountPct: l.discountPct,
+      taxClass: l.taxClass as TaxClass,
+      accountId: l.accountId,
+    })),
+  });
+  await db
+    .update(documents)
+    .set({ sourceDocId: poId })
+    .where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, billId)));
+  await db
+    .update(documents)
+    .set({ status: "closed" })
+    .where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, poId)));
+  revalidatePath("/purchases");
+  return billId;
+}
+
+/* ---------------- Bank statement import ---------------- */
+
+async function _importBankTransactions(
+  bankAccountId: number,
+  rows: { date: string; description: string; amountCents: number }[]
+): Promise<number> {
+  const valid = rows.filter((r) => r.date && r.amountCents !== 0);
+  if (valid.length === 0) return 0;
+  await db.insert(bankTransactions).values(
+    valid.map((r) => ({
+      orgId: currentOrgId(),
+      bankAccountId,
+      date: r.date,
+      description: r.description || "Imported transaction",
+      amountCents: r.amountCents,
+      createdAt: nowISO(),
+    }))
+  );
+  revalidatePath("/banking");
+  return valid.length;
+}
+
+export async function createCreditNoteFromInvoice(invoiceId: number) {
+  return withOrg(() => _createCreditNoteFromInvoice(invoiceId));
+}
+export async function convertPoToBill(poId: number) {
+  return withOrg(() => _convertPoToBill(poId));
+}
+export async function importBankTransactions(
+  bankAccountId: number,
+  rows: { date: string; description: string; amountCents: number }[]
+) {
+  return withOrg(() => _importBankTransactions(bankAccountId, rows));
 }

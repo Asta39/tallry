@@ -1,4 +1,5 @@
 import { withOrg } from "@/lib/org";
+import { requirePerm } from "@/lib/guard";
 import { getOrg } from "@/lib/org";
 import { redirect } from "next/navigation";
 import { db, items } from "@/db";
@@ -12,6 +13,7 @@ import { PageHeader, PrimaryLink, TableCard, Th, Td, EmptyState } from "@/compon
 export const dynamic = "force-dynamic";
 
 export default async function ItemsPage() {
+  await requirePerm("items");
   const o = await getOrg();
   const rows = await db.select().from(items).where(and(eq(items.orgId, o.id), eq(items.archived, false)));
   const stock = new Map<number, { qty: number; value: number }>();

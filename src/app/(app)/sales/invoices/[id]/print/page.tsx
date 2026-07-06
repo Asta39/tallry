@@ -1,4 +1,5 @@
 import { getOrg } from "@/lib/org";
+import { requirePerm } from "@/lib/guard";
 import { db, documents, documentLines, contacts, org } from "@/db";
 import { eq, and } from "drizzle-orm";
 import { notFound } from "next/navigation";
@@ -9,6 +10,7 @@ import { TAX_CLASSES, type TaxClass } from "@/lib/tax";
 export const dynamic = "force-dynamic";
 
 export default async function PrintInvoice({ params }: { params: Promise<{ id: string }> }) {
+  await requirePerm("invoices");
   const o = await getOrg();
   const { id } = await params;
   const [doc] = await db.select().from(documents).where(and(eq(documents.orgId, o.id), eq(documents.id, Number(id)))).limit(1);

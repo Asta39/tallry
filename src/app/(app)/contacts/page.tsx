@@ -1,4 +1,5 @@
 import { getOrg } from "@/lib/org";
+import { requirePerm } from "@/lib/guard";
 import Link from "next/link";
 import { db, contacts, documents } from "@/db";
 import { eq, and, inArray } from "drizzle-orm";
@@ -8,6 +9,7 @@ import { PageHeader, PrimaryLink, TableCard, Th, Td, EmptyState } from "@/compon
 export const dynamic = "force-dynamic";
 
 export default async function ContactsPage() {
+  await requirePerm("contacts");
   const o = await getOrg();
   const rows = await db.select().from(contacts).where(and(eq(contacts.orgId, o.id), eq(contacts.archived, false)));
   const openDocs = await db

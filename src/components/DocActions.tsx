@@ -8,6 +8,8 @@ import {
   markQuote,
   convertQuoteToInvoice,
   recordPayment,
+  createCreditNoteFromInvoice,
+  convertPoToBill,
 } from "@/lib/actions";
 import { fmtKES, parseKES, todayISO } from "@/lib/money";
 
@@ -98,9 +100,47 @@ export function DocActions({
             Convert to invoice →
           </button>
         )}
+        {doc.type === "invoice" && ["open", "partial", "paid"].includes(doc.status) && (
+          <button
+            className={secondary}
+            disabled={pending}
+            onClick={() =>
+              start(async () => {
+                const id = await createCreditNoteFromInvoice(doc.id);
+                router.push(`/sales/credit-notes/${id}`);
+              })
+            }
+          >
+            Create credit note
+          </button>
+        )}
+        {doc.type === "purchase_order" && doc.status === "open" && (
+          <button
+            className={secondary}
+            disabled={pending}
+            onClick={() =>
+              start(async () => {
+                const id = await convertPoToBill(doc.id);
+                router.push(`/purchases/bills/${id}`);
+              })
+            }
+          >
+            Convert to bill →
+          </button>
+        )}
+        {["invoice", "quote", "credit_note"].includes(doc.type) && doc.status !== "draft" && (
+          <>
+            <a href={`/api/pdf/${doc.id}`} target="_blank" className={secondary}>
+              View PDF
+            </a>
+            <a href={`/api/pdf/${doc.id}?download=1`} className={secondary}>
+              Download PDF
+            </a>
+          </>
+        )}
         {printHref && doc.status !== "draft" && (
           <a href={printHref} target="_blank" className={secondary}>
-            Print / PDF
+            Print
           </a>
         )}
         {doc.status !== "void" && doc.status !== "draft" && (

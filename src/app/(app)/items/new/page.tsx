@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { requirePerm } from "@/lib/guard";
 import { saveItem } from "@/lib/actions";
 import { parseKES } from "@/lib/money";
 import { TAX_CLASSES } from "@/lib/tax";
@@ -10,7 +11,8 @@ const input =
   "w-full rounded-lg border border-[var(--color-ink-200)] bg-white px-3 py-2 text-[13px] outline-none focus:border-[var(--color-accent-500)] focus:ring-2 focus:ring-[var(--color-accent-100)] mt-1";
 const label = "text-[12px] font-medium text-[var(--color-ink-600)]";
 
-export default function NewItemPage() {
+export default async function NewItemPage() {
+  await requirePerm("items");
   async function create(formData: FormData) {
     "use server";
     await saveItem({

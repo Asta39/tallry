@@ -1,4 +1,5 @@
 import { eq, and } from "drizzle-orm";
+import { requirePerm } from "@/lib/guard";
 import { getOrg } from "@/lib/org";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
@@ -11,6 +12,7 @@ import { PageHeader, StatusPill, StatCard, TableCard, Th, Td } from "@/component
 export const dynamic = "force-dynamic";
 
 export default async function ContactDetail({ params }: { params: Promise<{ id: string }> }) {
+  await requirePerm("contacts");
   const o = await getOrg();
   const { id } = await params;
   const cid = Number(id);

@@ -1,4 +1,5 @@
 import { withOrg } from "@/lib/org";
+import { requirePerm } from "@/lib/guard";
 import { profitAndLoss } from "@/lib/reports";
 import { fmtKES } from "@/lib/money";
 import { PageHeader, TableCard, Th, Td } from "@/components/ui";
@@ -11,6 +12,7 @@ export default async function PnlPage({
 }: {
   searchParams: Promise<{ from?: string; to?: string }>;
 }) {
+  await requirePerm("reports");
   const { from, to } = periodFromSearch(await searchParams);
   const pl = await withOrg(() => profitAndLoss(from, to));
 

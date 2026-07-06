@@ -408,6 +408,8 @@ function issueLabel(type: string) {
       return "Save & record bill";
     case "expense":
       return "Save expense";
+    case "purchase_order":
+      return "Save & send PO";
     default:
       return "Save & issue";
   }

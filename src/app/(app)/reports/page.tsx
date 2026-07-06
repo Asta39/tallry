@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { requirePerm } from "@/lib/guard";
 import { PageHeader } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
@@ -21,7 +22,8 @@ const reports = [
   },
 ];
 
-export default function ReportsPage() {
+export default async function ReportsPage() {
+  await requirePerm("reports");
   return (
     <>
       <PageHeader title="Reports" subtitle="All derived from the ledger, so they always reconcile" />

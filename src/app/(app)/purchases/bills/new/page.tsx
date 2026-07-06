@@ -1,10 +1,12 @@
 import { DocumentEditor } from "@/components/DocumentEditor";
+import { requirePerm } from "@/lib/guard";
 import { editorOptions } from "@/components/docData";
 import { PageHeader } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
 export default async function NewBillPage() {
+  await requirePerm("bills");
   const opts = await editorOptions("purchase");
   return (
     <>

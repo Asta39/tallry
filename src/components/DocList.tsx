@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { db, documents, contacts } from "@/db";
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
+import { getOrg } from "@/lib/org";
 import { fmtKES, todayISO } from "@/lib/money";
 import { PageHeader, PrimaryLink, StatusPill, TableCard, Th, Td, EmptyState } from "@/components/ui";
 
@@ -22,6 +23,7 @@ export async function DocList({
   emptyBody: string;
 }) {
   const today = todayISO();
+  const orgId = (await getOrg()).id;
   const rows = await db
     .select({
       doc: documents,
@@ -29,7 +31,7 @@ export async function DocList({
     })
     .from(documents)
     .leftJoin(contacts, eq(documents.contactId, contacts.id))
-    .where(eq(documents.type, type))
+    .where(and(eq(documents.orgId, orgId), eq(documents.type, type)))
     .orderBy(desc(documents.date), desc(documents.id));
 
   const outstanding = rows

@@ -28,13 +28,16 @@ export interface PostLine {
   memo?: string;
 }
 
+/** Cache keyed per-org: same account code maps to different ids per org. */
 const codeCache = new Map<string, number>();
 export async function acct(code: string): Promise<number> {
-  const hit = codeCache.get(code);
+  const orgId = currentOrgId();
+  const key = `${orgId}:${code}`;
+  const hit = codeCache.get(key);
   if (hit) return hit;
-  const [row] = await db.select().from(accounts).where(and(eq(accounts.orgId, currentOrgId()), eq(accounts.code, code))).limit(1);
+  const [row] = await db.select().from(accounts).where(and(eq(accounts.orgId, orgId), eq(accounts.code, code))).limit(1);
   if (!row) throw new Error(`System account ${code} missing — run db:seed`);
-  codeCache.set(code, row.id);
+  codeCache.set(key, row.id);
   return row.id;
 }
 

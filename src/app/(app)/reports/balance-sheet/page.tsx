@@ -1,4 +1,5 @@
 import { withOrg } from "@/lib/org";
+import { requirePerm } from "@/lib/guard";
 import { balanceSheet } from "@/lib/reports";
 import { fmtKES, todayISO } from "@/lib/money";
 import { PageHeader, TableCard, Th, Td } from "@/components/ui";
@@ -10,6 +11,7 @@ export default async function BalanceSheetPage({
 }: {
   searchParams: Promise<{ to?: string }>;
 }) {
+  await requirePerm("reports");
   const sp = await searchParams;
   const asOf = sp.to || todayISO();
   const bs = await withOrg(() => balanceSheet(asOf));

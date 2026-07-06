@@ -26,6 +26,7 @@ export const org = pgTable("org", {
   phone: text("phone"),
   email: text("email"),
   logoUrl: text("logo_url"),
+  brandColor: text("brand_color").notNull().default("#0f766e"),
   invoicePrefix: text("invoice_prefix").notNull().default("INV-"),
   nextInvoiceNo: integer("next_invoice_no").notNull().default(1),
   nextQuoteNo: integer("next_quote_no").notNull().default(1),
@@ -231,4 +232,46 @@ export const journalLines = pgTable("journal_lines", {
   creditCents: money("credit_cents").notNull().default(0),
   contactId: integer("contact_id"),
   memo: text("memo"),
+});
+
+/* ---------------- Team, permissions, dashboard ---------------- */
+
+/** Staff accounts. Org owner (org.userId) is implicit admin. */
+export const members = pgTable("members", {
+  id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
+  userId: text("user_id").notNull().unique(), // Supabase auth uuid
+  email: text("email").notNull(),
+  name: text("name").notNull().default(""),
+  // admin | accountant | sales | hr | inventory | staff
+  role: text("role").notNull().default("staff"),
+  active: boolean("active").notNull().default(true),
+  createdAt: text("created_at").notNull(),
+});
+
+/** Per-role module visibility, editable by admin. Missing row = role default. */
+export const rolePermissions = pgTable("role_permissions", {
+  id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
+  role: text("role").notNull(),
+  permKey: text("perm_key").notNull(), // module key, e.g. "invoices"
+  allowed: boolean("allowed").notNull().default(true),
+});
+
+export const todos = pgTable("todos", {
+  id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
+  title: text("title").notNull(),
+  done: boolean("done").notNull().default(false),
+  dueDate: text("due_date"),
+  createdAt: text("created_at").notNull(),
+});
+
+export const events = pgTable("events", {
+  id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
+  title: text("title").notNull(),
+  date: text("date").notNull(), // YYYY-MM-DD
+  color: text("color").notNull().default("#0f766e"),
+  createdAt: text("created_at").notNull(),
 });

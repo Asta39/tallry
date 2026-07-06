@@ -1,4 +1,5 @@
 import { withOrg } from "@/lib/org";
+import { requirePerm } from "@/lib/guard";
 import { eq, and } from "drizzle-orm";
 import { getOrg } from "@/lib/org";
 import Link from "next/link";
@@ -18,6 +19,7 @@ const bucketLabels = [
 ] as const;
 
 export default async function AgingPage() {
+  await requirePerm("reports");
   const o = await getOrg();
   const today = todayISO();
   const ar = await withOrg(() => aging("invoice", today));

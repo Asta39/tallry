@@ -1,4 +1,5 @@
 import { getOrg } from "@/lib/org";
+import { requirePerm } from "@/lib/guard";
 import { redirect } from "next/navigation";
 import { db, deals, contacts } from "@/db";
 import { eq, and } from "drizzle-orm";
@@ -18,6 +19,7 @@ const STAGES = [
 ] as const;
 
 export default async function PipelinePage() {
+  await requirePerm("pipeline");
   const o = await getOrg();
   const rows = await db
     .select({ deal: deals, contactName: contacts.displayName })

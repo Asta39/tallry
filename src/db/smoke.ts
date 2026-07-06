@@ -8,9 +8,24 @@ async function main() {
   const { accountBalances, vatReturn } = await import("../lib/reports");
   const { sql, eq, asc } = await import("drizzle-orm");
 
-  const [customer] = await db.select().from(contacts).orderBy(asc(contacts.id)).limit(1);
-  const allItems = await db.select().from(items).orderBy(asc(items.id));
-  if (!customer || allItems.length < 2) throw new Error("Run db:seed first");
+  const orgId = Number(process.env.BIASHARA_ORG_ID || 1);
+  const { eq: eqOp } = await import("drizzle-orm");
+  let [customer] = await db.select().from(contacts).where(eqOp(contacts.orgId, orgId)).orderBy(asc(contacts.id)).limit(1);
+  if (!customer) {
+    const { nowISO } = await import("../lib/money");
+    [customer] = await db
+      .insert(contacts)
+      .values({ orgId, kind: "customer", displayName: "Smoke Test Customer", kraPin: "P051111111A", createdAt: nowISO() })
+      .returning();
+  }
+  let allItems = await db.select().from(items).where(eqOp(items.orgId, orgId)).orderBy(asc(items.id));
+  if (allItems.length < 2) {
+    await db.insert(items).values([
+      { orgId, kind: "service", name: "Consulting (hourly)", unit: "hour", salePriceCents: 500_000, taxClass: "B16" },
+      { orgId, kind: "goods", name: "Branded T-Shirt", sku: "TS-001", unit: "pc", salePriceCents: 120_000, purchaseCostCents: 70_000, taxClass: "B16", trackInventory: true, reorderLevel: 10 },
+    ]);
+    allItems = await db.select().from(items).where(eqOp(items.orgId, orgId)).orderBy(asc(items.id));
+  }
 
   // 1. Create + issue an invoice: 2 consulting hrs @5,000 + 5 t-shirts @1,200
   const invId = await saveDocument({
@@ -67,6 +82,6 @@ async function main() {
 }
 
 main().catch((e) => {
-  console.error("Smoke failed:", e.message);
+  console.error("Smoke failed:", e.stack || e.message);
   process.exit(1);
 });

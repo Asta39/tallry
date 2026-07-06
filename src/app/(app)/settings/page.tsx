@@ -1,4 +1,5 @@
 import { getOrg } from "@/lib/org";
+import { requirePerm } from "@/lib/guard";
 import { redirect } from "next/navigation";
 import { getUser } from "@/lib/supabase/server";
 import { db, org } from "@/db";
@@ -9,6 +10,7 @@ import { OrgProfileForm } from "@/components/OrgProfileForm";
 export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
+  await requirePerm("settings");
   const o = await getOrg();
   const user = await getUser();
   if (!user) redirect("/login");
@@ -33,6 +35,7 @@ export default async function SettingsPage() {
           email: o.email,
           invoicePrefix: o.invoicePrefix,
           logoUrl: o.logoUrl,
+          brandColor: o.brandColor,
           userId: o.userId,
         }}
       />

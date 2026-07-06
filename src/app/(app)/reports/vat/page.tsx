@@ -1,4 +1,5 @@
 import { withOrg } from "@/lib/org";
+import { requirePerm } from "@/lib/guard";
 import { vatReturn } from "@/lib/reports";
 import { fmtKES } from "@/lib/money";
 import { PageHeader, TableCard, Th, Td } from "@/components/ui";
@@ -18,6 +19,7 @@ export default async function VatPage({
 }: {
   searchParams: Promise<{ from?: string; to?: string }>;
 }) {
+  await requirePerm("reports");
   const { from, to } = periodFromSearch(await searchParams);
   const v = await withOrg(() => vatReturn(from, to));
 

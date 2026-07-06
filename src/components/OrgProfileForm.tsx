@@ -15,6 +15,7 @@ interface OrgData {
   email?: string | null;
   invoicePrefix: string;
   logoUrl?: string | null;
+  brandColor?: string | null;
   userId?: string | null;
 }
 
@@ -31,6 +32,7 @@ export function OrgProfileForm({ initial }: { initial: OrgData }) {
   const [address, setAddress] = useState(initial.address || "");
   const [vatRegistered, setVatRegistered] = useState(initial.vatRegistered);
   const [invoicePrefix, setInvoicePrefix] = useState(initial.invoicePrefix || "INV-");
+  const [brandColor, setBrandColor] = useState(initial.brandColor || "#0f766e");
 
   const fileRef = useRef<HTMLInputElement>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(initial.logoUrl || null);
@@ -92,6 +94,7 @@ export function OrgProfileForm({ initial }: { initial: OrgData }) {
           email: email || undefined,
           invoicePrefix: invoicePrefix || "INV-",
           logoUrl: newLogoUrl ?? undefined,
+          brandColor,
         });
         setSaved(true);
         router.refresh();
@@ -148,17 +151,39 @@ export function OrgProfileForm({ initial }: { initial: OrgData }) {
           </label>
         </div>
 
-        <label className="block">
-          <span className={labelCls}>KRA PIN</span>
-          <input
-            type="text"
-            value={kraPin}
-            onChange={(e) => setKraPin(e.target.value.toUpperCase())}
-            className={inputCls}
-            placeholder="P051234567X"
-            maxLength={11}
-          />
-        </label>
+        <div className="grid grid-cols-2 gap-4">
+          <label className="block">
+            <span className={labelCls}>KRA PIN</span>
+            <input
+              type="text"
+              value={kraPin}
+              onChange={(e) => setKraPin(e.target.value.toUpperCase())}
+              className={inputCls}
+              placeholder="P051234567X"
+              maxLength={11}
+            />
+          </label>
+          <label className="block">
+            <span className={labelCls}>Brand color (used on PDFs)</span>
+            <div className="flex items-center gap-2 mt-1">
+              <input
+                type="color"
+                value={brandColor}
+                onChange={(e) => setBrandColor(e.target.value)}
+                className="h-9 w-12 rounded-lg border border-[var(--color-ink-200)] bg-white cursor-pointer p-1"
+                aria-label="Brand color"
+              />
+              <input
+                type="text"
+                value={brandColor}
+                onChange={(e) => setBrandColor(e.target.value)}
+                className="w-28 rounded-lg border border-[var(--color-ink-200)] bg-white px-3 py-2 text-[13px] outline-none focus:border-[var(--color-accent-500)]"
+                placeholder="#0f766e"
+                maxLength={7}
+              />
+            </div>
+          </label>
+        </div>
       </div>
 
       {/* Contact details */}

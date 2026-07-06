@@ -1,5 +1,6 @@
 import { db, documents, documentLines, contacts, payments, bankAccounts } from "@/db";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
+import { getOrg } from "@/lib/org";
 import { notFound } from "next/navigation";
 import { fmtKES, todayISO } from "@/lib/money";
 import { TAX_CLASSES, type TaxClass } from "@/lib/tax";
@@ -16,14 +17,15 @@ const typeLabels: Record<string, string> = {
 };
 
 export async function DocDetail({ id, printHref }: { id: number; printHref?: string }) {
-  const [doc] = await db.select().from(documents).where(eq(documents.id, id)).limit(1);
+  const orgId = (await getOrg()).id;
+  const [doc] = await db.select().from(documents).where(and(eq(documents.orgId, orgId), eq(documents.id, id))).limit(1);
   if (!doc) notFound();
-  const lines = await db.select().from(documentLines).where(eq(documentLines.documentId, id));
+  const lines = await db.select().from(documentLines).where(and(eq(documentLines.orgId, orgId), eq(documentLines.documentId, id)));
   const contact = doc.contactId
-    ? (await db.select().from(contacts).where(eq(contacts.id, doc.contactId)).limit(1))[0]
+    ? (await db.select().from(contacts).where(and(eq(contacts.orgId, orgId), eq(contacts.id, doc.contactId))).limit(1))[0]
     : null;
-  const pays = await db.select().from(payments).where(eq(payments.documentId, id));
-  const banks = await db.select().from(bankAccounts);
+  const pays = await db.select().from(payments).where(and(eq(payments.orgId, orgId), eq(payments.documentId, id)));
+  const banks = await db.select().from(bankAccounts).where(eq(bankAccounts.orgId, orgId));
 
   return (
     <>

@@ -1,4 +1,5 @@
 import { withOrg } from "@/lib/org";
+import { requirePerm } from "@/lib/guard";
 import { eq, and } from "drizzle-orm";
 import { getOrg } from "@/lib/org";
 import Link from "next/link";
@@ -18,6 +19,7 @@ const typeLabels: Record<string, string> = {
 };
 
 export default async function AccountantPage() {
+  await requirePerm("accountant");
   const o = await getOrg();
   const all = await db.select().from(accounts).where(eq(accounts.orgId, o.id));
   const balances = await withOrg(() => accountBalances({}));

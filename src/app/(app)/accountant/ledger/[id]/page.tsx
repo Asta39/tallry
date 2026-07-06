@@ -1,4 +1,5 @@
 import { withOrg } from "@/lib/org";
+import { requirePerm } from "@/lib/guard";
 import { getOrg } from "@/lib/org";
 import { notFound } from "next/navigation";
 import { db, accounts } from "@/db";
@@ -10,6 +11,7 @@ import { PageHeader, TableCard, Th, Td } from "@/components/ui";
 export const dynamic = "force-dynamic";
 
 export default async function LedgerPage({ params }: { params: Promise<{ id: string }> }) {
+  await requirePerm("accountant");
   const o = await getOrg();
   const { id } = await params;
   const [account] = await db.select().from(accounts).where(and(eq(accounts.orgId, o.id), eq(accounts.id, Number(id)))).limit(1);
