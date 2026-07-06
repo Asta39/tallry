@@ -1,4 +1,5 @@
 import { db, stockLots } from "@/db";
+import { currentOrgId } from "@/lib/org";
 import { eq, and, gt, asc, sql } from "drizzle-orm";
 
 /** Add a FIFO cost lot (from a bill, opening stock, or positive adjustment). */
@@ -11,6 +12,7 @@ export async function addLot(params: {
   sourceId?: number;
 }) {
   await db.insert(stockLots).values({
+    orgId: currentOrgId(),
     itemId: params.itemId,
     date: params.date,
     qty: params.qty,
@@ -34,7 +36,7 @@ export async function consumeFifo(itemId: number, qty: number): Promise<number> 
   const lots = await db
     .select()
     .from(stockLots)
-    .where(and(eq(stockLots.itemId, itemId), gt(stockLots.remainingQty, 0)))
+    .where(and(eq(stockLots.orgId, currentOrgId()), eq(stockLots.itemId, itemId), gt(stockLots.remainingQty, 0)))
     .orderBy(asc(stockLots.date), asc(stockLots.id));
 
   for (const lot of lots) {
@@ -46,7 +48,7 @@ export async function consumeFifo(itemId: number, qty: number): Promise<number> 
     await db
       .update(stockLots)
       .set({ remainingQty: lot.remainingQty - take })
-      .where(eq(stockLots.id, lot.id));
+      .where(and(eq(stockLots.orgId, currentOrgId()), eq(stockLots.id, lot.id)));
   }
   if (remaining > 0) cogs += Math.round(remaining * lastCost);
   return cogs;
@@ -56,7 +58,7 @@ export async function stockOnHand(itemId: number): Promise<number> {
   const [row] = await db
     .select({ qty: sql<number>`coalesce(sum(${stockLots.remainingQty}), 0)` })
     .from(stockLots)
-    .where(eq(stockLots.itemId, itemId));
+    .where(and(eq(stockLots.orgId, currentOrgId()), eq(stockLots.itemId, itemId)));
   return Number(row?.qty ?? 0);
 }
 
@@ -66,6 +68,6 @@ export async function stockValueCents(itemId: number): Promise<number> {
       v: sql<number>`coalesce(sum(${stockLots.remainingQty} * ${stockLots.unitCostCents}), 0)`,
     })
     .from(stockLots)
-    .where(eq(stockLots.itemId, itemId));
+    .where(and(eq(stockLots.orgId, currentOrgId()), eq(stockLots.itemId, itemId)));
   return Math.round(Number(row?.v ?? 0));
 }

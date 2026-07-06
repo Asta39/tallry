@@ -1,3 +1,4 @@
+import { getOrg } from "@/lib/org";
 import Link from "next/link";
 import { db, contacts, documents } from "@/db";
 import { eq, and, inArray } from "drizzle-orm";
@@ -7,11 +8,12 @@ import { PageHeader, PrimaryLink, TableCard, Th, Td, EmptyState } from "@/compon
 export const dynamic = "force-dynamic";
 
 export default async function ContactsPage() {
-  const rows = await db.select().from(contacts).where(eq(contacts.archived, false));
+  const o = await getOrg();
+  const rows = await db.select().from(contacts).where(and(eq(contacts.orgId, o.id), eq(contacts.archived, false)));
   const openDocs = await db
     .select()
     .from(documents)
-    .where(and(inArray(documents.status, ["open", "partial"]), inArray(documents.type, ["invoice", "bill"])));
+    .where(and(eq(documents.orgId, o.id), inArray(documents.status, ["open", "partial"]), inArray(documents.type, ["invoice", "bill"])));
 
   const balances = new Map<number, { owedToYou: number; youOwe: number }>();
   for (const d of openDocs) {

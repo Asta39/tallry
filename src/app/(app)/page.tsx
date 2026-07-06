@@ -1,6 +1,7 @@
+import { getOrg } from "@/lib/org";
 import Link from "next/link";
 import { db, documents, org } from "@/db";
-import { desc, inArray } from "drizzle-orm";
+import { desc, inArray, and, eq } from "drizzle-orm";
 import { dashboardStats } from "@/lib/reports";
 import { fmtKES, todayISO } from "@/lib/money";
 import { PageHeader, StatCard, StatusPill, TableCard, Th, Td } from "@/components/ui";
@@ -8,14 +9,15 @@ import { PageHeader, StatCard, StatusPill, TableCard, Th, Td } from "@/component
 export const dynamic = "force-dynamic";
 
 export default async function Dashboard() {
+  const o = await getOrg();
   const today = todayISO();
   const stats = await dashboardStats(today);
-  const [o] = await db.select().from(org).limit(1);
+
 
   const recentDocs = await db
     .select()
     .from(documents)
-    .where(inArray(documents.type, ["invoice", "bill", "expense"]))
+    .where(and(eq(documents.orgId, o.id), inArray(documents.type, ["invoice", "bill", "expense"])))
     .orderBy(desc(documents.createdAt))
     .limit(8);
 

@@ -14,7 +14,8 @@ import {
   activities,
   accounts,
 } from "@/db";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
+import { currentOrgId, withOrg } from "@/lib/org";
 import { revalidatePath as nextRevalidatePath } from "next/cache";
 import { computeDocument, type TaxClass, TAX_CLASSES } from "./tax";
 import {
@@ -42,13 +43,10 @@ function revalidatePath(path: string) {
   }
 }
 
-async function getOrg() {
-  const user = await getUser();
-  if (!user) throw new Error("Not authenticated — please sign in.");
-  const [row] = await db.select().from(org).where(eq(org.userId, user.id)).limit(1);
-  if (!row) throw new Error("Organization not found — please complete onboarding.");
-  return row;
-}
+import { getOrg } from "@/lib/org";
+
+// async function getOrg() {
+  
 
 type NumberKind = "invoice" | "quote" | "credit_note" | "purchase_order" | "payment";
 async function nextNumber(kind: NumberKind): Promise<string> {
@@ -77,7 +75,7 @@ async function nextNumber(kind: NumberKind): Promise<string> {
       nextPoNo: kind === "purchase_order" ? n + 1 : o.nextPoNo,
       nextPaymentNo: kind === "payment" ? n + 1 : o.nextPaymentNo,
     })
-    .where(eq(org.id, 1));
+    .where(eq(org.id, o.id));
   return `${prefixes[kind]}${String(n).padStart(4, "0")}`;
 }
 
@@ -97,9 +95,9 @@ export async function saveContact(data: {
   isWithholdingAgent?: boolean;
 }) {
   if (data.id) {
-    await db.update(contacts).set({ ...data, id: undefined }).where(eq(contacts.id, data.id));
+    await db.update(contacts).set({ ...data, id: undefined }).where(and(eq(contacts.orgId, currentOrgId()), eq(contacts.id, data.id)));
   } else {
-    await db.insert(contacts).values({ ...data, createdAt: nowISO() });
+    await db.insert(contacts).values({ orgId: currentOrgId(), ...data, createdAt: nowISO() });
   }
   revalidatePath("/contacts");
 }
@@ -107,7 +105,7 @@ export async function saveContact(data: {
 export async function addActivity(contactId: number, kind: string, content: string) {
   await db
     .insert(activities)
-    .values({ contactId, kind, content, date: todayISO(), createdAt: nowISO() });
+    .values({ orgId: currentOrgId(), contactId, kind, content, date: todayISO(), createdAt: nowISO() });
   revalidatePath(`/contacts/${contactId}`);
 }
 
@@ -124,15 +122,15 @@ export async function saveDeal(data: {
     await db
       .update(deals)
       .set({ ...data, id: undefined, updatedAt: nowISO() })
-      .where(eq(deals.id, data.id));
+      .where(and(eq(deals.orgId, currentOrgId()), eq(deals.id, data.id)));
   } else {
-    await db.insert(deals).values({ ...data, createdAt: nowISO(), updatedAt: nowISO() });
+    await db.insert(deals).values({ orgId: currentOrgId(), ...data, createdAt: nowISO(), updatedAt: nowISO() });
   }
   revalidatePath("/pipeline");
 }
 
 export async function moveDealStage(dealId: number, stage: string) {
-  await db.update(deals).set({ stage, updatedAt: nowISO() }).where(eq(deals.id, dealId));
+  await db.update(deals).set({ stage, updatedAt: nowISO() }).where(and(eq(deals.orgId, currentOrgId()), eq(deals.id, dealId)));
   revalidatePath("/pipeline");
 }
 
@@ -169,11 +167,11 @@ export async function saveItem(data: {
         trackInventory: data.trackInventory,
         reorderLevel: data.reorderLevel,
       })
-      .where(eq(items.id, data.id));
+      .where(and(eq(items.orgId, currentOrgId()), eq(items.id, data.id)));
   } else {
     const [created] = await db
       .insert(items)
-      .values({
+      .values({ orgId: currentOrgId(),
         kind: data.kind,
         name: data.name,
         sku: data.sku,
@@ -276,7 +274,7 @@ export async function saveDocument(data: {
 
   let docId: number;
   if (data.id) {
-    const [existing] = await db.select().from(documents).where(eq(documents.id, data.id)).limit(1);
+    const [existing] = await db.select().from(documents).where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, data.id))).limit(1);
     if (!existing) throw new Error("Document not found");
     if (existing.status !== "draft") throw new Error("Only drafts can be edited");
     await db
@@ -292,7 +290,7 @@ export async function saveDocument(data: {
         totalCents: totals.totalCents,
         paidFromBankAccountId: data.paidFromBankAccountId,
       })
-      .where(eq(documents.id, data.id));
+      .where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, data.id)));
     await db.delete(documentLines).where(eq(documentLines.documentId, data.id));
     docId = data.id;
   } else {
@@ -302,7 +300,7 @@ export async function saveDocument(data: {
         : await nextNumber(data.type as NumberKind);
     const [created] = await db
       .insert(documents)
-      .values({
+      .values({ orgId: currentOrgId(),
         type: data.type,
         number,
         contactId: data.contactId,
@@ -324,6 +322,7 @@ export async function saveDocument(data: {
     data.lines.map((l, i) => {
       const t = totals.lines[i];
       return {
+        orgId: currentOrgId(),
         documentId: docId,
         itemId: l.itemId,
         description: l.description,
@@ -348,7 +347,7 @@ export async function saveDocument(data: {
 
 /** Issue (post) a draft document. For invoices this also signs via the tax device. */
 export async function issueDocument(docId: number) {
-  const [doc] = await db.select().from(documents).where(eq(documents.id, docId)).limit(1);
+  const [doc] = await db.select().from(documents).where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, docId))).limit(1);
   if (!doc) throw new Error("Not found");
   if (doc.status !== "draft") throw new Error("Already issued");
 
@@ -356,7 +355,7 @@ export async function issueDocument(docId: number) {
     case "invoice": {
       const o = await getOrg();
       const buyer = doc.contactId
-        ? (await db.select().from(contacts).where(eq(contacts.id, doc.contactId)).limit(1))[0]
+        ? (await db.select().from(contacts).where(and(eq(contacts.orgId, currentOrgId()), eq(contacts.id, doc.contactId))).limit(1))[0]
         : null;
       const device = getTaxDevice(o.cuSerial);
       const signed = device.sign({
@@ -370,7 +369,7 @@ export async function issueDocument(docId: number) {
       await db
         .update(documents)
         .set({ cuInvoiceNumber: signed.cuInvoiceNumber, cuSerial: signed.cuSerial, qrUrl: signed.qrUrl })
-        .where(eq(documents.id, docId));
+        .where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, docId)));
       await postInvoice(docId);
       break;
     }
@@ -385,7 +384,7 @@ export async function issueDocument(docId: number) {
       break;
     case "quote":
     case "purchase_order":
-      await db.update(documents).set({ status: "open" }).where(eq(documents.id, docId));
+      await db.update(documents).set({ status: "open" }).where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, docId)));
       break;
   }
   revalidatePath("/sales");
@@ -399,13 +398,13 @@ export async function voidDoc(docId: number) {
 }
 
 export async function markQuote(docId: number, status: "accepted" | "declined") {
-  await db.update(documents).set({ status }).where(eq(documents.id, docId));
+  await db.update(documents).set({ status }).where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, docId)));
   revalidatePath("/sales");
 }
 
 /** Convert an accepted quote into a draft invoice. */
 export async function convertQuoteToInvoice(quoteId: number): Promise<number> {
-  const [quote] = await db.select().from(documents).where(eq(documents.id, quoteId)).limit(1);
+  const [quote] = await db.select().from(documents).where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, quoteId))).limit(1);
   if (!quote || quote.type !== "quote") throw new Error("Quote not found");
   const lines = await db.select().from(documentLines).where(eq(documentLines.documentId, quoteId));
   const invoiceId = await saveDocument({
@@ -428,8 +427,8 @@ export async function convertQuoteToInvoice(quoteId: number): Promise<number> {
   await db
     .update(documents)
     .set({ sourceDocId: quoteId, status: "draft" })
-    .where(eq(documents.id, invoiceId));
-  await db.update(documents).set({ status: "accepted" }).where(eq(documents.id, quoteId));
+    .where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, invoiceId)));
+  await db.update(documents).set({ status: "accepted" }).where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, quoteId)));
   return invoiceId;
 }
 
@@ -445,11 +444,11 @@ export async function recordPayment(data: {
   bankAccountId?: number | null;
   reference?: string;
 }) {
-  const [doc] = await db.select().from(documents).where(eq(documents.id, data.documentId)).limit(1);
+  const [doc] = await db.select().from(documents).where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, data.documentId))).limit(1);
   if (!doc) throw new Error("Document not found");
   const [p] = await db
     .insert(payments)
-    .values({
+    .values({ orgId: currentOrgId(),
       number: await nextNumber("payment"),
       direction: data.direction,
       contactId: doc.contactId,
@@ -477,7 +476,7 @@ export async function addBankTransaction(data: {
   description: string;
   amountCents: number;
 }) {
-  await db.insert(bankTransactions).values({ ...data, createdAt: nowISO() });
+  await db.insert(bankTransactions).values({ orgId: currentOrgId(), ...data, createdAt: nowISO() });
   revalidatePath("/banking");
 }
 
@@ -488,7 +487,7 @@ export async function categorizeTransaction(txnId: number, categoryAccountId: nu
   const [bank] = await db
     .select()
     .from(bankAccounts)
-    .where(eq(bankAccounts.id, txn.bankAccountId))
+    .where(and(eq(bankAccounts.orgId, currentOrgId()), eq(bankAccounts.id, txn.bankAccountId)))
     .limit(1);
   if (!bank) throw new Error("Bank account not found");
   const amount = Math.abs(txn.amountCents);

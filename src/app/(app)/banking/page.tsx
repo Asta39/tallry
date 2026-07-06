@@ -1,6 +1,8 @@
+import { eq, and } from "drizzle-orm";
+import { getOrg } from "@/lib/org";
 import { redirect } from "next/navigation";
 import { db, bankAccounts, bankTransactions, accounts } from "@/db";
-import { desc, eq, inArray } from "drizzle-orm";
+import { desc, inArray } from "drizzle-orm";
 import { fmtKES, parseKES, todayISO } from "@/lib/money";
 import { addBankTransaction, categorizeTransaction } from "@/lib/actions";
 import { accountBalances } from "@/lib/reports";
@@ -9,17 +11,18 @@ import { PageHeader, StatusPill, TableCard, Th, Td } from "@/components/ui";
 export const dynamic = "force-dynamic";
 
 export default async function BankingPage() {
-  const banks = await db.select().from(bankAccounts).where(eq(bankAccounts.archived, false));
+  const o = await getOrg();
+  const banks = await db.select().from(bankAccounts).where(and(eq(bankAccounts.orgId, o.id), eq(bankAccounts.archived, false)));
   const txns = await db
     .select()
-    .from(bankTransactions)
+    .from(bankTransactions).where(eq(bankTransactions.orgId, o.id))
     .orderBy(desc(bankTransactions.date), desc(bankTransactions.id))
     .limit(50);
   const balances = await accountBalances({});
   const categories = await db
     .select()
     .from(accounts)
-    .where(inArray(accounts.type, ["income", "expense"]));
+    .where(and(eq(accounts.orgId, o.id), inArray(accounts.type, ["income", "expense"])));
 
   async function addTxn(formData: FormData) {
     "use server";

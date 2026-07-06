@@ -37,6 +37,7 @@ export const org = pgTable("org", {
 
 export const accounts = pgTable("accounts", {
   id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
   code: text("code").notNull().unique(),
   name: text("name").notNull(),
   // asset | liability | equity | income | expense
@@ -49,6 +50,7 @@ export const accounts = pgTable("accounts", {
 
 export const contacts = pgTable("contacts", {
   id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
   kind: text("kind").notNull(), // customer | vendor | both
   displayName: text("display_name").notNull(),
   companyName: text("company_name"),
@@ -65,6 +67,7 @@ export const contacts = pgTable("contacts", {
 
 export const activities = pgTable("activities", {
   id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
   contactId: integer("contact_id").notNull(),
   kind: text("kind").notNull(), // note | call | email | meeting
   content: text("content").notNull(),
@@ -74,6 +77,7 @@ export const activities = pgTable("activities", {
 
 export const deals = pgTable("deals", {
   id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
   contactId: integer("contact_id").notNull(),
   title: text("title").notNull(),
   amountCents: money("amount_cents").notNull().default(0),
@@ -87,6 +91,7 @@ export const deals = pgTable("deals", {
 
 export const items = pgTable("items", {
   id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
   kind: text("kind").notNull(), // service | goods
   name: text("name").notNull(),
   sku: text("sku"),
@@ -106,6 +111,7 @@ export const items = pgTable("items", {
 /** FIFO cost lots. Purchases append lots; sales consume remainingQty oldest-first. */
 export const stockLots = pgTable("stock_lots", {
   id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
   itemId: integer("item_id").notNull(),
   date: text("date").notNull(),
   qty: doublePrecision("qty").notNull(),
@@ -122,6 +128,7 @@ export const stockLots = pgTable("stock_lots", {
  */
 export const documents = pgTable("documents", {
   id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
   type: text("type").notNull(),
   number: text("number").notNull(),
   contactId: integer("contact_id"),
@@ -147,6 +154,7 @@ export const documents = pgTable("documents", {
 
 export const documentLines = pgTable("document_lines", {
   id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
   documentId: integer("document_id").notNull(),
   itemId: integer("item_id"),
   description: text("description").notNull(),
@@ -165,6 +173,7 @@ export const documentLines = pgTable("document_lines", {
 
 export const payments = pgTable("payments", {
   id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
   number: text("number").notNull(),
   direction: text("direction").notNull(), // in (customer) | out (vendor)
   contactId: integer("contact_id"),
@@ -181,6 +190,7 @@ export const payments = pgTable("payments", {
 
 export const bankAccounts = pgTable("bank_accounts", {
   id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
   name: text("name").notNull(),
   kind: text("kind").notNull(), // bank | mpesa | cash | card
   accountId: integer("account_id").notNull(), // linked COA asset account
@@ -189,6 +199,7 @@ export const bankAccounts = pgTable("bank_accounts", {
 
 export const bankTransactions = pgTable("bank_transactions", {
   id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
   bankAccountId: integer("bank_account_id").notNull(),
   date: text("date").notNull(),
   description: text("description").notNull(),
@@ -202,6 +213,7 @@ export const bankTransactions = pgTable("bank_transactions", {
 /** Append-only ledger. Only src/lib/posting.ts writes here. */
 export const journalEntries = pgTable("journal_entries", {
   id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
   date: text("date").notNull(),
   memo: text("memo"),
   sourceType: text("source_type").notNull(), // invoice | bill | payment | expense | manual | ...
@@ -212,6 +224,7 @@ export const journalEntries = pgTable("journal_entries", {
 
 export const journalLines = pgTable("journal_lines", {
   id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
   entryId: integer("entry_id").notNull(),
   accountId: integer("account_id").notNull(),
   debitCents: money("debit_cents").notNull().default(0),

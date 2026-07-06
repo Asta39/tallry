@@ -1,7 +1,9 @@
+import { eq, and } from "drizzle-orm";
+import { getOrg } from "@/lib/org";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { db, contacts, documents, activities, deals } from "@/db";
-import { eq, desc } from "drizzle-orm";
+import { desc } from "drizzle-orm";
 import { fmtKES, todayISO } from "@/lib/money";
 import { addActivity } from "@/lib/actions";
 import { PageHeader, StatusPill, StatCard, TableCard, Th, Td } from "@/components/ui";
@@ -9,23 +11,24 @@ import { PageHeader, StatusPill, StatCard, TableCard, Th, Td } from "@/component
 export const dynamic = "force-dynamic";
 
 export default async function ContactDetail({ params }: { params: Promise<{ id: string }> }) {
+  const o = await getOrg();
   const { id } = await params;
   const cid = Number(id);
-  const [c] = await db.select().from(contacts).where(eq(contacts.id, cid)).limit(1);
+  const [c] = await db.select().from(contacts).where(and(eq(contacts.orgId, o.id), eq(contacts.id, cid))).limit(1);
   if (!c) notFound();
 
   const docs = await db
     .select()
     .from(documents)
-    .where(eq(documents.contactId, cid))
+    .where(and(eq(documents.orgId, o.id), eq(documents.contactId, cid)))
     .orderBy(desc(documents.date))
     .limit(15);
   const acts = await db
     .select()
     .from(activities)
-    .where(eq(activities.contactId, cid))
+    .where(and(eq(activities.orgId, o.id), eq(activities.contactId, cid)))
     .orderBy(desc(activities.createdAt));
-  const contactDeals = await db.select().from(deals).where(eq(deals.contactId, cid));
+  const contactDeals = await db.select().from(deals).where(and(eq(deals.orgId, o.id), eq(deals.contactId, cid)));
 
   const owedToYou = docs
     .filter((d) => d.type === "invoice" && ["open", "partial"].includes(d.status))

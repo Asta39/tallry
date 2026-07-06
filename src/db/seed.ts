@@ -27,7 +27,7 @@ async function main() {
     const [existing] = await db.select().from(accounts).where(eq(accounts.code, a.code)).limit(1);
     if (!existing) {
       await db.insert(accounts).values({
-        code: a.code,
+        orgId: existingOrg[0].id, code: a.code,
         name: a.name,
         type: a.type,
         subtype: a.subtype,
@@ -43,9 +43,9 @@ async function main() {
     const [mpesaCoa] = await db.select().from(accounts).where(eq(accounts.code, "1010")).limit(1);
     const [cashCoa] = await db.select().from(accounts).where(eq(accounts.code, "1020")).limit(1);
     await db.insert(bankAccounts).values([
-      { name: "Main Bank Account", kind: "bank", accountId: bankCoa.id },
-      { name: "M-Pesa Till", kind: "mpesa", accountId: mpesaCoa.id },
-      { name: "Petty Cash", kind: "cash", accountId: cashCoa.id },
+      { orgId: existingOrg[0].id, name: "Main Bank Account", kind: "bank", accountId: bankCoa.id },
+      { orgId: existingOrg[0].id, name: "M-Pesa Till", kind: "mpesa", accountId: mpesaCoa.id },
+      { orgId: existingOrg[0].id, name: "Petty Cash", kind: "cash", accountId: cashCoa.id },
     ]);
     console.log("✓ money accounts (bank, M-Pesa, cash)");
   }
@@ -54,7 +54,7 @@ async function main() {
   if ((await db.select().from(contacts)).length === 0) {
     await db.insert(contacts).values([
       {
-        kind: "customer",
+        orgId: existingOrg[0].id, kind: "customer",
         displayName: "Acme Distributors Ltd",
         companyName: "Acme Distributors Ltd",
         email: "accounts@acme.co.ke",
@@ -65,8 +65,9 @@ async function main() {
         createdAt: nowISO(),
       },
       {
+        orgId: existingOrg[0].id,
         kind: "vendor",
-        displayName: "Simba Suppliers",
+        displayName: "Safaricom PLC",
         companyName: "Simba Suppliers",
         email: "sales@simba.co.ke",
         phone: "+254 733 222 333",
@@ -82,16 +83,18 @@ async function main() {
     const [sales] = await db.select().from(accounts).where(eq(accounts.code, "4000")).limit(1);
     await db.insert(items).values([
       {
+        orgId: existingOrg[0].id,
         kind: "service",
-        name: "Consulting (hourly)",
+        name: "Consulting Hours",
         unit: "hour",
         salePriceCents: 500_000,
         taxClass: "B16",
         salesAccountId: sales.id,
       },
       {
+        orgId: existingOrg[0].id,
         kind: "goods",
-        name: "Branded T-Shirt",
+        name: "Dell XPS 13",
         sku: "TS-001",
         unit: "pc",
         salePriceCents: 120_000,

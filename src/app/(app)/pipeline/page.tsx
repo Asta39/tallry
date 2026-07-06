@@ -1,6 +1,7 @@
+import { getOrg } from "@/lib/org";
 import { redirect } from "next/navigation";
 import { db, deals, contacts } from "@/db";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { fmtKESCompact, parseKES } from "@/lib/money";
 import { saveDeal, moveDealStage } from "@/lib/actions";
 import { PageHeader } from "@/components/ui";
@@ -17,11 +18,12 @@ const STAGES = [
 ] as const;
 
 export default async function PipelinePage() {
+  const o = await getOrg();
   const rows = await db
     .select({ deal: deals, contactName: contacts.displayName })
-    .from(deals)
+    .from(deals).where(eq(deals.orgId, o.id))
     .leftJoin(contacts, eq(deals.contactId, contacts.id));
-  const customers = await db.select().from(contacts);
+  const customers = await db.select().from(contacts).where(eq(contacts.orgId, o.id));
 
   async function createDeal(formData: FormData) {
     "use server";

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { db, org, accounts, bankAccounts } from "@/db";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { SEED_ACCOUNTS } from "@/lib/coa";
 
 export async function GET(request: Request) {
@@ -29,23 +29,26 @@ export async function GET(request: Request) {
 
       if (!existing) {
         // --- Auto-provision: create org + seed Kenyan COA ---
-        await db.insert(org).values({
+        const [newOrg] = await db.insert(org).values({
           userId,
           name: "", // will be set on /onboarding
           vatRegistered: true,
           invoicePrefix: "INV-",
           cuSerial: "SIMCU0000000001",
-        });
+        }).returning();
+
+        const orgId = newOrg.id;
 
         // Seed chart of accounts (idempotent check by code)
         for (const a of SEED_ACCOUNTS) {
           const [existingAcc] = await db
             .select()
             .from(accounts)
-            .where(eq(accounts.code, a.code))
+            .where(and(eq(accounts.code, a.code), eq(accounts.orgId, orgId)))
             .limit(1);
           if (!existingAcc) {
             await db.insert(accounts).values({
+              orgId,
               code: a.code,
               name: a.name,
               type: a.type,
@@ -56,28 +59,28 @@ export async function GET(request: Request) {
         }
 
         // Seed default money accounts
-        const existingBanks = await db.select().from(bankAccounts);
+        const existingBanks = await db.select().from(bankAccounts).where(eq(bankAccounts.orgId, orgId));
         if (existingBanks.length === 0) {
           const [bankCoa] = await db
             .select()
             .from(accounts)
-            .where(eq(accounts.code, "1000"))
+            .where(and(eq(accounts.code, "1000"), eq(accounts.orgId, orgId)))
             .limit(1);
           const [mpesaCoa] = await db
             .select()
             .from(accounts)
-            .where(eq(accounts.code, "1010"))
+            .where(and(eq(accounts.code, "1010"), eq(accounts.orgId, orgId)))
             .limit(1);
           const [cashCoa] = await db
             .select()
             .from(accounts)
-            .where(eq(accounts.code, "1020"))
+            .where(and(eq(accounts.code, "1020"), eq(accounts.orgId, orgId)))
             .limit(1);
           if (bankCoa && mpesaCoa && cashCoa) {
             await db.insert(bankAccounts).values([
-              { name: "Main Bank Account", kind: "bank", accountId: bankCoa.id },
-              { name: "M-Pesa Till", kind: "mpesa", accountId: mpesaCoa.id },
-              { name: "Petty Cash", kind: "cash", accountId: cashCoa.id },
+              { orgId, name: "Main Bank Account", kind: "bank", accountId: bankCoa.id },
+              { orgId, name: "M-Pesa Till", kind: "mpesa", accountId: mpesaCoa.id },
+              { orgId, name: "Petty Cash", kind: "cash", accountId: cashCoa.id },
             ]);
           }
         }

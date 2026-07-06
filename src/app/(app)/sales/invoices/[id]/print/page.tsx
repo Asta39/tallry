@@ -1,5 +1,6 @@
+import { getOrg } from "@/lib/org";
 import { db, documents, documentLines, contacts, org } from "@/db";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import QRCode from "qrcode";
 import { fmtKES } from "@/lib/money";
@@ -8,14 +9,15 @@ import { TAX_CLASSES, type TaxClass } from "@/lib/tax";
 export const dynamic = "force-dynamic";
 
 export default async function PrintInvoice({ params }: { params: Promise<{ id: string }> }) {
+  const o = await getOrg();
   const { id } = await params;
-  const [doc] = await db.select().from(documents).where(eq(documents.id, Number(id))).limit(1);
+  const [doc] = await db.select().from(documents).where(and(eq(documents.orgId, o.id), eq(documents.id, Number(id)))).limit(1);
   if (!doc || doc.type !== "invoice") notFound();
   const lines = await db.select().from(documentLines).where(eq(documentLines.documentId, doc.id));
   const customer = doc.contactId
-    ? (await db.select().from(contacts).where(eq(contacts.id, doc.contactId)).limit(1))[0]
+    ? (await db.select().from(contacts).where(and(eq(contacts.orgId, o.id), eq(contacts.id, doc.contactId))).limit(1))[0]
     : null;
-  const [o] = await db.select().from(org).where(eq(org.id, 1)).limit(1);
+
   const qrDataUrl = doc.qrUrl ? await QRCode.toDataURL(doc.qrUrl, { margin: 1, width: 120 }) : null;
 
   // VAT summary per class (eTIMS-style)

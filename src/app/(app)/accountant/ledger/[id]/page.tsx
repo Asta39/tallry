@@ -1,6 +1,7 @@
+import { getOrg } from "@/lib/org";
 import { notFound } from "next/navigation";
 import { db, accounts } from "@/db";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { generalLedger } from "@/lib/reports";
 import { fmtKES } from "@/lib/money";
 import { PageHeader, TableCard, Th, Td } from "@/components/ui";
@@ -8,8 +9,9 @@ import { PageHeader, TableCard, Th, Td } from "@/components/ui";
 export const dynamic = "force-dynamic";
 
 export default async function LedgerPage({ params }: { params: Promise<{ id: string }> }) {
+  const o = await getOrg();
   const { id } = await params;
-  const [account] = await db.select().from(accounts).where(eq(accounts.id, Number(id))).limit(1);
+  const [account] = await db.select().from(accounts).where(and(eq(accounts.orgId, o.id), eq(accounts.id, Number(id)))).limit(1);
   if (!account) notFound();
   const rows = await generalLedger(account.id);
 

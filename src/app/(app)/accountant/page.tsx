@@ -1,3 +1,5 @@
+import { eq, and } from "drizzle-orm";
+import { getOrg } from "@/lib/org";
 import Link from "next/link";
 import { db, accounts } from "@/db";
 import { fmtKES } from "@/lib/money";
@@ -15,7 +17,8 @@ const typeLabels: Record<string, string> = {
 };
 
 export default async function AccountantPage() {
-  const all = await db.select().from(accounts);
+  const o = await getOrg();
+  const all = await db.select().from(accounts).where(eq(accounts.orgId, o.id));
   const balances = await accountBalances({});
   const balMap = new Map(balances.map((b) => [b.accountId, b.balanceCents]));
 

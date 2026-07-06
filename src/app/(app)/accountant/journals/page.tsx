@@ -1,3 +1,5 @@
+import { eq, and } from "drizzle-orm";
+import { getOrg } from "@/lib/org";
 import { db, journalEntries, journalLines, accounts } from "@/db";
 import { desc } from "drizzle-orm";
 import { fmtKES } from "@/lib/money";
@@ -6,9 +8,10 @@ import { PageHeader, PrimaryLink, Th, Td } from "@/components/ui";
 export const dynamic = "force-dynamic";
 
 export default async function JournalsPage() {
-  const entries = await db.select().from(journalEntries).orderBy(desc(journalEntries.id)).limit(60);
-  const lines = await db.select().from(journalLines);
-  const accts = await db.select().from(accounts);
+  const o = await getOrg();
+  const entries = await db.select().from(journalEntries).where(eq(journalEntries.orgId, o.id)).orderBy(desc(journalEntries.id)).limit(60);
+  const lines = await db.select().from(journalLines).where(eq(journalLines.orgId, o.id));
+  const accts = await db.select().from(accounts).where(eq(accounts.orgId, o.id));
   const acctName = (id: number) => accts.find((a) => a.id === id)?.name ?? `#${id}`;
 
   return (

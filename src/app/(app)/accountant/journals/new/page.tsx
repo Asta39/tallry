@@ -1,3 +1,5 @@
+import { eq, and } from "drizzle-orm";
+import { getOrg } from "@/lib/org";
 import { redirect } from "next/navigation";
 import { db, accounts } from "@/db";
 import { createManualJournal } from "@/lib/actions";
@@ -9,7 +11,8 @@ export const dynamic = "force-dynamic";
 const ROWS = 6;
 
 export default async function NewJournalPage() {
-  const accts = await db.select().from(accounts);
+  const o = await getOrg();
+  const accts = await db.select().from(accounts).where(eq(accounts.orgId, o.id));
 
   async function create(formData: FormData) {
     "use server";

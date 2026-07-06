@@ -1,6 +1,7 @@
+import { getOrg } from "@/lib/org";
 import { redirect } from "next/navigation";
 import { db, items } from "@/db";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { fmtKES, parseKES } from "@/lib/money";
 import { stockOnHand, stockValueCents } from "@/lib/inventory";
 import { adjustStock } from "@/lib/actions";
@@ -10,7 +11,8 @@ import { PageHeader, PrimaryLink, TableCard, Th, Td, EmptyState } from "@/compon
 export const dynamic = "force-dynamic";
 
 export default async function ItemsPage() {
-  const rows = await db.select().from(items).where(eq(items.archived, false));
+  const o = await getOrg();
+  const rows = await db.select().from(items).where(and(eq(items.orgId, o.id), eq(items.archived, false)));
   const stock = new Map<number, { qty: number; value: number }>();
   await Promise.all(
     rows

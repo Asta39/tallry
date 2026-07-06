@@ -1,4 +1,5 @@
 import { db, accounts, journalEntries, journalLines, documents } from "@/db";
+import { currentOrgId } from "@/lib/org";
 import { and, eq, gte, lte, inArray, sql, ne } from "drizzle-orm";
 
 /**
@@ -19,7 +20,7 @@ export interface AccountBalance {
 }
 
 export async function accountBalances(opts?: { from?: string; to?: string }): Promise<AccountBalance[]> {
-  const conds = [] as ReturnType<typeof eq>[];
+  const conds = [eq(journalLines.orgId, currentOrgId())] as ReturnType<typeof eq>[];
   if (opts?.from) conds.push(gte(journalEntries.date, opts.from));
   if (opts?.to) conds.push(lte(journalEntries.date, opts.to));
 
@@ -34,7 +35,7 @@ export async function accountBalances(opts?: { from?: string; to?: string }): Pr
     .where(conds.length ? and(...conds) : undefined)
     .groupBy(journalLines.accountId);
 
-  const allAccounts = await db.select().from(accounts);
+  const allAccounts = await db.select().from(accounts).where(eq(accounts.orgId, currentOrgId()));
   const byId = new Map(allAccounts.map((a) => [a.id, a]));
 
   return rows
@@ -115,6 +116,7 @@ export async function vatReturn(from: string, to: string) {
     .innerJoin(sql`document_lines dl`, sql`dl.document_id = ${documents.id}`)
     .where(
       and(
+        eq(documents.orgId, currentOrgId()),
         gte(documents.date, from),
         lte(documents.date, to),
         ne(documents.status, "draft"),
@@ -151,7 +153,7 @@ export async function aging(type: "invoice" | "bill", asOf: string) {
   const docs = await db
     .select()
     .from(documents)
-    .where(and(eq(documents.type, type), inArray(documents.status, ["open", "partial"])));
+    .where(and(eq(documents.orgId, currentOrgId()), eq(documents.type, type), inArray(documents.status, ["open", "partial"])));
   const buckets = { current: 0, d1_30: 0, d31_60: 0, d61_90: 0, d90plus: 0 };
   const rows = docs.map((d) => {
     const due = d.dueDate ?? d.date;
@@ -192,7 +194,7 @@ export async function dashboardStats(today: string) {
 }
 
 export async function generalLedger(accountId: number, from?: string, to?: string) {
-  const conds = [eq(journalLines.accountId, accountId)];
+  const conds = [eq(journalLines.orgId, currentOrgId()), eq(journalLines.accountId, accountId)];
   if (from) conds.push(gte(journalEntries.date, from));
   if (to) conds.push(lte(journalEntries.date, to));
   return db

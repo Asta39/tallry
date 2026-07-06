@@ -9,7 +9,8 @@ import {
   items,
   payments as paymentsTable,
 } from "@/db";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
+import { currentOrgId } from "@/lib/org";
 import { SYS } from "./coa";
 import { addLot, consumeFifo } from "./inventory";
 import { nowISO } from "./money";
@@ -31,7 +32,7 @@ const codeCache = new Map<string, number>();
 export async function acct(code: string): Promise<number> {
   const hit = codeCache.get(code);
   if (hit) return hit;
-  const [row] = await db.select().from(accounts).where(eq(accounts.code, code)).limit(1);
+  const [row] = await db.select().from(accounts).where(and(eq(accounts.orgId, currentOrgId()), eq(accounts.code, code))).limit(1);
   if (!row) throw new Error(`System account ${code} missing — run db:seed`);
   codeCache.set(code, row.id);
   return row.id;
@@ -58,6 +59,7 @@ export async function postEntry(params: {
   const [entry] = await db
     .insert(journalEntries)
     .values({
+      orgId: currentOrgId(),
       date: params.date,
       memo: params.memo,
       sourceType: params.sourceType,
@@ -69,6 +71,7 @@ export async function postEntry(params: {
 
   await db.insert(journalLines).values(
     lines.map((l) => ({
+      orgId: currentOrgId(),
       entryId: entry.id,
       accountId: l.accountId,
       debitCents: l.debitCents ?? 0,
@@ -82,8 +85,8 @@ export async function postEntry(params: {
 
 /** Post a reversal of an existing entry (used by void). */
 export async function reverseEntry(entryId: number, date: string, memo: string): Promise<number> {
-  const lines = await db.select().from(journalLines).where(eq(journalLines.entryId, entryId));
-  const [src] = await db.select().from(journalEntries).where(eq(journalEntries.id, entryId)).limit(1);
+  const lines = await db.select().from(journalLines).where(and(eq(journalLines.orgId, currentOrgId()), eq(journalLines.entryId, entryId)));
+  const [src] = await db.select().from(journalEntries).where(and(eq(journalEntries.orgId, currentOrgId()), eq(journalEntries.id, entryId))).limit(1);
   return postEntry({
     date,
     memo,
@@ -100,12 +103,12 @@ export async function reverseEntry(entryId: number, date: string, memo: string):
 }
 
 async function getDocWithLines(docId: number) {
-  const [doc] = await db.select().from(documents).where(eq(documents.id, docId)).limit(1);
+  const [doc] = await db.select().from(documents).where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, docId))).limit(1);
   if (!doc) throw new Error(`Document ${docId} not found`);
   const lines = await db
     .select()
     .from(documentLines)
-    .where(eq(documentLines.documentId, docId));
+    .where(and(eq(documentLines.orgId, currentOrgId()), eq(documentLines.documentId, docId)));
   return { doc, lines };
 }
 
@@ -131,13 +134,13 @@ export async function postInvoice(docId: number): Promise<number> {
     }
     // FIFO cost of goods for inventory-tracked items
     if (l.itemId) {
-      const [item] = await db.select().from(items).where(eq(items.id, l.itemId)).limit(1);
+      const [item] = await db.select().from(items).where(and(eq(items.orgId, currentOrgId()), eq(items.id, l.itemId))).limit(1);
       if (item?.trackInventory) {
         const cogs = await consumeFifo(l.itemId, l.qty);
         if (cogs > 0) {
           post.push({ accountId: await acct(SYS.COGS), debitCents: cogs, memo: l.description });
           post.push({ accountId: await acct(SYS.INVENTORY), creditCents: cogs });
-          await db.update(documentLines).set({ cogsCents: cogs }).where(eq(documentLines.id, l.id));
+          await db.update(documentLines).set({ cogsCents: cogs }).where(and(eq(documentLines.orgId, currentOrgId()), eq(documentLines.id, l.id)));
         }
       }
     }
@@ -152,7 +155,7 @@ export async function postInvoice(docId: number): Promise<number> {
   await db
     .update(documents)
     .set({ journalEntryId: entryId, status: "open" })
-    .where(eq(documents.id, doc.id));
+    .where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, doc.id)));
   return entryId;
 }
 
@@ -181,7 +184,7 @@ export async function postCreditNote(docId: number): Promise<number> {
   await db
     .update(documents)
     .set({ journalEntryId: entryId, status: "open" })
-    .where(eq(documents.id, doc.id));
+    .where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, doc.id)));
   return entryId;
 }
 
@@ -193,7 +196,7 @@ export async function postBill(docId: number): Promise<number> {
   for (const l of lines) {
     let debitAccount = l.accountId ?? (await acct("6900"));
     if (l.itemId) {
-      const [item] = await db.select().from(items).where(eq(items.id, l.itemId)).limit(1);
+      const [item] = await db.select().from(items).where(and(eq(items.orgId, currentOrgId()), eq(items.id, l.itemId))).limit(1);
       if (item?.trackInventory) {
         debitAccount = await acct(SYS.INVENTORY);
         await addLot({
@@ -226,7 +229,7 @@ export async function postBill(docId: number): Promise<number> {
   await db
     .update(documents)
     .set({ journalEntryId: entryId, status: "open" })
-    .where(eq(documents.id, doc.id));
+    .where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, doc.id)));
   return entryId;
 }
 
@@ -237,7 +240,7 @@ export async function postExpense(docId: number): Promise<number> {
   const [bank] = await db
     .select()
     .from(bankAccounts)
-    .where(eq(bankAccounts.id, doc.paidFromBankAccountId))
+    .where(and(eq(bankAccounts.orgId, currentOrgId()), eq(bankAccounts.id, Number(doc.paidFromBankAccountId))))
     .limit(1);
   if (!bank) throw new Error("Bank account not found");
 
@@ -274,10 +277,10 @@ export async function postExpense(docId: number): Promise<number> {
  * Updates the document's paid amount and status.
  */
 export async function postPayment(paymentId: number): Promise<number> {
-  const [p] = await db.select().from(paymentsTable).where(eq(paymentsTable.id, paymentId)).limit(1);
+  const [p] = await db.select().from(paymentsTable).where(and(eq(paymentsTable.orgId, currentOrgId()), eq(paymentsTable.id, paymentId))).limit(1);
   if (!p) throw new Error("Payment not found");
   const bank = p.bankAccountId
-    ? (await db.select().from(bankAccounts).where(eq(bankAccounts.id, p.bankAccountId)).limit(1))[0]
+    ? (await db.select().from(bankAccounts).where(and(eq(bankAccounts.orgId, currentOrgId()), eq(bankAccounts.id, p.bankAccountId))).limit(1))[0]
     : null;
   const bankCoaId = bank ? bank.accountId : await acct(SYS.UNDEPOSITED);
 
@@ -310,14 +313,14 @@ export async function postPayment(paymentId: number): Promise<number> {
     sourceId: p.id,
     lines,
   });
-  await db.update(paymentsTable).set({ journalEntryId: entryId }).where(eq(paymentsTable.id, p.id));
+  await db.update(paymentsTable).set({ journalEntryId: entryId }).where(and(eq(paymentsTable.orgId, currentOrgId()), eq(paymentsTable.id, p.id)));
 
   if (p.documentId) {
-    const [doc] = await db.select().from(documents).where(eq(documents.id, p.documentId)).limit(1);
+    const [doc] = await db.select().from(documents).where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, p.documentId))).limit(1);
     if (doc) {
       const paid = doc.paidCents + p.amountCents;
       const status = paid >= doc.totalCents ? "paid" : "partial";
-      await db.update(documents).set({ paidCents: paid, status }).where(eq(documents.id, doc.id));
+      await db.update(documents).set({ paidCents: paid, status }).where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, doc.id)));
     }
   }
   return entryId;
@@ -325,10 +328,10 @@ export async function postPayment(paymentId: number): Promise<number> {
 
 /** Void a posted document: post reversal, mark void. */
 export async function voidDocument(docId: number, date: string): Promise<void> {
-  const [doc] = await db.select().from(documents).where(eq(documents.id, docId)).limit(1);
+  const [doc] = await db.select().from(documents).where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, docId))).limit(1);
   if (!doc) throw new Error("Document not found");
   if (doc.journalEntryId) {
     await reverseEntry(doc.journalEntryId, date, `Void ${doc.number}`);
   }
-  await db.update(documents).set({ status: "void" }).where(eq(documents.id, docId));
+  await db.update(documents).set({ status: "void" }).where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, docId)));
 }
