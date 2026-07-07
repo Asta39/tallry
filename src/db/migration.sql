@@ -242,3 +242,25 @@ CREATE TABLE IF NOT EXISTS events (
   color TEXT NOT NULL DEFAULT '#0f766e',
   created_at TEXT NOT NULL
 );
+
+ALTER TABLE org ADD COLUMN IF NOT EXISTS custom_document_column_name TEXT;
+ALTER TABLE org ADD COLUMN IF NOT EXISTS document_footer_text TEXT;
+
+CREATE TABLE IF NOT EXISTS document_assignments (
+  id SERIAL PRIMARY KEY,
+  org_id INTEGER NOT NULL REFERENCES org(id),
+  doc_id INTEGER NOT NULL REFERENCES documents(id),
+  member_id INTEGER NOT NULL REFERENCES members(id),
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS notifications (
+  id SERIAL PRIMARY KEY,
+  org_id INTEGER NOT NULL REFERENCES org(id),
+  member_id INTEGER NOT NULL REFERENCES members(id),
+  title TEXT NOT NULL,
+  body TEXT NOT NULL,
+  link TEXT,
+  is_read BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TEXT NOT NULL
+);
