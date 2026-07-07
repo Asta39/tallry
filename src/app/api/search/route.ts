@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { db, contacts, documents } from "@/db";
-import { currentOrgId } from "@/lib/org";
 import { ilike, or, eq, and } from "drizzle-orm";
 import { getAccess } from "@/lib/access";
 
@@ -13,7 +12,7 @@ export async function GET(request: Request) {
     const access = await getAccess();
     if (!access) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     
-    const orgId = currentOrgId();
+    const orgId = access.orgId;
 
     const [matchedContacts, matchedDocs] = await Promise.all([
       db
