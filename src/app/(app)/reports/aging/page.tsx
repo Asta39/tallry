@@ -7,6 +7,7 @@ import { aging } from "@/lib/reports";
 import { db, contacts } from "@/db";
 import { fmtKES, todayISO } from "@/lib/money";
 import { PageHeader, TableCard, Th, Td } from "@/components/ui";
+import { PdfLinks } from "@/components/reportShared";
 
 export const dynamic = "force-dynamic";
 
@@ -69,7 +70,12 @@ export default async function AgingPage() {
 
   return (
     <>
-      <PageHeader title="Aging" subtitle="Chase the oldest first" />
+      <div className="flex items-start justify-between">
+        <PageHeader title="Aging" subtitle="Chase the oldest first" />
+        <div className="mt-2 flex gap-2">
+          <PdfLinks report="aging" asOf={today} />
+        </div>
+      </div>
       <Section title={`Money owed to you — ${fmtKES(ar.total)}`} data={ar} href={(id) => `/sales/invoices/${id}`} />
       <Section title={`Money you owe — ${fmtKES(ap.total)}`} data={ap} href={(id) => `/purchases/bills/${id}`} />
     </>

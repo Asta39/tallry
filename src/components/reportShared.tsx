@@ -33,3 +33,32 @@ export function CsvLink({ report, from, to }: { report: string; from: string; to
     </a>
   );
 }
+
+export function PdfLinks({ report, from, to, asOf, accountId }: { report: string; from?: string; to?: string; asOf?: string; accountId?: string }) {
+  const params = new URLSearchParams();
+  if (from) params.set("from", from);
+  if (to) params.set("to", to);
+  if (asOf) params.set("asOf", asOf);
+  if (accountId) params.set("accountId", accountId);
+
+  const qs = params.toString() ? `?${params.toString()}` : "";
+  const base = `/api/pdf/report/${report}${qs}`;
+
+  return (
+    <>
+      <a
+        href={base}
+        target="_blank"
+        className="rounded-md border border-[var(--color-ink-200)] bg-white px-3 py-1.5 text-[13px] font-medium hover:bg-[var(--color-ink-50)]"
+      >
+        View PDF
+      </a>
+      <a
+        href={`${base}${qs ? "&" : "?"}download=1`}
+        className="rounded-md border border-[var(--color-ink-200)] bg-white px-3 py-1.5 text-[13px] font-medium hover:bg-[var(--color-ink-50)]"
+      >
+        Download PDF
+      </a>
+    </>
+  );
+}

@@ -3,7 +3,7 @@ import { requirePerm } from "@/lib/guard";
 import { accountBalances } from "@/lib/reports";
 import { fmtKES } from "@/lib/money";
 import { PageHeader, TableCard, Th, Td } from "@/components/ui";
-import { PeriodPicker, periodFromSearch, CsvLink } from "@/components/reportShared";
+import { PeriodPicker, periodFromSearch, CsvLink, PdfLinks } from "@/components/reportShared";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +21,12 @@ export default async function TrialBalancePage({
   return (
     <>
       <PageHeader title="Trial Balance" subtitle={`All activity through ${to}`} />
-      <PeriodPicker from={from} to={to} extra={<CsvLink report="trial-balance" from={from} to={to} />} />
+      <PeriodPicker from={from} to={to} extra={
+        <div className="flex gap-2">
+          <CsvLink report="trial-balance" from={from} to={to} />
+          <PdfLinks report="trial-balance" from={from} to={to} />
+        </div>
+      } />
       <TableCard>
         <thead className="hairline-b">
           <tr><Th>Code</Th><Th>Account</Th><Th right>Debits</Th><Th right>Credits</Th></tr>

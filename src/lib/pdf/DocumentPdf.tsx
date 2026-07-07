@@ -303,7 +303,7 @@ export function DocumentPdf({
         </View>
 
         {/* Notes */}
-        {doc.notes ? (
+        {["invoice", "quote", "credit_note"].includes(doc.type) && doc.notes ? (
           <View style={{ marginTop: 20 }}>
             <Text style={s.sectionLabel}>Notes</Text>
             <Text style={s.muted}>{doc.notes}</Text>
@@ -311,7 +311,7 @@ export function DocumentPdf({
         ) : null}
 
         {/* Custom footer text */}
-        {org.documentFooterText ? (
+        {["invoice", "quote", "credit_note"].includes(doc.type) && org.documentFooterText ? (
           <View style={s.docFooterText}>
             <Text>{org.documentFooterText}</Text>
           </View>

@@ -49,6 +49,7 @@ export interface EditorInitialData {
   paidFrom: number | "";
   assignedMemberIds: number[];
   isTemplate?: boolean;
+  status?: string;
   lines: EditorLine[];
 }
 
@@ -167,7 +168,11 @@ export function DocumentEditor({
           saveAsTemplate,
           lines: parsedLines,
         });
-        if (issue) await issueDocument(id);
+        
+        const isAlreadyIssued = initialData?.id && initialData?.status && initialData.status !== "draft";
+        if (issue && !isAlreadyIssued) {
+          await issueDocument(id);
+        }
         router.push(detailHref ? `${detailHref}/${id}` : backHref);
         router.refresh();
       } catch (e) {
@@ -475,15 +480,17 @@ export function DocumentEditor({
           disabled={pending}
           className="rounded-lg bg-[var(--color-accent-500)] hover:bg-[var(--color-accent-600)] disabled:opacity-50 text-white text-[13px] font-medium px-5 py-2.5 transition-colors"
         >
-          {pending ? "Saving…" : issueLabel(type)}
+          {pending ? "Saving…" : (initialData?.status && initialData.status !== "draft" ? "Save changes" : issueLabel(type))}
         </button>
-        <button
-          onClick={() => submit(false)}
-          disabled={pending}
-          className="rounded-lg border border-[var(--color-ink-200)] bg-white hover:bg-[var(--color-ink-50)] text-[13px] font-medium px-5 py-2.5 transition-colors"
-        >
-          Save as draft
-        </button>
+        {(!initialData?.status || initialData.status === "draft") && (
+          <button
+            onClick={() => submit(false)}
+            disabled={pending}
+            className="rounded-lg border border-[var(--color-ink-200)] bg-white hover:bg-[var(--color-ink-50)] text-[13px] font-medium px-5 py-2.5 transition-colors"
+          >
+            Save as draft
+          </button>
+        )}
         <a href={backHref} className="text-[13px] text-[var(--color-ink-400)] hover:text-[var(--color-ink-600)] ml-1">
           Cancel
         </a>

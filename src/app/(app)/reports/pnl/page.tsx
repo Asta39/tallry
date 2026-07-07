@@ -3,7 +3,7 @@ import { requirePerm } from "@/lib/guard";
 import { profitAndLoss } from "@/lib/reports";
 import { fmtKES } from "@/lib/money";
 import { PageHeader, TableCard, Th, Td } from "@/components/ui";
-import { PeriodPicker, periodFromSearch, CsvLink } from "@/components/reportShared";
+import { PeriodPicker, periodFromSearch, CsvLink, PdfLinks } from "@/components/reportShared";
 
 export const dynamic = "force-dynamic";
 
@@ -38,7 +38,12 @@ export default async function PnlPage({
   return (
     <>
       <PageHeader title="Profit & Loss" subtitle={`${from} → ${to}`} />
-      <PeriodPicker from={from} to={to} extra={<CsvLink report="pnl" from={from} to={to} />} />
+      <PeriodPicker from={from} to={to} extra={
+        <div className="flex gap-2">
+          <CsvLink report="pnl" from={from} to={to} />
+          <PdfLinks report="pnl" from={from} to={to} />
+        </div>
+      } />
       <TableCard>
         <thead className="hairline-b">
           <tr><Th>Account</Th><Th right>Amount</Th></tr>

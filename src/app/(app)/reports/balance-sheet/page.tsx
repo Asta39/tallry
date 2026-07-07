@@ -3,6 +3,7 @@ import { requirePerm } from "@/lib/guard";
 import { balanceSheet } from "@/lib/reports";
 import { fmtKES, todayISO } from "@/lib/money";
 import { PageHeader, TableCard, Th, Td } from "@/components/ui";
+import { PdfLinks } from "@/components/reportShared";
 
 export const dynamic = "force-dynamic";
 
@@ -34,6 +35,7 @@ export default async function BalanceSheetPage({
         <label className="text-[var(--color-ink-600)]">As of</label>
         <input type="date" name="to" defaultValue={asOf} className="rounded-md border border-[var(--color-ink-200)] px-2 py-1.5 bg-white" />
         <button className="rounded-md bg-[var(--color-accent-500)] text-white font-medium px-3 py-1.5">Run</button>
+        <PdfLinks report="balance-sheet" asOf={asOf} />
       </form>
       <TableCard>
         <thead className="hairline-b"><tr><Th>Account</Th><Th right>Amount</Th></tr></thead>

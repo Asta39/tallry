@@ -3,7 +3,7 @@ import { requirePerm } from "@/lib/guard";
 import { vatReturn } from "@/lib/reports";
 import { fmtKES } from "@/lib/money";
 import { PageHeader, TableCard, Th, Td } from "@/components/ui";
-import { PeriodPicker, periodFromSearch, CsvLink } from "@/components/reportShared";
+import { PeriodPicker, periodFromSearch, CsvLink, PdfLinks } from "@/components/reportShared";
 
 export const dynamic = "force-dynamic";
 
@@ -46,7 +46,12 @@ export default async function VatPage({
         title="VAT Return prep (VAT 3)"
         subtitle="File by the 20th of the following month on iTax. Numbers must match your eTIMS transmissions."
       />
-      <PeriodPicker from={from} to={to} extra={<CsvLink report="vat" from={from} to={to} />} />
+      <PeriodPicker from={from} to={to} extra={
+        <div className="flex gap-2">
+          <CsvLink report="vat" from={from} to={to} />
+          <PdfLinks report="vat" from={from} to={to} />
+        </div>
+      } />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         <div>

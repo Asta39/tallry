@@ -39,6 +39,7 @@ export async function fetchInitialData(docId: number) {
 
   return {
     id: doc.id,
+    status: doc.status,
     contactId: doc.contactId ?? "",
     date: doc.date,
     dueDate: doc.dueDate ?? "",
