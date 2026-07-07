@@ -264,3 +264,7 @@ CREATE TABLE IF NOT EXISTS notifications (
   is_read BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TEXT NOT NULL
 );
+
+ALTER TABLE document_lines ADD COLUMN IF NOT EXISTS custom_column_value TEXT;
+ALTER TABLE document_assignments ADD COLUMN IF NOT EXISTS assigned_by_id INTEGER;
+
