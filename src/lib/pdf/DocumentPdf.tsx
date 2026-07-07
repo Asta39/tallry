@@ -61,6 +61,9 @@ const titles: Record<string, string> = {
   invoice: "TAX INVOICE",
   quote: "QUOTATION",
   credit_note: "CREDIT NOTE",
+  expense: "EXPENSE",
+  bill: "BILL",
+  purchase_order: "PURCHASE ORDER",
 };
 
 function makeStyles(brand: string) {
@@ -193,7 +196,9 @@ export function DocumentPdf({
 
         {/* Bill to */}
         <View style={s.billTo}>
-          <Text style={s.sectionLabel}>{doc.type === "quote" ? "Quote for" : "Bill to"}</Text>
+          <Text style={s.sectionLabel}>
+            {["quote", "purchase_order"].includes(doc.type) ? "Quote for" : doc.type === "expense" ? "Expense for" : "Bill to"}
+          </Text>
           <Text style={s.bold}>{contact?.displayName ?? "Walk-in customer"}</Text>
           {contact?.address ? <Text style={s.muted}>{contact.address}</Text> : null}
           {contact?.city ? <Text style={s.muted}>{contact.city}</Text> : null}

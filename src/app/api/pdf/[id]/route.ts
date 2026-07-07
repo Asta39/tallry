@@ -29,7 +29,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     .where(and(eq(documents.orgId, o.id), eq(documents.id, Number(id))))
     .limit(1);
   if (!doc) return new Response("Not found", { status: 404 });
-  if (!["invoice", "quote", "credit_note"].includes(doc.type)) {
+  if (!["invoice", "quote", "credit_note", "expense", "bill", "purchase_order"].includes(doc.type)) {
     return new Response("PDF not supported for this document type", { status: 400 });
   }
 

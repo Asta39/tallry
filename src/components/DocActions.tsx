@@ -136,7 +136,7 @@ export function DocActions({
             Convert to bill →
           </button>
         )}
-        {["invoice", "quote", "credit_note"].includes(doc.type) && doc.status !== "draft" && (
+        {["invoice", "quote", "credit_note", "expense", "bill", "purchase_order"].includes(doc.type) && doc.status !== "draft" && (
           <>
             <a href={`/api/pdf/${doc.id}`} target="_blank" className={secondary}>
               View PDF
