@@ -65,7 +65,7 @@ const titles: Record<string, string> = {
 
 function makeStyles(brand: string) {
   return StyleSheet.create({
-    page: { padding: 42, fontSize: 9.5, fontFamily: "Helvetica", color: "#1d1d1f" },
+    page: { paddingTop: 42, paddingLeft: 42, paddingRight: 42, paddingBottom: 140, fontSize: 9.5, fontFamily: "Helvetica", color: "#1d1d1f" },
     headerRow: { flexDirection: "row", justifyContent: "space-between" },
     logo: { maxWidth: 130, maxHeight: 56, objectFit: "contain", marginBottom: 8 },
     orgName: { fontSize: 15, fontFamily: "Helvetica-Bold" },
