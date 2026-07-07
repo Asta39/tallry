@@ -29,3 +29,34 @@ export async function editorOptions(side: "sale" | "purchase") {
     bankAccounts: bankRows.map((b) => ({ id: b.id, label: b.name })),
   };
 }
+
+export async function fetchInitialData(docId: number) {
+  const { documents, documentLines, documentAssignments } = await import("@/db");
+  const org = await getOrg();
+  const [doc] = await db.select().from(documents).where(and(eq(documents.orgId, org.id), eq(documents.id, docId))).limit(1);
+  if (!doc) throw new Error("Document not found");
+  const lines = await db.select().from(documentLines).where(eq(documentLines.documentId, docId)).orderBy(documentLines.position);
+  const assignments = await db.select().from(documentAssignments).where(eq(documentAssignments.documentId, docId));
+
+  return {
+    id: doc.id,
+    contactId: doc.contactId ?? "",
+    date: doc.date,
+    dueDate: doc.dueDate ?? "",
+    taxInclusive: doc.taxInclusive,
+    notes: doc.notes ?? "",
+    billNumber: ["bill", "expense"].includes(doc.type) ? doc.number : "",
+    paidFrom: doc.paidFromBankAccountId ?? "",
+    assignedMemberIds: assignments.map(a => a.memberId),
+    lines: lines.map(l => ({
+      itemId: l.itemId,
+      description: l.description,
+      qty: String(l.qty),
+      price: (l.unitPriceCents / 100).toFixed(2),
+      discountPct: String(l.discountPct),
+      taxClass: l.taxClass as import("@/lib/tax").TaxClass,
+      accountId: l.accountId,
+      customColumnValue: l.customColumnValue ?? "",
+    }))
+  };
+}

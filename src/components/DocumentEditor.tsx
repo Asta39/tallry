@@ -38,6 +38,19 @@ const emptyLine = (): EditorLine => ({
   customColumnValue: "",
 });
 
+export interface EditorInitialData {
+  id?: number;
+  contactId: number | "";
+  date: string;
+  dueDate: string;
+  taxInclusive: boolean;
+  notes: string;
+  billNumber: string;
+  paidFrom: number | "";
+  assignedMemberIds: number[];
+  lines: EditorLine[];
+}
+
 export function DocumentEditor({
   type,
   contacts,
@@ -62,8 +75,8 @@ export function DocumentEditor({
   defaultContactId?: number | null;
   /** Custom document column name, if any */
   customDocumentColumnName?: string | null;
-  /** Available staff members for assignment */
   members?: Option[];
+  initialData?: EditorInitialData;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -72,16 +85,16 @@ export function DocumentEditor({
   const isSale = type === "invoice" || type === "quote" || type === "credit_note";
   const isExpense = type === "expense";
   const [contactId, setContactId] = useState<number | "">(
-    defaultContactId && contacts.some((c) => c.id === defaultContactId) ? defaultContactId : ""
+    initialData?.contactId ?? (defaultContactId && contacts.some((c) => c.id === defaultContactId) ? defaultContactId : "")
   );
-  const [date, setDate] = useState(todayISO());
-  const [dueDate, setDueDate] = useState("");
-  const [taxInclusive, setTaxInclusive] = useState(false);
-  const [notes, setNotes] = useState("");
-  const [billNumber, setBillNumber] = useState("");
-  const [paidFrom, setPaidFrom] = useState<number | "">("");
-  const [assignedMemberIds, setAssignedMemberIds] = useState<number[]>([]);
-  const [lines, setLines] = useState<EditorLine[]>([emptyLine()]);
+  const [date, setDate] = useState(initialData?.date ?? todayISO());
+  const [dueDate, setDueDate] = useState(initialData?.dueDate ?? "");
+  const [taxInclusive, setTaxInclusive] = useState(initialData?.taxInclusive ?? false);
+  const [notes, setNotes] = useState(initialData?.notes ?? "");
+  const [billNumber, setBillNumber] = useState(initialData?.billNumber ?? "");
+  const [paidFrom, setPaidFrom] = useState<number | "">(initialData?.paidFrom ?? "");
+  const [assignedMemberIds, setAssignedMemberIds] = useState<number[]>(initialData?.assignedMemberIds ?? []);
+  const [lines, setLines] = useState<EditorLine[]>(initialData?.lines ?? [emptyLine()]);
 
   const parsedLines: DocLineInput[] = useMemo(
     () =>
@@ -137,8 +150,9 @@ export function DocumentEditor({
     startTransition(async () => {
       try {
         const id = await saveDocument({
+          id: initialData?.id,
           type,
-          contactId: contactId === "" ? null : contactId,
+          contactId: Number(contactId) || null,
           date,
           dueDate: dueDate || null,
           taxInclusive,

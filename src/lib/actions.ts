@@ -282,7 +282,11 @@ async function _saveDocument(data: {
   if (data.id) {
     const [existing] = await db.select().from(documents).where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, data.id))).limit(1);
     if (!existing) throw new Error("Document not found");
-    if (existing.status !== "draft") throw new Error("Only drafts can be edited");
+    if (existing.type === "quote") {
+      if (existing.status !== "draft" && existing.status !== "open") throw new Error("Only draft or open quotes can be edited");
+    } else {
+      if (existing.status !== "draft") throw new Error("Only drafts can be edited");
+    }
     await db
       .update(documents)
       .set({

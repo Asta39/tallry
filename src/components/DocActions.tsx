@@ -71,6 +71,11 @@ export function DocActions({
             {isQuote ? "Mark as sent" : "Issue"}
           </button>
         )}
+        {(doc.status === "draft" || (isQuote && doc.status === "open")) && (
+          <button className={secondary} disabled={pending} onClick={() => router.push(`/sales/${isQuote ? "quotes" : "invoices"}/${doc.id}/edit`)}>
+            Edit
+          </button>
+        )}
         {payable && (
           <button className={primary} disabled={pending} onClick={() => setShowPay((v) => !v)}>
             Record payment
