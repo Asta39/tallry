@@ -3,10 +3,11 @@ import { requirePerm } from "@/lib/guard";
 import { getOrg } from "@/lib/org";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { db, contacts, documents, activities, deals } from "@/db";
+import { db, contacts, documents, activities, deals, payments } from "@/db";
 import { fmtKES, todayISO } from "@/lib/money";
 import { addActivity } from "@/lib/actions";
 import { PageHeader, StatusPill, StatCard, TableCard, Th, Td, PrimaryLink } from "@/components/ui";
+import { StatementTab } from "@/components/StatementTab";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +24,7 @@ const TABS = [
   { key: "credit_notes", label: "Credit notes", icon: "⊟", docType: "credit_note", newHref: "/sales/credit-notes/new" },
   { key: "bills", label: "Bills", icon: "▧", docType: "bill", newHref: "/purchases/bills/new" },
   { key: "deals", label: "Deals", icon: "▤" },
+  { key: "statement", label: "Statement", icon: "📄" },
   { key: "notes", label: "Notes & activity", icon: "≡" },
 ] as const;
 
@@ -73,6 +75,7 @@ export default async function ContactDetail({
     .where(and(eq(activities.orgId, o.id), eq(activities.contactId, cid)))
     .orderBy(desc(activities.createdAt));
   const contactDeals = await db.select().from(deals).where(and(eq(deals.orgId, o.id), eq(deals.contactId, cid)));
+  const contactPayments = await db.select().from(payments).where(and(eq(payments.orgId, o.id), eq(payments.contactId, cid)));
 
   const owedToYou = allDocs
     .filter((d) => d.type === "invoice" && ["open", "partial"].includes(d.status))
@@ -233,6 +236,8 @@ export default async function ContactDetail({
               )}
             </>
           )}
+
+          {tab === "statement" && <StatementTab contact={c} docs={allDocs} pays={contactPayments} />}
 
           {tab === "notes" && (
             <>

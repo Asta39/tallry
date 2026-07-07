@@ -17,7 +17,8 @@ const typeLabels: Record<string, string> = {
 };
 
 export async function DocDetail({ id, printHref }: { id: number; printHref?: string }) {
-  const orgId = (await getOrg()).id;
+  const org = await getOrg();
+  const orgId = org.id;
   const [doc] = await db.select().from(documents).where(and(eq(documents.orgId, orgId), eq(documents.id, id))).limit(1);
   if (!doc) notFound();
   const lines = await db.select().from(documentLines).where(and(eq(documentLines.orgId, orgId), eq(documentLines.documentId, id)));
@@ -65,18 +66,54 @@ export async function DocDetail({ id, printHref }: { id: number; printHref?: str
             </tr>
           </thead>
           <tbody>
-            {lines.map((l) => (
-              <tr key={l.id} className="hairline-t">
-                <Td>{l.description}</Td>
-                <Td right>{l.qty}</Td>
-                <Td right>{fmtKES(l.unitPriceCents)}</Td>
-                <Td className="text-[var(--color-ink-400)]">
-                  {TAX_CLASSES[l.taxClass as TaxClass]?.label ?? l.taxClass}
-                </Td>
-                <Td right>{fmtKES(l.netCents)}</Td>
-                <Td right className="font-medium">{fmtKES(l.grossCents)}</Td>
-              </tr>
-            ))}
+            {(() => {
+              if (org.customDocumentColumnName) {
+                const grouped = new Map<string, typeof lines>();
+                for (const l of lines) {
+                  const cat = l.customColumnValue || "Uncategorized";
+                  if (!grouped.has(cat)) grouped.set(cat, []);
+                  grouped.get(cat)!.push(l);
+                }
+                const elements = [];
+                for (const [cat, catLines] of grouped.entries()) {
+                  elements.push(
+                    <tr key={`cat-${cat}`} className="hairline-t bg-[var(--color-ink-50)]">
+                      <td colSpan={6} className="px-4 py-2 text-[13px] font-semibold text-[var(--color-ink-900)]">
+                        {cat}
+                      </td>
+                    </tr>
+                  );
+                  for (const l of catLines) {
+                    elements.push(
+                      <tr key={l.id} className="hairline-t">
+                        <Td>{l.description}</Td>
+                        <Td right>{l.qty}</Td>
+                        <Td right>{fmtKES(l.unitPriceCents)}</Td>
+                        <Td className="text-[var(--color-ink-400)]">
+                          {TAX_CLASSES[l.taxClass as TaxClass]?.label ?? l.taxClass}
+                        </Td>
+                        <Td right>{fmtKES(l.netCents)}</Td>
+                        <Td right className="font-medium">{fmtKES(l.grossCents)}</Td>
+                      </tr>
+                    );
+                  }
+                }
+                return elements;
+              }
+
+              return lines.map((l) => (
+                <tr key={l.id} className="hairline-t">
+                  <Td>{l.description}</Td>
+                  <Td right>{l.qty}</Td>
+                  <Td right>{fmtKES(l.unitPriceCents)}</Td>
+                  <Td className="text-[var(--color-ink-400)]">
+                    {TAX_CLASSES[l.taxClass as TaxClass]?.label ?? l.taxClass}
+                  </Td>
+                  <Td right>{fmtKES(l.netCents)}</Td>
+                  <Td right className="font-medium">{fmtKES(l.grossCents)}</Td>
+                </tr>
+              ));
+            })()}
           </tbody>
         </table>
         <div className="hairline-t px-5 py-4 flex justify-end">

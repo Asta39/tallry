@@ -207,25 +207,56 @@ export function DocumentPdf({
         {/* Line items */}
         <View style={s.table}>
           <View style={s.thRow}>
-            <Text style={[s.th, org.customDocumentColumnName ? s.cDescShrunk : s.cDesc]}>Description</Text>
-            {org.customDocumentColumnName ? <Text style={[s.th, s.cCustom]}>{org.customDocumentColumnName}</Text> : null}
+            <Text style={[s.th, s.cDesc]}>Description</Text>
             <Text style={[s.th, s.cQty]}>Qty</Text>
             <Text style={[s.th, s.cPrice]}>Unit price</Text>
             <Text style={[s.th, s.cVat]}>VAT</Text>
             <Text style={[s.th, s.cAmount]}>Amount</Text>
           </View>
-          {lines.map((l, i) => (
-            <View style={s.tr} key={i} wrap={false}>
-              <Text style={org.customDocumentColumnName ? s.cDescShrunk : s.cDesc}>{l.description}</Text>
-              {org.customDocumentColumnName ? <Text style={s.cCustom}>{l.customColumnValue || "—"}</Text> : null}
-              <Text style={s.cQty}>{l.qty}</Text>
-              <Text style={s.cPrice}>{fmtKES(l.unitPriceCents)}</Text>
-              <Text style={s.cVat}>
-                {TAX_CLASSES[l.taxClass as TaxClass]?.etimsCode ?? ""} ({(l.taxRateBp / 100).toFixed(0)}%)
-              </Text>
-              <Text style={s.cAmount}>{fmtKES(l.grossCents)}</Text>
-            </View>
-          ))}
+          {(() => {
+            if (org.customDocumentColumnName) {
+              const grouped = new Map<string, typeof lines>();
+              for (const l of lines) {
+                const cat = l.customColumnValue || "Uncategorized";
+                if (!grouped.has(cat)) grouped.set(cat, []);
+                grouped.get(cat)!.push(l);
+              }
+              const elements = [];
+              for (const [cat, catLines] of grouped.entries()) {
+                elements.push(
+                  <View key={`cat-${cat}`} style={[s.tr, { backgroundColor: "#f5f5f7", borderBottom: "0.5px solid #d2d2d7" }]} wrap={false}>
+                    <Text style={{ width: "100%", fontSize: 9, fontWeight: "bold", paddingHorizontal: 6, paddingVertical: 4 }}>{cat}</Text>
+                  </View>
+                );
+                for (const l of catLines) {
+                  elements.push(
+                    <View style={s.tr} key={`line-${cat}-${l.description}-${l.qty}-${elements.length}`} wrap={false}>
+                      <Text style={s.cDesc}>{l.description}</Text>
+                      <Text style={s.cQty}>{l.qty}</Text>
+                      <Text style={s.cPrice}>{fmtKES(l.unitPriceCents)}</Text>
+                      <Text style={s.cVat}>
+                        {TAX_CLASSES[l.taxClass as TaxClass]?.etimsCode ?? ""} ({(l.taxRateBp / 100).toFixed(0)}%)
+                      </Text>
+                      <Text style={s.cAmount}>{fmtKES(l.grossCents)}</Text>
+                    </View>
+                  );
+                }
+              }
+              return elements;
+            }
+
+            return lines.map((l, i) => (
+              <View style={s.tr} key={i} wrap={false}>
+                <Text style={s.cDesc}>{l.description}</Text>
+                <Text style={s.cQty}>{l.qty}</Text>
+                <Text style={s.cPrice}>{fmtKES(l.unitPriceCents)}</Text>
+                <Text style={s.cVat}>
+                  {TAX_CLASSES[l.taxClass as TaxClass]?.etimsCode ?? ""} ({(l.taxRateBp / 100).toFixed(0)}%)
+                </Text>
+                <Text style={s.cAmount}>{fmtKES(l.grossCents)}</Text>
+              </View>
+            ));
+          })()}
         </View>
 
         {/* VAT summary + totals */}
