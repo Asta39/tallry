@@ -47,6 +47,8 @@ export function DocumentEditor({
   backHref,
   detailHref,
   defaultContactId,
+  customDocumentColumnName,
+  members,
 }: {
   type: "invoice" | "quote" | "credit_note" | "bill" | "expense" | "purchase_order";
   contacts: Option[];
