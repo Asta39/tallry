@@ -6,6 +6,7 @@ import {
   boolean,
   doublePrecision,
   serial,
+  index,
 } from "drizzle-orm/pg-core";
 
 /**
@@ -50,7 +51,9 @@ export const accounts = pgTable("accounts", {
   description: text("description"),
   isSystem: boolean("is_system").notNull().default(false),
   archived: boolean("archived").notNull().default(false),
-});
+}, (t) => ({
+  orgIdx: index("idx_accounts_org").on(t.orgId),
+}));
 
 export const contacts = pgTable("contacts", {
   id: serial("id").primaryKey(),
@@ -67,7 +70,9 @@ export const contacts = pgTable("contacts", {
   isWithholdingAgent: boolean("is_withholding_agent").notNull().default(false),
   archived: boolean("archived").notNull().default(false),
   createdAt: text("created_at").notNull(),
-});
+}, (t) => ({
+  orgKindIdx: index("idx_contacts_org").on(t.orgId, t.kind),
+}));
 
 export const activities = pgTable("activities", {
   id: serial("id").primaryKey(),
@@ -77,7 +82,9 @@ export const activities = pgTable("activities", {
   content: text("content").notNull(),
   date: text("date").notNull(),
   createdAt: text("created_at").notNull(),
-});
+}, (t) => ({
+  orgContactIdx: index("idx_activities_org").on(t.orgId, t.contactId),
+}));
 
 export const deals = pgTable("deals", {
   id: serial("id").primaryKey(),
@@ -110,7 +117,9 @@ export const items = pgTable("items", {
   trackInventory: boolean("track_inventory").notNull().default(false),
   reorderLevel: doublePrecision("reorder_level").notNull().default(0),
   archived: boolean("archived").notNull().default(false),
-});
+}, (t) => ({
+  orgIdx: index("idx_items_org").on(t.orgId),
+}));
 
 /** FIFO cost lots. Purchases append lots; sales consume remainingQty oldest-first. */
 export const stockLots = pgTable("stock_lots", {
@@ -123,7 +132,9 @@ export const stockLots = pgTable("stock_lots", {
   unitCostCents: money("unit_cost_cents").notNull(),
   sourceType: text("source_type").notNull(), // bill | opening | adjustment
   sourceId: integer("source_id"),
-});
+}, (t) => ({
+  orgItemIdx: index("idx_stock_lots_org").on(t.orgId, t.itemId),
+}));
 
 /**
  * Unified transactional documents.
@@ -155,7 +166,10 @@ export const documents = pgTable("documents", {
   // expense-specific: paid-from bank account
   paidFromBankAccountId: integer("paid_from_bank_account_id"),
   createdAt: text("created_at").notNull(),
-});
+}, (t) => ({
+  orgTypeStatusIdx: index("idx_documents_org").on(t.orgId, t.type, t.status),
+  contactIdx: index("idx_documents_contact").on(t.contactId),
+}));
 
 export const documentLines = pgTable("document_lines", {
   id: serial("id").primaryKey(),
@@ -175,7 +189,9 @@ export const documentLines = pgTable("document_lines", {
   cogsCents: money("cogs_cents").notNull().default(0), // FIFO cost consumed (audit)
   position: integer("position").notNull().default(0),
   customColumnValue: text("custom_column_value"),
-});
+}, (t) => ({
+  orgDocIdx: index("idx_document_lines_org").on(t.orgId, t.documentId),
+}));
 
 export const documentAssignments = pgTable("document_assignments", {
   id: serial("id").primaryKey(),
@@ -184,7 +200,9 @@ export const documentAssignments = pgTable("document_assignments", {
   memberId: integer("member_id").notNull(), // can't reference members easily if it's below, we'll just store integer
   assignedById: integer("assigned_by_id"),
   createdAt: text("created_at").notNull(),
-});
+}, (t) => ({
+  orgDocIdx: index("idx_document_assignments_org").on(t.orgId, t.documentId),
+}));
 
 export const payments = pgTable("payments", {
   id: serial("id").primaryKey(),
@@ -201,7 +219,9 @@ export const payments = pgTable("payments", {
   reference: text("reference"),
   journalEntryId: integer("journal_entry_id"),
   createdAt: text("created_at").notNull(),
-});
+}, (t) => ({
+  orgDocIdx: index("idx_payments_org").on(t.orgId, t.documentId),
+}));
 
 export const bankAccounts = pgTable("bank_accounts", {
   id: serial("id").primaryKey(),
@@ -210,7 +230,9 @@ export const bankAccounts = pgTable("bank_accounts", {
   kind: text("kind").notNull(), // bank | mpesa | cash | card
   accountId: integer("account_id").notNull(), // linked COA asset account
   archived: boolean("archived").notNull().default(false),
-});
+}, (t) => ({
+  orgIdx: index("idx_bank_accounts_org").on(t.orgId),
+}));
 
 export const bankTransactions = pgTable("bank_transactions", {
   id: serial("id").primaryKey(),
@@ -224,7 +246,9 @@ export const bankTransactions = pgTable("bank_transactions", {
   journalEntryId: integer("journal_entry_id"),
   externalRef: text("external_ref"), // e.g. M-Pesa receipt code — used to dedupe imports
   createdAt: text("created_at").notNull(),
-});
+}, (t) => ({
+  orgCategoryIdx: index("idx_bank_txns_org").on(t.orgId, t.categoryAccountId),
+}));
 
 /** Append-only ledger. Only src/lib/posting.ts writes here. */
 export const journalEntries = pgTable("journal_entries", {
@@ -236,7 +260,9 @@ export const journalEntries = pgTable("journal_entries", {
   sourceId: integer("source_id"),
   reversalOfId: integer("reversal_of_id"),
   createdAt: text("created_at").notNull(),
-});
+}, (t) => ({
+  orgIdx: index("idx_journal_entries_org").on(t.orgId),
+}));
 
 export const journalLines = pgTable("journal_lines", {
   id: serial("id").primaryKey(),
@@ -247,7 +273,9 @@ export const journalLines = pgTable("journal_lines", {
   creditCents: money("credit_cents").notNull().default(0),
   contactId: integer("contact_id"),
   memo: text("memo"),
-});
+}, (t) => ({
+  orgEntryAccountIdx: index("idx_journal_lines_org").on(t.orgId, t.entryId, t.accountId),
+}));
 
 /* ---------------- Team, permissions, dashboard ---------------- */
 
@@ -262,7 +290,9 @@ export const members = pgTable("members", {
   role: text("role").notNull().default("staff"),
   active: boolean("active").notNull().default(true),
   createdAt: text("created_at").notNull(),
-});
+}, (t) => ({
+  orgIdx: index("idx_members_org").on(t.orgId),
+}));
 
 /** Per-role module visibility, editable by admin. Missing row = role default. */
 export const rolePermissions = pgTable("role_permissions", {

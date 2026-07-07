@@ -4,14 +4,16 @@ import { requirePerm } from "@/lib/guard";
 
 export const dynamic = "force-dynamic";
 
-export default async function InvoicesPage() {
+export default async function InvoicesPage({ searchParams }: { searchParams: Promise<{ [key: string]: string | string[] | undefined }> }) {
   await requirePerm("invoices");
+  const sp = await searchParams;
   return (
     <>
     <div className="mb-4 flex justify-end"><CsvImporter entity="invoices" label="Bulk import invoices" /></div>
     <DocList
       type="invoice"
       title="Invoices"
+      searchParams={sp}
       basePath="/sales/invoices"
       newLabel="+ New invoice"
       emptyTitle="No invoices yet"

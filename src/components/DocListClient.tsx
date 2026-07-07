@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useEffect, useTransition } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { fmtKES, todayISO } from "@/lib/money";
 import { StatusPill, TableCard, Th, Td } from "@/components/ui";
 
@@ -13,61 +14,57 @@ interface Row {
 export function DocListClient({
   type,
   rows,
+  stats,
+  totalCount,
   basePath,
   isTemplate,
+  currentPage,
 }: {
   type: string;
   rows: Row[];
+  stats: { draft: number; pending: number; partial: number; overdue: number; paid: number };
+  totalCount: number;
   basePath: string;
   isTemplate?: boolean;
+  currentPage: number;
 }) {
   const today = todayISO();
-  const [q, setQ] = useState("");
-  const [status, setStatus] = useState("all");
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const [isPending, startTransition] = useTransition();
 
-  const filtered = useMemo(() => {
-    return rows.filter((r) => {
-      // Search
-      const searchMatch =
-        !q ||
-        r.doc.number.toLowerCase().includes(q.toLowerCase()) ||
-        (r.contactName || "").toLowerCase().includes(q.toLowerCase());
+  const [q, setQ] = useState(searchParams.get("q") || "");
+  const status = searchParams.get("status") || "all";
 
-      // Status
-      const isOverdue = r.doc.status === "open" && r.doc.dueDate && r.doc.dueDate < today;
-      let statusMatch = true;
-      if (status !== "all") {
-        if (status === "overdue") statusMatch = isOverdue;
-        else statusMatch = r.doc.status === status;
+  // Debounced search
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      const currentQ = searchParams.get("q") || "";
+      if (q !== currentQ) {
+        updateUrl(q, status, 1);
       }
+    }, 300);
+    return () => clearTimeout(handler);
+  }, [q, status, searchParams]);
 
-      return searchMatch && statusMatch;
+  function updateUrl(newQ: string, newStatus: string, newPage: number) {
+    const params = new URLSearchParams(searchParams.toString());
+    if (newQ) params.set("q", newQ);
+    else params.delete("q");
+    
+    if (newStatus && newStatus !== "all") params.set("status", newStatus);
+    else params.delete("status");
+
+    if (newPage > 1) params.set("page", newPage.toString());
+    else params.delete("page");
+
+    startTransition(() => {
+      router.push(`${pathname}?${params.toString()}`);
     });
-  }, [rows, q, status, today]);
+  }
 
-  // Compute stats from ALL rows
-  const stats = useMemo(() => {
-    let draft = 0,
-      pending = 0,
-      partial = 0,
-      overdue = 0,
-      paid = 0;
-    for (const { doc } of rows) {
-      const isOverdue = doc.status === "open" && doc.dueDate && doc.dueDate < today;
-      const amt = doc.totalCents;
-      if (doc.status === "draft") draft += amt;
-      else if (doc.status === "open") {
-        pending += amt;
-        if (isOverdue) overdue += amt;
-      } else if (doc.status === "partial") {
-        partial += amt;
-        if (isOverdue) overdue += amt;
-      } else if (doc.status === "paid") {
-        paid += amt;
-      }
-    }
-    return { draft, pending, partial, overdue, paid };
-  }, [rows, today]);
+  const hasNextPage = currentPage * 50 < totalCount;
 
   return (
     <div className="space-y-6 mt-6">
@@ -82,7 +79,7 @@ export function DocListClient({
         ].map((s) => (
           <div
             key={s.key}
-            onClick={() => setStatus(status === s.key ? "all" : s.key)}
+            onClick={() => updateUrl(q, status === s.key ? "all" : s.key, 1)}
             className={`card p-3 sm:p-4 cursor-pointer hover:shadow-md transition-shadow min-w-0 ${
               status === s.key ? "ring-2 ring-[var(--color-accent-500)]" : ""
             }`}
@@ -108,7 +105,7 @@ export function DocListClient({
         />
         <select
           value={status}
-          onChange={(e) => setStatus(e.target.value)}
+          onChange={(e) => updateUrl(q, e.target.value, 1)}
           className="rounded-md border border-[var(--color-ink-200)] px-3 py-1.5 text-sm outline-none focus:border-[var(--color-accent-500)] focus:ring-1 focus:ring-[var(--color-accent-500)]"
         >
           <option value="all">All statuses</option>
@@ -118,10 +115,11 @@ export function DocListClient({
           <option value="overdue">Overdue</option>
           <option value="paid">Paid</option>
         </select>
+        {isPending && <span className="text-sm text-[var(--color-ink-400)]">Loading...</span>}
       </div>
 
       {/* Table */}
-      {filtered.length === 0 ? (
+      {rows.length === 0 ? (
         <div className="py-12 text-center text-[var(--color-ink-400)] text-sm border rounded-lg bg-white border-dashed">
           No documents found matching your filters.
         </div>
@@ -137,8 +135,8 @@ export function DocListClient({
               <Th right>Balance</Th>
             </tr>
           </thead>
-          <tbody>
-            {filtered.map(({ doc: d, contactName }) => (
+          <tbody className={isPending ? "opacity-50 transition-opacity" : ""}>
+            {rows.map(({ doc: d, contactName }) => (
               <tr key={d.id} className="hairline-t hover:bg-[var(--color-ink-50)]/60">
                 <Td className="text-[var(--color-ink-400)]">{d.date}</Td>
                 <Td>
@@ -161,6 +159,31 @@ export function DocListClient({
             ))}
           </tbody>
         </TableCard>
+      )}
+
+      {/* Pagination */}
+      {totalCount > 50 && (
+        <div className="flex justify-between items-center text-sm text-[var(--color-ink-500)]">
+          <div>
+            Showing {(currentPage - 1) * 50 + 1} to {Math.min(currentPage * 50, totalCount)} of {totalCount}
+          </div>
+          <div className="flex gap-2">
+            <button
+              disabled={currentPage <= 1 || isPending}
+              onClick={() => updateUrl(q, status, currentPage - 1)}
+              className="px-3 py-1.5 rounded border bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Previous
+            </button>
+            <button
+              disabled={!hasNextPage || isPending}
+              onClick={() => updateUrl(q, status, currentPage + 1)}
+              className="px-3 py-1.5 rounded border bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Next
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );

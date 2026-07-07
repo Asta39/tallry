@@ -285,3 +285,20 @@ CREATE TABLE IF NOT EXISTS categorization_rules (
 CREATE INDEX IF NOT EXISTS idx_catrules_org ON categorization_rules(org_id, direction);
 
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS is_template BOOLEAN NOT NULL DEFAULT false;
+
+-- PERFORMANCE INDEXES (ADDED FOR OPTIMIZATION)
+CREATE INDEX IF NOT EXISTS idx_accounts_org ON accounts(org_id);
+CREATE INDEX IF NOT EXISTS idx_contacts_org ON contacts(org_id, kind);
+CREATE INDEX IF NOT EXISTS idx_items_org ON items(org_id);
+CREATE INDEX IF NOT EXISTS idx_documents_org ON documents(org_id, type, status);
+CREATE INDEX IF NOT EXISTS idx_documents_contact ON documents(contact_id);
+CREATE INDEX IF NOT EXISTS idx_document_lines_org ON document_lines(org_id, document_id);
+CREATE INDEX IF NOT EXISTS idx_document_assignments_org ON document_assignments(org_id, doc_id);
+CREATE INDEX IF NOT EXISTS idx_bank_accounts_org ON bank_accounts(org_id);
+CREATE INDEX IF NOT EXISTS idx_bank_txns_org ON bank_transactions(org_id, category_account_id);
+CREATE INDEX IF NOT EXISTS idx_journal_entries_org ON journal_entries(org_id);
+CREATE INDEX IF NOT EXISTS idx_journal_lines_org ON journal_lines(org_id, entry_id, account_id);
+CREATE INDEX IF NOT EXISTS idx_payments_org ON payments(org_id, document_id);
+CREATE INDEX IF NOT EXISTS idx_activities_org ON activities(org_id, contact_id);
+CREATE INDEX IF NOT EXISTS idx_stock_lots_org ON stock_lots(org_id, item_id);
+CREATE INDEX IF NOT EXISTS idx_members_org ON members(org_id);

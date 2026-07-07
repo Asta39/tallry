@@ -3,13 +3,16 @@ import { requirePerm } from "@/lib/guard";
 
 export const dynamic = "force-dynamic";
 
-export default async function InvoiceTemplatesPage() {
+export default async function InvoiceTemplatesPage({ searchParams }: { searchParams: Promise<{ [key: string]: string | string[] | undefined }> }) {
+  const sp = await searchParams;
   await requirePerm("invoices");
   return (
     <>
       <DocList
         type="invoice"
         title="Invoice Templates"
+        searchParams={sp}
+        subtitle="Save frequently used invoices to quickly create new ones"
         basePath="/sales/invoices"
         newLabel="+ New template"
         newHref="/sales/invoices/new?saveAsTemplate=true"
