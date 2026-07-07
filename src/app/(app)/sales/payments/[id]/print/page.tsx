@@ -32,9 +32,18 @@ export default async function PrintPaymentReceipt({
   if (!row) notFound();
 
   return (
-    <div className="bg-white text-black min-h-screen font-sans p-10 max-w-3xl mx-auto print:p-0">
-      <div className="flex justify-between items-start mb-12">
-        <div>
+    <div className="fixed inset-0 bg-white overflow-auto z-50">
+      <div className="max-w-[720px] mx-auto px-10 py-10 text-[13px] text-black">
+        <div className="no-print mb-6 flex gap-3">
+          <a href="/sales/payments" className="text-[13px] underline">← Back to Payments</a>
+          <a href={`/api/payment-receipt/pdf/${row.payment.id}?download=1`} className="text-[13px] font-medium text-blue-600 hover:underline">
+            Download PDF
+          </a>
+          <span className="text-[13px] text-gray-500">Use your browser's Print (⌘P) to print</span>
+        </div>
+
+        <div className="flex justify-between items-start mb-12">
+          <div>
           {o.logoUrl && <img src={o.logoUrl} alt={o.name} className="h-12 mb-4 object-contain" />}
           <h2 className="text-xl font-bold">{o.name}</h2>
           <div className="text-[13px] text-gray-500 whitespace-pre-wrap mt-1">
@@ -87,6 +96,7 @@ export default async function PrintPaymentReceipt({
         <p>This is a payment receipt for Invoice #{row.doc.number}.</p>
         {o.documentFooterText && <p className="mt-4 whitespace-pre-wrap">{o.documentFooterText}</p>}
       </div>
+    </div>
     </div>
   );
 }
