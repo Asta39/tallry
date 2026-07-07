@@ -60,7 +60,7 @@ export default async function PrintPaymentReceipt({
           <div className="text-[11px] font-bold uppercase tracking-wider text-gray-400 mb-1">
             Received From
           </div>
-          <div className="font-semibold text-[14px]">{row.contact.name}</div>
+          <div className="font-semibold text-[14px]">{row.contact.displayName}</div>
         </div>
       </div>
 

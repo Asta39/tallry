@@ -16,7 +16,7 @@ export default async function PaymentsPage() {
     .select({
       payment: payments,
       docNumber: documents.number,
-      contactName: contacts.name,
+      contactName: contacts.displayName,
     })
     .from(payments)
     .where(eq(payments.orgId, o.id))
