@@ -48,6 +48,7 @@ export interface EditorInitialData {
   billNumber: string;
   paidFrom: number | "";
   assignedMemberIds: number[];
+  isTemplate?: boolean;
   lines: EditorLine[];
 }
 
@@ -95,6 +96,7 @@ export function DocumentEditor({
   const [billNumber, setBillNumber] = useState(initialData?.billNumber ?? "");
   const [paidFrom, setPaidFrom] = useState<number | "">(initialData?.paidFrom ?? "");
   const [assignedMemberIds, setAssignedMemberIds] = useState<number[]>(initialData?.assignedMemberIds ?? []);
+  const [saveAsTemplate, setSaveAsTemplate] = useState(false);
   const [lines, setLines] = useState<EditorLine[]>(initialData?.lines ?? [emptyLine()]);
 
   const parsedLines: DocLineInput[] = useMemo(
@@ -161,6 +163,8 @@ export function DocumentEditor({
           billNumber: billNumber || undefined,
           paidFromBankAccountId: paidFrom === "" ? null : paidFrom,
           assignedMemberIds: assignedMemberIds.length > 0 ? assignedMemberIds : undefined,
+          isTemplate: initialData?.isTemplate,
+          saveAsTemplate,
           lines: parsedLines,
         });
         if (issue) await issueDocument(id);
@@ -483,6 +487,17 @@ export function DocumentEditor({
         <a href={backHref} className="text-[13px] text-[var(--color-ink-400)] hover:text-[var(--color-ink-600)] ml-1">
           Cancel
         </a>
+        {!initialData?.isTemplate && (
+          <label className="flex items-center gap-2 ml-4 text-[13px] text-[var(--color-ink-500)] cursor-pointer">
+            <input
+              type="checkbox"
+              checked={saveAsTemplate}
+              onChange={(e) => setSaveAsTemplate(e.target.checked)}
+              className="rounded border-[var(--color-ink-200)] text-[var(--color-accent-500)] focus:ring-[var(--color-accent-500)]"
+            />
+            Save as Template
+          </label>
+        )}
       </div>
     </div>
   );

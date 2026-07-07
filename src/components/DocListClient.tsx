@@ -14,10 +14,12 @@ export function DocListClient({
   type,
   rows,
   basePath,
+  isTemplate,
 }: {
   type: string;
   rows: Row[];
   basePath: string;
+  isTemplate?: boolean;
 }) {
   const today = todayISO();
   const [q, setQ] = useState("");
@@ -140,7 +142,10 @@ export function DocListClient({
               <tr key={d.id} className="hairline-t hover:bg-[var(--color-ink-50)]/60">
                 <Td className="text-[var(--color-ink-400)]">{d.date}</Td>
                 <Td>
-                  <Link href={`${basePath}/${d.id}`} className="font-medium hover:text-[var(--color-accent-600)]">
+                  <Link
+                    href={isTemplate ? `${basePath}/new?templateId=${d.id}` : `${basePath}/${d.id}`}
+                    className="font-medium hover:text-[var(--color-accent-600)]"
+                  >
                     {d.number}
                   </Link>
                 </Td>

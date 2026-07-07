@@ -44,6 +44,7 @@ export async function fetchInitialData(docId: number) {
     date: doc.date,
     dueDate: doc.dueDate ?? "",
     taxInclusive: doc.taxInclusive,
+    isTemplate: doc.isTemplate,
     notes: doc.notes ?? "",
     billNumber: ["bill", "expense"].includes(doc.type) ? doc.number : "",
     paidFrom: doc.paidFromBankAccountId ?? "",

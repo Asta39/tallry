@@ -139,6 +139,7 @@ export const documents = pgTable("documents", {
   date: text("date").notNull(),
   dueDate: text("due_date"),
   status: text("status").notNull().default("draft"),
+  isTemplate: boolean("is_template").notNull().default(false),
   taxInclusive: boolean("tax_inclusive").notNull().default(false),
   notes: text("notes"),
   subtotalCents: money("subtotal_cents").notNull().default(0),

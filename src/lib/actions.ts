@@ -266,6 +266,8 @@ async function _saveDocument(data: {
   billNumber?: string; // vendor's own number for bills
   paidFromBankAccountId?: number | null;
   assignedMemberIds?: number[];
+  isTemplate?: boolean;
+  saveAsTemplate?: boolean;
   lines: DocLineInput[];
 }): Promise<number> {
   const totals = computeDocument(
@@ -298,6 +300,7 @@ async function _saveDocument(data: {
         subtotalCents: totals.subtotalCents,
         taxCents: totals.taxCents,
         totalCents: totals.totalCents,
+        isTemplate: data.isTemplate || false,
         paidFromBankAccountId: data.paidFromBankAccountId,
       })
       .where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, data.id)));
@@ -317,6 +320,7 @@ async function _saveDocument(data: {
         date: data.date,
         dueDate: data.dueDate,
         taxInclusive: data.taxInclusive,
+        isTemplate: data.isTemplate || false,
         notes: data.notes,
         subtotalCents: totals.subtotalCents,
         taxCents: totals.taxCents,
@@ -380,6 +384,16 @@ async function _saveDocument(data: {
 
   revalidatePath("/sales");
   revalidatePath("/purchases");
+
+  if (data.saveAsTemplate) {
+    await _saveDocument({
+      ...data,
+      id: undefined, // Create a new record
+      isTemplate: true,
+      saveAsTemplate: false, // Prevent infinite loop
+    });
+  }
+
   return docId;
 }
 

@@ -19,9 +19,11 @@ const groups: {
     items: [
       { href: "/contacts", label: "Customers & Vendors", icon: "◉", perm: "contacts" },
       { href: "/pipeline", label: "Deals", icon: "▤", perm: "pipeline" },
-      { href: "/sales/quotes", label: "Quotes", icon: "✎", perm: "quotes" },
+      { href: "/sales/quotes", label: "Quotes", icon: "▤", perm: "quotes" },
+      { href: "/sales/quote-templates", label: "Quote Templates", icon: "▤", perm: "quotes" },
       { href: "/sales/invoices", label: "Invoices", icon: "▦", perm: "invoices" },
-      { href: "/sales/payments", label: "Payments", icon: "▤", perm: "invoices" },
+      { href: "/sales/invoice-templates", label: "Invoice Templates", icon: "▦", perm: "invoices" },
+      { href: "/sales/payments", label: "Payments Received", icon: "▣", perm: "payments" },
       { href: "/sales/credit-notes", label: "Credit Notes", icon: "⊟", perm: "credit_notes" },
     ],
   },

@@ -12,16 +12,20 @@ export async function DocList({
   subtitle,
   basePath,
   newLabel,
+  newHref,
   emptyTitle,
   emptyBody,
+  isTemplate = false,
 }: {
   type: string;
   title: string;
   subtitle?: string;
   basePath: string;
   newLabel: string;
+  newHref?: string;
   emptyTitle: string;
   emptyBody: string;
+  isTemplate?: boolean;
 }) {
   const today = todayISO();
   const access = await getAccessCached();
@@ -40,6 +44,7 @@ export async function DocList({
       and(
         eq(documents.orgId, orgId),
         eq(documents.type, type),
+        eq(documents.isTemplate, isTemplate),
         viewAll
           ? undefined
           : exists(
@@ -70,16 +75,16 @@ export async function DocList({
       <PageHeader
         title={title}
         subtitle={subtitle ?? (outstanding > 0 ? `${fmtKES(outstanding)} outstanding` : undefined)}
-        action={<PrimaryLink href={`${basePath}/new`}>{newLabel}</PrimaryLink>}
+        action={<PrimaryLink href={newHref || `${basePath}/new`}>{newLabel}</PrimaryLink>}
       />
       {rows.length === 0 ? (
         <EmptyState
           title={emptyTitle}
           body={emptyBody}
-          action={<PrimaryLink href={`${basePath}/new`}>{newLabel}</PrimaryLink>}
+          action={<PrimaryLink href={newHref || `${basePath}/new`}>{newLabel}</PrimaryLink>}
         />
       ) : (
-        <DocListClient type={type} rows={serializedRows} basePath={basePath} />
+        <DocListClient type={type} rows={serializedRows} basePath={basePath} isTemplate={isTemplate} />
       )}
     </>
   );

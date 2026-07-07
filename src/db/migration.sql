@@ -99,6 +99,7 @@ CREATE TABLE IF NOT EXISTS documents (
   date TEXT NOT NULL,
   due_date TEXT,
   status TEXT NOT NULL DEFAULT 'draft',
+  is_template BOOLEAN NOT NULL DEFAULT FALSE,
   tax_inclusive BOOLEAN NOT NULL DEFAULT FALSE,
   notes TEXT,
   subtotal_cents BIGINT NOT NULL DEFAULT 0,
@@ -282,3 +283,5 @@ CREATE TABLE IF NOT EXISTS categorization_rules (
   created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_catrules_org ON categorization_rules(org_id, direction);
+
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS is_template BOOLEAN NOT NULL DEFAULT false;
