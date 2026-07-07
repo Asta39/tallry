@@ -1,3 +1,4 @@
 {
-  "name": "tallry"
+  "name": "tallry",
+  "regions": ["fra1"]
 }
