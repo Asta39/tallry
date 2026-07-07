@@ -127,3 +127,9 @@ export async function rolePermMap(orgId: number, role: Role): Promise<Record<str
  * share a single set of DB queries instead of each hitting the DB.
  */
 export const getAccessCached = cache(getAccess);
+
+export function canViewAllData(access: Access): boolean {
+  if (access.isOwner || access.role === "admin") return true;
+  if (!access.orgRow.dataSegregation) return true;
+  return false;
+}

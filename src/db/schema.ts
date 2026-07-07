@@ -36,6 +36,7 @@ export const org = pgTable("org", {
   cuSerial: text("cu_serial"), // eTIMS control unit serial (simulated in v1)
   customDocumentColumnName: text("custom_document_column_name"),
   documentFooterText: text("document_footer_text"),
+  dataSegregation: boolean("data_segregation").notNull().default(false),
 });
 
 export const accounts = pgTable("accounts", {

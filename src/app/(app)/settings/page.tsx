@@ -38,6 +38,7 @@ export default async function SettingsPage() {
           brandColor: o.brandColor,
           customDocumentColumnName: o.customDocumentColumnName,
           documentFooterText: o.documentFooterText,
+          dataSegregation: o.dataSegregation,
           userId: o.userId,
         }}
       />

@@ -83,11 +83,13 @@ export function StatCard({
   label,
   hint,
   cents,
+  emptyHint,
   tone = "neutral",
 }: {
   label: string;
   hint?: string;
-  cents: number;
+  cents?: number;
+  emptyHint?: string;
   tone?: "neutral" | "good" | "bad" | "warn";
 }) {
   const toneClass =
@@ -101,8 +103,16 @@ export function StatCard({
   return (
     <div className="card px-5 py-4">
       <div className="text-[12.5px] text-[var(--color-ink-600)]">{label}</div>
-      <div className={`money-lg mt-1 ${toneClass}`}>{fmtKES(cents)}</div>
-      {hint && <div className="text-[11.5px] text-[var(--color-ink-400)] mt-0.5">{hint}</div>}
+      {cents !== undefined ? (
+        <div className={`money-lg mt-1 ${toneClass}`}>{fmtKES(cents)}</div>
+      ) : (
+        <div className={`money-lg mt-1 text-[var(--color-ink-300)]`}>---</div>
+      )}
+      {(hint || emptyHint) && (
+        <div className="text-[11.5px] text-[var(--color-ink-400)] mt-0.5">
+          {cents === undefined && emptyHint ? emptyHint : hint}
+        </div>
+      )}
     </div>
   );
 }

@@ -18,6 +18,7 @@ interface OrgData {
   brandColor?: string | null;
   customDocumentColumnName?: string | null;
   documentFooterText?: string | null;
+  dataSegregation: boolean;
   userId?: string | null;
 }
 
@@ -37,6 +38,7 @@ export function OrgProfileForm({ initial }: { initial: OrgData }) {
   const [brandColor, setBrandColor] = useState(initial.brandColor || "#0f766e");
   const [customDocumentColumnName, setCustomDocumentColumnName] = useState(initial.customDocumentColumnName || "");
   const [documentFooterText, setDocumentFooterText] = useState(initial.documentFooterText || "");
+  const [dataSegregation, setDataSegregation] = useState(initial.dataSegregation);
 
   const fileRef = useRef<HTMLInputElement>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(initial.logoUrl || null);
@@ -101,6 +103,7 @@ export function OrgProfileForm({ initial }: { initial: OrgData }) {
           brandColor,
           customDocumentColumnName: customDocumentColumnName,
           documentFooterText: documentFooterText,
+          dataSegregation,
         });
         setSaved(true);
         router.refresh();
@@ -229,6 +232,28 @@ export function OrgProfileForm({ initial }: { initial: OrgData }) {
             />
           </label>
         </div>
+      </div>
+
+      {/* Security & Access */}
+      <div className="card p-6">
+        <div className="text-[11px] font-semibold uppercase tracking-wider text-[var(--color-ink-400)] mb-4">
+          Security & Access
+        </div>
+        <label className="flex items-start gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={dataSegregation}
+            onChange={(e) => setDataSegregation(e.target.checked)}
+            className="accent-[var(--color-accent-500)] mt-0.5"
+          />
+          <div>
+            <div className="text-[13px] font-medium text-[var(--color-ink-900)]">Enable Staff Data Segregation</div>
+            <div className="text-[12px] text-[var(--color-ink-400)] mt-0.5 max-w-lg">
+              When enabled, staff members can only view documents that they have created or have been assigned to. 
+              Admins will always be able to see all data.
+            </div>
+          </div>
+        </label>
       </div>
 
       {/* Tax & numbering */}

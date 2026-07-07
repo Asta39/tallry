@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { SignOutButton } from "./SignOutButton";
+import { CreateMenu } from "./CreateMenu";
 
 const groups: {
   label: string | null;
@@ -110,12 +111,7 @@ export function Sidebar({ orgName, orgEmail, logoUrl, perms, roleLabel }: Sideba
 
       {(!allowed || allowed.has("invoices")) && (
         <div className="px-3 pb-3">
-          <Link
-            href="/sales/invoices/new"
-            className="flex items-center justify-center gap-1.5 w-full rounded-lg bg-[var(--color-accent-500)] hover:bg-[var(--color-accent-600)] text-white text-[13px] font-medium py-2 transition-colors"
-          >
-            + New Invoice
-          </Link>
+          <CreateMenu />
         </div>
       )}
 

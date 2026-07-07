@@ -1,4 +1,5 @@
 "use server";
+import { getAccess } from "@/lib/access";
 
 import {
   db,
@@ -621,6 +622,7 @@ export async function saveOrgProfile(data: {
   brandColor?: string;
   customDocumentColumnName?: string;
   documentFooterText?: string;
+  dataSegregation?: boolean;
 }) {
   const user = await getUser();
   if (!user) throw new Error("Not authenticated");
@@ -639,6 +641,7 @@ export async function saveOrgProfile(data: {
       ...(data.brandColor !== undefined ? { brandColor: data.brandColor } : {}),
       ...(data.customDocumentColumnName !== undefined ? { customDocumentColumnName: data.customDocumentColumnName } : {}),
       ...(data.documentFooterText !== undefined ? { documentFooterText: data.documentFooterText } : {}),
+      ...(data.dataSegregation !== undefined ? { dataSegregation: data.dataSegregation } : {}),
     })
     .onConflictDoUpdate({
       target: org.userId,
@@ -654,6 +657,7 @@ export async function saveOrgProfile(data: {
         ...(data.brandColor !== undefined ? { brandColor: data.brandColor } : {}),
         ...(data.customDocumentColumnName !== undefined ? { customDocumentColumnName: data.customDocumentColumnName } : {}),
         ...(data.documentFooterText !== undefined ? { documentFooterText: data.documentFooterText } : {}),
+        ...(data.dataSegregation !== undefined ? { dataSegregation: data.dataSegregation } : {}),
       },
     })
     .returning();
@@ -687,6 +691,10 @@ export async function adjustStock(itemId: number, qtyDelta: number, unitCostCent
   return withOrg(() => _adjustStock(itemId, qtyDelta, unitCostCents, reason));
 }
 export async function saveDocument(data: Parameters<typeof _saveDocument>[0]) {
+  const access = await getAccess();
+  if (access && !access.isOwner && access.role !== "admin" && access.memberId) {
+    data.assignedMemberIds = Array.from(new Set([...(data.assignedMemberIds || []), access.memberId]));
+  }
   return withOrg(() => _saveDocument(data));
 }
 export async function issueDocument(docId: number) {

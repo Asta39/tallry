@@ -1,7 +1,8 @@
 import { withOrg, getOrg } from "@/lib/org";
 import Link from "next/link";
-import { db, documents, todos, events } from "@/db";
-import { desc, asc, inArray, and, eq } from "drizzle-orm";
+import { db, documents, todos, events, documentAssignments } from "@/db";
+import { desc, asc, inArray, and, eq, exists } from "drizzle-orm";
+import { getAccessCached, canViewAllData } from "@/lib/access";
 import { dashboardStats, monthlyIncomeExpense, docStatusOverview } from "@/lib/reports";
 import { fmtKES, todayISO } from "@/lib/money";
 import { PageHeader, StatCard, StatusPill, TableCard, Th, Td } from "@/components/ui";
@@ -21,16 +22,42 @@ export default async function Dashboard({
   const { year: yearParam } = await searchParams;
   const year = /^\d{4}$/.test(yearParam ?? "") ? yearParam! : thisYear;
 
+  const access = await getAccessCached();
+  const viewAll = access ? canViewAllData(access) : true;
+
   // All independent — fire in parallel
   const [stats, chartData, overview, recentDocs, todoRows, eventRows] =
     await Promise.all([
-      withOrg(() => dashboardStats(today)),
-      withOrg(() => monthlyIncomeExpense(6)),
-      withOrg(() => docStatusOverview(year)),
+      viewAll ? withOrg(() => dashboardStats(today)) : Promise.resolve({
+        cashCents: 0, receivablesCents: 0, overdueReceivablesCents: 0, payablesCents: 0,
+        incomeThisMonthCents: 0, expensesThisMonthCents: 0, netVatDueCents: 0
+      }),
+      viewAll ? withOrg(() => monthlyIncomeExpense(6)) : Promise.resolve([]),
+      viewAll ? withOrg(() => docStatusOverview(year)) : Promise.resolve({ 
+        inv: { draft: 0, open: 0, partial: 0, overdue: 0, paid: 0, void: 0 }, 
+        invTotal: 0, 
+        qt: { draft: 0, open: 0, accepted: 0, declined: 0 }, 
+        qtTotal: 0, 
+        outstandingCents: 0, 
+        pastDueCents: 0, 
+        paidCents: 0 
+      }),
       db
         .select()
         .from(documents)
-        .where(and(eq(documents.orgId, o.id), inArray(documents.type, ["invoice", "bill", "expense"])))
+        .where(
+          and(
+            eq(documents.orgId, o.id), 
+            inArray(documents.type, ["invoice", "bill", "expense"]),
+            viewAll ? undefined : exists(
+              db.select().from(documentAssignments)
+              .where(and(
+                eq(documentAssignments.documentId, documents.id),
+                eq(documentAssignments.memberId, access!.memberId!)
+              ))
+            )
+          )
+        )
         .orderBy(desc(documents.createdAt))
         .limit(8),
       db
@@ -52,23 +79,24 @@ export default async function Dashboard({
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="Cash & M-Pesa" hint="across all money accounts" cents={stats.cashCents} />
+        <StatCard label="Cash & M-Pesa" hint="across all money accounts" cents={viewAll ? stats.cashCents : undefined} emptyHint={!viewAll ? "Hidden (restricted)" : undefined} />
         <StatCard
           label="Money you're owed"
           hint={
+            !viewAll ? "Hidden (restricted)" :
             stats.overdueReceivablesCents > 0
               ? `${fmtKES(stats.overdueReceivablesCents)} overdue`
               : "accounts receivable"
           }
-          cents={stats.receivablesCents}
-          tone={stats.overdueReceivablesCents > 0 ? "warn" : "neutral"}
+          cents={viewAll ? stats.receivablesCents : undefined}
+          tone={viewAll && stats.overdueReceivablesCents > 0 ? "warn" : "neutral"}
         />
-        <StatCard label="Money you owe" hint="accounts payable" cents={stats.payablesCents} />
+        <StatCard label="Money you owe" hint={!viewAll ? "Hidden (restricted)" : "accounts payable"} cents={viewAll ? stats.payablesCents : undefined} />
         <StatCard
           label="VAT due to KRA"
-          hint="this month so far"
-          cents={stats.netVatDueCents}
-          tone={stats.netVatDueCents > 0 ? "warn" : "good"}
+          hint={!viewAll ? "Hidden (restricted)" : "this month so far"}
+          cents={viewAll ? stats.netVatDueCents : undefined}
+          tone={viewAll && stats.netVatDueCents > 0 ? "warn" : "good"}
         />
       </div>
 

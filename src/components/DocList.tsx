@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { db, documents, contacts } from "@/db";
-import { and, desc, eq } from "drizzle-orm";
-import { getOrg } from "@/lib/org";
+import { db, documents, contacts, documentAssignments } from "@/db";
+import { and, desc, eq, exists } from "drizzle-orm";
+import { getAccessCached, canViewAllData } from "@/lib/access";
 import { fmtKES, todayISO } from "@/lib/money";
 import { PageHeader, PrimaryLink, EmptyState } from "@/components/ui";
 import { DocListClient } from "./DocListClient";
@@ -24,7 +24,11 @@ export async function DocList({
   emptyBody: string;
 }) {
   const today = todayISO();
-  const orgId = (await getOrg()).id;
+  const access = await getAccessCached();
+  if (!access) return null;
+  const orgId = access.orgId;
+  const viewAll = canViewAllData(access);
+
   const rows = await db
     .select({
       doc: documents,
@@ -32,7 +36,25 @@ export async function DocList({
     })
     .from(documents)
     .leftJoin(contacts, eq(documents.contactId, contacts.id))
-    .where(and(eq(documents.orgId, orgId), eq(documents.type, type)))
+    .where(
+      and(
+        eq(documents.orgId, orgId),
+        eq(documents.type, type),
+        viewAll
+          ? undefined
+          : exists(
+              db
+                .select()
+                .from(documentAssignments)
+                .where(
+                  and(
+                    eq(documentAssignments.documentId, documents.id),
+                    eq(documentAssignments.memberId, access.memberId!)
+                  )
+                )
+            )
+      )
+    )
     .orderBy(desc(documents.date), desc(documents.id));
 
   const outstanding = rows
