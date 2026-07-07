@@ -455,6 +455,7 @@ async function _convertQuoteToInvoice(quoteId: number): Promise<number> {
       discountPct: l.discountPct,
       taxClass: l.taxClass as TaxClass,
       accountId: l.accountId,
+      customColumnValue: l.customColumnValue,
     })),
   });
   await db

@@ -98,7 +98,7 @@ export async function DocDetail({ id, printHref }: { id: number; printHref?: str
                     );
                   }
                 }
-                return elements;
+                return <>{elements}</>;
               }
 
               return lines.map((l) => (

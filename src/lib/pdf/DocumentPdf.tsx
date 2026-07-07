@@ -242,7 +242,7 @@ export function DocumentPdf({
                   );
                 }
               }
-              return elements;
+              return <>{elements}</>;
             }
 
             return lines.map((l, i) => (
