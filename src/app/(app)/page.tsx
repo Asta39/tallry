@@ -2,18 +2,28 @@ import { withOrg, getOrg } from "@/lib/org";
 import Link from "next/link";
 import { db, documents, todos, events } from "@/db";
 import { desc, asc, inArray, and, eq } from "drizzle-orm";
-import { dashboardStats, monthlyIncomeExpense } from "@/lib/reports";
+import { dashboardStats, monthlyIncomeExpense, docStatusOverview } from "@/lib/reports";
 import { fmtKES, todayISO } from "@/lib/money";
 import { PageHeader, StatCard, StatusPill, TableCard, Th, Td } from "@/components/ui";
 import { IncomeExpenseChart, TodoWidget, CalendarWidget } from "@/components/DashboardWidgets";
+import { DocOverview } from "@/components/DocOverview";
 
 export const dynamic = "force-dynamic";
 
-export default async function Dashboard() {
+export default async function Dashboard({
+  searchParams,
+}: {
+  searchParams: Promise<{ year?: string }>;
+}) {
   const o = await getOrg();
   const today = todayISO();
+  const thisYear = today.slice(0, 4);
+  const { year: yearParam } = await searchParams;
+  const year = /^\d{4}$/.test(yearParam ?? "") ? yearParam! : thisYear;
   const stats = await withOrg(() => dashboardStats(today));
   const chartData = await withOrg(() => monthlyIncomeExpense(6));
+  const overview = await withOrg(() => docStatusOverview(year));
+  const years = [thisYear, String(Number(thisYear) - 1), String(Number(thisYear) - 2)];
 
   const recentDocs = await db
     .select()
@@ -57,6 +67,11 @@ export default async function Dashboard() {
           cents={stats.netVatDueCents}
           tone={stats.netVatDueCents > 0 ? "warn" : "good"}
         />
+      </div>
+
+      {/* Invoice & quote overview */}
+      <div className="mt-4">
+        <DocOverview data={overview} year={year} years={years} />
       </div>
 
       {/* Chart + calendar */}

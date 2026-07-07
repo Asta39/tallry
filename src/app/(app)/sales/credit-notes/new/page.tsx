@@ -5,8 +5,14 @@ import { PageHeader } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
-export default async function NewCreditNotePage() {
+export default async function NewCreditNotePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ contact?: string }>;
+}) {
   await requirePerm("credit_notes");
+  const { contact } = await searchParams;
+  const defaultContactId = contact ? Number(contact) : null;
   const opts = await editorOptions("sale");
   return (
     <>
@@ -15,6 +21,7 @@ export default async function NewCreditNotePage() {
         type="credit_note"
         contacts={opts.contacts}
         items={opts.items}
+        defaultContactId={defaultContactId}
         backHref="/sales/credit-notes"
         detailHref="/sales/credit-notes"
       />

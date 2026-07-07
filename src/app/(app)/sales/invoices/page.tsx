@@ -1,4 +1,5 @@
 import { DocList } from "@/components/DocList";
+import { CsvImporter } from "@/components/CsvImporter";
 import { requirePerm } from "@/lib/guard";
 
 export const dynamic = "force-dynamic";
@@ -6,6 +7,8 @@ export const dynamic = "force-dynamic";
 export default async function InvoicesPage() {
   await requirePerm("invoices");
   return (
+    <>
+    <div className="mb-4 flex justify-end"><CsvImporter entity="invoices" label="Bulk import invoices" /></div>
     <DocList
       type="invoice"
       title="Invoices"
@@ -14,5 +17,6 @@ export default async function InvoicesPage() {
       emptyTitle="No invoices yet"
       emptyBody="Create an invoice and it will carry KRA eTIMS details automatically — VAT, CU number and a verification QR code."
     />
+    </>
   );
 }

@@ -44,6 +44,7 @@ export function DocumentEditor({
   bankAccounts,
   backHref,
   detailHref,
+  defaultContactId,
 }: {
   type: "invoice" | "quote" | "credit_note" | "bill" | "expense" | "purchase_order";
   contacts: Option[];
@@ -53,6 +54,8 @@ export function DocumentEditor({
   backHref: string;
   /** e.g. "/sales/invoices" — new doc id is appended */
   detailHref?: string;
+  /** preselect a customer/vendor (e.g. from the contact workspace) */
+  defaultContactId?: number | null;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -60,7 +63,9 @@ export function DocumentEditor({
 
   const isSale = type === "invoice" || type === "quote" || type === "credit_note";
   const isExpense = type === "expense";
-  const [contactId, setContactId] = useState<number | "">("");
+  const [contactId, setContactId] = useState<number | "">(
+    defaultContactId && contacts.some((c) => c.id === defaultContactId) ? defaultContactId : ""
+  );
   const [date, setDate] = useState(todayISO());
   const [dueDate, setDueDate] = useState("");
   const [taxInclusive, setTaxInclusive] = useState(false);

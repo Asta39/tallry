@@ -5,6 +5,7 @@ import { db, contacts, documents } from "@/db";
 import { eq, and, inArray } from "drizzle-orm";
 import { fmtKES } from "@/lib/money";
 import { PageHeader, PrimaryLink, TableCard, Th, Td, EmptyState } from "@/components/ui";
+import { CsvImporter } from "@/components/CsvImporter";
 
 export const dynamic = "force-dynamic";
 
@@ -32,13 +33,23 @@ export default async function ContactsPage() {
       <PageHeader
         title="Customers & Vendors"
         subtitle="Everyone you do business with, in one place"
-        action={<PrimaryLink href="/contacts/new">+ New contact</PrimaryLink>}
+        action={
+          <div className="flex gap-2">
+            <CsvImporter entity="contacts" label="Bulk import contacts" />
+            <PrimaryLink href="/contacts/new">+ New contact</PrimaryLink>
+          </div>
+        }
       />
       {rows.length === 0 ? (
         <EmptyState
           title="No contacts yet"
           body="Add your customers and suppliers. Capture their KRA PIN so your invoices support their input-VAT claims."
-          action={<PrimaryLink href="/contacts/new">+ New contact</PrimaryLink>}
+          action={
+          <div className="flex gap-2">
+            <CsvImporter entity="contacts" label="Bulk import contacts" />
+            <PrimaryLink href="/contacts/new">+ New contact</PrimaryLink>
+          </div>
+        }
         />
       ) : (
         <TableCard>

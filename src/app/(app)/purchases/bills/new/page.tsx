@@ -5,8 +5,14 @@ import { PageHeader } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
-export default async function NewBillPage() {
+export default async function NewBillPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ contact?: string }>;
+}) {
   await requirePerm("bills");
+  const { contact } = await searchParams;
+  const defaultContactId = contact ? Number(contact) : null;
   const opts = await editorOptions("purchase");
   return (
     <>
@@ -16,6 +22,7 @@ export default async function NewBillPage() {
         contacts={opts.contacts}
         items={opts.items}
         expenseAccounts={opts.expenseAccounts}
+        defaultContactId={defaultContactId}
         backHref="/purchases/bills"
         detailHref="/purchases/bills"
       />

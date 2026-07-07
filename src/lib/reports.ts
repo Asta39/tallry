@@ -244,3 +244,52 @@ export async function monthlyIncomeExpense(months = 6): Promise<
   }
   return out;
 }
+
+/** Invoice/quote status breakdown + money totals for a year (dashboard overview). */
+export async function docStatusOverview(year: string) {
+  const from = `${year}-01-01`;
+  const to = `${year}-12-31`;
+  const today = new Date().toISOString().slice(0, 10);
+  const docs = await db
+    .select({
+      type: documents.type,
+      status: documents.status,
+      dueDate: documents.dueDate,
+      totalCents: documents.totalCents,
+      paidCents: documents.paidCents,
+    })
+    .from(documents)
+    .where(
+      and(
+        eq(documents.orgId, currentOrgId()),
+        gte(documents.date, from),
+        lte(documents.date, to),
+        inArray(documents.type, ["invoice", "quote"])
+      )
+    );
+
+  const inv = { draft: 0, open: 0, partial: 0, overdue: 0, paid: 0, void: 0 };
+  const qt = { draft: 0, open: 0, accepted: 0, declined: 0 };
+  let outstandingCents = 0;
+  let pastDueCents = 0;
+  let paidCents = 0;
+
+  for (const d of docs) {
+    if (d.type === "invoice") {
+      const isOverdue = d.status === "open" && !!d.dueDate && d.dueDate < today;
+      if (isOverdue) inv.overdue++;
+      else if (d.status in inv) inv[d.status as keyof typeof inv]++;
+      if (["open", "partial"].includes(d.status)) {
+        const bal = d.totalCents - d.paidCents;
+        outstandingCents += bal;
+        if (d.dueDate && d.dueDate < today) pastDueCents += bal;
+      }
+      paidCents += d.paidCents;
+    } else {
+      if (d.status in qt) qt[d.status as keyof typeof qt]++;
+    }
+  }
+  const invTotal = Object.values(inv).reduce((a, b) => a + b, 0);
+  const qtTotal = Object.values(qt).reduce((a, b) => a + b, 0);
+  return { inv, invTotal, qt, qtTotal, outstandingCents, pastDueCents, paidCents };
+}

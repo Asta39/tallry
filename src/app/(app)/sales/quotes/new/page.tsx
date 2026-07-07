@@ -5,8 +5,14 @@ import { PageHeader } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
-export default async function NewQuotePage() {
+export default async function NewQuotePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ contact?: string }>;
+}) {
   await requirePerm("quotes");
+  const { contact } = await searchParams;
+  const defaultContactId = contact ? Number(contact) : null;
   const opts = await editorOptions("sale");
   return (
     <>
@@ -15,6 +21,7 @@ export default async function NewQuotePage() {
         type="quote"
         contacts={opts.contacts}
         items={opts.items}
+        defaultContactId={defaultContactId}
         backHref="/sales/quotes"
         detailHref="/sales/quotes"
       />
