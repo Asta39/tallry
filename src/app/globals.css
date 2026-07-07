@@ -12,13 +12,6 @@
   --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Inter,
     Roboto, "Helvetica Neue", Arial, sans-serif;
 
-  /* Accent: deep Kenya-forest teal-blue — calm, not corporate blue */
-  --color-accent-50: color-mix(in srgb, var(--color-brand, #0f766e) 10%, white);
-  --color-accent-100: color-mix(in srgb, var(--color-brand, #0f766e) 20%, white);
-  --color-accent-500: var(--color-brand, #0f766e);
-  --color-accent-600: color-mix(in srgb, var(--color-brand, #0f766e) 85%, black);
-  --color-accent-700: color-mix(in srgb, var(--color-brand, #0f766e) 70%, black);
-
   --color-ink-900: #1d1d1f;
   --color-ink-600: #515154;
   --color-ink-400: #86868b;
@@ -32,6 +25,17 @@
 
   --radius-card: 12px;
   --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 16px rgba(0, 0, 0, 0.04);
+}
+
+@layer base {
+  * {
+    /* Accent: deep Kenya-forest teal-blue — calm, not corporate blue */
+    --color-accent-50: color-mix(in srgb, var(--color-brand, #0f766e) 10%, white);
+    --color-accent-100: color-mix(in srgb, var(--color-brand, #0f766e) 20%, white);
+    --color-accent-500: var(--color-brand, #0f766e);
+    --color-accent-600: color-mix(in srgb, var(--color-brand, #0f766e) 85%, black);
+    --color-accent-700: color-mix(in srgb, var(--color-brand, #0f766e) 70%, black);
+  }
 }
 
 html {

@@ -58,6 +58,8 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
         email: o.email,
         logoUrl: o.logoUrl,
         brandColor: o.brandColor ?? "#0f766e",
+        documentFooterText: o.documentFooterText,
+        customDocumentColumnName: o.customDocumentColumnName,
       },
       doc: {
         type: doc.type,
@@ -83,6 +85,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
         netCents: l.netCents,
         taxCents: l.taxCents,
         grossCents: l.grossCents,
+        customColumnValue: l.customColumnValue,
       })),
       qrDataUrl,
     });
