@@ -67,7 +67,7 @@ function makeStyles(brand: string) {
   return StyleSheet.create({
     page: { paddingTop: 42, paddingLeft: 42, paddingRight: 42, paddingBottom: 140, fontSize: 9.5, fontFamily: "Helvetica", color: "#1d1d1f" },
     headerRow: { flexDirection: "row", justifyContent: "space-between" },
-    logo: { maxWidth: 220, maxHeight: 90, objectFit: "contain", marginBottom: 12 },
+    logo: { maxWidth: 220, maxHeight: 90, objectFit: "contain", objectPosition: "left", marginBottom: 12 },
     orgName: { fontSize: 15, fontFamily: "Helvetica-Bold" },
     muted: { color: "#6e6e73" },
     docTitle: { fontSize: 19, fontFamily: "Helvetica-Bold", color: brand, textAlign: "right" },

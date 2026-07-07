@@ -300,3 +300,18 @@ export const notifications = pgTable("notifications", {
   isRead: boolean("is_read").notNull().default(false),
   createdAt: text("created_at").notNull(),
 });
+
+/**
+ * Learned bank categorization rules: "descriptions containing <keyword> →
+ * book to <account>". Saved automatically when a user categorizes a
+ * transaction, then applied to future imports. Editable by the user.
+ */
+export const categorizationRules = pgTable("categorization_rules", {
+  id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
+  keyword: text("keyword").notNull(), // lowercase substring to match on description
+  direction: text("direction").notNull().default("out"), // in | out
+  categoryAccountId: integer("category_account_id").notNull(),
+  hits: integer("hits").notNull().default(1),
+  createdAt: text("created_at").notNull(),
+});

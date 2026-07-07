@@ -6,7 +6,7 @@ import { redirect } from "next/navigation";
 import { db, bankAccounts, bankTransactions, accounts } from "@/db";
 import { desc, inArray } from "drizzle-orm";
 import { fmtKES, parseKES, todayISO } from "@/lib/money";
-import { addBankTransaction, categorizeTransaction, bulkCategorizeTransactions } from "@/lib/actions";
+import { addBankTransaction, categorizeTransaction, bulkCategorizeTransactions, applyCategorizationRules, listCategorizationRules, deleteCategorizationRule } from "@/lib/actions";
 import { accountBalances } from "@/lib/reports";
 import { PageHeader, StatusPill, TableCard, Th, Td } from "@/components/ui";
 import { BankImport } from "@/components/BankImport";
@@ -29,6 +29,15 @@ export default async function BankingPage() {
     .select()
     .from(accounts)
     .where(and(eq(accounts.orgId, o.id), inArray(accounts.type, ["income", "expense"])));
+
+  // Learned-rule suggestions for the uncategorized rows
+  const uncategorized = txns.filter((t) => t.status === "uncategorized");
+  const suggestions = await withOrg(async () => {
+    const { suggestCategories } = await import("@/lib/categorization");
+    return suggestCategories(uncategorized);
+  });
+  const rules = await withOrg(() => listCategorizationRules());
+  const acctName = (id: number) => categories.find((c) => c.id === id)?.name ?? `#${id}`;
 
   async function addTxn(formData: FormData) {
     "use server";
@@ -95,16 +104,73 @@ export default async function BankingPage() {
         </button>
       </form>
 
-      <h2 className="text-[15px] font-semibold mt-8 mb-3">Transactions</h2>
+      <div className="flex items-center justify-between mt-8 mb-3 gap-3 flex-wrap">
+        <h2 className="text-[15px] font-semibold">Transactions</h2>
+        {uncategorized.length > 0 && rules.length > 0 && (
+          <form
+            action={async () => {
+              "use server";
+              await applyCategorizationRules();
+              redirect("/banking");
+            }}
+          >
+            <button className="rounded-lg border border-[var(--color-ink-200)] bg-white hover:bg-[var(--color-ink-50)] text-[13px] font-medium px-4 py-2">
+              ⚡ Auto-categorize with saved rules ({rules.length})
+            </button>
+          </form>
+        )}
+      </div>
       <BankingTransactionsClient
         txns={txns}
         banks={banks}
         categories={categories}
+        suggestions={suggestions}
         bulkCategorizeAction={async (updates) => {
           "use server";
           await bulkCategorizeTransactions(updates);
         }}
       />
+
+      {rules.length > 0 && (
+        <details className="mt-6">
+          <summary className="text-[13px] font-medium text-[var(--color-ink-600)] cursor-pointer">
+            Saved categorization rules ({rules.length})
+          </summary>
+          <p className="text-[12px] text-[var(--color-ink-400)] mt-1 mb-2">
+            Learned from your past choices. When a transaction description contains the keyword, it&apos;s booked to that account automatically.
+          </p>
+          <div className="card overflow-x-auto">
+            <table className="w-full min-w-[420px]">
+              <thead className="hairline-b">
+                <tr>
+                  <Th>Keyword</Th><Th>Direction</Th><Th>Books to</Th><Th right>Used</Th><Th></Th>
+                </tr>
+              </thead>
+              <tbody>
+                {rules.map((r) => (
+                  <tr key={r.id} className="hairline-t">
+                    <Td className="font-medium">{r.keyword}</Td>
+                    <Td className="text-[var(--color-ink-600)]">{r.direction === "in" ? "Money in" : "Money out"}</Td>
+                    <Td>{acctName(r.categoryAccountId)}</Td>
+                    <Td right className="tnum text-[var(--color-ink-400)]">{r.hits}×</Td>
+                    <Td>
+                      <form
+                        action={async () => {
+                          "use server";
+                          await deleteCategorizationRule(r.id);
+                          redirect("/banking");
+                        }}
+                      >
+                        <button className="text-[12px] text-[var(--color-ink-400)] hover:text-[var(--color-bad)]">Remove</button>
+                      </form>
+                    </Td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </details>
+      )}
     </>
   );
 }

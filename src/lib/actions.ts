@@ -569,6 +569,9 @@ async function _categorizeTransaction(txnId: number, categoryAccountId: number) 
     .update(bankTransactions)
     .set({ status: "categorized", categoryAccountId, journalEntryId: entryId })
     .where(eq(bankTransactions.id, txnId));
+  // Learn: remember this description→account choice for future imports
+  const { learnRule } = await import("./categorization");
+  await learnRule(txn.description, txn.amountCents >= 0 ? "in" : "out", categoryAccountId);
   revalidatePath("/banking");
 }
 
@@ -834,4 +837,33 @@ export async function importBankTransactions(
   rows: { date: string; description: string; amountCents: number }[]
 ) {
   return withOrg(() => _importBankTransactions(bankAccountId, rows));
+}
+
+/* ---------------- Categorization rules ---------------- */
+
+export async function applyCategorizationRules(): Promise<{ applied: number }> {
+  return withOrg(async () => {
+    const { applyRulesToUncategorized } = await import("./categorization");
+    const updates = await applyRulesToUncategorized();
+    for (const { txnId, categoryAccountId } of updates) {
+      await _categorizeTransaction(txnId, categoryAccountId);
+    }
+    revalidatePath("/banking");
+    return { applied: updates.length };
+  });
+}
+
+export async function listCategorizationRules() {
+  return withOrg(async () => {
+    const { listRules } = await import("./categorization");
+    return listRules();
+  });
+}
+
+export async function deleteCategorizationRule(ruleId: number) {
+  return withOrg(async () => {
+    const { deleteRule } = await import("./categorization");
+    await deleteRule(ruleId);
+    revalidatePath("/banking");
+  });
 }

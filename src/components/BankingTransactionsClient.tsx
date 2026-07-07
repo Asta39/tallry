@@ -10,11 +10,14 @@ export function BankingTransactionsClient({
   banks,
   categories,
   bulkCategorizeAction,
+  suggestions = {},
 }: {
   txns: any[];
   banks: any[];
   categories: any[];
   bulkCategorizeAction: (updates: { txnId: number; categoryAccountId: number }[]) => Promise<void>;
+  /** txnId → accountId, from saved learned rules (takes priority over heuristics) */
+  suggestions?: Record<number, number>;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -49,12 +52,15 @@ export function BankingTransactionsClient({
         }
       }
 
+      // Saved learned rule wins over the built-in heuristics
+      if (suggestions[t.id]) matchedId = suggestions[t.id];
+
       if (matchedId) {
         map[t.id] = matchedId;
       }
     }
     return map;
-  }, [uncategorized, categories]);
+  }, [uncategorized, categories, suggestions]);
 
   const [categoryMap, setCategoryMap] = useState<Record<number, number>>(initialCategoryMap);
 
