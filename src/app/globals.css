@@ -13,11 +13,11 @@
     Roboto, "Helvetica Neue", Arial, sans-serif;
 
   /* Accent: deep Kenya-forest teal-blue — calm, not corporate blue */
-  --color-accent-50: #eef6f4;
-  --color-accent-100: #d5eae5;
+  --color-accent-50: color-mix(in srgb, var(--color-brand, #0f766e) 10%, white);
+  --color-accent-100: color-mix(in srgb, var(--color-brand, #0f766e) 20%, white);
   --color-accent-500: var(--color-brand, #0f766e);
-  --color-accent-600: var(--color-brand, #0d635d);
-  --color-accent-700: var(--color-brand, #0a504b);
+  --color-accent-600: color-mix(in srgb, var(--color-brand, #0f766e) 85%, black);
+  --color-accent-700: color-mix(in srgb, var(--color-brand, #0f766e) 70%, black);
 
   --color-ink-900: #1d1d1f;
   --color-ink-600: #515154;
@@ -59,6 +59,12 @@ html {
   font-weight: 600;
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 640px) {
+  .money-lg {
+    font-size: 1.25rem;
+  }
 }
 .tnum { font-variant-numeric: tabular-nums; }
 

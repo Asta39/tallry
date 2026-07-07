@@ -41,7 +41,7 @@ export default async function ItemsPage() {
         title="Items & Stock"
         subtitle="Products and services · stock valued at FIFO cost"
         action={
-          <div className="flex gap-2">
+          <div className="flex items-start gap-2">
             <CsvImporter entity="items" label="Bulk import items" />
             <PrimaryLink href="/items/new">+ New item</PrimaryLink>
           </div>
@@ -52,7 +52,7 @@ export default async function ItemsPage() {
           title="No items yet"
           body="Add the products you sell or services you offer. Tracked goods get FIFO stock control with reorder alerts."
           action={
-          <div className="flex gap-2">
+          <div className="flex items-start gap-2">
             <CsvImporter entity="items" label="Bulk import items" />
             <PrimaryLink href="/items/new">+ New item</PrimaryLink>
           </div>

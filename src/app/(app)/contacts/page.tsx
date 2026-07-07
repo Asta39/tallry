@@ -34,7 +34,7 @@ export default async function ContactsPage() {
         title="Customers & Vendors"
         subtitle="Everyone you do business with, in one place"
         action={
-          <div className="flex gap-2">
+          <div className="flex items-start gap-2">
             <CsvImporter entity="contacts" label="Bulk import contacts" />
             <PrimaryLink href="/contacts/new">+ New contact</PrimaryLink>
           </div>
@@ -45,7 +45,7 @@ export default async function ContactsPage() {
           title="No contacts yet"
           body="Add your customers and suppliers. Capture their KRA PIN so your invoices support their input-VAT claims."
           action={
-          <div className="flex gap-2">
+          <div className="flex items-start gap-2">
             <CsvImporter entity="contacts" label="Bulk import contacts" />
             <PrimaryLink href="/contacts/new">+ New contact</PrimaryLink>
           </div>

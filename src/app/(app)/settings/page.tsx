@@ -36,6 +36,8 @@ export default async function SettingsPage() {
           invoicePrefix: o.invoicePrefix,
           logoUrl: o.logoUrl,
           brandColor: o.brandColor,
+          customDocumentColumnName: o.customDocumentColumnName,
+          documentFooterText: o.documentFooterText,
           userId: o.userId,
         }}
       />

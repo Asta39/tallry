@@ -136,16 +136,16 @@ export function CsvImporter({ entity, label }: { entity: Entity; label: string }
   }
 
   return (
-    <div className="no-print">
+    <div className="no-print relative">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="rounded-lg border border-[var(--color-ink-200)] bg-white hover:bg-[var(--color-ink-50)] text-[13px] font-medium px-4 py-2"
+        className="rounded-lg border border-[var(--color-ink-200)] bg-white hover:bg-[var(--color-ink-50)] text-[13px] font-medium px-4 py-2 h-9 inline-flex items-center justify-center"
       >
         Import CSV
       </button>
 
       {open && (
-        <div className="card p-4 mt-3">
+        <div className="absolute right-0 top-full mt-2 w-96 card p-4 z-50 shadow-lg">
           <div className="flex items-center gap-3 flex-wrap text-[13px]">
             <span className="font-medium">{label}</span>
             <a
@@ -154,9 +154,9 @@ export function CsvImporter({ entity, label }: { entity: Entity; label: string }
             >
               ↓ Download template
             </a>
-            <input type="file" accept=".csv,text/csv" onChange={handleFile} className="text-[12.5px]" />
+            <input type="file" accept=".csv,text/csv" onChange={handleFile} className="text-[12.5px] w-full" />
           </div>
-          <p className="text-[11.5px] text-[var(--color-ink-400)] mt-1.5">
+          <p className="text-[11.5px] text-[var(--color-ink-400)] mt-2">
             Fill the template, keep the header row, upload. {entity === "invoices" && "Rows sharing an invoice_ref become one multi-line invoice, imported as a draft."}
           </p>
 
@@ -164,14 +164,14 @@ export function CsvImporter({ entity, label }: { entity: Entity; label: string }
           {result && <div className="mt-3 text-[12.5px] text-[var(--color-good)] font-medium">{result}</div>}
 
           {preview && (
-            <div className="mt-3">
+            <div className="mt-3 border-t border-[var(--color-ink-100)] pt-3">
               <div className="text-[12.5px] text-[var(--color-ink-600)]">
                 {preview.count} rows ready · {preview.sample.join(" · ")}{preview.count > 5 ? " …" : ""}
               </div>
               <button
                 onClick={runImport}
                 disabled={pending}
-                className="mt-2 rounded-lg bg-[var(--color-accent-500)] hover:bg-[var(--color-accent-600)] disabled:opacity-50 text-white text-[13px] font-medium px-4 py-2"
+                className="mt-2 w-full rounded-lg bg-[var(--color-accent-500)] hover:bg-[var(--color-accent-600)] disabled:opacity-50 text-white text-[13px] font-medium px-4 py-2"
               >
                 {pending ? "Importing…" : `Import ${preview.count} rows`}
               </button>
