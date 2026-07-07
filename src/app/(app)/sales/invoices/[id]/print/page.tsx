@@ -39,8 +39,9 @@ export default async function PrintInvoice({ params }: { params: Promise<{ id: s
           <span className="text-[13px] text-gray-500">Use your browser&apos;s Print (⌘P) to save as PDF</span>
         </div>
 
-        <div className="flex justify-between items-start">
+        <div className="flex justify-between items-start mb-8">
           <div>
+            {o?.logoUrl && <img src={o.logoUrl} alt={o.name} className="max-w-[220px] max-h-[90px] mb-6 object-contain" />}
             <div className="text-[20px] font-bold">{o?.name}</div>
             <div className="text-gray-600 whitespace-pre-line">{o?.address}</div>
             {o?.phone && <div className="text-gray-600">{o.phone}</div>}

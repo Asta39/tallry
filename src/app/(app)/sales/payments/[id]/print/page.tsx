@@ -44,9 +44,9 @@ export default async function PrintPaymentReceipt({
 
         <div className="flex justify-between items-start mb-12">
           <div>
-          {o.logoUrl && <img src={o.logoUrl} alt={o.name} className="h-12 mb-4 object-contain" />}
-          <h2 className="text-xl font-bold">{o.name}</h2>
-          <div className="text-[13px] text-gray-500 whitespace-pre-wrap mt-1">
+            {o.logoUrl && <img src={o.logoUrl} alt={o.name} className="max-w-[220px] max-h-[90px] mb-6 object-contain" />}
+            <h2 className="text-xl font-bold">{o.name}</h2>
+            <div className="text-[13px] text-gray-500 whitespace-pre-wrap mt-1">
             {o.address}
             {o.kraPin ? `\nPIN: ${o.kraPin}` : ""}
             {o.vatRegistered ? "\nVAT Registered" : ""}
