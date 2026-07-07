@@ -39,6 +39,10 @@ export async function DocList({
     .filter((r) => ["open", "partial"].includes(r.doc.status))
     .reduce((s, r) => s + r.doc.totalCents - r.doc.paidCents, 0);
 
+  // Next.js requires plain objects to be passed to Client Components.
+  // Drizzle sometimes returns objects with null prototypes.
+  const serializedRows = JSON.parse(JSON.stringify(rows));
+
   return (
     <>
       <PageHeader
@@ -53,7 +57,7 @@ export async function DocList({
           action={<PrimaryLink href={`${basePath}/new`}>{newLabel}</PrimaryLink>}
         />
       ) : (
-        <DocListClient type={type} rows={rows} basePath={basePath} />
+        <DocListClient type={type} rows={serializedRows} basePath={basePath} />
       )}
     </>
   );
