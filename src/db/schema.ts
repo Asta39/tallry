@@ -180,7 +180,7 @@ export const documentLines = pgTable("document_lines", {
 export const documentAssignments = pgTable("document_assignments", {
   id: serial("id").primaryKey(),
   orgId: integer("org_id").notNull().references(() => org.id),
-  documentId: integer("document_id").notNull().references(() => documents.id),
+  documentId: integer("doc_id").notNull().references(() => documents.id),
   memberId: integer("member_id").notNull(), // can't reference members easily if it's below, we'll just store integer
   assignedById: integer("assigned_by_id"),
   createdAt: text("created_at").notNull(),
