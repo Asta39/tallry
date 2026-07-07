@@ -64,7 +64,7 @@ export async function DocList({
     })
     .from(documents)
     .where(baseWhere)
-    .groupBy(documents.status, sql`${documents.status} = 'open' AND ${documents.dueDate} < ${today}`);
+    .groupBy(documents.status, documents.dueDate);
 
   const stats = { draft: 0, pending: 0, partial: 0, overdue: 0, paid: 0 };
   let outstandingTotal = 0;
