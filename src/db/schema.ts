@@ -29,6 +29,8 @@ export const org = pgTable("org", {
   logoUrl: text("logo_url"),
   brandColor: text("brand_color").notNull().default("#0f766e"),
   invoicePrefix: text("invoice_prefix").notNull().default("INV-"),
+  invoiceTemplate: text("invoice_template").notNull().default("default"),
+  quoteTemplate: text("quote_template").notNull().default("default"),
   nextInvoiceNo: integer("next_invoice_no").notNull().default(1),
   nextQuoteNo: integer("next_quote_no").notNull().default(1),
   nextCreditNoteNo: integer("next_credit_note_no").notNull().default(1),

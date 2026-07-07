@@ -60,6 +60,8 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
         brandColor: o.brandColor ?? "#0f766e",
         documentFooterText: o.documentFooterText,
         customDocumentColumnName: o.customDocumentColumnName,
+        invoiceTemplate: o.invoiceTemplate,
+        quoteTemplate: o.quoteTemplate,
       },
       doc: {
         type: doc.type,

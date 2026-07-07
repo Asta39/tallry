@@ -14,6 +14,8 @@ interface OrgData {
   phone?: string | null;
   email?: string | null;
   invoicePrefix: string;
+  invoiceTemplate?: string | null;
+  quoteTemplate?: string | null;
   logoUrl?: string | null;
   brandColor?: string | null;
   customDocumentColumnName?: string | null;
@@ -35,6 +37,8 @@ export function OrgProfileForm({ initial }: { initial: OrgData }) {
   const [address, setAddress] = useState(initial.address || "");
   const [vatRegistered, setVatRegistered] = useState(initial.vatRegistered);
   const [invoicePrefix, setInvoicePrefix] = useState(initial.invoicePrefix || "INV-");
+  const [invoiceTemplate, setInvoiceTemplate] = useState(initial.invoiceTemplate || "default");
+  const [quoteTemplate, setQuoteTemplate] = useState(initial.quoteTemplate || "default");
   const [brandColor, setBrandColor] = useState(initial.brandColor || "#0f766e");
   const [customDocumentColumnName, setCustomDocumentColumnName] = useState(initial.customDocumentColumnName || "");
   const [documentFooterText, setDocumentFooterText] = useState(initial.documentFooterText || "");
@@ -99,6 +103,8 @@ export function OrgProfileForm({ initial }: { initial: OrgData }) {
           phone: phone || undefined,
           email: email || undefined,
           invoicePrefix: invoicePrefix || "INV-",
+          invoiceTemplate,
+          quoteTemplate,
           logoUrl: newLogoUrl ?? undefined,
           brandColor,
           customDocumentColumnName: customDocumentColumnName,
@@ -294,7 +300,25 @@ export function OrgProfileForm({ initial }: { initial: OrgData }) {
           Document Customizations
         </div>
         <div className="grid grid-cols-1 gap-4">
-          <label className="block">
+          <div>
+            <span className={labelCls}>Invoice Template</span>
+            <div className="text-[12px] text-[var(--color-ink-400)] mb-3">Choose the visual style for your invoices.</div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {['default', 'classic', 'modern', 'bold'].map(t => (
+                <TemplatePreview key={t} type={t} active={invoiceTemplate === t} onClick={() => setInvoiceTemplate(t)} color={brandColor} />
+              ))}
+            </div>
+          </div>
+          <div>
+            <span className={labelCls}>Quote Template</span>
+            <div className="text-[12px] text-[var(--color-ink-400)] mb-3">Choose the visual style for your quotes.</div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {['default', 'classic', 'modern', 'bold'].map(t => (
+                <TemplatePreview key={t} type={t} active={quoteTemplate === t} onClick={() => setQuoteTemplate(t)} color={brandColor} />
+              ))}
+            </div>
+          </div>
+          <label className="block mt-4">
             <span className={labelCls}>Item Categories</span>
             <div className="text-[12px] text-[var(--color-ink-400)] mb-3">
               Enable a category column on your quotes and invoices to group related items (e.g., "Design", "Printing").
@@ -356,5 +380,98 @@ export function OrgProfileForm({ initial }: { initial: OrgData }) {
         {logoUploading ? "Uploading logo…" : pending ? "Saving…" : "Save settings"}
       </button>
     </form>
+  );
+}
+
+function TemplatePreview({ type, active, onClick, color }: { type: string, active: boolean, onClick: () => void, color: string }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`relative w-full aspect-[1/1.3] rounded-lg border-2 overflow-hidden bg-white hover:border-[var(--color-accent-300)] transition-colors p-2 flex flex-col gap-1.5 ${
+        active ? 'border-[var(--color-accent-500)] ring-1 ring-[var(--color-accent-500)]' : 'border-[var(--color-ink-200)]'
+      }`}
+    >
+      {type === 'default' && (
+        <>
+          <div className="flex justify-between w-full h-4">
+            <div className="w-6 h-6 rounded-sm bg-[var(--color-ink-200)]" />
+            <div className="flex flex-col items-end gap-0.5">
+              <div className="w-8 h-1.5 bg-[var(--color-ink-300)]" />
+              <div className="w-12 h-1 bg-[var(--color-ink-100)]" />
+            </div>
+          </div>
+          <div className="w-10 h-1 bg-[var(--color-ink-200)] mt-4" />
+          <div className="w-full h-0.5 bg-[var(--color-ink-100)] my-1" />
+          <div className="flex justify-between w-full">
+            <div className="w-12 h-1 bg-[var(--color-ink-100)]" />
+            <div className="w-4 h-1 bg-[var(--color-ink-100)]" />
+          </div>
+          <div className="flex justify-between w-full">
+            <div className="w-8 h-1 bg-[var(--color-ink-100)]" />
+            <div className="w-6 h-1 bg-[var(--color-ink-100)]" />
+          </div>
+          <div className="mt-auto flex justify-end">
+            <div className="w-12 h-2" style={{ backgroundColor: color }} />
+          </div>
+        </>
+      )}
+      {type === 'classic' && (
+        <>
+          <div className="w-full flex justify-center mb-1">
+            <div className="w-8 h-8 rounded-sm bg-[var(--color-ink-200)]" />
+          </div>
+          <div className="w-full h-px bg-[var(--color-ink-800)]" />
+          <div className="flex justify-between w-full items-center py-1">
+            <div className="w-10 h-1.5 bg-[var(--color-ink-300)]" />
+            <div className="w-10 h-1.5 bg-[var(--color-ink-300)]" />
+          </div>
+          <div className="w-full h-px bg-[var(--color-ink-800)] mb-1" />
+          <div className="flex justify-between w-full">
+            <div className="w-12 h-1 bg-[var(--color-ink-100)]" />
+            <div className="w-4 h-1 bg-[var(--color-ink-100)]" />
+          </div>
+          <div className="mt-auto w-full h-4 bg-[var(--color-ink-50)] border-t border-[var(--color-ink-200)]" />
+        </>
+      )}
+      {type === 'modern' && (
+        <>
+          <div className="absolute top-0 left-0 right-0 h-6 flex justify-between items-center px-2" style={{ backgroundColor: color }}>
+            <div className="w-8 h-1.5 bg-white/80" />
+            <div className="w-4 h-4 rounded-sm bg-white/50" />
+          </div>
+          <div className="w-10 h-1 bg-[var(--color-ink-200)] mt-8" />
+          <div className="w-full h-2 mt-2 flex items-center px-1" style={{ backgroundColor: color }}>
+             <div className="w-8 h-0.5 bg-white/80" />
+          </div>
+          <div className="flex justify-between w-full px-1 mt-1">
+            <div className="w-12 h-1 bg-[var(--color-ink-100)]" />
+            <div className="w-4 h-1 bg-[var(--color-ink-100)]" />
+          </div>
+          <div className="mt-auto w-full flex justify-end">
+             <div className="w-8 h-1.5" style={{ backgroundColor: color }} />
+          </div>
+        </>
+      )}
+      {type === 'bold' && (
+        <>
+          <div className="absolute top-0 left-0 bottom-0 w-2" style={{ backgroundColor: color }} />
+          <div className="pl-3 w-full h-full flex flex-col gap-1.5">
+            <div className="w-8 h-8 rounded-sm bg-[var(--color-ink-200)]" />
+            <div className="w-14 h-2.5 bg-[var(--color-ink-800)] mt-1" />
+            <div className="w-10 h-1 bg-[var(--color-ink-200)]" />
+            <div className="w-full h-0.5 bg-[var(--color-ink-100)] mt-2" />
+            <div className="flex justify-between w-full pr-1 mt-1">
+              <div className="w-8 h-1 bg-[var(--color-ink-100)]" />
+              <div className="w-4 h-1 bg-[var(--color-ink-100)]" />
+            </div>
+            <div className="mt-auto pr-1">
+               <div className="w-full h-2 bg-[var(--color-ink-100)]" />
+            </div>
+          </div>
+        </>
+      )}
+      <div className="absolute bottom-1 right-2 text-[9px] font-semibold text-[var(--color-ink-400)] capitalize">{type}</div>
+    </button>
   );
 }

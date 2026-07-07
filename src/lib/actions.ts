@@ -652,6 +652,8 @@ export async function saveOrgProfile(data: {
   phone?: string;
   email?: string;
   invoicePrefix: string;
+  invoiceTemplate?: string;
+  quoteTemplate?: string;
   logoUrl?: string;
   brandColor?: string;
   customDocumentColumnName?: string;
@@ -671,6 +673,8 @@ export async function saveOrgProfile(data: {
       phone: data.phone,
       email: data.email,
       invoicePrefix: data.invoicePrefix || "INV-",
+      ...(data.invoiceTemplate !== undefined ? { invoiceTemplate: data.invoiceTemplate } : {}),
+      ...(data.quoteTemplate !== undefined ? { quoteTemplate: data.quoteTemplate } : {}),
       ...(data.logoUrl !== undefined ? { logoUrl: data.logoUrl } : {}),
       ...(data.brandColor !== undefined ? { brandColor: data.brandColor } : {}),
       ...(data.customDocumentColumnName !== undefined ? { customDocumentColumnName: data.customDocumentColumnName } : {}),
@@ -687,6 +691,8 @@ export async function saveOrgProfile(data: {
         phone: data.phone,
         email: data.email,
         invoicePrefix: data.invoicePrefix || "INV-",
+        ...(data.invoiceTemplate !== undefined ? { invoiceTemplate: data.invoiceTemplate } : {}),
+        ...(data.quoteTemplate !== undefined ? { quoteTemplate: data.quoteTemplate } : {}),
         ...(data.logoUrl !== undefined ? { logoUrl: data.logoUrl } : {}),
         ...(data.brandColor !== undefined ? { brandColor: data.brandColor } : {}),
         ...(data.customDocumentColumnName !== undefined ? { customDocumentColumnName: data.customDocumentColumnName } : {}),

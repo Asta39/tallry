@@ -34,6 +34,8 @@ export default async function SettingsPage() {
           phone: o.phone,
           email: o.email,
           invoicePrefix: o.invoicePrefix,
+          invoiceTemplate: o.invoiceTemplate,
+          quoteTemplate: o.quoteTemplate,
           logoUrl: o.logoUrl,
           brandColor: o.brandColor,
           customDocumentColumnName: o.customDocumentColumnName,
