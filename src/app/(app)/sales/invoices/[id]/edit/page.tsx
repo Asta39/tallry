@@ -21,6 +21,7 @@ export default async function EditInvoicePage({
   try {
     initialData = await fetchInitialData(docId);
   } catch (err) {
+    console.error("fetchInitialData failed for invoices edit:", err);
     notFound();
   }
 

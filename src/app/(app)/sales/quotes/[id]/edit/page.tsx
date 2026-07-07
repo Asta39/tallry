@@ -21,6 +21,7 @@ export default async function EditQuotePage({
   try {
     initialData = await fetchInitialData(docId);
   } catch (err) {
+    console.error("fetchInitialData failed for quotes edit:", err);
     notFound();
   }
 

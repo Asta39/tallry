@@ -1,4 +1,4 @@
-import { db, contacts, items, accounts, bankAccounts, members } from "@/db";
+import { db, contacts, items, accounts, bankAccounts, members, documents, documentLines, documentAssignments } from "@/db";
 import { and, eq, inArray } from "drizzle-orm";
 import { getOrg } from "@/lib/org";
 
@@ -31,7 +31,6 @@ export async function editorOptions(side: "sale" | "purchase") {
 }
 
 export async function fetchInitialData(docId: number) {
-  const { documents, documentLines, documentAssignments } = await import("@/db");
   const org = await getOrg();
   const [doc] = await db.select().from(documents).where(and(eq(documents.orgId, org.id), eq(documents.id, docId))).limit(1);
   if (!doc) throw new Error("Document not found");
