@@ -10,6 +10,7 @@ import { addBankTransaction, categorizeTransaction, bulkCategorizeTransactions }
 import { accountBalances } from "@/lib/reports";
 import { PageHeader, StatusPill, TableCard, Th, Td } from "@/components/ui";
 import { BankImport } from "@/components/BankImport";
+import { MpesaImport } from "@/components/MpesaImport";
 import { BankingTransactionsClient } from "@/components/BankingTransactionsClient";
 
 export const dynamic = "force-dynamic";
@@ -69,7 +70,10 @@ export default async function BankingPage() {
         })}
       </div>
 
-      <h2 className="text-[15px] font-semibold mt-8 mb-3">Import statement</h2>
+      <h2 className="text-[15px] font-semibold mt-8 mb-3">Import M-Pesa statement</h2>
+      <MpesaImport banks={banks.map((b) => ({ id: b.id, label: b.name }))} />
+
+      <h2 className="text-[15px] font-semibold mt-6 mb-3">Import CSV statement</h2>
       <BankImport banks={banks.map((b) => ({ id: b.id, label: b.name }))} />
 
       <h2 className="text-[15px] font-semibold mt-8 mb-3">Add a transaction</h2>

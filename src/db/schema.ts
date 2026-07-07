@@ -221,6 +221,7 @@ export const bankTransactions = pgTable("bank_transactions", {
   status: text("status").notNull().default("uncategorized"), // uncategorized | categorized | reconciled
   categoryAccountId: integer("category_account_id"),
   journalEntryId: integer("journal_entry_id"),
+  externalRef: text("external_ref"), // e.g. M-Pesa receipt code — used to dedupe imports
   createdAt: text("created_at").notNull(),
 });
 

@@ -269,3 +269,5 @@ ALTER TABLE document_lines ADD COLUMN IF NOT EXISTS custom_column_value TEXT;
 ALTER TABLE document_assignments ADD COLUMN IF NOT EXISTS assigned_by_id INTEGER;
 
 ALTER TABLE org ADD COLUMN IF NOT EXISTS data_segregation BOOLEAN NOT NULL DEFAULT false;
+
+ALTER TABLE bank_transactions ADD COLUMN IF NOT EXISTS external_ref TEXT;
