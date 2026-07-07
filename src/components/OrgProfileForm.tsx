@@ -99,8 +99,8 @@ export function OrgProfileForm({ initial }: { initial: OrgData }) {
           invoicePrefix: invoicePrefix || "INV-",
           logoUrl: newLogoUrl ?? undefined,
           brandColor,
-          customDocumentColumnName: customDocumentColumnName || undefined,
-          documentFooterText: documentFooterText || undefined,
+          customDocumentColumnName: customDocumentColumnName,
+          documentFooterText: documentFooterText,
         });
         setSaved(true);
         router.refresh();
@@ -270,17 +270,31 @@ export function OrgProfileForm({ initial }: { initial: OrgData }) {
         </div>
         <div className="grid grid-cols-1 gap-4">
           <label className="block">
-            <span className={labelCls}>Custom Document Column</span>
-            <div className="text-[12px] text-[var(--color-ink-400)] mb-1">
-              Add a custom column to your invoices, quotes, and bills (e.g. "Item Location", "Project ID").
+            <span className={labelCls}>Item Categories</span>
+            <div className="text-[12px] text-[var(--color-ink-400)] mb-3">
+              Enable a category column on your quotes and invoices to group related items (e.g., "Design", "Printing").
             </div>
-            <input
-              type="text"
-              value={customDocumentColumnName}
-              onChange={(e) => setCustomDocumentColumnName(e.target.value)}
-              className={inputCls}
-              placeholder="e.g. Item Location"
-            />
+            <label className="flex items-center gap-3 cursor-pointer mb-3">
+              <input
+                type="checkbox"
+                checked={!!customDocumentColumnName}
+                onChange={(e) => setCustomDocumentColumnName(e.target.checked ? "Category" : "")}
+                className="accent-[var(--color-accent-500)]"
+              />
+              <span className="text-[13px] font-medium">Enable Categories Column</span>
+            </label>
+            {!!customDocumentColumnName && (
+              <div className="pl-6 border-l-2 border-[var(--color-ink-100)] ml-2">
+                <span className={labelCls}>Column Name (optional override)</span>
+                <input
+                  type="text"
+                  value={customDocumentColumnName}
+                  onChange={(e) => setCustomDocumentColumnName(e.target.value)}
+                  className={inputCls}
+                  placeholder="e.g. Category"
+                />
+              </div>
+            )}
           </label>
           <label className="block">
             <span className={labelCls}>Document Footer Text</span>

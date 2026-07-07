@@ -20,6 +20,7 @@ const groups: {
       { href: "/pipeline", label: "Deals", icon: "▤", perm: "pipeline" },
       { href: "/sales/quotes", label: "Quotes", icon: "✎", perm: "quotes" },
       { href: "/sales/invoices", label: "Invoices", icon: "▦", perm: "invoices" },
+      { href: "/sales/payments", label: "Payments", icon: "▤", perm: "invoices" },
       { href: "/sales/credit-notes", label: "Credit Notes", icon: "⊟", perm: "credit_notes" },
     ],
   },

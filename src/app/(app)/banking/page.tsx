@@ -6,10 +6,11 @@ import { redirect } from "next/navigation";
 import { db, bankAccounts, bankTransactions, accounts } from "@/db";
 import { desc, inArray } from "drizzle-orm";
 import { fmtKES, parseKES, todayISO } from "@/lib/money";
-import { addBankTransaction, categorizeTransaction } from "@/lib/actions";
+import { addBankTransaction, categorizeTransaction, bulkCategorizeTransactions } from "@/lib/actions";
 import { accountBalances } from "@/lib/reports";
 import { PageHeader, StatusPill, TableCard, Th, Td } from "@/components/ui";
 import { BankImport } from "@/components/BankImport";
+import { BankingTransactionsClient } from "@/components/BankingTransactionsClient";
 
 export const dynamic = "force-dynamic";
 
@@ -91,51 +92,15 @@ export default async function BankingPage() {
       </form>
 
       <h2 className="text-[15px] font-semibold mt-8 mb-3">Transactions</h2>
-      {txns.length === 0 ? (
-        <div className="card px-6 py-10 text-center text-[13px] text-[var(--color-ink-400)]">
-          No bank transactions yet. Add money in/out above, then categorize each line — that&apos;s what books it into your accounts.
-        </div>
-      ) : (
-        <TableCard>
-          <thead className="hairline-b">
-            <tr>
-              <Th>Date</Th><Th>Account</Th><Th>Description</Th><Th>Status</Th><Th right>Amount</Th><Th>Categorize as</Th>
-            </tr>
-          </thead>
-          <tbody>
-            {txns.map((t) => (
-              <tr key={t.id} className="hairline-t">
-                <Td className="text-[var(--color-ink-400)]">{t.date}</Td>
-                <Td>{banks.find((b) => b.id === t.bankAccountId)?.name}</Td>
-                <Td>{t.description}</Td>
-                <Td><StatusPill status={t.status} /></Td>
-                <Td right className={t.amountCents < 0 ? "text-[var(--color-bad)]" : "text-[var(--color-good)]"}>
-                  {fmtKES(t.amountCents, { signed: true })}
-                </Td>
-                <Td>
-                  {t.status === "uncategorized" ? (
-                    <form action={categorize} className="flex gap-1">
-                      <input type="hidden" name="txnId" value={t.id} />
-                      <select name="categoryAccountId" className="rounded border border-[var(--color-ink-200)] text-[12px] px-1.5 py-1 bg-white max-w-44">
-                        {categories
-                          .filter((c) => (t.amountCents >= 0 ? c.type === "income" : c.type === "expense"))
-                          .map((c) => (
-                            <option key={c.id} value={c.id}>{c.name}</option>
-                          ))}
-                      </select>
-                      <button className="text-[12px] text-[var(--color-accent-600)] font-medium">Book it</button>
-                    </form>
-                  ) : (
-                    <span className="text-[12px] text-[var(--color-ink-400)]">
-                      {categories.find((c) => c.id === t.categoryAccountId)?.name ?? "—"}
-                    </span>
-                  )}
-                </Td>
-              </tr>
-            ))}
-          </tbody>
-        </TableCard>
-      )}
+      <BankingTransactionsClient
+        txns={txns}
+        banks={banks}
+        categories={categories}
+        bulkCategorizeAction={async (updates) => {
+          "use server";
+          await bulkCategorizeTransactions(updates);
+        }}
+      />
     </>
   );
 }

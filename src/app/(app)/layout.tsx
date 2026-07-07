@@ -22,7 +22,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (!access || !access.orgRow.name) redirect("/onboarding");
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-screen" style={access.orgRow.brandColor ? { "--color-brand": access.orgRow.brandColor } as React.CSSProperties : undefined}>
       {access.memberId ? <NotificationBell memberId={access.memberId} /> : null}
       <Sidebar
         orgName={access.orgRow.name}

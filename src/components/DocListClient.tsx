@@ -81,14 +81,16 @@ export function DocListClient({
           <div
             key={s.key}
             onClick={() => setStatus(status === s.key ? "all" : s.key)}
-            className={`card p-4 cursor-pointer hover:shadow-md transition-shadow ${
+            className={`card p-3 sm:p-4 cursor-pointer hover:shadow-md transition-shadow min-w-0 ${
               status === s.key ? "ring-2 ring-[var(--color-accent-500)]" : ""
             }`}
           >
-            <div className="text-[11px] uppercase tracking-wider text-[var(--color-ink-500)] font-medium mb-1">
+            <div className="text-[10px] sm:text-[11px] uppercase tracking-wider text-[var(--color-ink-500)] font-medium mb-1 truncate">
               {s.label}
             </div>
-            <div className={`text-lg font-bold ${s.color}`}>{fmtKES(s.value)}</div>
+            <div className={`text-base sm:text-lg font-bold truncate ${s.color}`} title={fmtKES(s.value)}>
+              {fmtKES(s.value)}
+            </div>
           </div>
         ))}
       </div>

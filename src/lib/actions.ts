@@ -570,6 +570,13 @@ async function _categorizeTransaction(txnId: number, categoryAccountId: number) 
   revalidatePath("/banking");
 }
 
+async function _bulkCategorizeTransactions(updates: { txnId: number; categoryAccountId: number }[]) {
+  for (const { txnId, categoryAccountId } of updates) {
+    await _categorizeTransaction(txnId, categoryAccountId);
+  }
+  revalidatePath("/banking");
+}
+
 /* ---------------- Manual journals ---------------- */
 
 async function _createManualJournal(data: {
@@ -701,6 +708,9 @@ export async function addBankTransaction(data: Parameters<typeof _addBankTransac
 }
 export async function categorizeTransaction(txnId: number, categoryAccountId: number) {
   return withOrg(() => _categorizeTransaction(txnId, categoryAccountId));
+}
+export async function bulkCategorizeTransactions(updates: { txnId: number; categoryAccountId: number }[]) {
+  return withOrg(() => _bulkCategorizeTransactions(updates));
 }
 export async function createManualJournal(data: Parameters<typeof _createManualJournal>[0]) {
   return withOrg(() => _createManualJournal(data));

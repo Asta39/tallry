@@ -37,19 +37,31 @@ function parseCsv(text: string): ParsedRow[] {
     return out;
   };
 
-  const header = split(lines[0]).map((h) => h.toLowerCase());
-  const find = (...names: string[]) =>
-    header.findIndex((h) => names.some((n) => h.includes(n)));
+  let headerIndex = -1;
+  let header: string[] = [];
+  let iDate = -1, iDesc = -1, iAmount = -1, iDebit = -1, iCredit = -1;
 
-  const iDate = find("date", "completion time", "time");
-  const iDesc = find("description", "details", "narration", "particulars", "reference");
-  const iAmount = find("amount");
-  const iDebit = find("withdrawn", "debit", "money out", "paid out");
-  const iCredit = find("paid in", "credit", "money in", "deposit");
-  if (iDate < 0 || (iAmount < 0 && iDebit < 0 && iCredit < 0)) return [];
+  for (let i = 0; i < Math.min(30, lines.length); i++) {
+    header = split(lines[i]).map((h) => h.toLowerCase());
+    const find = (...names: string[]) =>
+      header.findIndex((h) => names.some((n) => h.includes(n)));
+
+    iDate = find("date", "completion time", "time");
+    iDesc = find("description", "details", "narration", "particulars", "reference");
+    iAmount = find("amount");
+    iDebit = find("withdrawn", "debit", "money out", "paid out");
+    iCredit = find("paid in", "credit", "money in", "deposit");
+
+    if (iDate >= 0 && (iAmount >= 0 || iDebit >= 0 || iCredit >= 0)) {
+      headerIndex = i;
+      break;
+    }
+  }
+
+  if (headerIndex < 0) return [];
 
   const rows: ParsedRow[] = [];
-  for (const line of lines.slice(1)) {
+  for (const line of lines.slice(headerIndex + 1)) {
     const cells = split(line);
     const rawDate = cells[iDate] ?? "";
     const date = normalizeDate(rawDate);

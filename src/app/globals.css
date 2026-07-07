@@ -15,9 +15,9 @@
   /* Accent: deep Kenya-forest teal-blue — calm, not corporate blue */
   --color-accent-50: #eef6f4;
   --color-accent-100: #d5eae5;
-  --color-accent-500: #0f766e;
-  --color-accent-600: #0d635d;
-  --color-accent-700: #0a504b;
+  --color-accent-500: var(--color-brand, #0f766e);
+  --color-accent-600: var(--color-brand, #0d635d);
+  --color-accent-700: var(--color-brand, #0a504b);
 
   --color-ink-900: #1d1d1f;
   --color-ink-600: #515154;
