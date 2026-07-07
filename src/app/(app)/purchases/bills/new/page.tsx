@@ -19,6 +19,8 @@ export default async function NewBillPage({
       <PageHeader title="New bill" subtitle="Buying stock items adds them to inventory at FIFO cost" />
       <DocumentEditor
         type="bill"
+        customDocumentColumnName={opts.customDocumentColumnName}
+        members={opts.members}
         contacts={opts.contacts}
         items={opts.items}
         expenseAccounts={opts.expenseAccounts}

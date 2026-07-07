@@ -19,6 +19,8 @@ export default async function NewInvoicePage({
       <PageHeader title="New invoice" subtitle="VAT is calculated per line, the KRA way" />
       <DocumentEditor
         type="invoice"
+        customDocumentColumnName={opts.customDocumentColumnName}
+        members={opts.members}
         contacts={opts.contacts}
         items={opts.items}
         defaultContactId={defaultContactId}

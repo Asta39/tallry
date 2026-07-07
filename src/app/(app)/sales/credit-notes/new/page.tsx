@@ -19,6 +19,8 @@ export default async function NewCreditNotePage({
       <PageHeader title="New credit note" subtitle="Reverses revenue and output VAT for the lines below" />
       <DocumentEditor
         type="credit_note"
+        customDocumentColumnName={opts.customDocumentColumnName}
+        members={opts.members}
         contacts={opts.contacts}
         items={opts.items}
         defaultContactId={defaultContactId}

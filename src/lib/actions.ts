@@ -13,8 +13,10 @@ import {
   bankTransactions,
   activities,
   accounts,
+  documentAssignments,
+  notifications,
 } from "@/db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 import { currentOrgId, withOrg, seedOrgDefaults } from "@/lib/org";
 import { revalidatePath as nextRevalidatePath } from "next/cache";
 import { computeDocument, type TaxClass, TAX_CLASSES } from "./tax";
@@ -35,18 +37,15 @@ import { getTaxDevice } from "./etims";
 import { getUser } from "./supabase/server";
 
 /** revalidatePath, but safe when called outside a Next request (scripts, tests). */
-function revalidatePath(path: string) {
+function revalidatePath(path: string, type?: "page" | "layout") {
   try {
-    nextRevalidatePath(path);
+    nextRevalidatePath(path, type);
   } catch {
     /* running outside Next request context */
   }
 }
 
 import { getOrg } from "@/lib/org";
-
-// async function getOrg() {
-  
 
 type NumberKind = "invoice" | "quote" | "credit_note" | "purchase_order" | "payment";
 async function nextNumber(kind: NumberKind): Promise<string> {
@@ -252,6 +251,7 @@ export interface DocLineInput {
   discountPct: number;
   taxClass: TaxClass;
   accountId?: number | null;
+  customColumnValue?: string | null;
 }
 
 async function _saveDocument(data: {
@@ -264,6 +264,7 @@ async function _saveDocument(data: {
   notes?: string;
   billNumber?: string; // vendor's own number for bills
   paidFromBankAccountId?: number | null;
+  assignedMemberIds?: number[];
   lines: DocLineInput[];
 }): Promise<number> {
   const totals = computeDocument(
@@ -340,9 +341,37 @@ async function _saveDocument(data: {
         grossCents: t.grossCents,
         accountId: l.accountId,
         position: i,
+        customColumnValue: l.customColumnValue || null,
       };
     })
   );
+
+  if (data.assignedMemberIds) {
+    const orgId = currentOrgId();
+    await db.delete(documentAssignments).where(and(eq(documentAssignments.orgId, orgId), eq(documentAssignments.documentId, docId)));
+    if (data.assignedMemberIds.length > 0) {
+      await db.insert(documentAssignments).values(
+        data.assignedMemberIds.map((memberId) => ({
+          orgId,
+          documentId: docId,
+          memberId,
+          createdAt: nowISO(),
+        }))
+      );
+
+      // Insert notifications for assignments
+      await db.insert(notifications).values(
+        data.assignedMemberIds.map((memberId) => ({
+          orgId,
+          memberId,
+          title: "New Assignment",
+          body: `You have been assigned to ${data.type} #${docId}`,
+          link: `/${data.type === "quote" ? "sales/quotes" : "sales/invoices"}/${docId}`,
+          createdAt: nowISO(),
+        }))
+      );
+    }
+  }
 
   revalidatePath("/sales");
   revalidatePath("/purchases");
@@ -472,6 +501,29 @@ async function _recordPayment(data: {
   revalidatePath("/");
 }
 
+/* ---------------- Notifications ---------------- */
+
+export async function getNotifications(memberId: number) {
+  return withOrg(async () => {
+    return db
+      .select()
+      .from(notifications)
+      .where(and(eq(notifications.orgId, currentOrgId()), eq(notifications.memberId, memberId)))
+      .orderBy(desc(notifications.id))
+      .limit(20);
+  });
+}
+
+export async function markNotificationRead(id: number) {
+  return withOrg(async () => {
+    await db
+      .update(notifications)
+      .set({ isRead: true })
+      .where(and(eq(notifications.orgId, currentOrgId()), eq(notifications.id, id)));
+    revalidatePath("/", "layout");
+  });
+}
+
 /* ---------------- Banking ---------------- */
 
 async function _addBankTransaction(data: {
@@ -559,6 +611,8 @@ export async function saveOrgProfile(data: {
   invoicePrefix: string;
   logoUrl?: string;
   brandColor?: string;
+  customDocumentColumnName?: string;
+  documentFooterText?: string;
 }) {
   const user = await getUser();
   if (!user) throw new Error("Not authenticated");
@@ -575,6 +629,8 @@ export async function saveOrgProfile(data: {
       invoicePrefix: data.invoicePrefix || "INV-",
       ...(data.logoUrl !== undefined ? { logoUrl: data.logoUrl } : {}),
       ...(data.brandColor !== undefined ? { brandColor: data.brandColor } : {}),
+      ...(data.customDocumentColumnName !== undefined ? { customDocumentColumnName: data.customDocumentColumnName } : {}),
+      ...(data.documentFooterText !== undefined ? { documentFooterText: data.documentFooterText } : {}),
     })
     .onConflictDoUpdate({
       target: org.userId,
@@ -588,6 +644,8 @@ export async function saveOrgProfile(data: {
         invoicePrefix: data.invoicePrefix || "INV-",
         ...(data.logoUrl !== undefined ? { logoUrl: data.logoUrl } : {}),
         ...(data.brandColor !== undefined ? { brandColor: data.brandColor } : {}),
+        ...(data.customDocumentColumnName !== undefined ? { customDocumentColumnName: data.customDocumentColumnName } : {}),
+        ...(data.documentFooterText !== undefined ? { documentFooterText: data.documentFooterText } : {}),
       },
     })
     .returning();

@@ -24,6 +24,7 @@ interface EditorLine {
   discountPct: string;
   taxClass: TaxClass;
   accountId: number | null;
+  customColumnValue: string;
 }
 
 const emptyLine = (): EditorLine => ({
@@ -34,6 +35,7 @@ const emptyLine = (): EditorLine => ({
   discountPct: "0",
   taxClass: "B16",
   accountId: null,
+  customColumnValue: "",
 });
 
 export function DocumentEditor({
@@ -56,6 +58,10 @@ export function DocumentEditor({
   detailHref?: string;
   /** preselect a customer/vendor (e.g. from the contact workspace) */
   defaultContactId?: number | null;
+  /** Custom document column name, if any */
+  customDocumentColumnName?: string | null;
+  /** Available staff members for assignment */
+  members?: Option[];
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -72,6 +78,7 @@ export function DocumentEditor({
   const [notes, setNotes] = useState("");
   const [billNumber, setBillNumber] = useState("");
   const [paidFrom, setPaidFrom] = useState<number | "">("");
+  const [assignedMemberIds, setAssignedMemberIds] = useState<number[]>([]);
   const [lines, setLines] = useState<EditorLine[]>([emptyLine()]);
 
   const parsedLines: DocLineInput[] = useMemo(
@@ -86,6 +93,7 @@ export function DocumentEditor({
           discountPct: Number(l.discountPct) || 0,
           taxClass: l.taxClass,
           accountId: l.accountId,
+          customColumnValue: l.customColumnValue || undefined,
         })),
     [lines]
   );
@@ -135,6 +143,7 @@ export function DocumentEditor({
           notes: notes || undefined,
           billNumber: billNumber || undefined,
           paidFromBankAccountId: paidFrom === "" ? null : paidFrom,
+          assignedMemberIds: assignedMemberIds.length > 0 ? assignedMemberIds : undefined,
           lines: parsedLines,
         });
         if (issue) await issueDocument(id);
@@ -218,6 +227,27 @@ export function DocumentEditor({
           />
           <span className="text-[12.5px] text-[var(--color-ink-600)]">Prices include VAT</span>
         </label>
+        {members && members.length > 0 && (
+          <label className="block col-span-2">
+            <span className="text-[12px] font-medium text-[var(--color-ink-600)]">Assigned Staff</span>
+            <select
+              multiple
+              className={inputCls + " mt-1 h-20"}
+              value={assignedMemberIds.map(String)}
+              onChange={(e) => {
+                const selected = Array.from(e.target.selectedOptions).map((o) => Number(o.value));
+                setAssignedMemberIds(selected);
+              }}
+            >
+              {members.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.label}
+                </option>
+              ))}
+            </select>
+            <span className="text-[10px] text-[var(--color-ink-400)] block mt-1">Hold Cmd/Ctrl to select multiple</span>
+          </label>
+        )}
       </div>
 
       {/* Lines */}
@@ -229,6 +259,9 @@ export function DocumentEditor({
               <th className="text-right px-2 py-2.5 font-semibold w-[8%]">Qty</th>
               <th className="text-right px-2 py-2.5 font-semibold w-[13%]">Price (KSh)</th>
               <th className="text-right px-2 py-2.5 font-semibold w-[9%]">Disc %</th>
+              {customDocumentColumnName && (
+                <th className="text-left px-2 py-2.5 font-semibold">{customDocumentColumnName}</th>
+              )}
               <th className="text-left px-2 py-2.5 font-semibold w-[13%]">VAT</th>
               {(type === "bill" || type === "expense") && (
                 <th className="text-left px-2 py-2.5 font-semibold w-[15%]">Category</th>
@@ -286,6 +319,16 @@ export function DocumentEditor({
                       onChange={(e) => update(i, { discountPct: e.target.value })}
                     />
                   </td>
+                  {customDocumentColumnName && (
+                    <td className="px-1 py-2">
+                      <input
+                        className={cellCls}
+                        value={l.customColumnValue}
+                        onChange={(e) => update(i, { customColumnValue: e.target.value })}
+                        placeholder={customDocumentColumnName}
+                      />
+                    </td>
+                  )}
                   <td className="px-1 py-2">
                     <select
                       className={cellCls}

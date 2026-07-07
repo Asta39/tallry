@@ -34,6 +34,8 @@ export const org = pgTable("org", {
   nextPoNo: integer("next_po_no").notNull().default(1),
   nextPaymentNo: integer("next_payment_no").notNull().default(1),
   cuSerial: text("cu_serial"), // eTIMS control unit serial (simulated in v1)
+  customDocumentColumnName: text("custom_document_column_name"),
+  documentFooterText: text("document_footer_text"),
 });
 
 export const accounts = pgTable("accounts", {
@@ -170,6 +172,16 @@ export const documentLines = pgTable("document_lines", {
   accountId: integer("account_id"), // income/expense account override
   cogsCents: money("cogs_cents").notNull().default(0), // FIFO cost consumed (audit)
   position: integer("position").notNull().default(0),
+  customColumnValue: text("custom_column_value"),
+});
+
+export const documentAssignments = pgTable("document_assignments", {
+  id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
+  documentId: integer("document_id").notNull().references(() => documents.id),
+  memberId: integer("member_id").notNull(), // can't reference members easily if it's below, we'll just store integer
+  assignedById: integer("assigned_by_id"),
+  createdAt: text("created_at").notNull(),
 });
 
 export const payments = pgTable("payments", {
@@ -273,5 +285,16 @@ export const events = pgTable("events", {
   title: text("title").notNull(),
   date: text("date").notNull(), // YYYY-MM-DD
   color: text("color").notNull().default("#0f766e"),
+  createdAt: text("created_at").notNull(),
+});
+
+export const notifications = pgTable("notifications", {
+  id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
+  memberId: integer("member_id").notNull().references(() => members.id),
+  title: text("title").notNull(),
+  body: text("body").notNull(),
+  link: text("link"),
+  isRead: boolean("is_read").notNull().default(false),
   createdAt: text("created_at").notNull(),
 });

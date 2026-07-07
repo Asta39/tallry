@@ -1,7 +1,8 @@
 import { redirect } from "next/navigation";
 import { getUser } from "@/lib/supabase/server";
-import { getAccess, MODULES } from "@/lib/access";
+import { getAccessCached, MODULES } from "@/lib/access";
 import { Sidebar } from "@/components/Sidebar";
+import { NotificationBell } from "@/components/NotificationBell";
 
 const roleLabels: Record<string, string> = {
   admin: "Admin",
@@ -16,12 +17,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const user = await getUser();
   if (!user) redirect("/login");
 
-  const access = await getAccess();
+  const access = await getAccessCached();
   // Signed in but neither owner nor staff — needs onboarding
   if (!access || !access.orgRow.name) redirect("/onboarding");
 
   return (
     <div className="flex min-h-screen">
+      {access.memberId ? <NotificationBell memberId={access.memberId} /> : null}
       <Sidebar
         orgName={access.orgRow.name}
         orgEmail={user.email}

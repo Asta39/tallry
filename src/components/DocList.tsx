@@ -3,7 +3,8 @@ import { db, documents, contacts } from "@/db";
 import { and, desc, eq } from "drizzle-orm";
 import { getOrg } from "@/lib/org";
 import { fmtKES, todayISO } from "@/lib/money";
-import { PageHeader, PrimaryLink, StatusPill, TableCard, Th, Td, EmptyState } from "@/components/ui";
+import { PageHeader, PrimaryLink, EmptyState } from "@/components/ui";
+import { DocListClient } from "./DocListClient";
 
 export async function DocList({
   type,
@@ -52,41 +53,7 @@ export async function DocList({
           action={<PrimaryLink href={`${basePath}/new`}>{newLabel}</PrimaryLink>}
         />
       ) : (
-        <TableCard>
-          <thead className="hairline-b">
-            <tr>
-              <Th>Date</Th>
-              <Th>Number</Th>
-              <Th>{type === "bill" || type === "expense" || type === "purchase_order" ? "Vendor" : "Customer"}</Th>
-              <Th>Status</Th>
-              <Th right>Total</Th>
-              <Th right>Balance</Th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map(({ doc: d, contactName }) => (
-              <tr key={d.id} className="hairline-t hover:bg-[var(--color-ink-50)]/60">
-                <Td className="text-[var(--color-ink-400)]">{d.date}</Td>
-                <Td>
-                  <Link href={`${basePath}/${d.id}`} className="font-medium hover:text-[var(--color-accent-600)]">
-                    {d.number}
-                  </Link>
-                </Td>
-                <Td>{contactName ?? "—"}</Td>
-                <Td>
-                  <StatusPill
-                    status={d.status}
-                    overdue={d.status === "open" && !!d.dueDate && d.dueDate < today}
-                  />
-                </Td>
-                <Td right>{fmtKES(d.totalCents)}</Td>
-                <Td right className="font-medium">
-                  {["open", "partial"].includes(d.status) ? fmtKES(d.totalCents - d.paidCents) : "—"}
-                </Td>
-              </tr>
-            ))}
-          </tbody>
-        </TableCard>
+        <DocListClient type={type} rows={rows} basePath={basePath} />
       )}
     </>
   );

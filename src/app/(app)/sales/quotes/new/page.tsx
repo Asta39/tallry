@@ -19,6 +19,8 @@ export default async function NewQuotePage({
       <PageHeader title="New quote" />
       <DocumentEditor
         type="quote"
+        customDocumentColumnName={opts.customDocumentColumnName}
+        members={opts.members}
         contacts={opts.contacts}
         items={opts.items}
         defaultContactId={defaultContactId}

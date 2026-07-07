@@ -13,6 +13,8 @@ export default async function NewPurchaseOrderPage() {
       <PageHeader title="New purchase order" subtitle="No accounting effect until converted to a bill" />
       <DocumentEditor
         type="purchase_order"
+        customDocumentColumnName={opts.customDocumentColumnName}
+        members={opts.members}
         contacts={opts.contacts}
         items={opts.items}
         expenseAccounts={opts.expenseAccounts}

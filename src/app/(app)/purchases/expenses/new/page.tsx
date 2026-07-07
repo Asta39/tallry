@@ -13,6 +13,8 @@ export default async function NewExpensePage() {
       <PageHeader title="New expense" subtitle="Paid immediately from bank, M-Pesa or cash" />
       <DocumentEditor
         type="expense"
+        customDocumentColumnName={opts.customDocumentColumnName}
+        members={opts.members}
         contacts={opts.contacts}
         items={[]}
         expenseAccounts={opts.expenseAccounts}

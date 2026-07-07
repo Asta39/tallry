@@ -1,4 +1,5 @@
 import { AsyncLocalStorage } from "node:async_hooks";
+import { cache } from "react";
 import { db, org, accounts, bankAccounts } from "@/db";
 import { eq } from "drizzle-orm";
 import { getUser } from "./supabase/server";
@@ -48,6 +49,12 @@ export async function withOrg<T>(fn: () => Promise<T>): Promise<T> {
   const o = await getOrg();
   return orgContext.run(o.id, fn);
 }
+
+/**
+ * Per-request memoized version of getOrg.
+ * All server-render callers in the same request share one DB hit.
+ */
+export const getOrgCached = cache(getOrg);
 
 /**
  * Seed a new organization with the Kenyan chart of accounts and default

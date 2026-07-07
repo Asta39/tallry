@@ -20,26 +20,29 @@ export default async function Dashboard({
   const thisYear = today.slice(0, 4);
   const { year: yearParam } = await searchParams;
   const year = /^\d{4}$/.test(yearParam ?? "") ? yearParam! : thisYear;
-  const stats = await withOrg(() => dashboardStats(today));
-  const chartData = await withOrg(() => monthlyIncomeExpense(6));
-  const overview = await withOrg(() => docStatusOverview(year));
+
+  // All independent — fire in parallel
+  const [stats, chartData, overview, recentDocs, todoRows, eventRows] =
+    await Promise.all([
+      withOrg(() => dashboardStats(today)),
+      withOrg(() => monthlyIncomeExpense(6)),
+      withOrg(() => docStatusOverview(year)),
+      db
+        .select()
+        .from(documents)
+        .where(and(eq(documents.orgId, o.id), inArray(documents.type, ["invoice", "bill", "expense"])))
+        .orderBy(desc(documents.createdAt))
+        .limit(8),
+      db
+        .select()
+        .from(todos)
+        .where(eq(todos.orgId, o.id))
+        .orderBy(asc(todos.done), desc(todos.id))
+        .limit(30),
+      db.select().from(events).where(eq(events.orgId, o.id)),
+    ]);
+
   const years = [thisYear, String(Number(thisYear) - 1), String(Number(thisYear) - 2)];
-
-  const recentDocs = await db
-    .select()
-    .from(documents)
-    .where(and(eq(documents.orgId, o.id), inArray(documents.type, ["invoice", "bill", "expense"])))
-    .orderBy(desc(documents.createdAt))
-    .limit(8);
-
-  const todoRows = await db
-    .select()
-    .from(todos)
-    .where(eq(todos.orgId, o.id))
-    .orderBy(asc(todos.done), desc(todos.id))
-    .limit(30);
-
-  const eventRows = await db.select().from(events).where(eq(events.orgId, o.id));
 
   return (
     <>

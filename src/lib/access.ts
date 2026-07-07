@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { db, org, members, rolePermissions } from "@/db";
 import { and, eq } from "drizzle-orm";
 import { getUser } from "./supabase/server";
@@ -48,6 +49,7 @@ export interface Access {
   isOwner: boolean;
   role: Role;
   memberName: string;
+  memberId: number | null;
   perms: Set<string>;
 }
 
@@ -66,6 +68,7 @@ export async function getAccess(): Promise<Access | null> {
       isOwner: true,
       role: "admin",
       memberName: owned.name,
+      memberId: null, // owner might not have a member record unless created
       perms: new Set(ALL),
     };
   }
@@ -101,6 +104,7 @@ export async function getAccess(): Promise<Access | null> {
     isOwner: false,
     role,
     memberName: m.name || m.email,
+    memberId: m.id,
     perms: role === "admin" ? new Set(ALL) : perms,
   };
 }
@@ -116,3 +120,10 @@ export async function rolePermMap(orgId: number, role: Role): Promise<Record<str
   for (const ov of overrides) map[ov.permKey] = ov.allowed;
   return map;
 }
+
+/**
+ * Per-request memoized access check.
+ * The layout and any server component calling this in the same render
+ * share a single set of DB queries instead of each hitting the DB.
+ */
+export const getAccessCached = cache(getAccess);

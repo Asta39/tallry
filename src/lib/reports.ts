@@ -169,14 +169,21 @@ export async function aging(type: "invoice" | "bill", asOf: string) {
 
 /** Dashboard rollups. */
 export async function dashboardStats(today: string) {
-  const openInvoices = await aging("invoice", today);
-  const openBills = await aging("bill", today);
   const monthStart = today.slice(0, 8) + "01";
-  const pl = await profitAndLoss(monthStart, today);
-  const cash = (await accountBalances({ to: today })).filter(
+
+  // All independent — run in parallel
+  const [openInvoices, openBills, allBalances, pl, vat] = await Promise.all([
+    aging("invoice", today),
+    aging("bill", today),
+    accountBalances({ to: today }),
+    profitAndLoss(monthStart, today),
+    vatReturn(monthStart, today),
+  ]);
+
+  const cash = allBalances.filter(
     (b) => b.subtype === "bank" || b.subtype === "cash"
   );
-  const vat = await vatReturn(monthStart, today);
+
   return {
     receivablesCents: openInvoices.total,
     overdueReceivablesCents:

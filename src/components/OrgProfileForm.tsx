@@ -16,6 +16,8 @@ interface OrgData {
   invoicePrefix: string;
   logoUrl?: string | null;
   brandColor?: string | null;
+  customDocumentColumnName?: string | null;
+  documentFooterText?: string | null;
   userId?: string | null;
 }
 
@@ -33,6 +35,8 @@ export function OrgProfileForm({ initial }: { initial: OrgData }) {
   const [vatRegistered, setVatRegistered] = useState(initial.vatRegistered);
   const [invoicePrefix, setInvoicePrefix] = useState(initial.invoicePrefix || "INV-");
   const [brandColor, setBrandColor] = useState(initial.brandColor || "#0f766e");
+  const [customDocumentColumnName, setCustomDocumentColumnName] = useState(initial.customDocumentColumnName || "");
+  const [documentFooterText, setDocumentFooterText] = useState(initial.documentFooterText || "");
 
   const fileRef = useRef<HTMLInputElement>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(initial.logoUrl || null);
@@ -95,6 +99,8 @@ export function OrgProfileForm({ initial }: { initial: OrgData }) {
           invoicePrefix: invoicePrefix || "INV-",
           logoUrl: newLogoUrl ?? undefined,
           brandColor,
+          customDocumentColumnName: customDocumentColumnName || undefined,
+          documentFooterText: documentFooterText || undefined,
         });
         setSaved(true);
         router.refresh();
@@ -255,6 +261,40 @@ export function OrgProfileForm({ initial }: { initial: OrgData }) {
             maxLength={8}
           />
         </label>
+      </div>
+
+      {/* Document customizations */}
+      <div className="card p-6">
+        <div className="text-[11px] font-semibold uppercase tracking-wider text-[var(--color-ink-400)] mb-4">
+          Document Customizations
+        </div>
+        <div className="grid grid-cols-1 gap-4">
+          <label className="block">
+            <span className={labelCls}>Custom Document Column</span>
+            <div className="text-[12px] text-[var(--color-ink-400)] mb-1">
+              Add a custom column to your invoices, quotes, and bills (e.g. "Item Location", "Project ID").
+            </div>
+            <input
+              type="text"
+              value={customDocumentColumnName}
+              onChange={(e) => setCustomDocumentColumnName(e.target.value)}
+              className={inputCls}
+              placeholder="e.g. Item Location"
+            />
+          </label>
+          <label className="block">
+            <span className={labelCls}>Document Footer Text</span>
+            <div className="text-[12px] text-[var(--color-ink-400)] mb-1">
+              Default terms and conditions or payment info displayed at the bottom of PDFs.
+            </div>
+            <textarea
+              value={documentFooterText}
+              onChange={(e) => setDocumentFooterText(e.target.value)}
+              className={inputCls + " h-24 resize-none"}
+              placeholder="Terms and conditions, Payment Info..."
+            />
+          </label>
+        </div>
       </div>
 
       {error && (

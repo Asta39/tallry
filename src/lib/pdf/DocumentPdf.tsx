@@ -19,6 +19,8 @@ export interface PdfOrg {
   email?: string | null;
   logoUrl?: string | null;
   brandColor: string;
+  customDocumentColumnName?: string | null;
+  documentFooterText?: string | null;
 }
 
 export interface PdfLine {
@@ -30,6 +32,7 @@ export interface PdfLine {
   netCents: number;
   taxCents: number;
   grossCents: number;
+  customColumnValue?: string | null;
 }
 
 export interface PdfDoc {
@@ -81,14 +84,17 @@ function makeStyles(brand: string) {
     table: { marginTop: 22 },
     thRow: {
       flexDirection: "row",
-      borderBottomWidth: 1.4,
-      borderBottomColor: brand,
-      paddingBottom: 5,
+      backgroundColor: brand,
+      paddingVertical: 6,
+      paddingHorizontal: 4,
       marginBottom: 2,
+      borderRadius: 4,
     },
-    th: { fontSize: 7.5, fontFamily: "Helvetica-Bold", color: brand, textTransform: "uppercase", letterSpacing: 0.6 },
-    tr: { flexDirection: "row", borderBottomWidth: 0.5, borderBottomColor: "#e8e8ed", paddingVertical: 5.5 },
+    th: { fontSize: 7.5, fontFamily: "Helvetica-Bold", color: "#ffffff", textTransform: "uppercase", letterSpacing: 0.6 },
+    tr: { flexDirection: "row", borderBottomWidth: 0.5, borderBottomColor: "#e8e8ed", paddingVertical: 5.5, paddingHorizontal: 4 },
     cDesc: { width: "40%", paddingRight: 6 },
+    cDescShrunk: { width: "25%", paddingRight: 6 },
+    cCustom: { width: "15%", paddingRight: 6 },
     cQty: { width: "10%", textAlign: "right" },
     cPrice: { width: "17%", textAlign: "right" },
     cVat: { width: "13%", textAlign: "center" },
@@ -105,6 +111,15 @@ function makeStyles(brand: string) {
       paddingTop: 5,
     },
     grandText: { fontSize: 12, fontFamily: "Helvetica-Bold", color: brand },
+    docFooterText: {
+      marginTop: 24,
+      paddingTop: 12,
+      borderTopWidth: 0.5,
+      borderTopColor: "#e8e8ed",
+      fontSize: 8,
+      color: "#86868b",
+      lineHeight: 1.4,
+    },
     footer: {
       position: "absolute",
       bottom: 36,
@@ -192,7 +207,8 @@ export function DocumentPdf({
         {/* Line items */}
         <View style={s.table}>
           <View style={s.thRow}>
-            <Text style={[s.th, s.cDesc]}>Description</Text>
+            <Text style={[s.th, org.customDocumentColumnName ? s.cDescShrunk : s.cDesc]}>Description</Text>
+            {org.customDocumentColumnName ? <Text style={[s.th, s.cCustom]}>{org.customDocumentColumnName}</Text> : null}
             <Text style={[s.th, s.cQty]}>Qty</Text>
             <Text style={[s.th, s.cPrice]}>Unit price</Text>
             <Text style={[s.th, s.cVat]}>VAT</Text>
@@ -200,7 +216,8 @@ export function DocumentPdf({
           </View>
           {lines.map((l, i) => (
             <View style={s.tr} key={i} wrap={false}>
-              <Text style={s.cDesc}>{l.description}</Text>
+              <Text style={org.customDocumentColumnName ? s.cDescShrunk : s.cDesc}>{l.description}</Text>
+              {org.customDocumentColumnName ? <Text style={s.cCustom}>{l.customColumnValue || "—"}</Text> : null}
               <Text style={s.cQty}>{l.qty}</Text>
               <Text style={s.cPrice}>{fmtKES(l.unitPriceCents)}</Text>
               <Text style={s.cVat}>
@@ -254,6 +271,13 @@ export function DocumentPdf({
           <View style={{ marginTop: 20 }}>
             <Text style={s.sectionLabel}>Notes</Text>
             <Text style={s.muted}>{doc.notes}</Text>
+          </View>
+        ) : null}
+
+        {/* Custom footer text */}
+        {org.documentFooterText ? (
+          <View style={s.docFooterText}>
+            <Text>{org.documentFooterText}</Text>
           </View>
         ) : null}
 
