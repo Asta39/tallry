@@ -62,6 +62,7 @@ export function DocumentEditor({
   defaultContactId,
   customDocumentColumnName,
   members,
+  initialData,
 }: {
   type: "invoice" | "quote" | "credit_note" | "bill" | "expense" | "purchase_order";
   contacts: Option[];
