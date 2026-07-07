@@ -71,8 +71,11 @@ export function DocActions({
             {isQuote ? "Mark as sent" : "Issue"}
           </button>
         )}
-        {(doc.status === "draft" || (isQuote && doc.status === "open")) && (
-          <button className={secondary} disabled={pending} onClick={() => router.push(`/sales/${isQuote ? "quotes" : "invoices"}/${doc.id}/edit`)}>
+        {(
+          (doc.type === "quote" && ["draft", "open"].includes(doc.status)) ||
+          (doc.type === "invoice" && ["draft", "open", "partial"].includes(doc.status))
+        ) && (
+          <button className={secondary} disabled={pending} onClick={() => router.push(`/sales/${doc.type === "quote" ? "quotes" : "invoices"}/${doc.id}/edit`)}>
             Edit
           </button>
         )}

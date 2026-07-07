@@ -284,14 +284,27 @@ async function _saveDocument(data: {
   if (data.id) {
     const [existing] = await db.select().from(documents).where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, data.id))).limit(1);
     if (!existing) throw new Error("Document not found");
+    let newStatus = existing.status;
     if (existing.type === "quote") {
       if (existing.status !== "draft" && existing.status !== "open") throw new Error("Only draft or open quotes can be edited");
+    } else if (existing.type === "invoice") {
+      if (!["draft", "open", "partial"].includes(existing.status)) throw new Error("Only draft, open, or partial invoices can be edited");
+      if (existing.status !== "draft") {
+        if (totals.totalCents <= existing.paidCents) {
+          newStatus = "paid";
+        } else if (existing.paidCents > 0) {
+          newStatus = "partial";
+        } else {
+          newStatus = "open";
+        }
+      }
     } else {
       if (existing.status !== "draft") throw new Error("Only drafts can be edited");
     }
     await db
       .update(documents)
       .set({
+        status: newStatus,
         contactId: data.contactId,
         date: data.date,
         dueDate: data.dueDate,
