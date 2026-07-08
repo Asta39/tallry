@@ -173,9 +173,8 @@ export function DocumentPdf({
     <Document title={`${doc.number} — ${org.name}`}>
       <Page size="A4" style={s.page}>
         {/* Backgrounds */}
-        {template === "beige" && <View style={{ position: "absolute", top: 0, left: 0, bottom: 0, right: 0, backgroundColor: "#fdfbf7" }} />}
-        {template === "pastel" && <View style={{ position: "absolute", top: 0, left: 0, bottom: 0, right: 0, backgroundColor: org.brandColor, opacity: 0.05 }} />}
-        {template === "sleek" && <View style={{ position: "absolute", top: 10, left: 10, bottom: 10, right: 10, border: "2px solid #1d1d1f" }} />}
+        {template === "beige" && <View style={{ position: "absolute", top: -42, left: -42, bottom: -42, right: -42, backgroundColor: "#fdfbf7" }} />}
+        {template === "pastel" && <View style={{ position: "absolute", top: -42, left: -42, bottom: -42, right: -42, backgroundColor: org.brandColor, opacity: 0.05 }} />}
 
         {/* Header */}
         {template === "default" && (
@@ -210,8 +209,8 @@ export function DocumentPdf({
 
         {template === "accent" && (
           <View style={{ marginBottom: 30 }}>
-            {/* Header dark block */}
-            <View style={{ backgroundColor: "#2d2d2d", padding: 30, flexDirection: "row", justifyContent: "space-between", marginHorizontal: -42, marginTop: -42, paddingHorizontal: 42 }}>
+            {/* Header block */}
+            <View style={{ backgroundColor: org.brandColor || "#2d2d2d", padding: 30, flexDirection: "row", justifyContent: "space-between", marginHorizontal: -42, marginTop: -42, paddingHorizontal: 42 }}>
                <View style={{ maxWidth: 220 }}>
                  {org.logoUrl ? <Image style={s.logo} src={org.logoUrl} /> : null}
                  <Text style={[s.orgName, { color: "#ffffff" }]}>{org.name}</Text>
@@ -223,7 +222,7 @@ export function DocumentPdf({
                </View>
             </View>
             {/* Accent line */}
-            <View style={{ height: 4, backgroundColor: org.brandColor, marginHorizontal: -42 }} />
+            <View style={{ height: 4, backgroundColor: "#2d2d2d", marginHorizontal: -42 }} />
             
             <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 24 }}>
                <View>
