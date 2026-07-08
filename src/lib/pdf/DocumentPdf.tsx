@@ -173,8 +173,8 @@ export function DocumentPdf({
     <Document title={`${doc.number} — ${org.name}`}>
       <Page size="A4" style={s.page}>
         {/* Backgrounds */}
-        {template === "beige" && <View fixed style={{ position: "absolute", top: -42, left: -42, width: 600, height: 850, backgroundColor: "#faf9f5", zIndex: -1 }} />}
-        {template === "pastel" && <View fixed style={{ position: "absolute", top: -42, left: -42, width: 600, height: 850, backgroundColor: org.brandColor || "#0f766e", opacity: 0.05, zIndex: -1 }} />}
+        {template === "beige" && <View fixed style={{ position: "absolute", top: -100, left: -100, width: 1000, height: 1500, backgroundColor: "#faf9f5", zIndex: -1 }} />}
+        {template === "pastel" && <View fixed style={{ position: "absolute", top: -100, left: -100, width: 1000, height: 1500, backgroundColor: org.brandColor || "#0f766e", opacity: 0.05, zIndex: -1 }} />}
 
         {/* Header */}
         {template === "default" && (
