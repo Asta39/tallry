@@ -1,4 +1,4 @@
-import { db, accounts, journalEntries, journalLines, documents, payments, contacts } from "@/db";
+import { db, accounts, journalEntries, journalLines, documents, documentLines, payments, contacts, items } from "@/db";
 import { currentOrgId } from "@/lib/org";
 import { and, eq, gte, lte, inArray, sql, ne } from "drizzle-orm";
 
@@ -411,6 +411,184 @@ export async function invoicesReport(fromDate: string, toDate: string) {
     paidCents: Number(r.paidCents),
     balanceCents: Number(r.totalCents) - Number(r.paidCents),
     customerName: r.customerName,
+  }));
+}
+
+/**
+ * Detailed Items Report (Sales)
+ */
+export async function itemsReport(fromDate: string, toDate: string) {
+  const rows = await db
+    .select({
+      itemId: items.id,
+      itemName: items.name,
+      sku: items.sku,
+      quantitySold: sql<number>`coalesce(sum(${documentLines.qty}), 0)`,
+      amountSoldCents: sql<number>`coalesce(sum(${documentLines.netCents}), 0)`,
+    })
+    .from(documentLines)
+    .innerJoin(documents, eq(documentLines.documentId, documents.id))
+    .innerJoin(items, eq(documentLines.itemId, items.id))
+    .where(
+      and(
+        eq(documents.orgId, currentOrgId()),
+        eq(documents.type, "invoice"),
+        inArray(documents.status, ["open", "partial", "paid"]), // excluding draft/void
+        gte(documents.date, fromDate),
+        lte(documents.date, toDate)
+      )
+    )
+    .groupBy(items.id, items.name, items.sku)
+    .orderBy(sql`sum(${documentLines.netCents}) desc`);
+
+  return rows.map(r => ({
+    itemId: r.itemId,
+    itemName: r.itemName,
+    sku: r.sku,
+    quantitySold: Number(r.quantitySold),
+    amountSoldCents: Number(r.amountSoldCents)
+  }));
+}
+
+/**
+ * Payments Received Report
+ */
+export async function paymentsReport(fromDate: string, toDate: string) {
+  const rows = await db
+    .select({
+      id: payments.id,
+      date: payments.date,
+      number: payments.number,
+      method: payments.method,
+      amountCents: payments.amountCents,
+      invoiceNumber: documents.number,
+      customerName: contacts.displayName,
+    })
+    .from(payments)
+    .leftJoin(documents, eq(payments.documentId, documents.id))
+    .leftJoin(contacts, eq(payments.contactId, contacts.id))
+    .where(
+      and(
+        eq(payments.orgId, currentOrgId()),
+        eq(payments.direction, "in"),
+        gte(payments.date, fromDate),
+        lte(payments.date, toDate)
+      )
+    )
+    .orderBy(sql`${payments.date} desc`, sql`${payments.number} desc`);
+
+  return rows.map(r => ({
+    id: r.id,
+    date: r.date,
+    number: r.number,
+    method: r.method,
+    amountCents: Number(r.amountCents),
+    invoiceNumber: r.invoiceNumber,
+    customerName: r.customerName,
+  }));
+}
+
+/**
+ * Credit Notes Report
+ */
+export async function creditNotesReport(fromDate: string, toDate: string) {
+  const rows = await db
+    .select({
+      id: documents.id,
+      date: documents.date,
+      number: documents.number,
+      status: documents.status,
+      totalCents: documents.totalCents,
+      customerName: contacts.displayName,
+    })
+    .from(documents)
+    .innerJoin(contacts, eq(documents.contactId, contacts.id))
+    .where(
+      and(
+        eq(documents.orgId, currentOrgId()),
+        eq(documents.type, "credit_note"),
+        gte(documents.date, fromDate),
+        lte(documents.date, toDate)
+      )
+    )
+    .orderBy(sql`${documents.date} desc`, sql`${documents.number} desc`);
+
+  return rows.map(r => ({
+    id: r.id,
+    date: r.date,
+    number: r.number,
+    status: r.status,
+    totalCents: Number(r.totalCents),
+    customerName: r.customerName,
+  }));
+}
+
+/**
+ * Estimates Report
+ */
+export async function estimatesReport(fromDate: string, toDate: string) {
+  const rows = await db
+    .select({
+      id: documents.id,
+      date: documents.date,
+      number: documents.number,
+      status: documents.status,
+      totalCents: documents.totalCents,
+      customerName: contacts.displayName,
+    })
+    .from(documents)
+    .innerJoin(contacts, eq(documents.contactId, contacts.id))
+    .where(
+      and(
+        eq(documents.orgId, currentOrgId()),
+        eq(documents.type, "quote"), // quotes are used as estimates
+        gte(documents.date, fromDate),
+        lte(documents.date, toDate)
+      )
+    )
+    .orderBy(sql`${documents.date} desc`, sql`${documents.number} desc`);
+
+  return rows.map(r => ({
+    id: r.id,
+    date: r.date,
+    number: r.number,
+    status: r.status,
+    totalCents: Number(r.totalCents),
+    customerName: r.customerName,
+  }));
+}
+
+/**
+ * Customers Sales Report
+ */
+export async function customersReport(fromDate: string, toDate: string) {
+  const rows = await db
+    .select({
+      contactId: documents.contactId,
+      customerName: contacts.displayName,
+      totalSalesCents: sql<number>`coalesce(sum(${documents.totalCents}), 0)`,
+      paidCents: sql<number>`coalesce(sum(${documents.paidCents}), 0)`,
+    })
+    .from(documents)
+    .innerJoin(contacts, eq(documents.contactId, contacts.id))
+    .where(
+      and(
+        eq(documents.orgId, currentOrgId()),
+        eq(documents.type, "invoice"),
+        inArray(documents.status, ["open", "partial", "paid"]),
+        gte(documents.date, fromDate),
+        lte(documents.date, toDate)
+      )
+    )
+    .groupBy(documents.contactId, contacts.displayName)
+    .orderBy(sql`sum(${documents.totalCents}) desc`);
+
+  return rows.map(r => ({
+    contactId: r.contactId,
+    customerName: r.customerName,
+    totalSalesCents: Number(r.totalSalesCents),
+    paidCents: Number(r.paidCents),
+    balanceCents: Number(r.totalSalesCents) - Number(r.paidCents),
   }));
 }
 
