@@ -7,6 +7,7 @@ import {
   doublePrecision,
   serial,
   index,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 
 /**
@@ -45,7 +46,7 @@ export const org = pgTable("org", {
 export const accounts = pgTable("accounts", {
   id: serial("id").primaryKey(),
   orgId: integer("org_id").notNull().references(() => org.id),
-  code: text("code").notNull().unique(),
+  code: text("code").notNull(),
   name: text("name").notNull(),
   // asset | liability | equity | income | expense
   type: text("type").notNull(),
@@ -55,6 +56,7 @@ export const accounts = pgTable("accounts", {
   archived: boolean("archived").notNull().default(false),
 }, (t) => ({
   orgIdx: index("idx_accounts_org").on(t.orgId),
+  orgCodeUnique: uniqueIndex("idx_accounts_org_code").on(t.orgId, t.code),
 }));
 
 export const contacts = pgTable("contacts", {
