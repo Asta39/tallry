@@ -3,12 +3,14 @@ import { requirePerm } from "@/lib/guard";
 
 export const dynamic = "force-dynamic";
 
-export default async function BillsPage() {
+export default async function BillsPage({ searchParams }: { searchParams: Promise<{ [key: string]: string | string[] | undefined }> }) {
   await requirePerm("bills");
+  const sp = await searchParams;
   return (
     <DocList
       type="bill"
       title="Bills"
+      searchParams={sp}
       subtitle="Vendor invoices you'll pay later"
       basePath="/purchases/bills"
       newLabel="+ New bill"

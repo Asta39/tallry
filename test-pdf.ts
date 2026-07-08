@@ -1,0 +1,13 @@
+import { parseMpesaPdf } from "./src/lib/mpesa-pdf";
+
+async function run() {
+  const dummyPdfBase64 = "JVBERi0xLjQKJdPr6eEKMSAwIG9iago8PC9DcmVhdG9yIChNb3ppbGxhLzUuMCBcKE1hY2ludG9zaDsgSW50ZWwgTWFjIE9TIFggMTBfMTVfN1wpIEFwcGxlV2ViS2l0LzUzNy4zNiBcKEtIVE1MLCBsaWtlIEdlY2tvXCkgQ2hyb21lLzEyNi4wLjAuMCBTYWZhcmkvNTM3LjM2KS9Qcm9kdWNlciAoU2tpYS9QREYgbTk5KS9DcmVhdGlvbkRhdGUgKEQ6MjAyNDA3MDgyMTMyMDFaKT4+CmVuZG9iagoyIDAgb2JqCjw8L1R5cGUgL0NhdGFsb2cvUGFnZXMgMyAwIFI+PgplbmRvYmoKMyAwIG9iago8PC9UeXBlIC9QYWdlcy9Db3VudCAxL0tpZHMgWzQgMCBSXT4+CmVuZG9iago0IDAgb2JqCjw8L1R5cGUgL0BhZ2UvUGFyZW50IDMgMCBSL1Jlc291cmNlcyA8PC9Gb250IDw8L0YxIDUgMCBSPj4vUHJvY1NldCBbL1BERiAvVGV4dCAvSW1hZ2VCIC9JbWFnZUMgL0ltYWdlSV0+Pi9NZWRpYUJveCBbMCAwIDYxMiA3OTJdL0NvbnRlbnRzIDYgMCBSPj4KZW5kb2JqCjUgMCBvYmoKPDwvVHlwZSAvRm9udC9TdWJ0eXBlIC9UeXBlMS9CYXNlRm9udCAvSGVsdmV0aWNhL0VuY29kaW5nIC9XaW5BbnNpRW5jb2Rpbmc+PgplbmRvYmoKNiAwIG9iago8PC9MZW5ndGggMzM+PgpzdHJlYW0KQlQKMDAlMjAwJTIwMCUyMHJnCi9GMSAxMiBUZgoxMCA3NzAgVGQKKEhlbGxvKSBUagpFVAplbmRzdHJlYW0KZW5kb2JqCnhyZWYKMCA3CjAwMDAwMDAwMDAgNjU1MzUgZiAKMDAwMDAwMDAxNSAwMDAwMCBuIAowMDAwMDAwMTg1IDAwMDAwIG4gCjAwMDAwMDAyMzQgMDAwMDAgbiAKMDAwMDAwMDI5MSAwMDAwMCBuIAowMDAwMDAwNDYwIDAwMDAwIG4gCjAwMDAwMDA1NDggMDAwMDAgbiAKdHJhaWxlcgo8PC9TaXplIDcvUm9vdCAyIDAgUi9JbmZvIDEgMCBSPj4Kc3RhcnR4cmVmCjYzMwolJUVPRgo=";
+  const bytes = Uint8Array.from(Buffer.from(dummyPdfBase64, "base64"));
+  try {
+    const txns = await parseMpesaPdf(bytes, "");
+    console.log("Success:", txns);
+  } catch (e) {
+    console.error("Error:", e);
+  }
+}
+run().catch(console.error).then(() => process.exit(0));
