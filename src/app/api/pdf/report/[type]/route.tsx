@@ -11,7 +11,13 @@ import {
   aging,
   vatReturn,
   monthlyIncomeExpense,
-  generalLedger
+  generalLedger,
+  invoicesReport,
+  itemsReport,
+  paymentsReport,
+  creditNotesReport,
+  estimatesReport,
+  customersReport
 } from "@/lib/reports";
 
 export const dynamic = "force-dynamic";
@@ -244,6 +250,138 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         rows.push({ id: "fin-t", cells: ["Net Cash from Financing Activities", fmtKES(netFin)], isBold: true });
 
         rows.push({ id: "net", cells: ["Net Change in Cash", fmtKES(netCash)], isHeader: true, isBold: true });
+
+      } else if (type === "invoices") {
+        title = "Invoices Report";
+        subtitle = `From ${from} to ${to}`;
+        columns = [
+          { header: "Date", align: "left", widthPct: 15 },
+          { header: "Invoice #", align: "left", widthPct: 15 },
+          { header: "Customer Name", align: "left", widthPct: 25 },
+          { header: "Status", align: "center", widthPct: 15 },
+          { header: "Balance", align: "right", widthPct: 15 },
+          { header: "Total", align: "right", widthPct: 15 },
+        ];
+        const data = await invoicesReport(from, to);
+        data.forEach(r => rows.push({
+          id: r.id.toString(),
+          cells: [r.date, r.number, r.customerName || "-", r.status, fmtKES(r.balanceCents), fmtKES(r.totalCents)]
+        }));
+        rows.push({
+          id: "tot",
+          isHeader: true,
+          isBold: true,
+          cells: ["Total", "", "", "", fmtKES(data.reduce((s, r) => s + r.balanceCents, 0)), fmtKES(data.reduce((s, r) => s + r.totalCents, 0))]
+        });
+
+      } else if (type === "items") {
+        title = "Items Report";
+        subtitle = `From ${from} to ${to}`;
+        columns = [
+          { header: "Item Name", align: "left", widthPct: 40 },
+          { header: "SKU", align: "left", widthPct: 20 },
+          { header: "Qty Sold", align: "right", widthPct: 20 },
+          { header: "Amount Sold", align: "right", widthPct: 20 },
+        ];
+        const data = await itemsReport(from, to);
+        data.forEach(r => rows.push({
+          id: r.itemId.toString(),
+          cells: [r.itemName, r.sku || "-", r.quantitySold.toString(), fmtKES(r.amountSoldCents)]
+        }));
+        rows.push({
+          id: "tot",
+          isHeader: true,
+          isBold: true,
+          cells: ["Total", "", data.reduce((s, r) => s + r.quantitySold, 0).toString(), fmtKES(data.reduce((s, r) => s + r.amountSoldCents, 0))]
+        });
+
+      } else if (type === "payments") {
+        title = "Payments Received";
+        subtitle = `From ${from} to ${to}`;
+        columns = [
+          { header: "Date", align: "left", widthPct: 15 },
+          { header: "Payment #", align: "left", widthPct: 15 },
+          { header: "Invoice #", align: "left", widthPct: 15 },
+          { header: "Customer", align: "left", widthPct: 25 },
+          { header: "Mode", align: "left", widthPct: 15 },
+          { header: "Amount", align: "right", widthPct: 15 },
+        ];
+        const data = await paymentsReport(from, to);
+        data.forEach(r => rows.push({
+          id: r.id.toString(),
+          cells: [r.date, r.number, r.invoiceNumber || "-", r.customerName || "-", r.method?.replace('_', ' ') || "-", fmtKES(r.amountCents)]
+        }));
+        rows.push({
+          id: "tot",
+          isHeader: true,
+          isBold: true,
+          cells: ["Total", "", "", "", "", fmtKES(data.reduce((s, r) => s + r.amountCents, 0))]
+        });
+
+      } else if (type === "credit-notes") {
+        title = "Credit Notes Report";
+        subtitle = `From ${from} to ${to}`;
+        columns = [
+          { header: "Date", align: "left", widthPct: 15 },
+          { header: "Credit Note #", align: "left", widthPct: 20 },
+          { header: "Customer Name", align: "left", widthPct: 35 },
+          { header: "Status", align: "center", widthPct: 15 },
+          { header: "Amount", align: "right", widthPct: 15 },
+        ];
+        const data = await creditNotesReport(from, to);
+        data.forEach(r => rows.push({
+          id: r.id.toString(),
+          cells: [r.date, r.number, r.customerName || "-", r.status, fmtKES(r.totalCents)]
+        }));
+        rows.push({
+          id: "tot",
+          isHeader: true,
+          isBold: true,
+          cells: ["Total", "", "", "", fmtKES(data.reduce((s, r) => s + r.totalCents, 0))]
+        });
+
+      } else if (type === "estimates") {
+        title = "Estimates Report";
+        subtitle = `From ${from} to ${to}`;
+        columns = [
+          { header: "Date", align: "left", widthPct: 15 },
+          { header: "Estimate #", align: "left", widthPct: 20 },
+          { header: "Customer Name", align: "left", widthPct: 35 },
+          { header: "Status", align: "center", widthPct: 15 },
+          { header: "Amount", align: "right", widthPct: 15 },
+        ];
+        const data = await estimatesReport(from, to);
+        data.forEach(r => rows.push({
+          id: r.id.toString(),
+          cells: [r.date, r.number, r.customerName || "-", r.status, fmtKES(r.totalCents)]
+        }));
+        rows.push({
+          id: "tot",
+          isHeader: true,
+          isBold: true,
+          cells: ["Total", "", "", "", fmtKES(data.reduce((s, r) => s + r.totalCents, 0))]
+        });
+
+      } else if (type === "customers") {
+        title = "Customers Report";
+        subtitle = `From ${from} to ${to}`;
+        columns = [
+          { header: "Customer Name", align: "left", widthPct: 40 },
+          { header: "Invoice Sales", align: "right", widthPct: 20 },
+          { header: "Amount Received", align: "right", widthPct: 20 },
+          { header: "Balance Due", align: "right", widthPct: 20 },
+        ];
+        const data = await customersReport(from, to);
+        data.forEach(r => rows.push({
+          id: r.contactId?.toString() || Math.random().toString(),
+          cells: [r.customerName || "-", fmtKES(r.totalSalesCents), fmtKES(r.paidCents), fmtKES(r.balanceCents)]
+        }));
+        rows.push({
+          id: "tot",
+          isHeader: true,
+          isBold: true,
+          cells: ["Total", fmtKES(data.reduce((s, r) => s + r.totalSalesCents, 0)), fmtKES(data.reduce((s, r) => s + r.paidCents, 0)), fmtKES(data.reduce((s, r) => s + r.balanceCents, 0))]
+        });
 
       } else {
         return new NextResponse("Report type not supported for PDF", { status: 400 });
