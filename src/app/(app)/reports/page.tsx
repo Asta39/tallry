@@ -10,6 +10,12 @@ export const dynamic = "force-dynamic";
 
 const reports = [
   {
+    group: "Sales",
+    items: [
+      { href: "/reports/sales", title: "Sales Reports", body: "Detailed breakdown of invoices, items, and customers." },
+    ],
+  },
+  {
     group: "Performance",
     items: [
       { href: "/reports/pnl", title: "Profit & Loss", body: "Income minus spending — did you make money?" },
