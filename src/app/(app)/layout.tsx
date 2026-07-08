@@ -33,12 +33,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         roleLabel={access.isOwner ? "Owner" : roleLabels[access.role]}
       />
       <main className="flex-1 min-w-0 flex flex-col h-screen overflow-y-auto">
-        <div className="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-[var(--color-ink-100)] px-4 md:px-8 h-14 flex items-center justify-between no-print">
+        <div className="h-14 md:hidden shrink-0 no-print" />
+        <div className="sticky top-14 md:top-0 z-30 bg-white/80 backdrop-blur-md border-b border-[var(--color-ink-100)] px-4 py-3 md:py-0 md:px-8 md:h-14 flex items-center justify-between no-print">
           <div className="hidden md:block w-[40px]" /> {/* Spacer for symmetry if needed */}
           <div className="flex-1 max-w-md mx-auto">
             <GlobalSearch />
           </div>
-          <div className="w-[40px]" />
+          <div className="hidden md:block w-[40px]" />
         </div>
         <div className="px-4 py-6 md:px-8 md:py-7 max-w-[1200px] w-full mx-auto">
           {children}
