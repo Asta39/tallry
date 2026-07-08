@@ -35,6 +35,7 @@ import { addLot, consumeFifo } from "./inventory";
 import { SYS } from "./coa";
 import { nowISO, todayISO } from "./money";
 import { getTaxDevice } from "./etims";
+import { ETIMS_ENABLED } from "./features";
 import { getUser } from "./supabase/server";
 
 /** revalidatePath, but safe when called outside a Next request (scripts, tests). */
@@ -418,23 +419,29 @@ async function _issueDocument(docId: number) {
 
   switch (doc.type) {
     case "invoice": {
-      const o = await getOrg();
-      const buyer = doc.contactId
-        ? (await db.select().from(contacts).where(and(eq(contacts.orgId, currentOrgId()), eq(contacts.id, doc.contactId))).limit(1))[0]
-        : null;
-      const device = getTaxDevice(o.cuSerial);
-      const signed = device.sign({
-        sellerPin: o.kraPin ?? "P000000000X",
-        buyerPin: buyer?.kraPin,
-        invoiceNumber: doc.number,
-        totalCents: doc.totalCents,
-        taxCents: doc.taxCents,
-        dateISO: doc.date,
-      });
-      await db
-        .update(documents)
-        .set({ cuInvoiceNumber: signed.cuInvoiceNumber, cuSerial: signed.cuSerial, qrUrl: signed.qrUrl })
-        .where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, docId)));
+      // KRA eTIMS signing — gated behind ETIMS_ENABLED (off until a real
+      // OSCU/reseller integration is in place). When off, no CU number/QR is
+      // generated and the eTIMS blocks on views/PDFs stay hidden. See
+      // src/lib/features.ts and src/lib/etims.ts — nothing is removed.
+      if (ETIMS_ENABLED) {
+        const o = await getOrg();
+        const buyer = doc.contactId
+          ? (await db.select().from(contacts).where(and(eq(contacts.orgId, currentOrgId()), eq(contacts.id, doc.contactId))).limit(1))[0]
+          : null;
+        const device = getTaxDevice(o.cuSerial);
+        const signed = device.sign({
+          sellerPin: o.kraPin ?? "P000000000X",
+          buyerPin: buyer?.kraPin,
+          invoiceNumber: doc.number,
+          totalCents: doc.totalCents,
+          taxCents: doc.taxCents,
+          dateISO: doc.date,
+        });
+        await db
+          .update(documents)
+          .set({ cuInvoiceNumber: signed.cuInvoiceNumber, cuSerial: signed.cuSerial, qrUrl: signed.qrUrl })
+          .where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, docId)));
+      }
       await postInvoice(docId);
       break;
     }
@@ -662,28 +669,16 @@ export async function saveOrgProfile(data: {
 }) {
   const user = await getUser();
   if (!user) throw new Error("Not authenticated");
-  const [saved] = await db
-    .insert(org)
-    .values({
-      userId: user.id,
-      name: data.name,
-      kraPin: data.kraPin,
-      vatRegistered: data.vatRegistered,
-      address: data.address,
-      phone: data.phone,
-      email: data.email,
-      invoicePrefix: data.invoicePrefix || "INV-",
-      ...(data.invoiceTemplate !== undefined ? { invoiceTemplate: data.invoiceTemplate } : {}),
-      ...(data.quoteTemplate !== undefined ? { quoteTemplate: data.quoteTemplate } : {}),
-      ...(data.logoUrl !== undefined ? { logoUrl: data.logoUrl } : {}),
-      ...(data.brandColor !== undefined ? { brandColor: data.brandColor } : {}),
-      ...(data.customDocumentColumnName !== undefined ? { customDocumentColumnName: data.customDocumentColumnName } : {}),
-      ...(data.documentFooterText !== undefined ? { documentFooterText: data.documentFooterText } : {}),
-      ...(data.dataSegregation !== undefined ? { dataSegregation: data.dataSegregation } : {}),
-    })
-    .onConflictDoUpdate({
-      target: org.userId,
-      set: {
+  
+  const access = await getAccess();
+  
+  if (access) {
+    if (!access.isOwner && access.role !== "admin") {
+      throw new Error("Not authorized to update org settings");
+    }
+    await db
+      .update(org)
+      .set({
         name: data.name,
         kraPin: data.kraPin,
         vatRegistered: data.vatRegistered,
@@ -698,11 +693,32 @@ export async function saveOrgProfile(data: {
         ...(data.customDocumentColumnName !== undefined ? { customDocumentColumnName: data.customDocumentColumnName } : {}),
         ...(data.documentFooterText !== undefined ? { documentFooterText: data.documentFooterText } : {}),
         ...(data.dataSegregation !== undefined ? { dataSegregation: data.dataSegregation } : {}),
-      },
-    })
-    .returning();
-  // New org: seed Kenyan chart of accounts + default money accounts
-  await seedOrgDefaults(saved.id);
+      })
+      .where(eq(org.id, access.orgId));
+  } else {
+    const [saved] = await db
+      .insert(org)
+      .values({
+        userId: user.id,
+        name: data.name,
+        kraPin: data.kraPin,
+        vatRegistered: data.vatRegistered,
+        address: data.address,
+        phone: data.phone,
+        email: data.email,
+        invoicePrefix: data.invoicePrefix || "INV-",
+        ...(data.invoiceTemplate !== undefined ? { invoiceTemplate: data.invoiceTemplate } : {}),
+        ...(data.quoteTemplate !== undefined ? { quoteTemplate: data.quoteTemplate } : {}),
+        ...(data.logoUrl !== undefined ? { logoUrl: data.logoUrl } : {}),
+        ...(data.brandColor !== undefined ? { brandColor: data.brandColor } : {}),
+        ...(data.customDocumentColumnName !== undefined ? { customDocumentColumnName: data.customDocumentColumnName } : {}),
+        ...(data.documentFooterText !== undefined ? { documentFooterText: data.documentFooterText } : {}),
+        ...(data.dataSegregation !== undefined ? { dataSegregation: data.dataSegregation } : {}),
+      })
+      .returning();
+    await seedOrgDefaults(saved.id);
+  }
+
   revalidatePath("/settings");
   revalidatePath("/");
 }
