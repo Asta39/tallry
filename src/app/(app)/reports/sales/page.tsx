@@ -22,10 +22,10 @@ export default function SalesDashboard() {
       <PageHeader title="Sales Overview" subtitle="High-level charts and detailed sales reports" />
 
       {/* Charts Section Placeholder */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-10">
+      <div className="flex flex-col gap-6 mb-10">
         
         {/* Total Income Chart */}
-        <div className="card p-5 xl:col-span-2">
+        <div className="card p-5">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
             <h3 className="font-semibold text-[14px]">Total Income</h3>
             <select className="text-xs border-none bg-[var(--color-ink-50)] rounded px-2 py-1.5 text-[var(--color-ink-600)] outline-none cursor-pointer w-full sm:w-auto">
@@ -43,7 +43,7 @@ export default function SalesDashboard() {
           </div>
         </div>
 
-        <div className="flex flex-col gap-6 xl:col-span-1">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Payment Modes Chart */}
           <div className="card p-5 flex flex-col flex-1">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
@@ -53,7 +53,7 @@ export default function SalesDashboard() {
                 <option>This Year</option>
               </select>
             </div>
-            <div className="flex-1 flex items-center justify-center bg-[var(--color-ink-50)]/50 rounded border border-dashed border-[var(--color-ink-200)] min-h-[180px]">
+            <div className="flex-1 flex items-center justify-center bg-[var(--color-ink-50)]/50 rounded border border-dashed border-[var(--color-ink-200)] min-h-[220px]">
               <span className="text-[var(--color-ink-400)] text-sm flex items-center gap-2">
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z" />
@@ -73,12 +73,12 @@ export default function SalesDashboard() {
                 <option>This Year</option>
               </select>
             </div>
-            <div className="flex-1 flex items-center justify-center bg-[var(--color-ink-50)]/50 rounded border border-dashed border-[var(--color-ink-200)] min-h-[180px]">
+            <div className="flex-1 flex items-center justify-center bg-[var(--color-ink-50)]/50 rounded border border-dashed border-[var(--color-ink-200)] min-h-[220px]">
               <span className="text-[var(--color-ink-400)] text-sm flex items-center gap-2">
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 8v8m-4-5v5m-4-2v2m-2 4h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
-                Bar Chart
+                Pie Chart
               </span>
             </div>
           </div>
