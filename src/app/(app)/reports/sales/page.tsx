@@ -2,6 +2,7 @@ import Link from "next/link";
 import { PageHeader } from "@/components/ui";
 import { salesDashboardStats } from "@/lib/reports";
 import { SalesDashboardCharts } from "./SalesDashboardCharts";
+import { withOrg } from "@/lib/org";
 
 const reportCards = [
   { href: "/reports/sales/invoices", title: "Invoices Report", desc: "Detailed view of all generated invoices.", icon: "📄" },
@@ -14,7 +15,7 @@ const reportCards = [
 
 export default async function SalesDashboard() {
   const today = new Date().toISOString().slice(0, 10);
-  const stats = await salesDashboardStats(today);
+  const stats = await withOrg(() => salesDashboardStats(today));
 
   return (
     <div className="pb-10 pt-2">

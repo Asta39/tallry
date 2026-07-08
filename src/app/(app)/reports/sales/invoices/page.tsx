@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { PageHeader } from "@/components/ui";
 import { invoicesReport } from "@/lib/reports";
+import { withOrg } from "@/lib/org";
 
 export default async function InvoicesReportPage() {
   const today = new Date().toISOString().slice(0, 10);
@@ -8,7 +9,7 @@ export default async function InvoicesReportPage() {
   const fromDate = `${currentMonth}-01`;
   const toDate = today;
 
-  const invoices = await invoicesReport(fromDate, toDate);
+  const invoices = await withOrg(() => invoicesReport(fromDate, toDate));
 
   return (
     <div className="pb-10 pt-2">
