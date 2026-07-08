@@ -5,6 +5,8 @@ export interface ReportPdfProps {
   title: string;
   subtitle?: string;
   orgName: string;
+  brandColor?: string;
+  logoUrl?: string;
   dateStr?: string;
   columns: { header: string; align: "left" | "right" | "center"; widthPct?: number }[];
   rows: {
@@ -27,27 +29,29 @@ const s = StyleSheet.create({
     color: "#1d1d1f",
   },
   header: {
-    marginBottom: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: "#d2d2d7",
-    paddingBottom: 10,
+    marginBottom: 30,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-end",
+    borderBottomWidth: 2,
+    paddingBottom: 16,
   },
-  orgName: { fontSize: 14, fontFamily: "Helvetica-Bold", marginBottom: 4 },
-  title: { fontSize: 18, fontFamily: "Helvetica-Bold", color: "#0f766e" },
-  subtitle: { fontSize: 10, color: "#6e6e73", marginTop: 4 },
+  orgName: { fontSize: 16, fontFamily: "Helvetica-Bold", marginBottom: 2 },
+  title: { fontSize: 24, fontFamily: "Helvetica-Bold", textTransform: "uppercase", letterSpacing: 1 },
+  subtitle: { fontSize: 11, marginTop: 4 },
+  logo: { width: 60, height: 60, objectFit: "contain", marginBottom: 8 },
   table: { marginTop: 10 },
   thRow: {
     flexDirection: "row",
     borderBottomWidth: 1,
-    borderBottomColor: "#0f766e",
-    paddingVertical: 6,
-    paddingHorizontal: 4,
+    paddingVertical: 8,
+    paddingHorizontal: 6,
     marginBottom: 4,
+    backgroundColor: "#f5f5f7",
   },
   th: {
-    fontSize: 8.5,
+    fontSize: 9,
     fontFamily: "Helvetica-Bold",
-    color: "#0f766e",
     textTransform: "uppercase",
   },
   tr: {
@@ -75,25 +79,32 @@ const s = StyleSheet.create({
   },
 });
 
-export function ReportPdf({ title, subtitle, orgName, dateStr, columns, rows }: ReportPdfProps) {
+export function ReportPdf({ title, subtitle, orgName, brandColor, logoUrl, dateStr, columns, rows }: ReportPdfProps) {
   // If no widthPct is provided, divide evenly
   const getWidth = (col: typeof columns[0]) => {
     return col.widthPct ? `${col.widthPct}%` : `${100 / columns.length}%`;
   };
 
+  const primaryColor = brandColor || "#1d1d1f";
+
   return (
     <Document title={`${title} — ${orgName}`}>
       <Page size="A4" style={s.page}>
-        <View style={s.header}>
-          <Text style={s.orgName}>{orgName}</Text>
-          <Text style={s.title}>{title}</Text>
-          {subtitle && <Text style={s.subtitle}>{subtitle}</Text>}
+        <View style={[s.header, { borderBottomColor: primaryColor }]}>
+          <View>
+            {logoUrl && <Image src={logoUrl} style={s.logo} />}
+            <Text style={[s.orgName, { color: primaryColor }]}>{orgName}</Text>
+          </View>
+          <View style={{ textAlign: "right" }}>
+            <Text style={[s.title, { color: primaryColor }]}>{title}</Text>
+            {subtitle && <Text style={[s.subtitle, { color: "#86868b" }]}>{subtitle}</Text>}
+          </View>
         </View>
 
         <View style={s.table}>
-          <View style={s.thRow}>
+          <View style={[s.thRow, { borderBottomColor: primaryColor }]}>
             {columns.map((c, i) => (
-              <Text key={i} style={[s.th, { width: getWidth(c), textAlign: c.align }]}>
+              <Text key={i} style={[s.th, { width: getWidth(c), textAlign: c.align, color: primaryColor }]}>
                 {c.header}
               </Text>
             ))}

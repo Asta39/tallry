@@ -254,6 +254,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
           title={title}
           subtitle={subtitle}
           orgName={org.name}
+          brandColor={org.brandColor}
+          logoUrl={org.logoUrl}
           dateStr={todayISO()}
           columns={columns}
           rows={rows}
