@@ -6,6 +6,7 @@ import { db, documents, documentLines, contacts } from "@/db";
 import { and, eq } from "drizzle-orm";
 import { getOrg } from "@/lib/org";
 import { DocumentPdf } from "@/lib/pdf/DocumentPdf";
+import { ETIMS_ENABLED } from "@/lib/features";
 
 export const dynamic = "force-dynamic";
 
@@ -47,7 +48,8 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
       )[0]
     : null;
 
-  const qrDataUrl = doc.qrUrl ? await QRCode.toDataURL(doc.qrUrl, { margin: 1, width: 240 }) : null;
+  // eTIMS is gated: only surface CU fields + QR on the PDF when enabled.
+  const qrDataUrl = ETIMS_ENABLED && doc.qrUrl ? await QRCode.toDataURL(doc.qrUrl, { margin: 1, width: 240 }) : null;
 
   const element = React.createElement(DocumentPdf, {
       org: {
@@ -74,8 +76,8 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
         taxCents: doc.taxCents,
         totalCents: doc.totalCents,
         paidCents: doc.paidCents,
-        cuInvoiceNumber: doc.cuInvoiceNumber,
-        cuSerial: doc.cuSerial,
+        cuInvoiceNumber: ETIMS_ENABLED ? doc.cuInvoiceNumber : null,
+        cuSerial: ETIMS_ENABLED ? doc.cuSerial : null,
       },
       contact,
       lines: lines.map((l) => ({

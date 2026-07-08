@@ -1,9 +1,15 @@
-"use client";
-
 import Link from "next/link";
 import { PageHeader } from "@/components/ui";
+import { invoicesReport } from "@/lib/reports";
 
-export default function InvoicesReportPage() {
+export default async function InvoicesReportPage() {
+  const today = new Date().toISOString().slice(0, 10);
+  const currentMonth = today.slice(0, 7);
+  const fromDate = `${currentMonth}-01`;
+  const toDate = today;
+
+  const invoices = await invoicesReport(fromDate, toDate);
+
   return (
     <div className="pb-10 pt-2">
       <div className="flex items-center gap-4 mb-6">
@@ -69,17 +75,37 @@ export default function InvoicesReportPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--color-ink-100)]">
-              {/* Empty state placeholder for now */}
-              <tr>
-                <td colSpan={6} className="px-5 py-12 text-center text-[var(--color-ink-500)]">
-                  No invoices found for this period.
-                </td>
-              </tr>
+              {invoices.length > 0 ? (
+                invoices.map(inv => (
+                  <tr key={inv.id} className="hover:bg-[var(--color-ink-50)]/50 transition-colors">
+                    <td className="px-5 py-3 text-[var(--color-ink-600)]">{inv.date}</td>
+                    <td className="px-5 py-3 font-medium text-[var(--color-ink-900)]">{inv.number}</td>
+                    <td className="px-5 py-3 text-[var(--color-ink-800)]">{inv.customerName}</td>
+                    <td className="px-5 py-3">
+                      <span className={`px-2 py-1 rounded text-xs font-medium ${
+                        inv.status === 'paid' ? 'bg-green-100 text-green-700' : 
+                        inv.status === 'open' ? 'bg-blue-100 text-blue-700' :
+                        inv.status === 'partial' ? 'bg-orange-100 text-orange-700' :
+                        'bg-gray-100 text-gray-700'
+                      }`}>
+                        {inv.status.charAt(0).toUpperCase() + inv.status.slice(1)}
+                      </span>
+                    </td>
+                    <td className="px-5 py-3 text-right tabular-nums">Ksh {(inv.totalCents / 100).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                    <td className="px-5 py-3 text-right tabular-nums font-medium">Ksh {(inv.balanceCents / 100).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={6} className="px-5 py-12 text-center text-[var(--color-ink-500)]">
+                    No invoices found for this period.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
       </div>
-      
     </div>
   );
 }

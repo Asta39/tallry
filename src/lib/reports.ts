@@ -1,4 +1,4 @@
-import { db, accounts, journalEntries, journalLines, documents } from "@/db";
+import { db, accounts, journalEntries, journalLines, documents, payments, contacts } from "@/db";
 import { currentOrgId } from "@/lib/org";
 import { and, eq, gte, lte, inArray, sql, ne } from "drizzle-orm";
 
@@ -300,3 +300,117 @@ export async function docStatusOverview(year: string) {
   const qtTotal = Object.values(qt).reduce((a, b) => a + b, 0);
   return { inv, invTotal, qt, qtTotal, outstandingCents, pastDueCents, paidCents };
 }
+
+/** 
+ * Additional logic for the Sales Dashboard 
+ */
+export async function salesDashboardStats(today: string, period: "this_month" | "this_year" | "last_6_months" = "last_6_months") {
+  // 1. Total Income Trend (Last 6 Months)
+  // We can just use the existing monthlyIncomeExpense
+  const incomeTrend = await monthlyIncomeExpense(6);
+
+  // Determine date ranges
+  const currentYear = today.slice(0, 4);
+  const currentMonth = today.slice(0, 7);
+  let fromDate = `${currentYear}-01-01`; // Default this year
+  let toDate = today;
+
+  if (period === "this_month") {
+    fromDate = `${currentMonth}-01`;
+  }
+
+  // 2. Payment Modes
+  const paymentRows = await db
+    .select({
+      mode: payments.method,
+      amount: sql<number>`coalesce(sum(${payments.amountCents}), 0)`,
+    })
+    .from(payments)
+    .where(
+      and(
+        eq(payments.orgId, currentOrgId()),
+        gte(payments.date, fromDate),
+        lte(payments.date, toDate)
+      )
+    )
+    .groupBy(payments.method);
+
+  const paymentModes = paymentRows.map(r => ({
+    mode: r.mode || "Unknown",
+    amountCents: Number(r.amount)
+  })).sort((a, b) => b.amountCents - a.amountCents);
+
+  // 3. Top Customers
+  const customerRows = await db
+    .select({
+      contactId: documents.contactId,
+      name: contacts.displayName,
+      totalSales: sql<number>`coalesce(sum(${documents.totalCents}), 0)`,
+    })
+    .from(documents)
+    .innerJoin(contacts, eq(documents.contactId, contacts.id))
+    .where(
+      and(
+        eq(documents.orgId, currentOrgId()),
+        eq(documents.type, "invoice"),
+        inArray(documents.status, ["open", "partial", "paid"]), // exclude draft/void
+        gte(documents.date, fromDate),
+        lte(documents.date, toDate)
+      )
+    )
+    .groupBy(documents.contactId, contacts.displayName)
+    .orderBy(sql`sum(${documents.totalCents}) desc`)
+    .limit(5);
+
+  const topCustomers = customerRows.map(r => ({
+    id: r.contactId,
+    name: r.name,
+    amountCents: Number(r.totalSales)
+  }));
+
+  return {
+    incomeTrend,
+    paymentModes,
+    topCustomers
+  };
+}
+
+/**
+ * Detailed Invoices Report
+ */
+export async function invoicesReport(fromDate: string, toDate: string) {
+  const rows = await db
+    .select({
+      id: documents.id,
+      date: documents.date,
+      number: documents.number,
+      status: documents.status,
+      totalCents: documents.totalCents,
+      paidCents: documents.paidCents,
+      contactId: documents.contactId,
+      customerName: contacts.displayName,
+    })
+    .from(documents)
+    .innerJoin(contacts, eq(documents.contactId, contacts.id))
+    .where(
+      and(
+        eq(documents.orgId, currentOrgId()),
+        eq(documents.type, "invoice"),
+        gte(documents.date, fromDate),
+        lte(documents.date, toDate)
+      )
+    )
+    .orderBy(sql`${documents.date} desc`, sql`${documents.number} desc`);
+
+  return rows.map(r => ({
+    id: r.id,
+    date: r.date,
+    number: r.number,
+    status: r.status,
+    totalCents: Number(r.totalCents),
+    paidCents: Number(r.paidCents),
+    balanceCents: Number(r.totalCents) - Number(r.paidCents),
+    customerName: r.customerName,
+  }));
+}
+

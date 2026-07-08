@@ -6,6 +6,7 @@ import { fmtKES, todayISO } from "@/lib/money";
 import { TAX_CLASSES, type TaxClass } from "@/lib/tax";
 import { PageHeader, StatusPill, Th, Td } from "@/components/ui";
 import { DocActions } from "@/components/DocActions";
+import { ETIMS_ENABLED } from "@/lib/features";
 
 const typeLabels: Record<string, string> = {
   invoice: "Invoice",
@@ -146,7 +147,7 @@ export async function DocDetail({ id, printHref }: { id: number; printHref?: str
         </div>
       </div>
 
-      {doc.cuInvoiceNumber && (
+      {ETIMS_ENABLED && doc.cuInvoiceNumber && (
         <div className="card mt-4 px-5 py-3.5 text-[12.5px] text-[var(--color-ink-600)] flex flex-wrap items-center gap-x-6 gap-y-1">
           <span className="font-medium text-[var(--color-ink-900)]">KRA eTIMS</span>
           <span>CU Invoice No: <span className="tnum font-medium">{doc.cuInvoiceNumber}</span></span>

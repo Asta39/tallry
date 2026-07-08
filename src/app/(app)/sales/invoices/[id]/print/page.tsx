@@ -6,6 +6,7 @@ import { notFound } from "next/navigation";
 import QRCode from "qrcode";
 import { fmtKES } from "@/lib/money";
 import { TAX_CLASSES, type TaxClass } from "@/lib/tax";
+import { ETIMS_ENABLED } from "@/lib/features";
 
 export const dynamic = "force-dynamic";
 
@@ -119,14 +120,18 @@ export default async function PrintInvoice({ params }: { params: Promise<{ id: s
 
         <div className="mt-10 flex justify-between items-end border-t border-gray-300 pt-4">
           <div className="text-[11px] text-gray-600 space-y-0.5">
-            <div>CU Serial: {doc.cuSerial ?? "—"}</div>
-            <div>CU Invoice No: <b>{doc.cuInvoiceNumber ?? "—"}</b></div>
-            <div className="text-amber-700 font-medium">
-              DEMO: simulated control unit — not a fiscal document
-            </div>
+            {ETIMS_ENABLED && doc.cuSerial && (
+              <>
+                <div>CU Serial: {doc.cuSerial}</div>
+                <div>CU Invoice No: <b>{doc.cuInvoiceNumber ?? "—"}</b></div>
+                <div className="text-amber-700 font-medium">
+                  DEMO: simulated control unit — not a fiscal document
+                </div>
+              </>
+            )}
             {doc.notes && <div className="pt-2 whitespace-pre-wrap text-gray-700">{doc.notes}</div>}
           </div>
-          {qrDataUrl && (
+          {ETIMS_ENABLED && qrDataUrl && (
             <div className="text-center">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={qrDataUrl} alt="KRA verification QR" width={110} height={110} />
