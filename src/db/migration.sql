@@ -12,6 +12,8 @@ CREATE TABLE IF NOT EXISTS org (
   invoice_prefix TEXT NOT NULL DEFAULT 'INV-',
   next_invoice_no INTEGER NOT NULL DEFAULT 1,
   next_quote_no INTEGER NOT NULL DEFAULT 1,
+  invoice_template TEXT NOT NULL DEFAULT 'default',
+  quote_template TEXT NOT NULL DEFAULT 'default',
   next_credit_note_no INTEGER NOT NULL DEFAULT 1,
   next_po_no INTEGER NOT NULL DEFAULT 1,
   next_payment_no INTEGER NOT NULL DEFAULT 1,
