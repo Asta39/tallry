@@ -172,11 +172,10 @@ export function DocumentPdf({
   return (
     <Document title={`${doc.number} — ${org.name}`}>
       <Page size="A4" style={s.page}>
-        {/* Modern Background */}
-        {template === "modern" && <View style={{ position: "absolute", top: 0, left: 0, right: 0, height: 155, backgroundColor: org.brandColor }} />}
-        
-        {/* Bold Sidebar */}
-        {template === "bold" ? <View style={{ position: "absolute", top: 0, left: 0, bottom: 0, width: 20, backgroundColor: org.brandColor }} /> : null}
+        {/* Backgrounds */}
+        {template === "beige" && <View style={{ position: "absolute", top: 0, left: 0, bottom: 0, right: 0, backgroundColor: "#fdfbf7" }} />}
+        {template === "pastel" && <View style={{ position: "absolute", top: 0, left: 0, bottom: 0, right: 0, backgroundColor: org.brandColor, opacity: 0.05 }} />}
+        {template === "sleek" && <View style={{ position: "absolute", top: 10, left: 10, bottom: 10, right: 10, border: "2px solid #1d1d1f" }} />}
 
         {/* Header */}
         {template === "default" && (
@@ -209,56 +208,134 @@ export function DocumentPdf({
           </View>
         )}
 
-        {template === "classic" && (
-          <View style={{ marginBottom: 24 }}>
-            <View style={{ alignItems: "center", borderBottomWidth: 1, borderBottomColor: "#1d1d1f", paddingBottom: 16, marginBottom: 16 }}>
-              {org.logoUrl ? <Image style={[s.logo, { objectPosition: "center", marginHorizontal: "auto" }]} src={org.logoUrl} /> : null}
-              <Text style={[s.orgName, { fontSize: 18 }]}>{org.name}</Text>
-              {org.address ? <Text style={s.muted}>{org.address}</Text> : null}
-              {org.phone ? <Text style={s.muted}>{org.phone}</Text> : null}
-              {org.email ? <Text style={s.muted}>{org.email}</Text> : null}
-              {org.kraPin ? <Text style={{ marginTop: 3 }}>KRA PIN: <Text style={s.bold}>{org.kraPin}</Text></Text> : null}
+        {template === "accent" && (
+          <View style={{ marginBottom: 30 }}>
+            {/* Header dark block */}
+            <View style={{ backgroundColor: "#2d2d2d", padding: 30, flexDirection: "row", justifyContent: "space-between", marginHorizontal: -42, marginTop: -42, paddingHorizontal: 42 }}>
+               <View style={{ maxWidth: 220 }}>
+                 {org.logoUrl ? <Image style={s.logo} src={org.logoUrl} /> : null}
+                 <Text style={[s.orgName, { color: "#ffffff" }]}>{org.name}</Text>
+                 {org.kraPin ? <Text style={{ marginTop: 3, color: "#ffffff", opacity: 0.8, fontSize: 8 }}>KRA PIN: {org.kraPin}</Text> : null}
+               </View>
+               <View>
+                 <Text style={{ fontSize: 24, fontFamily: "Helvetica-Bold", color: "#ffffff", textAlign: "right" }}>{titles[doc.type] ?? doc.type.toUpperCase()}</Text>
+                 <Text style={{ textAlign: "right", color: "#ffffff", opacity: 0.8, marginTop: 4, fontSize: 9 }}>No: {doc.number}</Text>
+               </View>
+            </View>
+            {/* Accent line */}
+            <View style={{ height: 4, backgroundColor: org.brandColor, marginHorizontal: -42 }} />
+            
+            <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 24 }}>
+               <View>
+                 <Text style={[s.docTitle, { textAlign: "left", fontSize: 9, color: "#1d1d1f", marginBottom: 4, textTransform: "uppercase" }]}>From:</Text>
+                 <Text style={s.bold}>{org.name}</Text>
+                 {org.address ? <Text style={s.muted}>{org.address}</Text> : null}
+                 {org.phone ? <Text style={s.muted}>{org.phone}</Text> : null}
+                 {org.email ? <Text style={s.muted}>{org.email}</Text> : null}
+               </View>
+               <View style={{ textAlign: "right", lineHeight: 1.5 }}>
+                 <Text>Date: {doc.date}</Text>
+                 {doc.dueDate ? <Text>Due: {doc.dueDate}</Text> : null}
+                 {doc.status === "paid" ? <Text style={{ color: "#1f8a4c", fontFamily: "Helvetica-Bold", marginTop: 2 }}>PAID</Text> : null}
+               </View>
+            </View>
+          </View>
+        )}
+
+        {template === "minimalist" && (
+          <View style={{ marginBottom: 12 }}>
+            <View style={{ flexDirection: "row", justifyContent: "space-between", borderBottomWidth: 1, borderBottomColor: "#e8e8ed", paddingBottom: 24 }}>
+              <View style={{ flexDirection: "row", gap: 12, alignItems: "center" }}>
+                {org.logoUrl ? (
+                   <Image style={{ width: 50, height: 50, borderRadius: 25, objectFit: "cover" }} src={org.logoUrl} />
+                ) : (
+                   <View style={{ width: 50, height: 50, borderRadius: 25, backgroundColor: "#1d1d1f", alignItems: "center", justifyContent: "center" }}>
+                     <Text style={{ color: "#ffffff", fontSize: 20, fontFamily: "Helvetica-Bold" }}>{org.name.charAt(0)}</Text>
+                   </View>
+                )}
+                <View>
+                  <Text style={{ fontSize: 20, fontFamily: "Helvetica-Bold" }}>{org.name}</Text>
+                  {org.kraPin ? <Text style={{ marginTop: 2, fontSize: 8 }}>KRA PIN: {org.kraPin}</Text> : null}
+                </View>
+              </View>
+              <View>
+                <Text style={{ fontSize: 28, fontFamily: "Helvetica", textAlign: "right", letterSpacing: 1, textTransform: "lowercase" }}>{doc.type}</Text>
+              </View>
+            </View>
+            <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 16 }}>
+               <View>
+                 <Text style={s.sectionLabel}>Office</Text>
+                 {org.address ? <Text style={s.muted}>{org.address}</Text> : null}
+                 {org.phone ? <Text style={s.muted}>{org.phone}</Text> : null}
+                 {org.email ? <Text style={s.muted}>{org.email}</Text> : null}
+               </View>
+               <View style={{ textAlign: "right", lineHeight: 1.5 }}>
+                 <Text>No: <Text style={s.bold}>{doc.number}</Text></Text>
+                 <Text>Date: {doc.date}</Text>
+                 {doc.dueDate ? <Text>Due: {doc.dueDate}</Text> : null}
+                 {doc.status === "paid" ? <Text style={{ color: "#1f8a4c", fontFamily: "Helvetica-Bold", marginTop: 2 }}>PAID</Text> : null}
+               </View>
+            </View>
+          </View>
+        )}
+
+        {template === "beige" && (
+          <View style={{ marginBottom: 12 }}>
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+              <View>
+                 {org.logoUrl ? <Image style={[s.logo, { marginBottom: 0 }]} src={org.logoUrl} /> : <Text style={[s.orgName, { fontSize: 22 }]}>{org.name}</Text>}
+              </View>
+              <Text style={[s.docTitle, { color: org.brandColor }]}>{titles[doc.type] ?? doc.type.toUpperCase()}</Text>
             </View>
             <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-              <View>
-                 <Text style={[s.docTitle, { textAlign: "left", color: "#1d1d1f" }]}>{titles[doc.type] ?? doc.type.toUpperCase()}</Text>
-              </View>
-              <View style={{ textAlign: "right", lineHeight: 1.5 }}>
-                <Text>No: <Text style={s.bold}>{doc.number}</Text></Text>
-                <Text>Date: {doc.date}</Text>
-                {doc.dueDate ? <Text>Due: {doc.dueDate}</Text> : null}
-              </View>
+               <View>
+                 <Text style={s.bold}>{org.name}</Text>
+                 {org.address ? <Text style={s.muted}>{org.address}</Text> : null}
+                 {org.phone ? <Text style={s.muted}>{org.phone}</Text> : null}
+                 {org.email ? <Text style={s.muted}>{org.email}</Text> : null}
+                 {org.kraPin ? <Text style={{ marginTop: 3 }}>KRA PIN: <Text style={s.bold}>{org.kraPin}</Text></Text> : null}
+               </View>
+               <View style={s.metaRight}>
+                 <Text>No: <Text style={s.bold}>{doc.number}</Text></Text>
+                 <Text>Date: {doc.date}</Text>
+                 {doc.dueDate ? <Text>Due: {doc.dueDate}</Text> : null}
+                 {doc.status === "paid" ? <Text style={{ color: "#1f8a4c", fontFamily: "Helvetica-Bold", marginTop: 2 }}>PAID</Text> : null}
+               </View>
             </View>
+            <View style={{ height: 1, backgroundColor: "#1d1d1f", marginTop: 20 }} />
           </View>
         )}
 
-        {template === "modern" && (
-          <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 40 }}>
-            <View style={{ maxWidth: 260, color: "white" }}>
-              {org.logoUrl ? <Image style={s.logo} src={org.logoUrl} /> : null}
-              <Text style={[s.orgName, { color: "white" }]}>{org.name}</Text>
-              {org.address ? <Text style={{ color: "white", opacity: 0.8 }}>{org.address}</Text> : null}
-              {org.phone ? <Text style={{ color: "white", opacity: 0.8 }}>{org.phone}</Text> : null}
-              {org.email ? <Text style={{ color: "white", opacity: 0.8 }}>{org.email}</Text> : null}
-              {org.kraPin ? <Text style={{ marginTop: 3, color: "white" }}>KRA PIN: <Text style={{ fontFamily: "Helvetica-Bold" }}>{org.kraPin}</Text></Text> : null}
-            </View>
-            <View>
-              <Text style={[s.docTitle, { color: "white", fontSize: 22 }]}>{titles[doc.type] ?? doc.type.toUpperCase()}</Text>
-              <View style={[s.metaRight, { color: "white" }]}>
-                <Text>No: <Text style={{ fontFamily: "Helvetica-Bold" }}>{doc.number}</Text></Text>
-                <Text>Date: {doc.date}</Text>
-                {doc.dueDate ? <Text>Due: {doc.dueDate}</Text> : null}
-                {doc.status === "paid" ? <Text style={{ color: "#a7f3d0", fontFamily: "Helvetica-Bold", marginTop: 2 }}>PAID</Text> : null}
-              </View>
-            </View>
+        {template === "sleek" && (
+          <View style={{ marginBottom: 12, marginTop: 10 }}>
+             <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 20 }}>
+               <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                 {org.logoUrl ? <Image style={{ width: 30, height: 30, objectFit: "contain" }} src={org.logoUrl} /> : <View style={{ width: 16, height: 16, backgroundColor: "#1d1d1f" }} />}
+                 <Text style={[s.orgName, { fontSize: 18 }]}>{org.name}</Text>
+               </View>
+               <View>
+                 <Text style={{ fontSize: 20, fontFamily: "Helvetica-Bold", letterSpacing: 2 }}>{titles[doc.type] ?? doc.type.toUpperCase()}</Text>
+                 <Text style={{ fontSize: 8, textAlign: "right", marginTop: 4 }}>DATE: {doc.date} | NO: {doc.number}</Text>
+                 {doc.status === "paid" ? <Text style={{ fontSize: 8, textAlign: "right", color: "#1f8a4c", fontFamily: "Helvetica-Bold", marginTop: 2 }}>PAID</Text> : null}
+               </View>
+             </View>
+             <View style={{ flexDirection: "row", justifyContent: "space-between", backgroundColor: "#f5f5f7", padding: 10 }}>
+               <View>
+                 <Text style={[s.sectionLabel, { marginBottom: 4 }]}>From</Text>
+                 {org.address ? <Text style={s.muted}>{org.address}</Text> : null}
+                 {org.phone ? <Text style={s.muted}>{org.phone}</Text> : null}
+                 {org.email ? <Text style={s.muted}>{org.email}</Text> : null}
+                 {org.kraPin ? <Text style={{ marginTop: 2, fontSize: 8 }}>KRA PIN: {org.kraPin}</Text> : null}
+               </View>
+             </View>
           </View>
         )}
 
-        {template === "bold" && (
-          <View style={{ flexDirection: "row", justifyContent: "space-between", paddingLeft: 10, marginBottom: 24 }}>
+        {template === "pastel" && (
+          <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 12 }}>
             <View style={{ maxWidth: 260 }}>
               {org.logoUrl ? <Image style={s.logo} src={org.logoUrl} /> : null}
-              <Text style={s.orgName}>{org.name}</Text>
+              <Text style={[s.orgName, { color: org.brandColor, fontSize: 18 }]}>{org.name}</Text>
               {org.address ? <Text style={s.muted}>{org.address}</Text> : null}
               {org.phone ? <Text style={s.muted}>{org.phone}</Text> : null}
               {org.email ? <Text style={s.muted}>{org.email}</Text> : null}
@@ -266,9 +343,9 @@ export function DocumentPdf({
             </View>
             <View>
               <Text style={[s.docTitle, { color: "#1d1d1f", fontSize: 24 }]}>{titles[doc.type] ?? doc.type.toUpperCase()}</Text>
+              <Text style={{ textAlign: "right", fontSize: 10, color: org.brandColor, marginTop: 4, fontFamily: "Helvetica-Bold" }}>{doc.date}</Text>
               <View style={s.metaRight}>
                 <Text>No: <Text style={s.bold}>{doc.number}</Text></Text>
-                <Text>Date: {doc.date}</Text>
                 {doc.dueDate ? <Text>Due: {doc.dueDate}</Text> : null}
                 {doc.status === "paid" ? <Text style={{ color: org.brandColor, fontFamily: "Helvetica-Bold", marginTop: 2 }}>PAID</Text> : null}
               </View>
@@ -277,7 +354,7 @@ export function DocumentPdf({
         )}
 
         {/* Bill to */}
-        <View style={[s.billTo, template === "bold" ? { paddingLeft: 10 } : {}]}>
+        <View style={s.billTo}>
           <Text style={s.sectionLabel}>
             {["quote", "purchase_order"].includes(doc.type) ? "Quote for" : doc.type === "expense" ? "Expense for" : "Bill to"}
           </Text>
@@ -292,12 +369,13 @@ export function DocumentPdf({
         </View>
 
         {/* Line items */}
-        <View style={[s.table, template === "bold" ? { paddingLeft: 10 } : {}]}>
+        <View style={s.table}>
           {(() => {
-            const isModern = template === "modern";
+            const isTinted = template === "pastel" || template === "beige";
+            const isMinimal = template === "minimalist" || template === "sleek";
             const thStyle = {
-              backgroundColor: isModern ? "#f5f5f7" : org.brandColor || "#0f766e",
-              color: isModern ? "#1d1d1f" : "#ffffff",
+              backgroundColor: isMinimal ? "#f5f5f7" : org.brandColor || "#0f766e",
+              color: isMinimal ? "#1d1d1f" : "#ffffff",
             };
             return (
               <View style={[s.thRow, { backgroundColor: thStyle.backgroundColor }]}>
@@ -317,9 +395,11 @@ export function DocumentPdf({
                 if (!grouped.has(cat)) grouped.set(cat, []);
                 grouped.get(cat)!.push(l);
               }
-              const isModern = template === "modern";
-              const thBg = isModern ? "#f5f5f7" : (org.brandColor || "#0f766e");
-              const thText = isModern ? "#1d1d1f" : "#ffffff";
+              const isTinted = template === "pastel" || template === "beige";
+              const isMinimal = template === "minimalist" || template === "sleek";
+              
+              const thBg = isMinimal ? "#f5f5f7" : (isTinted ? org.brandColor : org.brandColor);
+              const thText = isMinimal ? "#1d1d1f" : "#ffffff";
               
               const elements = [];
               for (const [cat, catLines] of grouped.entries()) {
@@ -360,7 +440,7 @@ export function DocumentPdf({
         </View>
 
         {/* VAT summary + totals */}
-        <View style={[s.bottomRow, template === "bold" ? { paddingLeft: 10 } : {}]}>
+        <View style={s.bottomRow}>
           <View>
             <Text style={s.sectionLabel}>VAT summary</Text>
             {[...byClass.entries()].map(([cls, v]) => (
@@ -399,7 +479,7 @@ export function DocumentPdf({
 
         {/* Notes */}
         {["invoice", "quote", "credit_note"].includes(doc.type) && doc.notes ? (
-          <View style={[{ marginTop: 20 }, template === "bold" ? { paddingLeft: 10 } : {}]}>
+          <View style={{ marginTop: 20 }}>
             <Text style={s.sectionLabel}>Notes</Text>
             <Text style={s.muted}>{doc.notes}</Text>
           </View>
@@ -407,13 +487,13 @@ export function DocumentPdf({
 
         {/* Custom footer text */}
         {["invoice", "quote", "credit_note"].includes(doc.type) && org.documentFooterText ? (
-          <View style={[s.docFooterText, template === "bold" ? { paddingLeft: 10 } : {}]}>
+          <View style={s.docFooterText}>
             <Text>{org.documentFooterText}</Text>
           </View>
         ) : null}
 
         {/* Footer: eTIMS + QR */}
-        <View style={[s.footer, template === "bold" ? { left: 52 } : {}]} fixed>
+        <View style={s.footer} fixed>
           <View>
             {doc.type === "invoice" && doc.cuSerial ? (
               <>

@@ -303,8 +303,8 @@ export function OrgProfileForm({ initial }: { initial: OrgData }) {
           <div>
             <span className={labelCls}>Invoice Template</span>
             <div className="text-[12px] text-[var(--color-ink-400)] mb-3">Choose the visual style for your invoices.</div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {['default', 'classic', 'modern', 'bold'].map(t => (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
+              {['default', 'accent', 'minimalist', 'beige', 'sleek', 'pastel'].map(t => (
                 <TemplatePreview key={t} type={t} active={invoiceTemplate === t} onClick={() => setInvoiceTemplate(t)} color={brandColor} />
               ))}
             </div>
@@ -312,8 +312,8 @@ export function OrgProfileForm({ initial }: { initial: OrgData }) {
           <div>
             <span className={labelCls}>Quote Template</span>
             <div className="text-[12px] text-[var(--color-ink-400)] mb-3">Choose the visual style for your quotes.</div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {['default', 'classic', 'modern', 'bold'].map(t => (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
+              {['default', 'accent', 'minimalist', 'beige', 'sleek', 'pastel'].map(t => (
                 <TemplatePreview key={t} type={t} active={quoteTemplate === t} onClick={() => setQuoteTemplate(t)} color={brandColor} />
               ))}
             </div>
@@ -416,58 +416,106 @@ function TemplatePreview({ type, active, onClick, color }: { type: string, activ
           </div>
         </>
       )}
-      {type === 'classic' && (
+      {type === 'accent' && (
         <>
-          <div className="w-full flex justify-center mb-1">
-            <div className="w-8 h-8 rounded-sm bg-[var(--color-ink-200)]" />
+          <div className="w-full h-8 bg-[var(--color-ink-800)] flex flex-col justify-end p-1">
+             <div className="w-6 h-1.5 bg-white/80 rounded-sm mb-1" />
           </div>
-          <div className="w-full h-px bg-[var(--color-ink-800)]" />
-          <div className="flex justify-between w-full items-center py-1">
-            <div className="w-10 h-1.5 bg-[var(--color-ink-300)]" />
-            <div className="w-10 h-1.5 bg-[var(--color-ink-300)]" />
-          </div>
-          <div className="w-full h-px bg-[var(--color-ink-800)] mb-1" />
-          <div className="flex justify-between w-full">
-            <div className="w-12 h-1 bg-[var(--color-ink-100)]" />
-            <div className="w-4 h-1 bg-[var(--color-ink-100)]" />
-          </div>
-          <div className="mt-auto w-full h-4 bg-[var(--color-ink-50)] border-t border-[var(--color-ink-200)]" />
-        </>
-      )}
-      {type === 'modern' && (
-        <>
-          <div className="absolute top-0 left-0 right-0 h-6 flex justify-between items-center px-2" style={{ backgroundColor: color }}>
-            <div className="w-8 h-1.5 bg-white/80" />
-            <div className="w-4 h-4 rounded-sm bg-white/50" />
-          </div>
-          <div className="w-10 h-1 bg-[var(--color-ink-200)] mt-8" />
-          <div className="w-full h-2 mt-2 flex items-center px-1" style={{ backgroundColor: color }}>
-             <div className="w-8 h-0.5 bg-white/80" />
-          </div>
-          <div className="flex justify-between w-full px-1 mt-1">
-            <div className="w-12 h-1 bg-[var(--color-ink-100)]" />
-            <div className="w-4 h-1 bg-[var(--color-ink-100)]" />
-          </div>
-          <div className="mt-auto w-full flex justify-end">
-             <div className="w-8 h-1.5" style={{ backgroundColor: color }} />
+          <div className="w-full h-1" style={{ backgroundColor: color }} />
+          <div className="flex flex-col px-1 mt-1 gap-1">
+            <div className="flex justify-between">
+               <div className="w-8 h-1 bg-[var(--color-ink-300)]" />
+               <div className="w-6 h-1 bg-[var(--color-ink-300)]" />
+            </div>
+            <div className="w-full h-2 mt-2 flex items-center" style={{ backgroundColor: color }}>
+               <div className="w-8 h-0.5 bg-white ml-1" />
+            </div>
+            <div className="w-full h-0.5 bg-[var(--color-ink-100)] mt-1" />
+            <div className="w-full h-0.5 bg-[var(--color-ink-100)]" />
+            <div className="flex justify-end mt-1">
+               <div className="w-8 h-1" style={{ backgroundColor: color }} />
+            </div>
           </div>
         </>
       )}
-      {type === 'bold' && (
+      {type === 'minimalist' && (
         <>
-          <div className="absolute top-0 left-0 bottom-0 w-2" style={{ backgroundColor: color }} />
-          <div className="pl-3 w-full h-full flex flex-col gap-1.5">
-            <div className="w-8 h-8 rounded-sm bg-[var(--color-ink-200)]" />
-            <div className="w-14 h-2.5 bg-[var(--color-ink-800)] mt-1" />
-            <div className="w-10 h-1 bg-[var(--color-ink-200)]" />
-            <div className="w-full h-0.5 bg-[var(--color-ink-100)] mt-2" />
-            <div className="flex justify-between w-full pr-1 mt-1">
-              <div className="w-8 h-1 bg-[var(--color-ink-100)]" />
-              <div className="w-4 h-1 bg-[var(--color-ink-100)]" />
+          <div className="flex justify-between items-start p-1 w-full">
+            <div className="w-6 h-6 rounded-full bg-[var(--color-ink-800)]" />
+            <div className="w-10 h-2 bg-[var(--color-ink-800)]" />
+          </div>
+          <div className="w-full h-px bg-[var(--color-ink-100)] my-1" />
+          <div className="px-1 flex flex-col gap-1 w-full">
+            <div className="w-12 h-1 bg-[var(--color-ink-300)]" />
+            <div className="flex justify-between items-center w-full mt-1">
+              <div className="w-8 h-0.5 bg-[var(--color-ink-200)]" />
+              <div className="w-6 h-0.5 bg-[var(--color-ink-200)]" />
             </div>
-            <div className="mt-auto pr-1">
-               <div className="w-full h-2 bg-[var(--color-ink-100)]" />
+            <div className="flex justify-between items-center w-full">
+              <div className="w-8 h-0.5 bg-[var(--color-ink-200)]" />
+              <div className="w-6 h-0.5 bg-[var(--color-ink-200)]" />
             </div>
+            <div className="w-full border-t border-[var(--color-ink-800)] mt-2 pt-1 flex justify-end">
+               <div className="w-8 h-1 bg-[var(--color-ink-800)]" />
+            </div>
+          </div>
+        </>
+      )}
+      {type === 'beige' && (
+        <div className="absolute inset-0 bg-[#fdfbf7] p-2 flex flex-col items-center">
+           <div className="flex justify-between w-full">
+             <div className="w-8 h-1.5 bg-[var(--color-ink-800)]" />
+             <div className="w-10 h-1.5" style={{ backgroundColor: color }} />
+           </div>
+           <div className="w-full border-b border-[var(--color-ink-800)] mt-3 mb-1" />
+           <div className="w-full h-px bg-[var(--color-ink-200)] my-0.5" />
+           <div className="w-full h-px bg-[var(--color-ink-200)] my-0.5" />
+           <div className="mt-auto w-full flex justify-end">
+             <div className="w-10 h-2 bg-[var(--color-ink-100)] flex justify-end items-center px-1 border-t border-[var(--color-ink-200)]">
+                <div className="w-4 h-1 bg-[var(--color-ink-800)]" />
+             </div>
+           </div>
+        </div>
+      )}
+      {type === 'sleek' && (
+        <>
+           <div className="flex justify-between w-full p-1 mt-1">
+             <div className="flex items-center gap-1">
+               <div className="w-3 h-3 bg-black" />
+               <div className="w-6 h-1 bg-black" />
+             </div>
+             <div className="w-10 h-2 bg-black" />
+           </div>
+           <div className="w-full px-1 mt-1">
+             <div className="w-full bg-[var(--color-ink-50)] h-4 flex items-center px-1">
+                <div className="w-4 h-0.5 bg-[var(--color-ink-300)]" />
+             </div>
+             <div className="w-full h-px bg-black mt-2" />
+             <div className="flex justify-between py-1 border-b border-[var(--color-ink-200)]">
+               <div className="w-8 h-0.5 bg-[var(--color-ink-200)]" />
+             </div>
+             <div className="flex justify-between py-1 border-b border-[var(--color-ink-200)]">
+               <div className="w-8 h-0.5 bg-[var(--color-ink-200)]" />
+             </div>
+           </div>
+        </>
+      )}
+      {type === 'pastel' && (
+        <>
+          <div className="w-full px-1 mt-2">
+            <div className="flex justify-between">
+              <div className="w-6 h-1.5" style={{ backgroundColor: color }} />
+              <div className="w-10 h-2" style={{ backgroundColor: color }} />
+            </div>
+            <div className="w-full border-t border-[var(--color-ink-200)] mt-3 pt-1">
+              <div className="flex justify-between">
+                <div className="w-8 h-0.5" style={{ backgroundColor: color }} />
+                <div className="w-4 h-0.5" style={{ backgroundColor: color }} />
+              </div>
+            </div>
+          </div>
+          <div className="mt-auto w-full h-10 p-1 flex justify-end items-start" style={{ backgroundColor: color, opacity: 0.1 }}>
+             <div className="w-6 h-1 bg-[var(--color-ink-800)]" />
           </div>
         </>
       )}
