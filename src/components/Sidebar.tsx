@@ -48,6 +48,7 @@ const groups: {
     label: "Organization",
     items: [
       { href: "/staff", label: "Staff & Roles", icon: "◈", perm: "staff" },
+      { href: "/recurring", label: "Recurring Templates", icon: "↺", perm: "accountant" },
       { href: "/settings", label: "Settings", icon: "⚙", perm: "settings" },
     ],
   },
