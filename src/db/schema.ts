@@ -399,6 +399,9 @@ export const recurringTemplates = pgTable("recurring_templates", {
   linesJson: text("lines_json").notNull(), // serialized Array<DocLineInput>
   active: boolean("active").notNull().default(true),
   lastRunAt: text("last_run_at"),
+  dueInDays: integer("due_in_days").notNull().default(30),
+  paidFromBankAccountId: integer("paid_from_bank_account_id"),
+  notes: text("notes"),
   createdAt: text("created_at").notNull(),
 }, (t) => ({
   orgNextRunIdx: index("idx_recurring_org_next").on(t.orgId, t.active, t.nextRunDate),

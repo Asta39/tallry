@@ -390,3 +390,7 @@ CREATE TABLE IF NOT EXISTS payslips (
   paye_cents BIGINT NOT NULL,
   net_pay_cents BIGINT NOT NULL
 );
+
+ALTER TABLE recurring_templates ADD COLUMN IF NOT EXISTS due_in_days INTEGER NOT NULL DEFAULT 30;
+ALTER TABLE recurring_templates ADD COLUMN IF NOT EXISTS paid_from_bank_account_id INTEGER;
+ALTER TABLE recurring_templates ADD COLUMN IF NOT EXISTS notes TEXT;
