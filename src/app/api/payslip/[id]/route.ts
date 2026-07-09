@@ -9,8 +9,9 @@ import React from "react";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(req: Request, { params }: { params: { id: string } }) {
+export async function GET(req: Request, props: { params: Promise<{ id: string }> }) {
   try {
+    const params = await props.params;
     await requirePerm("accountant");
     const o = await getOrg();
     const slipId = parseInt(params.id, 10);
