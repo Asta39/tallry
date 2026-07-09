@@ -32,12 +32,21 @@ export default async function AccountantPage() {
         subtitle="Chart of accounts and the general ledger behind every number"
         action={<PrimaryLink href="/accountant/journals/new">+ Manual journal</PrimaryLink>}
       />
-      <div className="mb-4 flex gap-4 text-[13px]">
+      <div className="mb-4 flex flex-wrap gap-x-4 gap-y-2 text-[13px]">
         <Link href="/accountant/journals" className="text-[var(--color-accent-600)] font-medium">
           View journal entries →
         </Link>
         <Link href="/reports/trial-balance" className="text-[var(--color-accent-600)] font-medium">
           Trial balance →
+        </Link>
+        <Link href="/accounting/period-lock" className="text-[var(--color-accent-600)] font-medium">
+          Lock books →
+        </Link>
+        <Link href="/accounting/drawings" className="text-[var(--color-accent-600)] font-medium">
+          Owner&apos;s drawings →
+        </Link>
+        <Link href="/recurring" className="text-[var(--color-accent-600)] font-medium">
+          Recurring templates →
         </Link>
       </div>
 
