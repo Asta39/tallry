@@ -340,3 +340,53 @@ CREATE TABLE IF NOT EXISTS recurring_templates (
   created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_recurring_org ON recurring_templates(org_id, active, next_run_date);
+
+CREATE TABLE IF NOT EXISTS fixed_assets (
+  id SERIAL PRIMARY KEY,
+  org_id INTEGER NOT NULL REFERENCES org(id),
+  name TEXT NOT NULL,
+  asset_account_id INTEGER NOT NULL,
+  depreciation_account_id INTEGER NOT NULL,
+  expense_account_id INTEGER NOT NULL,
+  purchase_date TEXT NOT NULL,
+  purchase_cost_cents BIGINT NOT NULL,
+  salvage_value_cents BIGINT NOT NULL DEFAULT 0,
+  useful_life_months INTEGER NOT NULL,
+  depreciation_method TEXT NOT NULL DEFAULT 'straight_line',
+  status TEXT NOT NULL DEFAULT 'active',
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS employees (
+  id SERIAL PRIMARY KEY,
+  org_id INTEGER NOT NULL REFERENCES org(id),
+  name TEXT NOT NULL,
+  kra_pin TEXT,
+  nssf_number TEXT,
+  shif_number TEXT,
+  basic_salary_cents BIGINT NOT NULL DEFAULT 0,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS payroll_runs (
+  id SERIAL PRIMARY KEY,
+  org_id INTEGER NOT NULL REFERENCES org(id),
+  month TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'draft',
+  journal_entry_id INTEGER,
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS payslips (
+  id SERIAL PRIMARY KEY,
+  org_id INTEGER NOT NULL REFERENCES org(id),
+  payroll_run_id INTEGER NOT NULL REFERENCES payroll_runs(id),
+  employee_id INTEGER NOT NULL REFERENCES employees(id),
+  gross_pay_cents BIGINT NOT NULL,
+  nssf_cents BIGINT NOT NULL,
+  shif_cents BIGINT NOT NULL,
+  housing_levy_cents BIGINT NOT NULL,
+  paye_cents BIGINT NOT NULL,
+  net_pay_cents BIGINT NOT NULL
+);

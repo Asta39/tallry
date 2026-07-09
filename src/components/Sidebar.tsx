@@ -42,6 +42,7 @@ const groups: {
       { href: "/banking", label: "Bank & M-Pesa", icon: "◫", perm: "banking" },
       { href: "/accountant", label: "Accountant", icon: "≡", perm: "accountant" },
       { href: "/reports", label: "Reports", icon: "◪", perm: "reports" },
+      { href: "/payroll/runs", label: "Payroll", icon: "⚑", perm: "accountant" },
     ],
   },
   {

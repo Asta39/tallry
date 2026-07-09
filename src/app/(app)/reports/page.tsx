@@ -91,6 +91,11 @@ export default async function ReportsPage() {
               <div className="text-lg font-bold mt-1">{profitMargin}</div>
             </div>
           </div>
+
+          <Link href="/reports/vat3" className="card p-4 border border-[var(--color-ink-200)] hover:border-[var(--color-ink-400)] transition-colors">
+            <div className="text-[11.5px] font-semibold uppercase tracking-wider text-[var(--color-ink-500)]">Tax Filing</div>
+            <div className="text-md font-bold mt-1">VAT3 iTax Prefill</div>
+          </Link>
         </div>
 
         {/* Chart */}

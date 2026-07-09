@@ -371,25 +371,85 @@ export const bankReconciliations = pgTable("bank_reconciliations", {
   createdAt: text("created_at").notNull(),
 });
 
-/**
- * Recurring document templates (invoice | bill | expense). The runner creates
- * real documents from linesJson when nextRunDate falls due, then advances it.
- */
+export const mpesaTransactions = pgTable("mpesa_transactions", {
+  id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
+  receiptNumber: text("receipt_number").notNull(),
+  date: text("date").notNull(),
+  amountCents: money("amount_cents").notNull(),
+  phoneNumber: text("phone_number").notNull(),
+  customerName: text("customer_name").notNull(),
+  status: text("status").notNull().default("unmatched"), // unmatched | matched
+  matchedPaymentId: integer("matched_payment_id"), // links to payments.id
+  createdAt: text("created_at").notNull(),
+}, (t) => ({
+  orgReceiptIdx: uniqueIndex("idx_mpesa_transactions_receipt").on(t.orgId, t.receiptNumber),
+}));
+
 export const recurringTemplates = pgTable("recurring_templates", {
   id: serial("id").primaryKey(),
   orgId: integer("org_id").notNull().references(() => org.id),
   name: text("name").notNull(),
   docType: text("doc_type").notNull(), // invoice | bill | expense
   contactId: integer("contact_id"),
-  paidFromBankAccountId: integer("paid_from_bank_account_id"),
-  frequency: text("frequency").notNull().default("monthly"), // weekly | monthly | quarterly | yearly
+  frequency: text("frequency").notNull(), // weekly | monthly | quarterly | yearly
   nextRunDate: text("next_run_date").notNull(),
-  dueInDays: integer("due_in_days").notNull().default(30),
+  autoIssue: boolean("auto_issue").notNull().default(false), // skip draft state
   taxInclusive: boolean("tax_inclusive").notNull().default(false),
-  autoIssue: boolean("auto_issue").notNull().default(false), // false = create as draft
-  notes: text("notes"),
-  linesJson: text("lines_json").notNull(), // serialized DocLineInput[]
+  linesJson: text("lines_json").notNull(), // serialized Array<DocLineInput>
   active: boolean("active").notNull().default(true),
   lastRunAt: text("last_run_at"),
   createdAt: text("created_at").notNull(),
+}, (t) => ({
+  orgNextRunIdx: index("idx_recurring_org_next").on(t.orgId, t.active, t.nextRunDate),
+}));
+
+export const fixedAssets = pgTable("fixed_assets", {
+  id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
+  name: text("name").notNull(),
+  assetAccountId: integer("asset_account_id").notNull(),
+  depreciationAccountId: integer("depreciation_account_id").notNull(),
+  expenseAccountId: integer("expense_account_id").notNull(),
+  purchaseDate: text("purchase_date").notNull(),
+  purchaseCostCents: money("purchase_cost_cents").notNull(),
+  salvageValueCents: money("salvage_value_cents").notNull().default(0),
+  usefulLifeMonths: integer("useful_life_months").notNull(),
+  depreciationMethod: text("depreciation_method").notNull().default("straight_line"),
+  status: text("status").notNull().default("active"), // active | disposed
+  createdAt: text("created_at").notNull(),
+});
+
+export const employees = pgTable("employees", {
+  id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
+  name: text("name").notNull(),
+  kraPin: text("kra_pin"),
+  nssfNumber: text("nssf_number"),
+  shifNumber: text("shif_number"),
+  basicSalaryCents: money("basic_salary_cents").notNull().default(0),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: text("created_at").notNull(),
+});
+
+export const payrollRuns = pgTable("payroll_runs", {
+  id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
+  month: text("month").notNull(), // e.g. "2024-05"
+  status: text("status").notNull().default("draft"), // draft | posted
+  journalEntryId: integer("journal_entry_id"), // once posted
+  createdAt: text("created_at").notNull(),
+});
+
+export const payslips = pgTable("payslips", {
+  id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
+  payrollRunId: integer("payroll_run_id").notNull().references(() => payrollRuns.id),
+  employeeId: integer("employee_id").notNull().references(() => employees.id),
+  grossPayCents: money("gross_pay_cents").notNull(),
+  nssfCents: money("nssf_cents").notNull(),
+  shifCents: money("shif_cents").notNull(),
+  housingLevyCents: money("housing_levy_cents").notNull(),
+  payeCents: money("paye_cents").notNull(),
+  netPayCents: money("net_pay_cents").notNull(),
 });
