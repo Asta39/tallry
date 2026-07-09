@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { renderToStream } from "@react-pdf/renderer";
 import { getStatementData } from "@/lib/phase-a-actions";
 import { StatementPdf } from "@/lib/pdf/StatementPdf";
-import { todayISO, addDays } from "@/lib/money";
+import { todayISO } from "@/lib/money";
+import { addDays } from "@/lib/recurring";
 
 export const dynamic = "force-dynamic";
 
