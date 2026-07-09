@@ -17,7 +17,6 @@ export default async function DrawingsPage() {
       <PageHeader 
         title="Owner's Drawings" 
         subtitle="Record equity withdrawals"
-        backLink="/accountant"
       />
       <div className="card max-w-lg mt-6 px-6 py-5">
         <DrawingsForm banks={banks} />

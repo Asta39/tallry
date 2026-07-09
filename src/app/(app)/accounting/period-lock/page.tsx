@@ -14,7 +14,6 @@ export default async function PeriodLockPage() {
       <PageHeader 
         title="Lock Books" 
         subtitle="Prevent changes to the ledger before a specific date"
-        backLink="/accountant"
       />
       <div className="card max-w-lg mt-6 px-6 py-5">
         <PeriodLockForm currentLockDate={o.lockDate} />

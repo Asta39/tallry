@@ -29,7 +29,6 @@ export default async function ContactStatementPage({
       <PageHeader 
         title={`Statement: ${data.contact.name}`} 
         subtitle={`Period: ${dateFrom} to ${dateTo}`}
-        backLink={`/contacts/${contactId}`}
       />
       <div className="card mt-6 h-[800px] overflow-hidden">
         <StatementViewer data={data} from={dateFrom} to={dateTo} />
