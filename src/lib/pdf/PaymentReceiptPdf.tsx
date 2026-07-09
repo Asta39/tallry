@@ -1,7 +1,7 @@
 import React from "react";
 import { Document, Page, Text, View, Image, StyleSheet } from "@react-pdf/renderer";
 import { fmtKES } from "@/lib/money";
-import type { PdfOrg, PdfContact } from "./StatementPdf";
+import type { PdfOrg, PdfContact } from "./DocumentPdf";
 
 export interface PdfPayment {
   id: number;
