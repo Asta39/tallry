@@ -60,8 +60,8 @@ export default async function RecurringPage() {
       />
       <RecurringManager
         rows={rows}
-        customers={allContacts.filter((c) => c.type === "customer" || c.type === "both").map((c) => ({ id: c.id, label: c.displayName }))}
-        vendors={allContacts.filter((c) => c.type === "vendor" || c.type === "both").map((c) => ({ id: c.id, label: c.displayName }))}
+        customers={allContacts.filter((c) => c.kind === "customer" || c.kind === "both").map((c) => ({ id: c.id, label: c.displayName }))}
+        vendors={allContacts.filter((c) => c.kind === "vendor" || c.kind === "both").map((c) => ({ id: c.id, label: c.displayName }))}
         bankAccounts={banks.map((b) => ({ id: b.id, label: b.name }))}
         dueCount={rows.filter((r) => r.active && r.nextRunDate <= new Date().toISOString().slice(0, 10)).length}
       />
