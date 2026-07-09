@@ -4,6 +4,7 @@ import { getAccessCached, MODULES } from "@/lib/access";
 import { Sidebar } from "@/components/Sidebar";
 import { NotificationBell } from "@/components/NotificationBell";
 import { GlobalSearch } from "@/components/GlobalSearch";
+import { InstallPrompt } from "@/components/InstallPrompt";
 
 const roleLabels: Record<string, string> = {
   admin: "Admin",
@@ -25,6 +26,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <div className="flex min-h-screen" style={access.orgRow.brandColor ? { "--color-brand": access.orgRow.brandColor } as React.CSSProperties : undefined}>
       {access.memberId ? <NotificationBell memberId={access.memberId} /> : null}
+      <InstallPrompt />
       <Sidebar
         orgName={access.orgRow.name}
         orgEmail={user.email}

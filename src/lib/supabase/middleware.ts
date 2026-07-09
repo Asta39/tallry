@@ -2,7 +2,11 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 /** Public paths that don't require authentication */
-const PUBLIC_PATHS = ["/login", "/signup", "/auth/callback", "/forgot-password", "/update-password"];
+const PUBLIC_PATHS = [
+  "/login", "/signup", "/auth/callback", "/forgot-password", "/update-password",
+  // PWA assets must be reachable without auth
+  "/manifest.webmanifest", "/app-icon", "/sw.js",
+];
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
