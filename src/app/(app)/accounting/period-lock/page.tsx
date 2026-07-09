@@ -6,7 +6,7 @@ import { PeriodLockForm } from "./PeriodLockForm";
 export const dynamic = "force-dynamic";
 
 export default async function PeriodLockPage() {
-  await requirePerm("admin"); // Only admins can lock/unlock books
+  await requirePerm("accountant");
   const o = await getOrg();
 
   return (
