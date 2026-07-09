@@ -50,7 +50,7 @@ export async function GET(req: Request, props: { params: Promise<{ id: string }>
       netPayCents: data.slip.netPayCents,
     };
 
-    const stream = await renderToStream(React.createElement(PayslipPdf, { data: pdfData }));
+    const stream = await renderToStream(React.createElement(PayslipPdf, { data: pdfData }) as any);
     return new NextResponse(stream as unknown as ReadableStream, {
       headers: {
         "Content-Type": "application/pdf",
