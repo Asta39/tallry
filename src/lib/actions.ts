@@ -217,28 +217,34 @@ async function _adjustStock(itemId: number, qtyDelta: number, unitCostCents: num
   const value = Math.round(Math.abs(qtyDelta) * unitCostCents);
   if (qtyDelta > 0) {
     await addLot({ itemId, date: todayISO(), qty: qtyDelta, unitCostCents, sourceType: "adjustment" });
-    await postEntry({
-      date: todayISO(),
-      memo: `Stock adjustment (+): ${reason}`,
-      sourceType: "inventory_adjustment",
-      sourceId: itemId,
-      lines: [
-        { accountId: await acct(SYS.INVENTORY), debitCents: value },
-        { accountId: await acct(SYS.INVENTORY_ADJ), creditCents: value },
-      ],
-    });
+    // Only post a journal when there's a value to move — a qty-only adjustment
+    // (no cost) still tracks stock but has zero ledger effect.
+    if (value > 0) {
+      await postEntry({
+        date: todayISO(),
+        memo: `Stock adjustment (+): ${reason}`,
+        sourceType: "inventory_adjustment",
+        sourceId: itemId,
+        lines: [
+          { accountId: await acct(SYS.INVENTORY), debitCents: value },
+          { accountId: await acct(SYS.INVENTORY_ADJ), creditCents: value },
+        ],
+      });
+    }
   } else if (qtyDelta < 0) {
     const cogs = await consumeFifo(itemId, -qtyDelta);
-    await postEntry({
-      date: todayISO(),
-      memo: `Stock adjustment (−): ${reason}`,
-      sourceType: "inventory_adjustment",
-      sourceId: itemId,
-      lines: [
-        { accountId: await acct(SYS.INVENTORY_ADJ), debitCents: cogs },
-        { accountId: await acct(SYS.INVENTORY), creditCents: cogs },
-      ],
-    });
+    if (cogs > 0) {
+      await postEntry({
+        date: todayISO(),
+        memo: `Stock adjustment (−): ${reason}`,
+        sourceType: "inventory_adjustment",
+        sourceId: itemId,
+        lines: [
+          { accountId: await acct(SYS.INVENTORY_ADJ), debitCents: cogs },
+          { accountId: await acct(SYS.INVENTORY), creditCents: cogs },
+        ],
+      });
+    }
   }
   revalidatePath("/items");
 }

@@ -1,15 +1,14 @@
 import { withOrg } from "@/lib/org";
 import { requirePerm } from "@/lib/guard";
 import { getOrg } from "@/lib/org";
-import { redirect } from "next/navigation";
 import { db, items } from "@/db";
 import { eq, and } from "drizzle-orm";
-import { fmtKES, parseKES } from "@/lib/money";
+import { fmtKES } from "@/lib/money";
 import { stockOnHand, stockValueCents } from "@/lib/inventory";
-import { adjustStock } from "@/lib/actions";
 import { TAX_CLASSES, type TaxClass } from "@/lib/tax";
 import { PageHeader, PrimaryLink, TableCard, Th, Td, EmptyState } from "@/components/ui";
 import { CsvImporter } from "@/components/CsvImporter";
+import { StockAdjust } from "@/components/StockAdjust";
 
 export const dynamic = "force-dynamic";
 
@@ -25,15 +24,6 @@ export default async function ItemsPage() {
         stock.set(it.id, { qty: await withOrg(() => stockOnHand(it.id)), value: await withOrg(() => stockValueCents(it.id)) });
       })
   );
-
-  async function adjust(formData: FormData) {
-    "use server";
-    const itemId = Number(formData.get("itemId"));
-    const qty = Number(formData.get("qty"));
-    const cost = parseKES(String(formData.get("cost") || "0")) || 0;
-    if (itemId && qty) await adjustStock(itemId, qty, cost, String(formData.get("reason") || "manual"));
-    redirect("/items");
-  }
 
   return (
     <>
@@ -97,15 +87,7 @@ export default async function ItemsPage() {
                   </Td>
                   <Td right>{it.trackInventory ? fmtKES(stock.get(it.id)?.value ?? 0) : "—"}</Td>
                   <Td>
-                    {it.trackInventory && (
-                      <form action={adjust} className="flex gap-1 items-center">
-                        <input type="hidden" name="itemId" value={it.id} />
-                        <input name="qty" placeholder="±qty" className="w-14 rounded border border-[var(--color-ink-200)] px-1.5 py-1 text-[12px]" />
-                        <input name="cost" placeholder="cost" className="w-16 rounded border border-[var(--color-ink-200)] px-1.5 py-1 text-[12px]" />
-                        <input type="hidden" name="reason" value="manual adjustment" />
-                        <button className="text-[12px] text-[var(--color-accent-600)] font-medium px-1">OK</button>
-                      </form>
-                    )}
+                    {it.trackInventory && <StockAdjust itemId={it.id} unit={it.unit} />}
                   </Td>
                 </tr>
               );
