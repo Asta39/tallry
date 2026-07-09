@@ -1,6 +1,6 @@
 import React from "react";
 import { Document, Page, Text, View, Image, StyleSheet } from "@react-pdf/renderer";
-import { format } from "date-fns";
+
 import { fmtKES } from "@/lib/money";
 import type { StatementLine } from "@/lib/phase-a-actions";
 
@@ -134,7 +134,7 @@ export function StatementPdf({ org, contact, from, to, openingCents, closingCent
             <View style={styles.metaGrid}>
               <View style={styles.metaRow}>
                 <Text style={styles.metaLabel}>Date:</Text>
-                <Text style={styles.metaValue}>{format(new Date(), "dd MMM yyyy")}</Text>
+                <Text style={styles.metaValue}>{new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}</Text>
               </View>
               <View style={styles.metaRow}>
                 <Text style={styles.metaLabel}>Period:</Text>
