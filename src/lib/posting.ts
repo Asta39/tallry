@@ -59,6 +59,19 @@ export async function postEntry(params: {
   }
   if (lines.length === 0) throw new Error("Empty journal entry");
 
+  // Books lock: nothing may post into a closed period (see org.lockDate).
+  const { org: orgTable } = await import("@/db");
+  const [orgRow] = await db
+    .select({ lockDate: orgTable.lockDate })
+    .from(orgTable)
+    .where(eq(orgTable.id, currentOrgId()))
+    .limit(1);
+  if (orgRow?.lockDate && params.date <= orgRow.lockDate) {
+    throw new Error(
+      `Books are locked through ${orgRow.lockDate} — this entry is dated ${params.date}. Unlock in Accountant → Books lock first.`
+    );
+  }
+
   const [entry] = await db
     .insert(journalEntries)
     .values({

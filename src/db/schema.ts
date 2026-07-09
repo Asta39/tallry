@@ -41,6 +41,8 @@ export const org = pgTable("org", {
   customDocumentColumnName: text("custom_document_column_name"),
   documentFooterText: text("document_footer_text"),
   dataSegregation: boolean("data_segregation").notNull().default(false),
+  /** Books lock: journal entries dated on/before this date are rejected. */
+  lockDate: text("lock_date"),
 });
 
 export const accounts = pgTable("accounts", {
@@ -249,6 +251,7 @@ export const bankTransactions = pgTable("bank_transactions", {
   categoryAccountId: integer("category_account_id"),
   journalEntryId: integer("journal_entry_id"),
   externalRef: text("external_ref"), // e.g. M-Pesa receipt code — used to dedupe imports
+  reconciliationId: integer("reconciliation_id"), // set when ticked in a completed reconciliation
   createdAt: text("created_at").notNull(),
 }, (t) => ({
   orgCategoryIdx: index("idx_bank_txns_org").on(t.orgId, t.categoryAccountId),
@@ -348,5 +351,45 @@ export const categorizationRules = pgTable("categorization_rules", {
   direction: text("direction").notNull().default("out"), // in | out
   categoryAccountId: integer("category_account_id").notNull(),
   hits: integer("hits").notNull().default(1),
+  createdAt: text("created_at").notNull(),
+});
+
+/* ---------------- Phase A: reconciliation & recurring ---------------- */
+
+/**
+ * A bank reconciliation session: tick imported/entered transactions until the
+ * cumulative reconciled total equals the real statement balance, then complete.
+ */
+export const bankReconciliations = pgTable("bank_reconciliations", {
+  id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
+  bankAccountId: integer("bank_account_id").notNull(),
+  statementDate: text("statement_date").notNull(),
+  statementBalanceCents: money("statement_balance_cents").notNull(),
+  status: text("status").notNull().default("in_progress"), // in_progress | completed | cancelled
+  completedAt: text("completed_at"),
+  createdAt: text("created_at").notNull(),
+});
+
+/**
+ * Recurring document templates (invoice | bill | expense). The runner creates
+ * real documents from linesJson when nextRunDate falls due, then advances it.
+ */
+export const recurringTemplates = pgTable("recurring_templates", {
+  id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
+  name: text("name").notNull(),
+  docType: text("doc_type").notNull(), // invoice | bill | expense
+  contactId: integer("contact_id"),
+  paidFromBankAccountId: integer("paid_from_bank_account_id"),
+  frequency: text("frequency").notNull().default("monthly"), // weekly | monthly | quarterly | yearly
+  nextRunDate: text("next_run_date").notNull(),
+  dueInDays: integer("due_in_days").notNull().default(30),
+  taxInclusive: boolean("tax_inclusive").notNull().default(false),
+  autoIssue: boolean("auto_issue").notNull().default(false), // false = create as draft
+  notes: text("notes"),
+  linesJson: text("lines_json").notNull(), // serialized DocLineInput[]
+  active: boolean("active").notNull().default(true),
+  lastRunAt: text("last_run_at"),
   createdAt: text("created_at").notNull(),
 });

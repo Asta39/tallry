@@ -304,3 +304,39 @@ CREATE INDEX IF NOT EXISTS idx_payments_org ON payments(org_id, document_id);
 CREATE INDEX IF NOT EXISTS idx_activities_org ON activities(org_id, contact_id);
 CREATE INDEX IF NOT EXISTS idx_stock_lots_org ON stock_lots(org_id, item_id);
 CREATE INDEX IF NOT EXISTS idx_members_org ON members(org_id);
+
+-- Phase A: reconciliation, recurring, books lock
+ALTER TABLE org ADD COLUMN IF NOT EXISTS lock_date TEXT;
+ALTER TABLE bank_transactions ADD COLUMN IF NOT EXISTS reconciliation_id INTEGER;
+
+CREATE TABLE IF NOT EXISTS bank_reconciliations (
+  id SERIAL PRIMARY KEY,
+  org_id INTEGER NOT NULL REFERENCES org(id),
+  bank_account_id INTEGER NOT NULL,
+  statement_date TEXT NOT NULL,
+  statement_balance_cents BIGINT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'in_progress',
+  completed_at TEXT,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_bank_recs_org ON bank_reconciliations(org_id, bank_account_id);
+
+CREATE TABLE IF NOT EXISTS recurring_templates (
+  id SERIAL PRIMARY KEY,
+  org_id INTEGER NOT NULL REFERENCES org(id),
+  name TEXT NOT NULL,
+  doc_type TEXT NOT NULL,
+  contact_id INTEGER,
+  paid_from_bank_account_id INTEGER,
+  frequency TEXT NOT NULL DEFAULT 'monthly',
+  next_run_date TEXT NOT NULL,
+  due_in_days INTEGER NOT NULL DEFAULT 30,
+  tax_inclusive BOOLEAN NOT NULL DEFAULT FALSE,
+  auto_issue BOOLEAN NOT NULL DEFAULT FALSE,
+  notes TEXT,
+  lines_json TEXT NOT NULL,
+  active BOOLEAN NOT NULL DEFAULT TRUE,
+  last_run_at TEXT,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_recurring_org ON recurring_templates(org_id, active, next_run_date);

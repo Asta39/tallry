@@ -1,151 +1,195 @@
 import React from "react";
 import { Document, Page, Text, View, Image, StyleSheet } from "@react-pdf/renderer";
+import { format } from "date-fns";
 import { fmtKES } from "@/lib/money";
+import type { StatementLine } from "@/lib/phase-a-actions";
 
-export interface PdfOrg {
-  name: string;
-  kraPin?: string | null;
-  address?: string | null;
-  phone?: string | null;
-  email?: string | null;
-  logoUrl?: string | null;
-  brandColor: string;
-  documentFooterText?: string | null;
+interface Props {
+  org: { name: string; address: string | null; phone: string | null; email: string | null; logoUrl: string | null; brandColor: string; kraPin: string | null };
+  contact: { name: string; address: string | null; kraPin: string | null };
+  from: string;
+  to: string;
+  openingCents: number;
+  closingCents: number;
+  lines: StatementLine[];
 }
 
-export interface PdfContact {
-  displayName: string;
-  address?: string | null;
-  city?: string | null;
-  kraPin?: string | null;
-}
+const styles = StyleSheet.create({
+  page: {
+    padding: "36pt 48pt",
+    fontFamily: "Helvetica",
+    fontSize: 9,
+    color: "#1f2937",
+    lineHeight: 1.4,
+  },
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 36,
+  },
+  headerLeft: {
+    maxWidth: "55%",
+  },
+  headerRight: {
+    maxWidth: "40%",
+    alignItems: "flex-end",
+  },
+  logo: {
+    height: 48,
+    objectFit: "contain",
+    marginBottom: 12,
+  },
+  orgName: {
+    fontSize: 12,
+    fontWeight: "bold",
+    color: "#111827",
+    marginBottom: 4,
+  },
+  metaText: {
+    color: "#4b5563",
+    marginBottom: 2,
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: "bold",
+    letterSpacing: 0.5,
+    marginBottom: 16,
+  },
+  metaGrid: {
+    width: "100%",
+  },
+  metaRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 4,
+  },
+  metaLabel: {
+    color: "#6b7280",
+    width: 70,
+    textAlign: "right",
+  },
+  metaValue: {
+    color: "#111827",
+    textAlign: "right",
+    minWidth: 80,
+  },
+  billTo: {
+    marginBottom: 24,
+  },
+  billToLabel: {
+    fontSize: 10,
+    fontWeight: "bold",
+    color: "#9ca3af",
+    marginBottom: 4,
+    textTransform: "uppercase",
+  },
+  billToName: {
+    fontSize: 11,
+    fontWeight: "bold",
+    color: "#111827",
+    marginBottom: 2,
+  },
+  table: {
+    marginTop: 16,
+  },
+  tableHeader: {
+    flexDirection: "row",
+    padding: "8pt 6pt",
+    borderRadius: 4,
+    color: "#ffffff",
+    fontWeight: "bold",
+  },
+  tableRow: {
+    flexDirection: "row",
+    padding: "6pt",
+    borderBottom: "1pt solid #f3f4f6",
+  },
+  th: {
+    fontSize: 8,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  td: {
+    color: "#374151",
+  },
+});
 
-export interface PdfStatementLine {
-  id: string;
-  date: string;
-  type: "invoice" | "payment";
-  description: string;
-  amountCents: number;
-  balance: number;
-}
-
-function makeStyles(brand: string) {
-  return StyleSheet.create({
-    page: { padding: 42, fontSize: 9.5, fontFamily: "Helvetica", color: "#1d1d1f" },
-    headerRow: { flexDirection: "row", justifyContent: "space-between" },
-    logo: { maxWidth: 220, maxHeight: 90, objectFit: "contain", objectPosition: "left", marginBottom: 12 },
-    orgName: { fontSize: 15, fontFamily: "Helvetica-Bold" },
-    muted: { color: "#6e6e73" },
-    docTitle: { fontSize: 19, fontFamily: "Helvetica-Bold", color: brand, textAlign: "right" },
-    metaRight: { textAlign: "right", marginTop: 4, lineHeight: 1.5 },
-    billTo: { marginTop: 26 },
-    sectionLabel: {
-      fontSize: 7.5,
-      color: "#6e6e73",
-      textTransform: "uppercase",
-      letterSpacing: 0.8,
-      marginBottom: 3,
-    },
-    bold: { fontFamily: "Helvetica-Bold" },
-    table: { marginTop: 22 },
-    thRow: {
-      flexDirection: "row",
-      backgroundColor: brand,
-      paddingVertical: 6,
-      paddingHorizontal: 4,
-      marginBottom: 2,
-      borderRadius: 4,
-    },
-    th: { fontSize: 7.5, fontFamily: "Helvetica-Bold", color: "#ffffff", textTransform: "uppercase", letterSpacing: 0.6 },
-    tr: { flexDirection: "row", borderBottomWidth: 0.5, borderBottomColor: "#e8e8ed", paddingVertical: 5.5, paddingHorizontal: 4 },
-    cDate: { width: "15%", paddingRight: 6 },
-    cDetails: { width: "45%", paddingRight: 6 },
-    cAmount: { width: "20%", textAlign: "right" },
-    cBalance: { width: "20%", textAlign: "right" },
-    docFooterText: {
-      marginTop: 24,
-      paddingTop: 12,
-      borderTopWidth: 0.5,
-      borderTopColor: "#e8e8ed",
-      fontSize: 8,
-      color: "#86868b",
-      lineHeight: 1.4,
-    },
-  });
-}
-
-export function StatementPdf({
-  org,
-  contact,
-  lines,
-}: {
-  org: PdfOrg;
-  contact: PdfContact;
-  lines: PdfStatementLine[];
-}) {
-  const brand = org.brandColor || "#0f766e";
-  const s = makeStyles(brand);
-  const totalDue = lines.length > 0 ? lines[lines.length - 1].balance : 0;
+export function StatementPdf({ org, contact, from, to, openingCents, closingCents, lines }: Props) {
+  const brandColor = org.brandColor || "#0f766e";
 
   return (
     <Document>
-      <Page size="A4" style={s.page}>
-        <View style={s.headerRow}>
-          <View>
-            {org.logoUrl ? <Image src={org.logoUrl} style={s.logo} /> : null}
-            <Text style={s.orgName}>{org.name}</Text>
-            {org.address ? <Text style={s.muted}>{org.address}</Text> : null}
-            {org.phone ? <Text style={s.muted}>{org.phone}</Text> : null}
-            {org.email ? <Text style={s.muted}>{org.email}</Text> : null}
-            {org.kraPin ? <Text style={s.muted}>PIN: {org.kraPin}</Text> : null}
+      <Page size="A4" style={styles.page}>
+        <View style={styles.header}>
+          <View style={styles.headerLeft}>
+            {org.logoUrl && <Image src={org.logoUrl} style={styles.logo} />}
+            <Text style={styles.orgName}>{org.name}</Text>
+            {org.kraPin && <Text style={styles.metaText}>PIN: {org.kraPin}</Text>}
+            {org.address && <Text style={styles.metaText}>{org.address}</Text>}
+            {org.phone && <Text style={styles.metaText}>{org.phone}</Text>}
+            {org.email && <Text style={styles.metaText}>{org.email}</Text>}
           </View>
-          <View>
-            <Text style={s.docTitle}>STATEMENT OF ACCOUNT</Text>
-            <Text style={s.metaRight}>
-              <Text style={s.muted}>Date: </Text>
-              <Text style={s.bold}>{new Date().toISOString().slice(0, 10)}</Text>
-            </Text>
-            <Text style={s.metaRight}>
-              <Text style={s.muted}>Amount Due: </Text>
-              <Text style={s.bold}>{fmtKES(totalDue)}</Text>
-            </Text>
+          <View style={styles.headerRight}>
+            <Text style={[styles.title, { color: brandColor }]}>STATEMENT</Text>
+            <View style={styles.metaGrid}>
+              <View style={styles.metaRow}>
+                <Text style={styles.metaLabel}>Date:</Text>
+                <Text style={styles.metaValue}>{format(new Date(), "dd MMM yyyy")}</Text>
+              </View>
+              <View style={styles.metaRow}>
+                <Text style={styles.metaLabel}>Period:</Text>
+                <Text style={styles.metaValue}>{from} to {to}</Text>
+              </View>
+              <View style={styles.metaRow}>
+                <Text style={styles.metaLabel}>Amount Due:</Text>
+                <Text style={[styles.metaValue, { fontWeight: "bold" }]}>{fmtKES(closingCents)}</Text>
+              </View>
+            </View>
           </View>
         </View>
 
-        <View style={s.billTo}>
-          <Text style={s.sectionLabel}>To</Text>
-          <Text style={s.bold}>{contact.displayName}</Text>
-          {contact.address ? <Text style={s.muted}>{contact.address}</Text> : null}
-          {contact.city ? <Text style={s.muted}>{contact.city}</Text> : null}
-          {contact.kraPin ? (
-            <Text>
-              PIN: <Text style={s.bold}>{contact.kraPin}</Text>
-            </Text>
-          ) : null}
+        <View style={styles.billTo}>
+          <Text style={styles.billToLabel}>To:</Text>
+          <Text style={styles.billToName}>{contact.name}</Text>
+          {contact.address && <Text style={styles.metaText}>{contact.address}</Text>}
+          {contact.kraPin && <Text style={styles.metaText}>PIN: {contact.kraPin}</Text>}
         </View>
 
-        <View style={s.table}>
-          <View style={s.thRow}>
-            <Text style={[s.th, s.cDate]}>Date</Text>
-            <Text style={[s.th, s.cDetails]}>Details</Text>
-            <Text style={[s.th, s.cAmount]}>Amount</Text>
-            <Text style={[s.th, s.cBalance]}>Balance</Text>
+        <View style={styles.table}>
+          <View style={[styles.tableHeader, { backgroundColor: brandColor }]}>
+            <Text style={[styles.th, { flex: 1.5 }]}>Date</Text>
+            <Text style={[styles.th, { flex: 2 }]}>Details</Text>
+            <Text style={[styles.th, { flex: 4 }]}>Reference</Text>
+            <Text style={[styles.th, { flex: 2, textAlign: "right" }]}>Charges</Text>
+            <Text style={[styles.th, { flex: 2, textAlign: "right" }]}>Payments</Text>
+            <Text style={[styles.th, { flex: 2, textAlign: "right" }]}>Balance</Text>
           </View>
-          {lines.map((l) => (
-            <View style={s.tr} key={l.id} wrap={false}>
-              <Text style={s.cDate}>{l.date}</Text>
-              <Text style={s.cDetails}>{l.description}</Text>
-              <Text style={[s.cAmount, l.type === "payment" ? { color: "#16a34a" } : {}]}>
-                {fmtKES(l.amountCents)}
-              </Text>
-              <Text style={s.cBalance}>{fmtKES(l.balance)}</Text>
+
+          <View style={styles.tableRow}>
+            <Text style={[styles.td, { flex: 1.5 }]}></Text>
+            <Text style={[styles.td, { flex: 6, fontWeight: "bold" }]}>Opening Balance</Text>
+            <Text style={[styles.td, { flex: 2, textAlign: "right" }]}></Text>
+            <Text style={[styles.td, { flex: 2, textAlign: "right" }]}></Text>
+            <Text style={[styles.td, { flex: 2, textAlign: "right", fontWeight: "bold" }]}>{fmtKES(openingCents)}</Text>
+          </View>
+
+          {lines.map((l, i) => (
+            <View key={i} style={styles.tableRow}>
+              <Text style={[styles.td, { flex: 1.5 }]}>{l.date}</Text>
+              <Text style={[styles.td, { flex: 2 }]}>{l.description}</Text>
+              <Text style={[styles.td, { flex: 4 }]}>{l.ref}</Text>
+              <Text style={[styles.td, { flex: 2, textAlign: "right" }]}>{l.debitCents ? fmtKES(l.debitCents) : ""}</Text>
+              <Text style={[styles.td, { flex: 2, textAlign: "right" }]}>{l.creditCents ? fmtKES(l.creditCents) : ""}</Text>
+              <Text style={[styles.td, { flex: 2, textAlign: "right" }]}>{fmtKES(l.balanceCents)}</Text>
             </View>
           ))}
+          
+          <View style={[styles.tableRow, { borderBottom: "none", borderTop: "1pt solid #e5e7eb", paddingTop: 8 }]}>
+            <Text style={[styles.td, { flex: 7.5 }]}></Text>
+            <Text style={[styles.td, { flex: 2, textAlign: "right", fontWeight: "bold" }]}>Closing Balance</Text>
+            <Text style={[styles.td, { flex: 2, textAlign: "right", fontWeight: "bold" }]}>{fmtKES(closingCents)}</Text>
+          </View>
         </View>
-
-        {org.documentFooterText && (
-          <Text style={s.docFooterText}>{org.documentFooterText}</Text>
-        )}
       </Page>
     </Document>
   );

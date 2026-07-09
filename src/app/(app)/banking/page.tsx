@@ -11,6 +11,8 @@ import { accountBalances } from "@/lib/reports";
 import { PageHeader, StatusPill, TableCard, Th, Td } from "@/components/ui";
 import { BankImport } from "@/components/BankImport";
 import { MpesaImport } from "@/components/MpesaImport";
+import { Reconciliation } from "@/components/Reconciliation";
+import { bankReconciliations } from "@/db";
 import { BankingTransactionsClient } from "@/components/BankingTransactionsClient";
 
 export const dynamic = "force-dynamic";
@@ -29,6 +31,13 @@ export default async function BankingPage() {
     .select()
     .from(accounts)
     .where(and(eq(accounts.orgId, o.id), inArray(accounts.type, ["income", "expense"])));
+
+  // Any in-progress reconciliation session (first account with one)
+  const [openRec] = await db
+    .select()
+    .from(bankReconciliations)
+    .where(and(eq(bankReconciliations.orgId, o.id), eq(bankReconciliations.status, "in_progress")))
+    .limit(1);
 
   // Learned-rule suggestions for the uncategorized rows
   const uncategorized = txns.filter((t) => t.status === "uncategorized");
@@ -78,6 +87,12 @@ export default async function BankingPage() {
           );
         })}
       </div>
+
+      <h2 className="text-[15px] font-semibold mt-8 mb-3">Reconcile</h2>
+      <Reconciliation
+        banks={banks.map((b) => ({ id: b.id, label: b.name }))}
+        openRec={openRec ? { id: openRec.id } : null}
+      />
 
       <h2 className="text-[15px] font-semibold mt-8 mb-3">Import M-Pesa statement</h2>
       <MpesaImport banks={banks.map((b) => ({ id: b.id, label: b.name }))} />

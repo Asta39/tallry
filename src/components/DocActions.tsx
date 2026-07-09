@@ -9,6 +9,9 @@ import {
   convertQuoteToInvoice,
   recordPayment,
   createCreditNoteFromInvoice,
+} from "@/lib/actions";
+import { writeOffInvoice } from "@/lib/phase-a-actions";
+import {
   convertPoToBill,
 } from "@/lib/actions";
 import { fmtKES, parseKES, todayISO } from "@/lib/money";
@@ -120,6 +123,18 @@ export function DocActions({
             }
           >
             Create credit note
+          </button>
+        )}
+        {doc.type === "invoice" && ["open", "partial"].includes(doc.status) && (
+          <button
+            className={danger}
+            disabled={pending}
+            onClick={() => {
+              if (!confirm("Write off the unpaid balance as bad debt? This posts to the ledger and can't be undone here.")) return;
+              run(() => writeOffInvoice(doc.id));
+            }}
+          >
+            Write off
           </button>
         )}
         {doc.type === "purchase_order" && doc.status === "open" && (
