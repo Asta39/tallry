@@ -5,7 +5,7 @@ import { getOrg } from "@/lib/org";
 import { db, employees, payrollRuns, payslips, accounts } from "@/db";
 import { and, eq } from "drizzle-orm";
 import { calculatePayroll } from "@/lib/payroll";
-import { postJournal } from "@/lib/posting";
+import { postEntry } from "@/lib/posting";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
@@ -80,7 +80,7 @@ export async function postPayrollRunAction(runId: number, formData: FormData) {
   // Post Journal
   const date = new Date(Number(run.month.split("-")[0]), Number(run.month.split("-")[1]), 0).toISOString().slice(0, 10); // last day of month
 
-  const entryId = await postJournal(o.id, {
+  const entryId = await postEntry({
     date,
     memo: `Payroll Run for ${run.month}`,
     sourceType: "payroll",

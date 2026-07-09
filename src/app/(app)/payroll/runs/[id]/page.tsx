@@ -10,7 +10,8 @@ import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
-export default async function PayrollRunDetailsPage({ params }: { params: { id: string } }) {
+export default async function PayrollRunDetailsPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   await requirePerm("accountant");
   const o = await getOrg();
   const runId = parseInt(params.id, 10);

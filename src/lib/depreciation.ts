@@ -1,6 +1,6 @@
 import { db, fixedAssets, accounts } from "@/db";
 import { and, eq } from "drizzle-orm";
-import { postJournal } from "./posting";
+import { postEntry } from "./posting";
 
 export interface DepreciationResult {
   assetId: number;
@@ -36,7 +36,7 @@ export async function runMonthlyDepreciation(orgId: number, date: string): Promi
     const monthlyExpense = Math.round(depreciableBase / asset.usefulLifeMonths);
 
     try {
-      const entryId = await postJournal(orgId, {
+      const entryId = await postEntry({
         date,
         memo: `Depreciation for ${asset.name} - ${date.slice(0, 7)}`,
         sourceType: "depreciation",
