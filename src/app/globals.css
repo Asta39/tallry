@@ -57,18 +57,13 @@ html {
   border: 0.5px solid var(--color-ink-100);
 }
 
-/* Large quiet money numerals */
+/* Large quiet money numerals — fluid size so long amounts stay on one line */
 .money-lg {
-  font-size: 1.75rem;
+  font-size: clamp(1.1rem, 1.7vw + 0.55rem, 1.5rem);
   font-weight: 600;
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
-}
-
-@media (max-width: 640px) {
-  .money-lg {
-    font-size: 1.25rem;
-  }
+  white-space: nowrap;
 }
 .tnum { font-variant-numeric: tabular-nums; }
 
