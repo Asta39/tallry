@@ -7,11 +7,10 @@ import { fmtKES } from "@/lib/money";
 
 export const dynamic = "force-dynamic";
 
-export default async function Vat3ReportPage({
-  searchParams,
-}: {
-  searchParams: { month?: string };
+export default async function Vat3ReportPage(props: {
+  searchParams: Promise<{ month?: string }>;
 }) {
+  const searchParams = await props.searchParams;
   await requirePerm("reports");
   const o = await getOrg();
 
