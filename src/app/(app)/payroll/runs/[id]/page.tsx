@@ -44,7 +44,6 @@ export default async function PayrollRunDetailsPage(props: { params: Promise<{ i
       <PageHeader 
         title={`Payroll Run: ${run.month}`} 
         subtitle="Review payslips and post to the ledger"
-        backLink="/payroll/runs"
         action={
           run.status === "draft" && (
             <PostRunForm 

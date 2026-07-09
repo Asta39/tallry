@@ -22,7 +22,6 @@ export default async function NewAssetPage() {
       <PageHeader 
         title="Register Fixed Asset" 
         subtitle="Add a new long-term asset to the register"
-        backLink="/accounting/assets"
       />
       <div className="card max-w-2xl mt-6">
         <form action={createAssetAction} className="p-6 space-y-6">

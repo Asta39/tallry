@@ -70,7 +70,6 @@ export default async function Vat3ReportPage(props: {
       <PageHeader 
         title="iTax VAT3 Prefill" 
         subtitle={`Generate data for the KRA VAT return upload for ${month}`}
-        backLink="/reports"
       />
 
       <div className="card mt-6 p-4">

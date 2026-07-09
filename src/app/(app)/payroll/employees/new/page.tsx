@@ -12,7 +12,6 @@ export default async function NewEmployeePage() {
       <PageHeader 
         title="Add Employee" 
         subtitle="Register a new staff member for payroll"
-        backLink="/payroll/employees"
       />
       <div className="card max-w-2xl mt-6">
         <form action={createEmployeeAction} className="p-6 space-y-6">
