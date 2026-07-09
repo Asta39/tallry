@@ -1,4 +1,10 @@
 {
   "name": "tallry",
-  "regions": ["fra1"]
+  "regions": ["fra1"],
+  "crons": [
+    {
+      "path": "/api/cron/recurring",
+      "schedule": "0 5 * * *"
+    }
+  ]
 }
