@@ -115,6 +115,7 @@ export default async function LoanDetailPage(props: { params: Promise<{ id: stri
                   }
                 </Td>
                 <Td>
+                  {inst.payrollRunId ? (
                     <Link href={`/payroll/runs/${inst.payrollRunId}`} className="text-[var(--color-accent-600)] hover:underline">
                       Run #{inst.payrollRunId}
                     </Link>
