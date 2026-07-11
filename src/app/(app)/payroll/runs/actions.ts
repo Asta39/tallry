@@ -116,13 +116,13 @@ export async function postPayrollRunAction(runId: number, formData: FormData) {
   let totalLoans = 0;
 
   for (const line of lines) {
-    if (line.type === "gross_pay" || (line.type === "addition" && line.subType === "adjustment")) {
+    if (line.type === "gross_pay") {
       totalGross += line.amountCents;
     } else if (line.type === "net_pay") {
       totalNet += line.amountCents;
     } else if (line.type === "deduction" && line.subType === "loan") {
       totalLoans += line.amountCents;
-    } else if (line.type === "deduction") {
+    } else if (line.type === "deduction" && line.subType !== "adjustment") {
       totalTax += line.amountCents;
     }
   }
