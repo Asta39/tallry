@@ -28,8 +28,7 @@ export async function DocDetail({ id, printHref }: { id: number; printHref?: str
     : null;
   const pays = await db.select().from(payments).where(and(eq(payments.orgId, orgId), eq(payments.documentId, id)));
   const banks = await db.select().from(bankAccounts).where(eq(bankAccounts.orgId, orgId));
-  const gateways = await db.select().from(paymentGateways).where(and(eq(paymentGateways.orgId, orgId), eq(paymentGateways.enabled, true))).limit(1);
-  const gatewayConnected = gateways.length > 0;
+  const gateways = await db.select().from(paymentGateways).where(and(eq(paymentGateways.orgId, orgId), eq(paymentGateways.enabled, true)));
 
   return (
     <>
@@ -54,7 +53,7 @@ export async function DocDetail({ id, printHref }: { id: number; printHref?: str
         }}
         bankAccounts={banks.map((b) => ({ id: b.id, label: b.name }))}
         printHref={printHref}
-        gatewayConnected={gatewayConnected}
+        gateways={gateways.map(g => ({ id: g.gatewayId, name: g.gatewayId === "mpesa_daraja" ? "M-Pesa Daraja" : "Kopo Kopo" }))}
         contactPhone={contact?.phone || ""}
       />
 

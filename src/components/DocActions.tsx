@@ -37,9 +37,10 @@ export function DocActions({
   };
   bankAccounts: { id: number; label: string }[];
   printHref?: string;
-  gatewayConnected?: boolean;
+  gateways?: { id: string; name: string }[];
   contactPhone?: string;
 }) {
+  const gatewayConnected = gateways && gateways.length > 0;
   const router = useRouter();
   const [pending, start] = useTransition();
   const [showPay, setShowPay] = useState(false);
@@ -53,6 +54,7 @@ export function DocActions({
   // Gateway states
   const [showRequestPayment, setShowRequestPayment] = useState(false);
   const [showPayout, setShowPayout] = useState(false);
+  const [gwId, setGwId] = useState(gateways?.[0]?.id || "");
   const [gwPhone, setGwPhone] = useState(contactPhone || "");
   const [gwAmount, setGwAmount] = useState(((doc.totalCents - doc.paidCents) / 100).toFixed(2));
   const [gwDestType, setGwDestType] = useState<"phone" | "till" | "paybill">("phone");
@@ -103,7 +105,7 @@ export function DocActions({
         )}
         {payable && doc.type === "invoice" && gatewayConnected && (
           <button className={primary} disabled={pending} onClick={() => setShowRequestPayment((v) => !v)}>
-            Request via M-Pesa (STK)
+            Request via Gateway (STK)
           </button>
         )}
         {payable && ["bill", "expense"].includes(doc.type) && gatewayConnected && (
@@ -277,6 +279,14 @@ export function DocActions({
 
       {showRequestPayment && (
         <div className="card p-4 grid grid-cols-2 lg:grid-cols-4 gap-3 items-end border-[var(--color-accent-200)] bg-[var(--color-accent-50)]/50">
+          {(gateways?.length || 0) > 1 && (
+            <label className="block">
+              <span className="text-[12px] font-medium text-[var(--color-ink-600)]">Gateway</span>
+              <select className={inputCls + " w-full mt-1"} value={gwId} onChange={(e) => setGwId(e.target.value)}>
+                {gateways?.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+              </select>
+            </label>
+          )}
           <label className="block">
             <span className="text-[12px] font-medium text-[var(--color-ink-600)]">Customer Phone</span>
             <input className={inputCls + " w-full mt-1"} placeholder="2547..." value={gwPhone} onChange={(e) => setGwPhone(e.target.value)} />
@@ -294,7 +304,8 @@ export function DocActions({
                   const amt = parseKES(gwAmount);
                   if (!amt || amt <= 0) throw new Error("Enter a valid amount");
                   if (!gwPhone) throw new Error("Enter phone number");
-                  await requestPaymentAction(doc.id, gwPhone, amt);
+                  if (!gwId) throw new Error("No gateway selected");
+                  await requestPaymentAction(doc.id, gwPhone, amt, gwId);
                   setShowRequestPayment(false);
                   alert("Payment request sent to customer's phone!");
                 })
@@ -308,6 +319,14 @@ export function DocActions({
 
       {showPayout && (
         <div className="card p-4 grid grid-cols-2 lg:grid-cols-4 gap-3 items-end border-[var(--color-accent-200)] bg-[var(--color-accent-50)]/50">
+          {(gateways?.length || 0) > 1 && (
+            <label className="block">
+              <span className="text-[12px] font-medium text-[var(--color-ink-600)]">Gateway</span>
+              <select className={inputCls + " w-full mt-1"} value={gwId} onChange={(e) => setGwId(e.target.value)}>
+                {gateways?.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
+              </select>
+            </label>
+          )}
           <label className="block">
             <span className="text-[12px] font-medium text-[var(--color-ink-600)]">Destination Type</span>
             <select className={inputCls + " w-full mt-1"} value={gwDestType} onChange={(e) => setGwDestType(e.target.value as any)}>
@@ -334,7 +353,8 @@ export function DocActions({
                   const amt = parseKES(gwAmount);
                   if (!amt || amt <= 0) throw new Error("Enter a valid amount");
                   if (!gwPhone) throw new Error("Enter destination");
-                  await payOutAction(doc.id, gwPhone, gwDestType, amt);
+                  if (!gwId) throw new Error("No gateway selected");
+                  await payOutAction(doc.id, gwPhone, gwDestType, amt, gwId);
                   setShowPayout(false);
                   alert("Payout dispatched successfully!");
                 })

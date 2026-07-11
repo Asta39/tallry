@@ -6,7 +6,7 @@ import { db, documents, paymentGateways } from "@/db";
 import { eq, and } from "drizzle-orm";
 import { getOrg } from "@/lib/org";
 
-export async function requestPaymentAction(documentId: number, phone: string, amountCents: number) {
+export async function requestPaymentAction(documentId: number, phone: string, amountCents: number, gatewayId: string) {
   try {
     await requirePerm("invoices");
     const o = await getOrg();
@@ -15,8 +15,12 @@ export async function requestPaymentAction(documentId: number, phone: string, am
     if (!doc) return { error: "Document not found" };
     if (doc.type !== "invoice") return { error: "Can only request payment for invoices" };
     
-    const [gwConfig] = await db.select().from(paymentGateways).where(and(eq(paymentGateways.orgId, o.id), eq(paymentGateways.enabled, true)));
-    if (!gwConfig) return { error: "No payment gateway connected" };
+    const [gwConfig] = await db.select().from(paymentGateways).where(and(
+      eq(paymentGateways.orgId, o.id), 
+      eq(paymentGateways.enabled, true),
+      eq(paymentGateways.gatewayId, gatewayId)
+    ));
+    if (!gwConfig) return { error: "Selected payment gateway is not connected or enabled" };
 
     const gateway = await getGateway(gwConfig);
     
@@ -33,7 +37,7 @@ export async function requestPaymentAction(documentId: number, phone: string, am
   }
 }
 
-export async function payOutAction(documentId: number, destination: string, destinationType: "phone" | "till" | "paybill", amountCents: number) {
+export async function payOutAction(documentId: number, destination: string, destinationType: "phone" | "till" | "paybill", amountCents: number, gatewayId: string) {
   try {
     await requirePerm("can_payout"); // Will add this permission in Phase 4 tasks
     const o = await getOrg();
@@ -42,8 +46,12 @@ export async function payOutAction(documentId: number, destination: string, dest
     if (!doc) return { error: "Document not found" };
     if (doc.type !== "bill" && doc.type !== "expense") return { error: "Can only payout for bills or expenses" };
 
-    const [gwConfig] = await db.select().from(paymentGateways).where(and(eq(paymentGateways.orgId, o.id), eq(paymentGateways.enabled, true)));
-    if (!gwConfig) return { error: "No payment gateway connected" };
+    const [gwConfig] = await db.select().from(paymentGateways).where(and(
+      eq(paymentGateways.orgId, o.id), 
+      eq(paymentGateways.enabled, true),
+      eq(paymentGateways.gatewayId, gatewayId)
+    ));
+    if (!gwConfig) return { error: "Selected payment gateway is not connected or enabled" };
 
     const gateway = await getGateway(gwConfig);
     
