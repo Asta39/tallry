@@ -25,8 +25,7 @@ export default async function RuleDetailPage(props: { params: Promise<{ id: stri
     <div className="max-w-3xl mx-auto space-y-6">
       <PageHeader 
         title={`Edit Rule: ${rule.type}`} 
-        backLink="/payroll/rules"
-        description="Update statutory parameters for payroll calculations."
+        subtitle="Update statutory parameters for payroll calculations."
       />
 
       <div className="bg-white rounded-xl border border-[var(--color-ink-200)] shadow-sm overflow-hidden">
