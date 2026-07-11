@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { getUser } from "@/lib/supabase/server";
 import { db, org } from "@/db";
 import { eq, and } from "drizzle-orm";
+import Link from "next/link";
 import { PageHeader } from "@/components/ui";
 import { OrgProfileForm } from "@/components/OrgProfileForm";
 
@@ -51,6 +52,13 @@ export default async function SettingsPage() {
         <p>· eTIMS: invoices are signed by a <b>simulated</b> control unit (CU number + KRA QR). Connect a real OSCU/VSCU before using invoices fiscally.</p>
         <p>· Withholding: record customer WHT deductions when receiving payment — tracked as a KRA receivable.</p>
         <p>· VAT return prep and trial balance live under Reports; file on iTax by the 20th.</p>
+      </div>
+
+      <div className="card px-6 py-5 max-w-2xl mt-5 space-y-1.5 hover:bg-[var(--color-ink-50)] transition-colors cursor-pointer">
+        <Link href="/settings/payments" className="block w-full">
+          <div className="font-semibold text-[var(--color-ink-900)]">Payment Gateways</div>
+          <p className="text-[12.5px] text-[var(--color-ink-600)] mt-1">Configure M-Pesa Daraja and Kopo Kopo for automated inbound payments.</p>
+        </Link>
       </div>
     </>
   );
