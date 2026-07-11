@@ -74,7 +74,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   const download = req.nextUrl.searchParams.get("download") === "1";
   const filename = `Employee_${employee.name.replace(/\s+/g, "_")}.pdf`;
 
-  return new Response(buffer, {
+  return new Response(new Uint8Array(buffer), {
     headers: {
       "Content-Type": "application/pdf",
       "Content-Disposition": `${download ? "attachment" : "inline"}; filename="${filename}"`,
