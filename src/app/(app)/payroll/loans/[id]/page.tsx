@@ -54,7 +54,6 @@ export default async function LoanDetailPage(props: { params: Promise<{ id: stri
         <PageHeader 
           title={`Loan #${loan.id} - ${loan.employeeName}`}
           subtitle={`Amortization & Schedule`}
-          backLink="/payroll/loans"
         />
         <a 
           href={`/api/pdf/loan/${loan.id}?download=1`}

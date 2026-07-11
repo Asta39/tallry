@@ -48,7 +48,6 @@ export default async function EmployeeDetailPage(props: { params: Promise<{ id: 
         <PageHeader 
           title={employee.name}
           subtitle={`Employee Profile & History`}
-          backLink="/payroll/employees"
         />
         <a 
           href={`/api/pdf/employee/${employee.id}?download=1`}
