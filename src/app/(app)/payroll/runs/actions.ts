@@ -18,10 +18,14 @@ export async function createPayrollRunAction(formData: FormData) {
 
   // Prevent duplicate runs for same month
   const existing = await db.select().from(payrollRuns).where(and(eq(payrollRuns.orgId, o.id), eq(payrollRuns.month, month)));
-  if (existing.length > 0) throw new Error(`A payroll run for ${month} already exists`);
+  if (existing.length > 0) {
+    redirect(`/payroll/runs/${existing[0].id}`);
+  }
 
   const activeEmployees = await db.select().from(employees).where(and(eq(employees.orgId, o.id), eq(employees.isActive, true)));
-  if (activeEmployees.length === 0) throw new Error("No active employees found");
+  if (activeEmployees.length === 0) {
+    redirect("/payroll/employees?error=no_active_employees");
+  }
 
   const rulesData = await db.select().from(statutoryRules).where(eq(statutoryRules.orgId, o.id));
   const rules = rulesData as RuleDef[];
