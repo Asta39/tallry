@@ -6,6 +6,7 @@ import { PageHeader, TableCard, Th, Td } from "@/components/ui";
 import { fmtKES } from "@/lib/money";
 import { notFound } from "next/navigation";
 import { PostRunForm } from "./PostRunForm";
+import { DeleteRunButton } from "./DeleteRunButton";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
@@ -74,11 +75,14 @@ export default async function PayrollRunDetailsPage(props: { params: Promise<{ i
         subtitle="Review payslips and post to the ledger"
         action={
           run.status === "draft" && (
-            <PostRunForm 
-              runId={run.id}
-              expenseAccounts={expenseAccounts}
-              liabilityAccounts={liabilityAccounts}
-            />
+              <div className="flex items-center gap-3">
+                <DeleteRunButton runId={run.id} />
+                <PostRunForm 
+                  runId={run.id}
+                  expenseAccounts={expenseAccounts}
+                  liabilityAccounts={liabilityAccounts}
+                />
+              </div>
           )
         }
       />

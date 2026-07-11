@@ -146,3 +146,20 @@ export async function postPayrollRunAction(runId: number, formData: FormData) {
   revalidatePath(`/payroll/runs/${run.id}`);
   revalidatePath("/payroll/runs");
 }
+
+export async function deletePayrollRunAction(runId: number) {
+  await requirePerm("accountant");
+  const o = await getOrg();
+
+  const [run] = await db.select().from(payrollRuns).where(and(eq(payrollRuns.id, runId), eq(payrollRuns.orgId, o.id)));
+  if (!run) throw new Error("Not found");
+  if (run.status === "posted") throw new Error("Cannot delete a posted run");
+
+  await db.delete(payrollRunLineItems).where(eq(payrollRunLineItems.payrollRunId, runId));
+  await db.delete(loanInstallments).where(eq(loanInstallments.payrollRunId, runId));
+  await db.delete(payrollAdjustments).where(eq(payrollAdjustments.correctingRunId, runId));
+  await db.delete(payrollRuns).where(eq(payrollRuns.id, runId));
+
+  revalidatePath("/payroll/runs");
+  redirect("/payroll/runs");
+}
