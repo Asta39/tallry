@@ -42,8 +42,10 @@ export default async function PayrollRulesPage() {
                 <Td><div className="badge badge-ghost badge-sm">{rule.calculationType}</div></Td>
                 <Td>{rule.effectiveFrom}</Td>
                 <Td>{rule.effectiveTo || "Present"}</Td>
-                <Td className="text-[11px] font-mono text-[var(--color-ink-400)] truncate max-w-[200px]" title={rule.parametersJson}>
-                  {rule.parametersJson}
+                <Td className="text-[11px] font-mono text-[var(--color-ink-400)] max-w-[200px]">
+                  <div className="truncate w-full" title={rule.parametersJson}>
+                    {rule.parametersJson}
+                  </div>
                 </Td>
               </tr>
             ))}
