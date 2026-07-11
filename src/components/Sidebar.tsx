@@ -42,7 +42,15 @@ const groups: {
       { href: "/banking", label: "Bank & M-Pesa", icon: "◫", perm: "banking" },
       { href: "/accountant", label: "Accountant", icon: "≡", perm: "accountant" },
       { href: "/reports", label: "Reports", icon: "◪", perm: "reports" },
-      { href: "/payroll/runs", label: "Payroll", icon: "⚑", perm: "accountant" },
+    ],
+  },
+  {
+    label: "Payroll",
+    items: [
+      { href: "/payroll/runs", label: "Payroll Runs", icon: "⚑", perm: "payroll" },
+      { href: "/payroll/employees", label: "Employees", icon: "◈", perm: "payroll" },
+      { href: "/payroll/rules", label: "Rules & Tax", icon: "⚙", perm: "payroll" },
+      { href: "/payroll/loans", label: "Loans & Deductions", icon: "⊟", perm: "payroll" },
     ],
   },
   {

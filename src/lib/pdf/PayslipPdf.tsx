@@ -10,11 +10,8 @@ export interface PdfPayslipData {
   kraPin: string | null;
   nssfNumber: string | null;
   shifNumber: string | null;
+  lines: { label: string; amountCents: number; isDeduction: boolean }[];
   grossPayCents: number;
-  nssfCents: number;
-  shifCents: number;
-  housingLevyCents: number;
-  payeCents: number;
   netPayCents: number;
 }
 
@@ -47,6 +44,9 @@ function makeStyles(brand: string) {
 
 export function PayslipPdf({ data }: { data: PdfPayslipData }) {
   const s = makeStyles(data.brandColor || "#0f766e");
+  
+  const earnings = data.lines.filter(l => !l.isDeduction);
+  const deductions = data.lines.filter(l => l.isDeduction);
 
   return (
     <Document>
@@ -80,31 +80,25 @@ export function PayslipPdf({ data }: { data: PdfPayslipData }) {
             <Text style={s.tableHeaderCell}>Earnings</Text>
             <Text style={[s.tableHeaderCell, { textAlign: "right" }]}>Amount</Text>
           </View>
-          <View style={s.tableRow}>
-            <Text style={s.tableLabel}>Basic Salary</Text>
-            <Text style={s.tableAmount}>{fmtKES(data.grossPayCents)}</Text>
-          </View>
+          
+          {earnings.map((e, idx) => (
+            <View key={idx} style={s.tableRow}>
+              <Text style={s.tableLabel}>{e.label}</Text>
+              <Text style={s.tableAmount}>{fmtKES(e.amountCents)}</Text>
+            </View>
+          ))}
           
           <View style={[s.tableHeader, { marginTop: 16 }]}>
             <Text style={s.tableHeaderCell}>Deductions</Text>
             <Text style={[s.tableHeaderCell, { textAlign: "right" }]}>Amount</Text>
           </View>
-          <View style={s.tableRow}>
-            <Text style={s.tableLabel}>PAYE (Tax)</Text>
-            <Text style={s.tableAmount}>{fmtKES(data.payeCents)}</Text>
-          </View>
-          <View style={s.tableRow}>
-            <Text style={s.tableLabel}>NSSF (Pension)</Text>
-            <Text style={s.tableAmount}>{fmtKES(data.nssfCents)}</Text>
-          </View>
-          <View style={s.tableRow}>
-            <Text style={s.tableLabel}>SHIF (Health)</Text>
-            <Text style={s.tableAmount}>{fmtKES(data.shifCents)}</Text>
-          </View>
-          <View style={s.tableRow}>
-            <Text style={s.tableLabel}>Affordable Housing Levy</Text>
-            <Text style={s.tableAmount}>{fmtKES(data.housingLevyCents)}</Text>
-          </View>
+          
+          {deductions.map((d, idx) => (
+            <View key={idx} style={s.tableRow}>
+              <Text style={s.tableLabel}>{d.label}</Text>
+              <Text style={s.tableAmount}>{fmtKES(d.amountCents)}</Text>
+            </View>
+          ))}
 
           <View style={s.totalRow}>
             <Text style={s.totalLabel}>Net Pay</Text>

@@ -378,17 +378,72 @@ CREATE TABLE IF NOT EXISTS payroll_runs (
   created_at TEXT NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS payslips (
+DROP TABLE IF EXISTS payslips;
+
+CREATE TABLE IF NOT EXISTS statutory_rules (
+  id SERIAL PRIMARY KEY,
+  org_id INTEGER NOT NULL REFERENCES org(id),
+  type TEXT NOT NULL,
+  effective_from TEXT NOT NULL,
+  effective_to TEXT,
+  calculation_type TEXT NOT NULL,
+  parameters_json TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS payroll_run_line_items (
   id SERIAL PRIMARY KEY,
   org_id INTEGER NOT NULL REFERENCES org(id),
   payroll_run_id INTEGER NOT NULL REFERENCES payroll_runs(id),
   employee_id INTEGER NOT NULL REFERENCES employees(id),
-  gross_pay_cents BIGINT NOT NULL,
-  nssf_cents BIGINT NOT NULL,
-  shif_cents BIGINT NOT NULL,
-  housing_levy_cents BIGINT NOT NULL,
-  paye_cents BIGINT NOT NULL,
-  net_pay_cents BIGINT NOT NULL
+  type TEXT NOT NULL,
+  sub_type TEXT,
+  amount_cents BIGINT NOT NULL,
+  is_deduction BOOLEAN NOT NULL DEFAULT FALSE,
+  statutory_rule_id INTEGER REFERENCES statutory_rules(id)
+);
+
+CREATE TABLE IF NOT EXISTS payroll_adjustments (
+  id SERIAL PRIMARY KEY,
+  org_id INTEGER NOT NULL REFERENCES org(id),
+  employee_id INTEGER NOT NULL REFERENCES employees(id),
+  correcting_run_id INTEGER REFERENCES payroll_runs(id),
+  original_run_id INTEGER REFERENCES payroll_runs(id),
+  amount_cents BIGINT NOT NULL,
+  is_taxable BOOLEAN NOT NULL DEFAULT TRUE,
+  is_deduction BOOLEAN NOT NULL DEFAULT FALSE,
+  reason TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS loan_ledger (
+  id SERIAL PRIMARY KEY,
+  org_id INTEGER NOT NULL REFERENCES org(id),
+  employee_id INTEGER NOT NULL REFERENCES employees(id),
+  principal_cents BIGINT NOT NULL,
+  balance_cents BIGINT NOT NULL,
+  installment_cents BIGINT NOT NULL,
+  type TEXT NOT NULL DEFAULT 'amortizing',
+  status TEXT NOT NULL DEFAULT 'active',
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS loan_installments (
+  id SERIAL PRIMARY KEY,
+  org_id INTEGER NOT NULL REFERENCES org(id),
+  loan_id INTEGER NOT NULL REFERENCES loan_ledger(id),
+  payroll_run_id INTEGER NOT NULL REFERENCES payroll_runs(id),
+  amount_cents BIGINT NOT NULL,
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS leave_records (
+  id SERIAL PRIMARY KEY,
+  org_id INTEGER NOT NULL REFERENCES org(id),
+  employee_id INTEGER NOT NULL REFERENCES employees(id),
+  month TEXT NOT NULL,
+  unpaid_days_count INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL
 );
 
 ALTER TABLE recurring_templates ADD COLUMN IF NOT EXISTS due_in_days INTEGER NOT NULL DEFAULT 30;

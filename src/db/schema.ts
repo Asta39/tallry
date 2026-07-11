@@ -456,3 +456,69 @@ export const payslips = pgTable("payslips", {
   payeCents: money("paye_cents").notNull(),
   netPayCents: money("net_pay_cents").notNull(),
 });
+
+export const statutoryRules = pgTable("statutory_rules", {
+  id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
+  type: text("type").notNull(), // PAYE, SHIF, NSSF_1, NSSF_2, AHL, RELIEF
+  effectiveFrom: text("effective_from").notNull(), // YYYY-MM-DD
+  effectiveTo: text("effective_to"), // YYYY-MM-DD or null
+  calculationType: text("calculation_type").notNull(), // banded, flat_percent, capped, flat_amount
+  parametersJson: text("parameters_json").notNull(), // serialized parameters
+  createdAt: text("created_at").notNull(),
+});
+
+export const payrollRunLineItems = pgTable("payroll_run_line_items", {
+  id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
+  payrollRunId: integer("payroll_run_id").notNull().references(() => payrollRuns.id),
+  employeeId: integer("employee_id").notNull().references(() => employees.id),
+  type: text("type").notNull(), // gross_pay, deduction, addition, net_pay
+  subType: text("sub_type"), // PAYE, SHIF, NSSF, AHL, loan, adjustment
+  amountCents: money("amount_cents").notNull(), // absolute value
+  isDeduction: boolean("is_deduction").notNull().default(false),
+  statutoryRuleId: integer("statutory_rule_id").references(() => statutoryRules.id),
+});
+
+export const payrollAdjustments = pgTable("payroll_adjustments", {
+  id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
+  employeeId: integer("employee_id").notNull().references(() => employees.id),
+  correctingRunId: integer("correcting_run_id").references(() => payrollRuns.id), 
+  originalRunId: integer("original_run_id").references(() => payrollRuns.id), 
+  amountCents: money("amount_cents").notNull(),
+  isTaxable: boolean("is_taxable").notNull().default(true),
+  isDeduction: boolean("is_deduction").notNull().default(false),
+  reason: text("reason").notNull(),
+  createdAt: text("created_at").notNull(),
+});
+
+export const loanLedger = pgTable("loan_ledger", {
+  id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
+  employeeId: integer("employee_id").notNull().references(() => employees.id),
+  principalCents: money("principal_cents").notNull(),
+  balanceCents: money("balance_cents").notNull(),
+  installmentCents: money("installment_cents").notNull(),
+  type: text("type").notNull().default("amortizing"), // amortizing, recurring_fixed
+  status: text("status").notNull().default("active"), // active, paid, paused
+  createdAt: text("created_at").notNull(),
+});
+
+export const loanInstallments = pgTable("loan_installments", {
+  id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
+  loanId: integer("loan_id").notNull().references(() => loanLedger.id),
+  payrollRunId: integer("payroll_run_id").notNull().references(() => payrollRuns.id),
+  amountCents: money("amount_cents").notNull(),
+  createdAt: text("created_at").notNull(),
+});
+
+export const leaveRecords = pgTable("leave_records", {
+  id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
+  employeeId: integer("employee_id").notNull().references(() => employees.id),
+  month: text("month").notNull(), // e.g. "2024-05"
+  unpaidDaysCount: integer("unpaid_days_count").notNull().default(0),
+  createdAt: text("created_at").notNull(),
+});

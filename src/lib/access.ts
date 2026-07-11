@@ -25,6 +25,9 @@ export const MODULES: { key: string; label: string }[] = [
   { key: "purchase_orders", label: "Purchase orders" },
   { key: "items", label: "Items & Stock" },
   { key: "banking", label: "Bank & M-Pesa" },
+  { key: "payroll", label: "Payroll" },
+  { key: "fixed_assets", label: "Fixed Assets" },
+  { key: "vat3", label: "iTax VAT3" },
   { key: "accountant", label: "Accountant (ledger)" },
   { key: "reports", label: "Reports" },
   { key: "settings", label: "Settings" },
@@ -37,7 +40,7 @@ export const DEFAULT_ROLE_PERMS: Record<Role, string[]> = {
   admin: ALL,
   accountant: ALL.filter((k) => !["staff", "settings"].includes(k)),
   sales: ["dashboard", "contacts", "pipeline", "quotes", "invoices", "credit_notes", "items"],
-  hr: ["dashboard", "contacts", "reports"],
+  hr: ["dashboard", "contacts", "reports", "payroll"],
   inventory: ["dashboard", "items", "purchase_orders", "bills", "contacts"],
   staff: ["dashboard"],
 };

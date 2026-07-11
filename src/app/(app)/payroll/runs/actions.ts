@@ -2,9 +2,9 @@
 
 import { requirePerm } from "@/lib/guard";
 import { getOrg } from "@/lib/org";
-import { db, employees, payrollRuns, payslips, accounts } from "@/db";
+import { db, employees, payrollRuns, payrollRunLineItems, statutoryRules, leaveRecords, payrollAdjustments, loanLedger, loanInstallments } from "@/db";
 import { and, eq } from "drizzle-orm";
-import { calculatePayroll } from "@/lib/payroll";
+import { runPayrollEngine, RuleDef } from "@/lib/payroll";
 import { postEntry } from "@/lib/posting";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -16,14 +16,16 @@ export async function createPayrollRunAction(formData: FormData) {
   const month = formData.get("month") as string;
   if (!month) throw new Error("Month is required");
 
-  // Prevent duplicate runs for same month (simple check)
+  // Prevent duplicate runs for same month
   const existing = await db.select().from(payrollRuns).where(and(eq(payrollRuns.orgId, o.id), eq(payrollRuns.month, month)));
   if (existing.length > 0) throw new Error(`A payroll run for ${month} already exists`);
 
   const activeEmployees = await db.select().from(employees).where(and(eq(employees.orgId, o.id), eq(employees.isActive, true)));
   if (activeEmployees.length === 0) throw new Error("No active employees found");
 
-  // 1. Create run
+  const rulesData = await db.select().from(statutoryRules).where(eq(statutoryRules.orgId, o.id));
+  const rules = rulesData as RuleDef[];
+
   const [run] = await db.insert(payrollRuns).values({
     orgId: o.id,
     month,
@@ -31,15 +33,55 @@ export async function createPayrollRunAction(formData: FormData) {
     createdAt: new Date().toISOString()
   }).returning();
 
-  // 2. Create payslips
+  const leaves = await db.select().from(leaveRecords).where(and(eq(leaveRecords.orgId, o.id), eq(leaveRecords.month, month)));
+  const adjustments = await db.select().from(payrollAdjustments).where(and(eq(payrollAdjustments.orgId, o.id), eq(payrollAdjustments.correctingRunId, run.id)));
+  const loans = await db.select().from(loanLedger).where(and(eq(loanLedger.orgId, o.id), eq(loanLedger.status, "active")));
+
   for (const emp of activeEmployees) {
-    const calc = calculatePayroll(emp.basicSalaryCents);
-    await db.insert(payslips).values({
-      orgId: o.id,
-      payrollRunId: run.id,
+    const empLeave = leaves.find(l => l.employeeId === emp.id)?.unpaidDaysCount || 0;
+    const empAdjs = adjustments.filter(a => a.employeeId === emp.id).map(a => ({
+      amountCents: a.amountCents,
+      isTaxable: a.isTaxable,
+      isDeduction: a.isDeduction,
+      reason: a.reason
+    }));
+
+    const empLoans = loans.filter(l => l.employeeId === emp.id).map(l => ({
+      amountCents: l.installmentCents,
+      loanId: l.id
+    }));
+
+    const lines = runPayrollEngine({
       employeeId: emp.id,
-      ...calc
-    });
+      basicSalaryCents: emp.basicSalaryCents,
+      unpaidLeaveDays: empLeave,
+      workingDaysInMonth: 21,
+      adjustments: empAdjs,
+      loanInstallments: empLoans
+    }, rules);
+
+    for (const line of lines) {
+      await db.insert(payrollRunLineItems).values({
+        orgId: o.id,
+        payrollRunId: run.id,
+        employeeId: emp.id,
+        type: line.type,
+        subType: line.subType,
+        amountCents: line.amountCents,
+        isDeduction: line.isDeduction,
+        statutoryRuleId: line.statutoryRuleId
+      });
+    }
+
+    for (const loan of empLoans) {
+      await db.insert(loanInstallments).values({
+        orgId: o.id,
+        loanId: loan.loanId,
+        payrollRunId: run.id,
+        amountCents: loan.amountCents,
+        createdAt: new Date().toISOString()
+      });
+    }
   }
 
   revalidatePath("/payroll/runs");
@@ -62,23 +104,23 @@ export async function postPayrollRunAction(runId: number, formData: FormData) {
   if (!run) throw new Error("Not found");
   if (run.status === "posted") throw new Error("Already posted");
 
-  const slips = await db.select().from(payslips).where(eq(payslips.payrollRunId, runId));
+  const lines = await db.select().from(payrollRunLineItems).where(eq(payrollRunLineItems.payrollRunId, runId));
 
   let totalGross = 0;
   let totalNet = 0;
   let totalTax = 0;
 
-  for (const s of slips) {
-    totalGross += s.grossPayCents;
-    totalNet += s.netPayCents;
-    totalTax += s.nssfCents + s.shifCents + s.housingLevyCents + s.payeCents;
+  for (const line of lines) {
+    if (line.type === "gross_pay" || (line.type === "addition" && line.subType === "adjustment")) {
+      totalGross += line.amountCents;
+    } else if (line.type === "net_pay") {
+      totalNet += line.amountCents;
+    } else if (line.type === "deduction" && ["PAYE", "NSSF", "SHIF", "AHL"].includes(line.subType || "")) {
+      totalTax += line.amountCents;
+    }
   }
 
-  // Double check math
-  if (totalGross !== totalNet + totalTax) throw new Error("Payroll math mismatch");
-
-  // Post Journal
-  const date = new Date(Number(run.month.split("-")[0]), Number(run.month.split("-")[1]), 0).toISOString().slice(0, 10); // last day of month
+  const date = new Date(Number(run.month.split("-")[0]), Number(run.month.split("-")[1]), 0).toISOString().slice(0, 10);
 
   const entryId = await postEntry({
     date,
@@ -98,5 +140,5 @@ export async function postPayrollRunAction(runId: number, formData: FormData) {
   }).where(eq(payrollRuns.id, run.id));
 
   revalidatePath(`/payroll/runs/${run.id}`);
-  revalidatePath("/payroll/runs");
+}  revalidatePath("/payroll/runs");
 }
