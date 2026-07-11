@@ -458,3 +458,31 @@ CREATE TABLE IF NOT EXISTS custom_roles (
   UNIQUE(org_id, name)
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_custom_roles_org_name ON custom_roles(org_id, name);
+
+CREATE TABLE IF NOT EXISTS payment_gateways (
+  id SERIAL PRIMARY KEY,
+  org_id INTEGER NOT NULL REFERENCES org(id),
+  gateway_id TEXT NOT NULL,
+  enabled BOOLEAN NOT NULL DEFAULT FALSE,
+  environment TEXT NOT NULL DEFAULT 'sandbox',
+  config_json TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_payment_gateways_org ON payment_gateways(org_id, gateway_id);
+
+CREATE TABLE IF NOT EXISTS payment_events (
+  id SERIAL PRIMARY KEY,
+  org_id INTEGER NOT NULL REFERENCES org(id),
+  gateway_id TEXT NOT NULL,
+  provider_ref TEXT NOT NULL,
+  amount_cents BIGINT NOT NULL,
+  payer_phone TEXT,
+  payer_name TEXT,
+  account_ref TEXT,
+  status TEXT NOT NULL DEFAULT 'received',
+  matched_document_id INTEGER,
+  raw_json TEXT,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_payment_events_org_ref ON payment_events(org_id, provider_ref);
