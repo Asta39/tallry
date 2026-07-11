@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { db, members } from "@/db";
+import { db, members, employees } from "@/db";
 import { eq } from "drizzle-orm";
 import { getAccess, MODULES, rolePermMap, getAllRoles } from "@/lib/access";
 import { PageHeader } from "@/components/ui";
@@ -13,6 +13,8 @@ export default async function StaffPage() {
   if (access.role !== "admin") redirect("/");
 
   const staff = await db.select().from(members).where(eq(members.orgId, access.orgId));
+  const allEmployees = await db.select().from(employees).where(eq(employees.orgId, access.orgId));
+  
   const allRoles = await getAllRoles(access.orgId);
   const editableRoles = allRoles.filter((r) => r !== "admin");
 
@@ -39,7 +41,10 @@ export default async function StaffPage() {
       )}
 
       <h2 className="text-[15px] font-semibold mb-3">Add a staff member</h2>
-      <AddStaffForm roles={allRoles} />
+      <AddStaffForm 
+        roles={allRoles} 
+        employees={allEmployees.map(e => ({ id: e.id, name: e.name }))}
+      />
 
       <h2 className="text-[15px] font-semibold mt-8 mb-3">Team</h2>
       <StaffList

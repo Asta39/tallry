@@ -16,7 +16,7 @@ export interface StaffMember {
   active: boolean;
 }
 
-export function AddStaffForm({ roles }: { roles: string[] }) {
+export function AddStaffForm({ roles, employees }: { roles: string[], employees?: { id: number, name: string }[] }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -47,7 +47,18 @@ export function AddStaffForm({ roles }: { roles: string[] }) {
     >
       <label className="block">
         <span className={labelCls}>Full name</span>
-        <input required value={name} onChange={(e) => setName(e.target.value)} className={inputCls} placeholder="Jane Wanjiku" />
+        <input 
+          required 
+          list="employee-names"
+          value={name} 
+          onChange={(e) => setName(e.target.value)} 
+          className={inputCls} 
+          placeholder="Jane Wanjiku" 
+          autoComplete="off"
+        />
+        <datalist id="employee-names">
+          {employees?.map(e => <option key={e.id} value={e.name} />)}
+        </datalist>
       </label>
       <label className="block">
         <span className={labelCls}>Email</span>

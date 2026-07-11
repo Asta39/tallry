@@ -4,6 +4,8 @@ import { db, employees } from "@/db";
 import { and, eq } from "drizzle-orm";
 import { PageHeader, TableCard, Th, Td, PrimaryLink } from "@/components/ui";
 import { fmtKES } from "@/lib/money";
+import { getAccess } from "@/lib/access";
+import { ToggleEmployeeStatusButton } from "./ToggleEmployeeStatusButton";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
@@ -11,6 +13,8 @@ export const dynamic = "force-dynamic";
 export default async function EmployeesPage() {
   await requirePerm("payroll");
   const o = await getOrg();
+  const access = await getAccess();
+  const isAdmin = access?.role === "admin";
   
   const allEmployees = await db.select().from(employees).where(
     eq(employees.orgId, o.id)
@@ -49,9 +53,13 @@ export default async function EmployeesPage() {
                 <Td>{e.shifNumber || "-"}</Td>
                 <Td right>{fmtKES(e.basicSalaryCents)}</Td>
                 <Td>
-                  <span className={`badge badge-sm ${e.isActive ? 'badge-success badge-outline' : 'badge-neutral'}`}>
-                    {e.isActive ? 'Active' : 'Inactive'}
-                  </span>
+                  {isAdmin ? (
+                    <ToggleEmployeeStatusButton employeeId={e.id} isActive={e.isActive} />
+                  ) : (
+                    <span className={`badge badge-sm ${e.isActive ? 'badge-success badge-outline' : 'badge-neutral'}`}>
+                      {e.isActive ? 'Active' : 'Suspended'}
+                    </span>
+                  )}
                 </Td>
               </tr>
             ))}

@@ -5,6 +5,7 @@ import { getOrg } from "@/lib/org";
 import { db, employees } from "@/db";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { getAccess } from "@/lib/access";
 
 export async function createEmployeeAction(formData: FormData) {
   await requirePerm("accountant");
@@ -32,4 +33,17 @@ export async function createEmployeeAction(formData: FormData) {
 
   revalidatePath("/payroll/employees");
   redirect("/payroll/employees");
+}
+
+export async function toggleEmployeeStatusAction(employeeId: number, isActive: boolean) {
+  const access = await getAccess();
+  if (!access || access.role !== "admin") {
+    throw new Error("Only admins can suspend or activate employees");
+  }
+
+  await db.update(employees)
+    .set({ isActive })
+    .where(and(eq(employees.id, employeeId), eq(employees.orgId, access.orgId)));
+
+  revalidatePath("/payroll/employees");
 }
