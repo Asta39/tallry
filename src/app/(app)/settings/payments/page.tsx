@@ -1,0 +1,38 @@
+import { getOrg } from "@/lib/org";
+import { requirePerm } from "@/lib/guard";
+import { redirect } from "next/navigation";
+import { getUser } from "@/lib/supabase/server";
+import { db, paymentGateways } from "@/db";
+import { eq, and } from "drizzle-orm";
+import { PageHeader } from "@/components/ui";
+import { PaymentGatewayForm } from "./PaymentGatewayForm";
+
+export const dynamic = "force-dynamic";
+
+export default async function PaymentsSettingsPage() {
+  await requirePerm("settings");
+  const o = await getOrg();
+  const user = await getUser();
+  if (!user || !o) redirect("/login");
+
+  const gateways = await db.select().from(paymentGateways).where(eq(paymentGateways.orgId, o.id));
+
+  // The client component will handle the masked state
+  const gatewaysState = gateways.map(g => ({
+    ...g,
+    configJson: g.configJson ? "********" : "" // Don't send real config back to client
+  }));
+
+  return (
+    <div className="max-w-4xl mx-auto pb-12">
+      <PageHeader
+        title="Payment Gateways"
+        subtitle="Configure incoming and outgoing payment integrations"
+      />
+
+      <div className="mt-8 space-y-8">
+        <PaymentGatewayForm gateways={gatewaysState} />
+      </div>
+    </div>
+  );
+}

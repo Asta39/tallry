@@ -531,3 +531,34 @@ export const leaveRecords = pgTable("leave_records", {
   unpaidDaysCount: integer("unpaid_days_count").notNull().default(0),
   createdAt: text("created_at").notNull(),
 });
+
+export const paymentGateways = pgTable("payment_gateways", {
+  id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
+  gatewayId: text("gateway_id").notNull(), // mpesa_daraja, kopokopo
+  enabled: boolean("enabled").notNull().default(false),
+  environment: text("environment").notNull().default("sandbox"), // sandbox | production
+  configJson: text("config_json"), // encrypted json string
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at"),
+}, (t) => ({
+  orgGatewayIdx: index("idx_payment_gateways_org").on(t.orgId, t.gatewayId),
+}));
+
+export const paymentEvents = pgTable("payment_events", {
+  id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
+  gatewayId: text("gateway_id").notNull(),
+  providerRef: text("provider_ref").notNull(),
+  amountCents: money("amount_cents").notNull(),
+  payerPhone: text("payer_phone"),
+  payerName: text("payer_name"),
+  accountRef: text("account_ref"),
+  status: text("status").notNull().default("received"), // received | matched | unmatched | applied | failed
+  matchedDocumentId: integer("matched_document_id"), // if matched to invoice
+  paymentId: integer("payment_id"), // if applied (points to customer_payments)
+  rawJson: text("raw_json"), // JSON payload from provider
+  createdAt: text("created_at").notNull(),
+}, (t) => ({
+  providerRefUnique: uniqueIndex("idx_payment_events_provider_ref").on(t.providerRef),
+}));
