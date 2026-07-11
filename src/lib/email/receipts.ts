@@ -7,7 +7,7 @@ import { fmtKES } from "@/lib/money";
 export async function sendPaymentReceipt(paymentId: number) {
   // Fetch payment, invoice, and contact
   const [payment] = await db.select().from(payments).where(eq(payments.id, paymentId));
-  if (!payment) return;
+  if (!payment || !payment.documentId) return;
 
   const [doc] = await db.select().from(documents).where(eq(documents.id, payment.documentId));
   if (!doc) return;
