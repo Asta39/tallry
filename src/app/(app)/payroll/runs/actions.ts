@@ -1,7 +1,7 @@
 "use server";
 
 import { requirePerm } from "@/lib/guard";
-import { getOrg } from "@/lib/org";
+import { getOrg, withOrg } from "@/lib/org";
 import { db, employees, payrollRuns, payrollRunLineItems, leaveRecords, payrollAdjustments, loanLedger, loanInstallments, statutoryRules, accounts } from "@/db";
 import { and, eq } from "drizzle-orm";
 import { runPayrollEngine, RuleDef } from "@/lib/payroll";
@@ -93,74 +93,76 @@ export async function createPayrollRunAction(formData: FormData) {
 }
 
 export async function postPayrollRunAction(runId: number, formData: FormData) {
-  await requirePerm("accountant");
-  const o = await getOrg();
+  return withOrg(async () => {
+    await requirePerm("accountant");
+    const o = await getOrg();
 
-  const expenseAccountId = parseInt(formData.get("expenseAccountId") as string, 10);
-  const payablesAccountId = parseInt(formData.get("payablesAccountId") as string, 10);
-  const taxLiabilitiesAccountId = parseInt(formData.get("taxLiabilitiesAccountId") as string, 10);
+    const expenseAccountId = parseInt(formData.get("expenseAccountId") as string, 10);
+    const payablesAccountId = parseInt(formData.get("payablesAccountId") as string, 10);
+    const taxLiabilitiesAccountId = parseInt(formData.get("taxLiabilitiesAccountId") as string, 10);
 
-  if (!expenseAccountId || !payablesAccountId || !taxLiabilitiesAccountId) {
-    throw new Error("Missing account mappings");
-  }
-
-  const [run] = await db.select().from(payrollRuns).where(and(eq(payrollRuns.id, runId), eq(payrollRuns.orgId, o.id)));
-  if (!run) throw new Error("Not found");
-  if (run.status === "posted") throw new Error("Already posted");
-
-  const lines = await db.select().from(payrollRunLineItems).where(eq(payrollRunLineItems.payrollRunId, runId));
-
-  let totalGross = 0;
-  let totalNet = 0;
-  let totalTax = 0;
-  let totalLoans = 0;
-
-  for (const line of lines) {
-    if (line.type === "gross_pay") {
-      totalGross += line.amountCents;
-    } else if (line.type === "net_pay") {
-      totalNet += line.amountCents;
-    } else if (line.type === "deduction" && line.subType === "loan") {
-      totalLoans += line.amountCents;
-    } else if (line.type === "deduction" && line.subType !== "adjustment") {
-      totalTax += line.amountCents;
+    if (!expenseAccountId || !payablesAccountId || !taxLiabilitiesAccountId) {
+      throw new Error("Missing account mappings");
     }
-  }
 
-  let arAccountId: number | null = null;
-  if (totalLoans > 0) {
-    const [ar] = await db.select().from(accounts).where(and(eq(accounts.orgId, o.id), eq(accounts.code, "1200")));
-    if (!ar) throw new Error("Accounts Receivable account (1200) not found. Required for loan recoveries.");
-    arAccountId = ar.id;
-  }
+    const [run] = await db.select().from(payrollRuns).where(and(eq(payrollRuns.id, runId), eq(payrollRuns.orgId, o.id)));
+    if (!run) throw new Error("Not found");
+    if (run.status === "posted") throw new Error("Already posted");
 
-  const date = new Date(Number(run.month.split("-")[0]), Number(run.month.split("-")[1]), 0).toISOString().slice(0, 10);
+    const lines = await db.select().from(payrollRunLineItems).where(eq(payrollRunLineItems.payrollRunId, runId));
 
-  const journalLines = [
-    { accountId: expenseAccountId, debitCents: totalGross, creditCents: 0 },
-    { accountId: payablesAccountId, debitCents: 0, creditCents: totalNet },
-    { accountId: taxLiabilitiesAccountId, debitCents: 0, creditCents: totalTax }
-  ];
+    let totalGross = 0;
+    let totalNet = 0;
+    let totalTax = 0;
+    let totalLoans = 0;
 
-  if (totalLoans > 0 && arAccountId) {
-    journalLines.push({ accountId: arAccountId, debitCents: 0, creditCents: totalLoans });
-  }
+    for (const line of lines) {
+      if (line.type === "gross_pay") {
+        totalGross += line.amountCents;
+      } else if (line.type === "net_pay") {
+        totalNet += line.amountCents;
+      } else if (line.type === "deduction" && line.subType === "loan") {
+        totalLoans += line.amountCents;
+      } else if (line.type === "deduction" && line.subType !== "adjustment") {
+        totalTax += line.amountCents;
+      }
+    }
 
-  const entryId = await postEntry({
-    date,
-    memo: `Payroll Run for ${run.month}`,
-    sourceType: "payroll",
-    sourceId: run.id,
-    lines: journalLines
+    let arAccountId: number | null = null;
+    if (totalLoans > 0) {
+      const [ar] = await db.select().from(accounts).where(and(eq(accounts.orgId, o.id), eq(accounts.code, "1200")));
+      if (!ar) throw new Error("Accounts Receivable account (1200) not found. Required for loan recoveries.");
+      arAccountId = ar.id;
+    }
+
+    const date = new Date(Number(run.month.split("-")[0]), Number(run.month.split("-")[1]), 0).toISOString().slice(0, 10);
+
+    const journalLines = [
+      { accountId: expenseAccountId, debitCents: totalGross, creditCents: 0 },
+      { accountId: payablesAccountId, debitCents: 0, creditCents: totalNet },
+      { accountId: taxLiabilitiesAccountId, debitCents: 0, creditCents: totalTax }
+    ];
+
+    if (totalLoans > 0 && arAccountId) {
+      journalLines.push({ accountId: arAccountId, debitCents: 0, creditCents: totalLoans });
+    }
+
+    const entryId = await postEntry({
+      date,
+      memo: `Payroll Run for ${run.month}`,
+      sourceType: "payroll",
+      sourceId: run.id,
+      lines: journalLines
+    });
+
+    await db.update(payrollRuns).set({
+      status: "posted",
+      journalEntryId: entryId
+    }).where(eq(payrollRuns.id, run.id));
+
+    revalidatePath(`/payroll/runs/${run.id}`);
+    revalidatePath("/payroll/runs");
   });
-
-  await db.update(payrollRuns).set({
-    status: "posted",
-    journalEntryId: entryId
-  }).where(eq(payrollRuns.id, run.id));
-
-  revalidatePath(`/payroll/runs/${run.id}`);
-  revalidatePath("/payroll/runs");
 }
 
 export async function deletePayrollRunAction(runId: number) {
