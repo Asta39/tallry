@@ -2,7 +2,7 @@ import { requirePerm } from "@/lib/guard";
 import { getOrg } from "@/lib/org";
 import { db, statutoryRules } from "@/db";
 import { eq } from "drizzle-orm";
-import { PageHeader } from "@/components/ui";
+import { PageHeader, TableCard, Th, Td } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -20,41 +20,36 @@ export default async function PayrollRulesPage() {
         action={<button className="btn btn-primary btn-sm">Add New Rule</button>}
       />
 
-      <div className="card bg-base-100 shadow-sm mt-6">
-        <div className="overflow-x-auto">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Type</th>
-                <th>Calculation Method</th>
-                <th>Effective From</th>
-                <th>Effective To</th>
-                <th>Parameters</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rules.map((rule) => (
-                <tr key={rule.id}>
-                  <td className="font-medium">{rule.type}</td>
-                  <td><div className="badge badge-ghost">{rule.calculationType}</div></td>
-                  <td>{rule.effectiveFrom}</td>
-                  <td>{rule.effectiveTo || "Present"}</td>
-                  <td className="text-xs font-mono text-base-content/60 truncate max-w-xs" title={rule.parametersJson}>
-                    {rule.parametersJson}
-                  </td>
-                </tr>
-              ))}
-              {rules.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="text-center py-6 text-base-content/60">
-                    No statutory rules defined. Add rules to run payroll.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+      {rules.length === 0 ? (
+        <div className="mt-8 text-center text-[var(--color-ink-500)] text-[13px]">
+          No statutory rules defined. Add rules to run payroll.
         </div>
-      </div>
+      ) : (
+        <TableCard>
+          <thead className="hairline-b">
+            <tr>
+              <Th>Type</Th>
+              <Th>Calculation Method</Th>
+              <Th>Effective From</Th>
+              <Th>Effective To</Th>
+              <Th>Parameters</Th>
+            </tr>
+          </thead>
+          <tbody>
+            {rules.map((rule) => (
+              <tr key={rule.id} className="hairline-t hover:bg-[var(--color-ink-50)]/60">
+                <Td className="font-medium">{rule.type}</Td>
+                <Td><div className="badge badge-ghost badge-sm">{rule.calculationType}</div></Td>
+                <Td>{rule.effectiveFrom}</Td>
+                <Td>{rule.effectiveTo || "Present"}</Td>
+                <Td className="text-[11px] font-mono text-[var(--color-ink-400)] truncate max-w-[200px]" title={rule.parametersJson}>
+                  {rule.parametersJson}
+                </Td>
+              </tr>
+            ))}
+          </tbody>
+        </TableCard>
+      )}
     </>
   );
 }

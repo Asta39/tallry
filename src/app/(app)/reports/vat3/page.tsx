@@ -2,7 +2,7 @@ import { requirePerm } from "@/lib/guard";
 import { getOrg } from "@/lib/org";
 import { db, documents, documentLines, contacts } from "@/db";
 import { and, eq, gte, lte, sql } from "drizzle-orm";
-import { PageHeader } from "@/components/ui";
+import { PageHeader, TableCard, Th, Td } from "@/components/ui";
 import { fmtKES } from "@/lib/money";
 
 export const dynamic = "force-dynamic";
@@ -84,74 +84,66 @@ export default async function Vat3ReportPage(props: {
 
       <div className="mt-8">
         <h2 className="text-xl font-bold mb-4">Output VAT (Sales)</h2>
-        <div className="card bg-base-100 shadow-sm border border-base-content/10">
-          <div className="overflow-x-auto">
-            <table className="table">
-              <thead className="bg-base-200/50">
-                <tr>
-                  <th>Customer PIN</th>
-                  <th>Customer Name</th>
-                  <th>Tax Class</th>
-                  <th className="text-right">Net Amount</th>
-                  <th className="text-right">VAT Amount</th>
-                  <th className="text-right">Gross Amount</th>
+        <TableCard>
+          <thead className="hairline-b">
+            <tr>
+              <Th>Customer PIN</Th>
+              <Th>Customer Name</Th>
+              <Th>Tax Class</Th>
+              <Th right>Net Amount</Th>
+              <Th right>VAT Amount</Th>
+              <Th right>Gross Amount</Th>
+            </tr>
+          </thead>
+          <tbody>
+            {outputData.length === 0 ? (
+              <tr><td colSpan={6} className="text-center py-8 text-[var(--color-ink-500)] text-[13px]">No sales data for this period.</td></tr>
+            ) : (
+              outputData.map((row, i) => (
+                <tr key={i} className="hairline-t hover:bg-[var(--color-ink-50)]/60">
+                  <Td>{row.kraPin || "UNREGISTERED"}</Td>
+                  <Td>{row.contactName || "Cash Sale"}</Td>
+                  <Td>{row.taxClass}</Td>
+                  <Td right>{fmtKES(Number(row.totalNet) || 0)}</Td>
+                  <Td right>{fmtKES(Number(row.totalTax) || 0)}</Td>
+                  <Td right className="font-medium">{fmtKES(Number(row.totalGross) || 0)}</Td>
                 </tr>
-              </thead>
-              <tbody>
-                {outputData.length === 0 ? (
-                  <tr><td colSpan={6} className="text-center py-8 text-base-content/50">No sales data for this period.</td></tr>
-                ) : (
-                  outputData.map((row, i) => (
-                    <tr key={i} className="hover">
-                      <td>{row.kraPin || "UNREGISTERED"}</td>
-                      <td>{row.contactName || "Cash Sale"}</td>
-                      <td>{row.taxClass}</td>
-                      <td className="text-right">{fmtKES(Number(row.totalNet) || 0)}</td>
-                      <td className="text-right">{fmtKES(Number(row.totalTax) || 0)}</td>
-                      <td className="text-right font-medium">{fmtKES(Number(row.totalGross) || 0)}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
+              ))
+            )}
+          </tbody>
+        </TableCard>
       </div>
 
       <div className="mt-8">
         <h2 className="text-xl font-bold mb-4">Input VAT (Purchases)</h2>
-        <div className="card bg-base-100 shadow-sm border border-base-content/10">
-          <div className="overflow-x-auto">
-            <table className="table">
-              <thead className="bg-base-200/50">
-                <tr>
-                  <th>Vendor PIN</th>
-                  <th>Vendor Name</th>
-                  <th>Tax Class</th>
-                  <th className="text-right">Net Amount</th>
-                  <th className="text-right">VAT Amount</th>
-                  <th className="text-right">Gross Amount</th>
+        <TableCard>
+          <thead className="hairline-b">
+            <tr>
+              <Th>Vendor PIN</Th>
+              <Th>Vendor Name</Th>
+              <Th>Tax Class</Th>
+              <Th right>Net Amount</Th>
+              <Th right>VAT Amount</Th>
+              <Th right>Gross Amount</Th>
+            </tr>
+          </thead>
+          <tbody>
+            {inputData.length === 0 ? (
+              <tr><td colSpan={6} className="text-center py-8 text-[var(--color-ink-500)] text-[13px]">No purchase data for this period.</td></tr>
+            ) : (
+              inputData.map((row, i) => (
+                <tr key={i} className="hairline-t hover:bg-[var(--color-ink-50)]/60">
+                  <Td>{row.kraPin || "UNREGISTERED"}</Td>
+                  <Td>{row.contactName || "Cash Expense"}</Td>
+                  <Td>{row.taxClass}</Td>
+                  <Td right>{fmtKES(Number(row.totalNet) || 0)}</Td>
+                  <Td right>{fmtKES(Number(row.totalTax) || 0)}</Td>
+                  <Td right className="font-medium">{fmtKES(Number(row.totalGross) || 0)}</Td>
                 </tr>
-              </thead>
-              <tbody>
-                {inputData.length === 0 ? (
-                  <tr><td colSpan={6} className="text-center py-8 text-base-content/50">No purchase data for this period.</td></tr>
-                ) : (
-                  inputData.map((row, i) => (
-                    <tr key={i} className="hover">
-                      <td>{row.kraPin || "UNREGISTERED"}</td>
-                      <td>{row.contactName || "Cash Expense"}</td>
-                      <td>{row.taxClass}</td>
-                      <td className="text-right">{fmtKES(Number(row.totalNet) || 0)}</td>
-                      <td className="text-right">{fmtKES(Number(row.totalTax) || 0)}</td>
-                      <td className="text-right font-medium">{fmtKES(Number(row.totalGross) || 0)}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
+              ))
+            )}
+          </tbody>
+        </TableCard>
       </div>
     </>
   );

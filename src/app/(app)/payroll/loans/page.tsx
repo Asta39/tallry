@@ -2,7 +2,7 @@ import { requirePerm } from "@/lib/guard";
 import { getOrg } from "@/lib/org";
 import { db, loanLedger, employees } from "@/db";
 import { and, eq } from "drizzle-orm";
-import { PageHeader } from "@/components/ui";
+import { PageHeader, TableCard, Th, Td } from "@/components/ui";
 import { fmtKES } from "@/lib/money";
 
 export const dynamic = "force-dynamic";
@@ -28,45 +28,40 @@ export default async function PayrollLoansPage() {
         action={<button className="btn btn-primary btn-sm">Issue Loan</button>}
       />
 
-      <div className="card bg-base-100 shadow-sm mt-6">
-        <div className="overflow-x-auto">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Employee</th>
-                <th>Type</th>
-                <th className="text-right">Principal</th>
-                <th className="text-right">Installment</th>
-                <th className="text-right">Balance</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loans.map((row) => (
-                <tr key={row.loan.id}>
-                  <td className="font-medium">{row.employeeName}</td>
-                  <td className="capitalize">{row.loan.type.replace("_", " ")}</td>
-                  <td className="text-right">{fmtKES(row.loan.principalCents)}</td>
-                  <td className="text-right">{fmtKES(row.loan.installmentCents)}/mo</td>
-                  <td className="text-right font-bold">{fmtKES(row.loan.balanceCents)}</td>
-                  <td>
-                    <div className={`badge badge-sm ${row.loan.status === "active" ? "badge-success" : "badge-ghost"}`}>
-                      {row.loan.status}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {loans.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="text-center py-6 text-base-content/60">
-                    No loans issued yet.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+      {loans.length === 0 ? (
+        <div className="mt-8 text-center text-[var(--color-ink-500)] text-[13px]">
+          No loans issued yet.
         </div>
-      </div>
+      ) : (
+        <TableCard>
+          <thead className="hairline-b">
+            <tr>
+              <Th>Employee</Th>
+              <Th>Type</Th>
+              <Th right>Principal</Th>
+              <Th right>Installment</Th>
+              <Th right>Balance</Th>
+              <Th>Status</Th>
+            </tr>
+          </thead>
+          <tbody>
+            {loans.map((row) => (
+              <tr key={row.loan.id} className="hairline-t hover:bg-[var(--color-ink-50)]/60">
+                <Td className="font-medium">{row.employeeName}</Td>
+                <Td className="capitalize">{row.loan.type.replace("_", " ")}</Td>
+                <Td right>{fmtKES(row.loan.principalCents)}</Td>
+                <Td right>{fmtKES(row.loan.installmentCents)}/mo</Td>
+                <Td right className="font-bold">{fmtKES(row.loan.balanceCents)}</Td>
+                <Td>
+                  <div className={`badge badge-sm ${row.loan.status === "active" ? "badge-success" : "badge-ghost"}`}>
+                    {row.loan.status}
+                  </div>
+                </Td>
+              </tr>
+            ))}
+          </tbody>
+        </TableCard>
+      )}
     </>
   );
 }

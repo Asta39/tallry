@@ -2,14 +2,14 @@ import { requirePerm } from "@/lib/guard";
 import { getOrg } from "@/lib/org";
 import { db, payrollRuns } from "@/db";
 import { eq, desc } from "drizzle-orm";
-import { PageHeader } from "@/components/ui";
+import { PageHeader, TableCard, Th, Td } from "@/components/ui";
 import Link from "next/link";
 import { createPayrollRunAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 
 export default async function PayrollRunsPage() {
-  await requirePerm("accountant");
+  await requirePerm("payroll");
   const o = await getOrg();
   
   const runs = await db.select().from(payrollRuns).where(eq(payrollRuns.orgId, o.id)).orderBy(desc(payrollRuns.month));
@@ -21,57 +21,46 @@ export default async function PayrollRunsPage() {
         subtitle="Manage monthly payroll runs and statutory deductions"
       />
 
-      {/* Basic Payroll Nav */}
-      <div className="tabs tabs-boxed mb-6 bg-transparent">
-        <Link href="/payroll/runs" className="tab tab-active font-medium bg-white">Payroll Runs</Link>
-        <Link href="/payroll/employees" className="tab font-medium">Employees</Link>
+      <div className="flex justify-between items-center mb-4 mt-6">
+        <h2 className="font-semibold text-[14px]">Recent Runs</h2>
+        <form action={createPayrollRunAction} className="flex gap-2 items-center">
+          <input name="month" type="month" required className="input input-sm input-bordered" defaultValue={new Date().toISOString().slice(0, 7)} />
+          <button type="submit" className="btn btn-sm btn-primary">Create Run</button>
+        </form>
       </div>
 
-      <div className="card bg-base-100 shadow-sm border border-base-content/10 mt-6">
-        <div className="flex justify-between items-center p-4 border-b border-base-content/10">
-          <h2 className="font-semibold">Recent Runs</h2>
-          <form action={createPayrollRunAction} className="flex gap-2 items-center">
-            <input name="month" type="month" required className="input input-sm input-bordered" defaultValue={new Date().toISOString().slice(0, 7)} />
-            <button type="submit" className="btn btn-sm btn-primary">Create Run</button>
-          </form>
+      {runs.length === 0 ? (
+        <div className="mt-8 text-center text-[var(--color-ink-500)] text-[13px]">
+          No payroll runs found.
         </div>
-        <div className="overflow-x-auto">
-          <table className="table">
-            <thead className="bg-base-200/50">
-              <tr>
-                <th>Month</th>
-                <th>Status</th>
-                <th>Journal Entry</th>
-                <th></th>
+      ) : (
+        <TableCard>
+          <thead className="hairline-b">
+            <tr>
+              <Th>Month</Th>
+              <Th>Status</Th>
+              <Th>Journal Entry</Th>
+              <Th></Th>
+            </tr>
+          </thead>
+          <tbody>
+            {runs.map(r => (
+              <tr key={r.id} className="hairline-t hover:bg-[var(--color-ink-50)]/60">
+                <Td className="font-medium">{r.month}</Td>
+                <Td>
+                  <span className={`badge badge-sm ${r.status === 'posted' ? 'badge-success badge-outline' : 'badge-warning badge-outline'}`}>
+                    {r.status}
+                  </span>
+                </Td>
+                <Td>{r.journalEntryId ? `#${r.journalEntryId}` : "-"}</Td>
+                <Td right>
+                  <Link href={`/payroll/runs/${r.id}`} className="text-[var(--color-accent-600)] font-medium text-[12px]">View</Link>
+                </Td>
               </tr>
-            </thead>
-            <tbody>
-              {runs.length === 0 ? (
-                <tr>
-                  <td colSpan={4} className="text-center py-8 text-base-content/50">
-                    No payroll runs found.
-                  </td>
-                </tr>
-              ) : (
-                runs.map(r => (
-                  <tr key={r.id}>
-                    <td className="font-medium">{r.month}</td>
-                    <td>
-                      <span className={`badge ${r.status === 'posted' ? 'badge-success badge-outline' : 'badge-warning badge-outline'}`}>
-                        {r.status}
-                      </span>
-                    </td>
-                    <td>{r.journalEntryId ? `#${r.journalEntryId}` : "-"}</td>
-                    <td className="text-right">
-                      <Link href={`/payroll/runs/${r.id}`} className="btn btn-xs btn-outline">View</Link>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+            ))}
+          </tbody>
+        </TableCard>
+      )}
     </>
   );
 }
