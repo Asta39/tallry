@@ -25,8 +25,14 @@ export function PostRunForm({ runId, expenseAccounts, liabilityAccounts }: { run
         Post to Ledger
       </PrimaryButton>
       
-      <dialog ref={dialogRef} className="modal">
-        <div className="modal-box p-6 bg-white rounded-xl shadow-xl max-w-md border border-[var(--color-ink-100)]">
+      <dialog 
+        ref={dialogRef} 
+        className="p-0 m-auto bg-transparent backdrop:bg-black/40 backdrop:backdrop-blur-sm"
+        onClick={(e) => {
+          if (e.target === dialogRef.current) dialogRef.current.close();
+        }}
+      >
+        <div className="p-6 bg-white rounded-xl shadow-xl max-w-md w-[400px] border border-[var(--color-ink-100)]">
           <h3 className="font-semibold text-[15px] mb-4 text-[var(--color-ink-900)]">Post Payroll Journal</h3>
           <p className="text-[13px] text-[var(--color-ink-500)] mb-6">
             Map the payroll totals to your ledger accounts. This action will create a locked journal entry.
@@ -69,9 +75,6 @@ export function PostRunForm({ runId, expenseAccounts, liabilityAccounts }: { run
             </div>
           </form>
         </div>
-        <form method="dialog" className="modal-backdrop">
-          <button>close</button>
-        </form>
       </dialog>
     </>
   );
