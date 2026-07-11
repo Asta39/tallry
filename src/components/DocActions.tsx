@@ -25,6 +25,8 @@ export function DocActions({
   doc,
   bankAccounts,
   printHref,
+  gatewayConnected,
+  contactPhone,
 }: {
   doc: {
     id: number;
