@@ -19,7 +19,7 @@ export async function sendPaymentReceipt(paymentId: number) {
 
   // Send the email
   const htmlComponent = PaymentReceipt({
-    customerName: contact.displayName || contact.name,
+    customerName: contact.displayName || contact.companyName || "Customer",
     amount: fmtKES(payment.amountCents),
     invoiceNumber: doc.number,
     paymentMethod: payment.method,
