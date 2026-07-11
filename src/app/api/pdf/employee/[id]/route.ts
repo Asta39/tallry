@@ -57,8 +57,9 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
       isActive: employee.isActive,
       createdAt: employee.createdAt.slice(0, 10),
       loans: loans.map(l => ({
-        issueDate: l.issueDate,
+        createdAt: l.createdAt,
         principalCents: l.principalCents,
+        balanceCents: l.balanceCents,
         status: l.status,
       })),
       payslips: payslips.map(p => ({

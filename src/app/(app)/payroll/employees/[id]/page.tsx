@@ -26,7 +26,7 @@ export default async function EmployeeDetailPage(props: { params: Promise<{ id: 
     .select()
     .from(loanLedger)
     .where(and(eq(loanLedger.employeeId, employee.id), eq(loanLedger.orgId, o.id)))
-    .orderBy(desc(loanLedger.issueDate));
+    .orderBy(desc(loanLedger.createdAt));
 
   const payslips = await db
     .select({
@@ -111,6 +111,7 @@ export default async function EmployeeDetailPage(props: { params: Promise<{ id: 
                   <tr>
                     <Th>Issue Date</Th>
                     <Th>Principal</Th>
+                    <Th>Balance</Th>
                     <Th>Status</Th>
                   </tr>
                 </thead>
@@ -119,10 +120,11 @@ export default async function EmployeeDetailPage(props: { params: Promise<{ id: 
                     <tr key={loan.id} className="hairline-t hover:bg-[var(--color-ink-50)]/60">
                       <Td>
                         <Link href={`/payroll/loans/${loan.id}`} className="text-[var(--color-accent-600)] hover:underline">
-                          {loan.issueDate}
+                          {loan.createdAt.slice(0, 10)}
                         </Link>
                       </Td>
                       <Td>{fmtKES(loan.principalCents)}</Td>
+                      <Td>{fmtKES(loan.balanceCents)}</Td>
                       <Td>
                         {loan.status === "active" ? 
                           <span className="badge badge-warning badge-sm">Active</span> : 

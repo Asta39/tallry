@@ -13,8 +13,9 @@ export interface PdfEmployeeData {
   isActive: boolean;
   createdAt: string;
   loans: {
-    issueDate: string;
+    createdAt: string;
     principalCents: number;
+    balanceCents: number;
     status: string;
   }[];
   payslips: {
@@ -99,15 +100,17 @@ export function EmployeePdf({ data }: { data: PdfEmployeeData }) {
           ) : (
             <>
               <View style={s.tableHeader}>
-                <Text style={[s.tableHeaderCell, s.tableLabel]}>Issue Date</Text>
+                <Text style={[s.tableHeaderCell, s.tableLabel]}>Date Issued</Text>
                 <Text style={[s.tableHeaderCell, s.tableValue]}>Status</Text>
                 <Text style={[s.tableHeaderCell, s.tableAmount]}>Principal</Text>
+                <Text style={[s.tableHeaderCell, s.tableAmount]}>Balance</Text>
               </View>
               {data.loans.map((l, i) => (
                 <View key={i} style={s.tableRow}>
-                  <Text style={s.tableLabel}>{l.issueDate}</Text>
+                  <Text style={s.tableLabel}>{l.createdAt.slice(0, 10)}</Text>
                   <Text style={s.tableValue}>{l.status === "active" ? "Active" : "Cleared"}</Text>
                   <Text style={s.tableAmount}>{fmtKES(l.principalCents)}</Text>
+                  <Text style={s.tableAmount}>{fmtKES(l.balanceCents)}</Text>
                 </View>
               ))}
             </>

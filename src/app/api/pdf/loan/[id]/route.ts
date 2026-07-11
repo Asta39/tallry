@@ -21,8 +21,9 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     .select({
       id: loanLedger.id,
       principalCents: loanLedger.principalCents,
+      balanceCents: loanLedger.balanceCents,
       status: loanLedger.status,
-      issueDate: loanLedger.issueDate,
+      createdAt: loanLedger.createdAt,
       employeeName: employees.name,
       employeeId: employees.id,
     })
@@ -34,13 +35,20 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   if (!loan) return new Response("Not found", { status: 404 });
 
   const installments = await db
-    .select()
+    .select({
+      id: loanInstallments.id,
+      amountCents: loanInstallments.amountCents,
+      payrollRunId: loanInstallments.payrollRunId,
+      month: payrollRuns.month,
+      createdAt: loanInstallments.createdAt,
+    })
     .from(loanInstallments)
+    .innerJoin(payrollRuns, eq(loanInstallments.payrollRunId, payrollRuns.id))
     .where(eq(loanInstallments.loanId, loan.id))
-    .orderBy(asc(loanInstallments.month));
+    .orderBy(asc(loanInstallments.createdAt));
 
-  const totalPaid = installments.filter(i => i.isPaid).reduce((sum, i) => sum + i.amountCents, 0);
-  const remainingBalance = loan.principalCents - totalPaid;
+  const totalPaid = loan.principalCents - loan.balanceCents;
+  const remainingBalance = loan.balanceCents;
 
   const element = React.createElement(LoanPdf, {
     data: {
@@ -50,13 +58,12 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
       loanId: loan.id,
       principalCents: loan.principalCents,
       status: loan.status,
-      issueDate: loan.issueDate,
+      createdAt: loan.createdAt,
       totalPaid,
       remainingBalance,
       installments: installments.map(i => ({
         month: i.month,
         amountCents: i.amountCents,
-        isPaid: i.isPaid,
       }))
     }
   });

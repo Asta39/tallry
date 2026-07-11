@@ -9,13 +9,12 @@ export interface PdfLoanData {
   loanId: number;
   principalCents: number;
   status: string;
-  issueDate: string;
+  createdAt: string;
   totalPaid: number;
   remainingBalance: number;
   installments: {
     month: string;
     amountCents: number;
-    isPaid: boolean;
   }[];
 }
 
@@ -65,8 +64,8 @@ export function LoanPdf({ data }: { data: PdfLoanData }) {
               <Text style={s.value}>{data.employeeName}</Text>
             </View>
             <View style={s.gridItem}>
-              <Text style={s.label}>Issue Date:</Text>
-              <Text style={s.value}>{data.issueDate}</Text>
+              <Text style={s.label}>Date Issued:</Text>
+              <Text style={s.value}>{data.createdAt.slice(0, 10)}</Text>
             </View>
             <View style={s.gridItem}>
               <Text style={s.label}>Principal Amount:</Text>
@@ -101,7 +100,7 @@ export function LoanPdf({ data }: { data: PdfLoanData }) {
               {data.installments.map((inst, i) => (
                 <View key={i} style={s.tableRow}>
                   <Text style={s.tableLabel}>{inst.month}</Text>
-                  <Text style={s.tableValue}>{inst.isPaid ? "Paid" : "Pending"}</Text>
+                  <Text style={s.tableValue}>Paid</Text>
                   <Text style={s.tableAmount}>{fmtKES(inst.amountCents)}</Text>
                 </View>
               ))}

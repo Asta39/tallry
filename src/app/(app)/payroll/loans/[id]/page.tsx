@@ -16,8 +16,10 @@ export default async function LoanDetailPage(props: { params: Promise<{ id: stri
     .select({
       id: loanLedger.id,
       principalCents: loanLedger.principalCents,
+      balanceCents: loanLedger.balanceCents,
+      installmentCents: loanLedger.installmentCents,
       status: loanLedger.status,
-      issueDate: loanLedger.issueDate,
+      createdAt: loanLedger.createdAt,
       employeeName: employees.name,
       employeeId: employees.id,
     })
@@ -31,13 +33,20 @@ export default async function LoanDetailPage(props: { params: Promise<{ id: stri
   }
 
   const installments = await db
-    .select()
+    .select({
+      id: loanInstallments.id,
+      amountCents: loanInstallments.amountCents,
+      payrollRunId: loanInstallments.payrollRunId,
+      month: payrollRuns.month,
+      createdAt: loanInstallments.createdAt,
+    })
     .from(loanInstallments)
+    .innerJoin(payrollRuns, eq(loanInstallments.payrollRunId, payrollRuns.id))
     .where(eq(loanInstallments.loanId, loan.id))
-    .orderBy(asc(loanInstallments.month));
+    .orderBy(asc(loanInstallments.createdAt));
 
-  const totalPaid = installments.filter(i => i.isPaid).reduce((sum, i) => sum + i.amountCents, 0);
-  const remainingBalance = loan.principalCents - totalPaid;
+  const totalPaid = loan.principalCents - loan.balanceCents;
+  const remainingBalance = loan.balanceCents;
 
   return (
     <div className="max-w-4xl mx-auto space-y-8">
@@ -89,9 +98,8 @@ export default async function LoanDetailPage(props: { params: Promise<{ id: stri
           <thead className="hairline-b">
             <tr>
               <Th>Month</Th>
-              <Th>Amount</Th>
-              <Th>Status</Th>
-              <Th>Payroll Run ID</Th>
+              <Th>Amount Paid</Th>
+              <Th>Payroll Run</Th>
             </tr>
           </thead>
           <tbody>
@@ -99,12 +107,6 @@ export default async function LoanDetailPage(props: { params: Promise<{ id: stri
               <tr key={inst.id} className="hairline-t hover:bg-[var(--color-ink-50)]/60">
                 <Td className="font-medium">{inst.month}</Td>
                 <Td>{fmtKES(inst.amountCents)}</Td>
-                <Td>
-                  {inst.isPaid ? 
-                    <span className="badge badge-success badge-sm">Paid</span> : 
-                    <span className="badge badge-ghost badge-sm">Pending</span>
-                  }
-                </Td>
                 <Td>
                   {inst.payrollRunId ? (
                     <Link href={`/payroll/runs/${inst.payrollRunId}`} className="text-[var(--color-accent-600)] hover:underline">
