@@ -2,7 +2,7 @@ import { requirePerm } from "@/lib/guard";
 import { getOrg } from "@/lib/org";
 import { db, loanLedger, employees } from "@/db";
 import { and, eq } from "drizzle-orm";
-import { PageHeader, TableCard, Th, Td } from "@/components/ui";
+import { PageHeader, TableCard, Th, Td, PrimaryButton } from "@/components/ui";
 import { fmtKES } from "@/lib/money";
 
 export const dynamic = "force-dynamic";
@@ -25,7 +25,7 @@ export default async function PayrollLoansPage() {
       <PageHeader 
         title="Loans & Deductions" 
         subtitle="Manage employee salary advances and loans"
-        action={<button className="btn btn-primary btn-sm">Issue Loan</button>}
+        action={<PrimaryButton>Issue Loan</PrimaryButton>}
       />
 
       {loans.length === 0 ? (

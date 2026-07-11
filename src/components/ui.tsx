@@ -34,6 +34,18 @@ export function PrimaryLink({ href, children }: { href: string; children: React.
   );
 }
 
+export function PrimaryButton({ children, onClick, className = "", ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) {
+  return (
+    <button
+      onClick={onClick}
+      className={`rounded-lg bg-[var(--color-accent-500)] hover:bg-[var(--color-accent-600)] text-white text-[13px] font-medium px-4 py-2 transition-colors ${className}`}
+      {...props}
+    >
+      {children}
+    </button>
+  );
+}
+
 const pillStyles: Record<string, string> = {
   draft: "bg-[var(--color-ink-100)] text-[var(--color-ink-600)]",
   open: "bg-blue-50 text-blue-700",

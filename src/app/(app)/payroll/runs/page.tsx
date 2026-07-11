@@ -2,7 +2,7 @@ import { requirePerm } from "@/lib/guard";
 import { getOrg } from "@/lib/org";
 import { db, payrollRuns } from "@/db";
 import { eq, desc } from "drizzle-orm";
-import { PageHeader, TableCard, Th, Td } from "@/components/ui";
+import { PageHeader, TableCard, Th, Td, PrimaryButton } from "@/components/ui";
 import Link from "next/link";
 import { createPayrollRunAction } from "./actions";
 
@@ -24,8 +24,8 @@ export default async function PayrollRunsPage() {
       <div className="flex justify-between items-center mb-4 mt-6">
         <h2 className="font-semibold text-[14px]">Recent Runs</h2>
         <form action={createPayrollRunAction} className="flex gap-2 items-center">
-          <input name="month" type="month" required className="input input-sm input-bordered" defaultValue={new Date().toISOString().slice(0, 7)} />
-          <button type="submit" className="btn btn-sm btn-primary">Create Run</button>
+          <input name="month" type="month" required className="rounded-lg border border-[var(--color-ink-200)] bg-white px-3 py-1.5 text-[12.5px] outline-none focus:border-[var(--color-accent-500)] focus:ring-2 focus:ring-[var(--color-accent-100)]" defaultValue={new Date().toISOString().slice(0, 7)} />
+          <PrimaryButton type="submit">Create Run</PrimaryButton>
         </form>
       </div>
 

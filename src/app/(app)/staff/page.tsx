@@ -55,7 +55,7 @@ export default async function StaffPage() {
         Toggle modules per role — changes apply to everyone with that role immediately.
         Admins always see everything.
       </p>
-      <PermissionMatrix roles={editableRoles} modules={MODULES} matrix={matrix} />
+      <PermissionMatrix key={editableRoles.join(",")} roles={editableRoles} modules={MODULES} matrix={matrix} />
     </>
   );
 }

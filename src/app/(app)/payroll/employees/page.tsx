@@ -2,7 +2,7 @@ import { requirePerm } from "@/lib/guard";
 import { getOrg } from "@/lib/org";
 import { db, employees } from "@/db";
 import { and, eq } from "drizzle-orm";
-import { PageHeader, TableCard, Th, Td } from "@/components/ui";
+import { PageHeader, TableCard, Th, Td, PrimaryLink } from "@/components/ui";
 import { fmtKES } from "@/lib/money";
 import Link from "next/link";
 
@@ -21,7 +21,7 @@ export default async function EmployeesPage() {
       <PageHeader 
         title="Employees" 
         subtitle="Manage payroll staff and basic salaries"
-        action={<Link href="/payroll/employees/new" className="btn btn-primary btn-sm">Add Employee</Link>}
+        action={<PrimaryLink href="/payroll/employees/new">Add Employee</PrimaryLink>}
       />
 
       {allEmployees.length === 0 ? (
