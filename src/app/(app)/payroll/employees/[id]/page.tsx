@@ -6,7 +6,6 @@ import { notFound } from "next/navigation";
 import { PageHeader, TableCard, Th, Td, PrimaryLink } from "@/components/ui";
 import { fmtKES } from "@/lib/money";
 import Link from "next/link";
-import { DownloadIcon } from "lucide-react";
 
 export default async function EmployeeDetailPage(props: { params: Promise<{ id: string }> }) {
   await requirePerm("payroll");
@@ -56,7 +55,9 @@ export default async function EmployeeDetailPage(props: { params: Promise<{ id: 
           target="_blank"
           className="inline-flex items-center gap-2 bg-white border border-[var(--color-ink-200)] text-[var(--color-ink-700)] hover:bg-[var(--color-ink-50)] px-3 py-1.5 rounded-lg text-[13px] font-medium shadow-sm transition-colors"
         >
-          <DownloadIcon className="w-4 h-4" />
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+          </svg>
           Export Profile PDF
         </a>
       </div>
