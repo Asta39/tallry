@@ -46,8 +46,15 @@ export default async function LoanDetailPage(props: { params: Promise<{ id: stri
     .where(eq(loanInstallments.loanId, loan.id))
     .orderBy(asc(loanInstallments.createdAt));
 
-  const totalPaid = loan.principalCents - loan.balanceCents;
-  const remainingBalance = loan.balanceCents;
+  const totalPaid = installments
+    .filter(i => i.runStatus === "posted")
+    .reduce((sum, i) => sum + i.amountCents, 0);
+
+  const pendingAmount = installments
+    .filter(i => i.runStatus !== "posted")
+    .reduce((sum, i) => sum + i.amountCents, 0);
+
+  const remainingBalance = loan.principalCents - totalPaid;
 
   return (
     <div className="max-w-4xl mx-auto space-y-8">
@@ -75,11 +82,21 @@ export default async function LoanDetailPage(props: { params: Promise<{ id: stri
         </div>
         <div className="bg-white border border-[var(--color-ink-200)] p-4 rounded-xl shadow-sm text-center">
           <p className="text-[11px] font-medium text-[var(--color-ink-500)] uppercase tracking-wide">Total Repaid</p>
-          <p className="text-xl font-bold text-[var(--color-success-600)] mt-1">{fmtKES(totalPaid)}</p>
+          <div className="mt-1 flex flex-col items-center">
+            <p className="text-xl font-bold text-[var(--color-success-600)]">{fmtKES(totalPaid)}</p>
+            {pendingAmount > 0 && (
+              <p className="text-[11px] text-[var(--color-ink-500)] mt-0.5">+{fmtKES(pendingAmount)} pending</p>
+            )}
+          </div>
         </div>
         <div className="bg-white border border-[var(--color-ink-200)] p-4 rounded-xl shadow-sm text-center">
           <p className="text-[11px] font-medium text-[var(--color-ink-500)] uppercase tracking-wide">Remaining Balance</p>
-          <p className="text-xl font-bold text-[var(--color-error-600)] mt-1">{fmtKES(remainingBalance)}</p>
+          <div className="mt-1 flex flex-col items-center">
+            <p className="text-xl font-bold text-[var(--color-error-600)]">{fmtKES(remainingBalance)}</p>
+            {pendingAmount > 0 && (
+              <p className="text-[11px] text-[var(--color-ink-500)] mt-0.5">({fmtKES(remainingBalance - pendingAmount)} after pending)</p>
+            )}
+          </div>
         </div>
         <div className="bg-white border border-[var(--color-ink-200)] p-4 rounded-xl shadow-sm text-center">
           <p className="text-[11px] font-medium text-[var(--color-ink-500)] uppercase tracking-wide">Status</p>
