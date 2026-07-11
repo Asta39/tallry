@@ -140,5 +140,5 @@ export async function postPayrollRunAction(runId: number, formData: FormData) {
   }).where(eq(payrollRuns.id, run.id));
 
   revalidatePath(`/payroll/runs/${run.id}`);
-}  revalidatePath("/payroll/runs");
+  revalidatePath("/payroll/runs");
 }
