@@ -6,6 +6,7 @@ import { db, employees } from "@/db";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getAccess } from "@/lib/access";
+import { and, eq } from "drizzle-orm";
 
 export async function createEmployeeAction(formData: FormData) {
   await requirePerm("accountant");
