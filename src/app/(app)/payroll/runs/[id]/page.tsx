@@ -2,7 +2,7 @@ import { requirePerm } from "@/lib/guard";
 import { getOrg } from "@/lib/org";
 import { db, payrollRuns, payrollRunLineItems, employees, accounts } from "@/db";
 import { and, eq } from "drizzle-orm";
-import { PageHeader } from "@/components/ui";
+import { PageHeader, TableCard, Th, Td } from "@/components/ui";
 import { fmtKES } from "@/lib/money";
 import { notFound } from "next/navigation";
 import { PostRunForm } from "./PostRunForm";
@@ -83,82 +83,78 @@ export default async function PayrollRunDetailsPage(props: { params: Promise<{ i
         }
       />
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
-        <div className="card bg-base-100 shadow-sm p-6 col-span-1 md:col-span-3">
-          <div className="flex justify-between items-center">
-            <div>
-              <p className="text-sm text-base-content/60">Status</p>
-              <span className={`badge mt-1 ${run.status === 'posted' ? 'badge-success badge-outline' : 'badge-warning badge-outline'}`}>
-                {run.status.toUpperCase()}
-              </span>
-            </div>
-            <div>
-              <p className="text-sm text-base-content/60">Total Gross Pay</p>
-              <p className="text-xl font-bold">{fmtKES(totalGross)}</p>
-            </div>
-            <div>
-              <p className="text-sm text-base-content/60">Total Deductions</p>
-              <p className="text-xl font-bold text-error">{fmtKES(totalTax)}</p>
-            </div>
-            <div>
-              <p className="text-sm text-base-content/60">Total Net Pay</p>
-              <p className="text-xl font-bold text-success">{fmtKES(totalNet)}</p>
-            </div>
-            {run.journalEntryId && (
-              <div>
-                <p className="text-sm text-base-content/60">Journal</p>
-                <Link href={`/accountant/journal/${run.journalEntryId}`} className="text-xl font-bold text-primary hover:underline">
-                  #{run.journalEntryId}
-                </Link>
-              </div>
-            )}
+      <div className="mt-6">
+        <div className="bg-white border border-[var(--color-ink-200)] rounded-xl p-6 flex flex-col md:flex-row justify-between gap-6">
+          <div>
+            <p className="text-[12px] font-medium text-[var(--color-ink-500)]">Status</p>
+            <span className={`inline-block mt-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${run.status === 'posted' ? 'bg-[var(--color-success-50)] text-[var(--color-success-700)] border-[var(--color-success-200)]' : 'bg-orange-50 text-orange-700 border-orange-200'}`}>
+              {run.status.toUpperCase()}
+            </span>
           </div>
+          <div>
+            <p className="text-[12px] font-medium text-[var(--color-ink-500)]">Total Gross Pay</p>
+            <p className="text-[16px] font-bold text-[var(--color-ink-900)] mt-1">{fmtKES(totalGross)}</p>
+          </div>
+          <div>
+            <p className="text-[12px] font-medium text-[var(--color-ink-500)]">Total Deductions</p>
+            <p className="text-[16px] font-semibold text-[var(--color-error-600)] mt-1">{fmtKES(totalTax)}</p>
+          </div>
+          <div>
+            <p className="text-[12px] font-medium text-[var(--color-ink-500)]">Total Net Pay</p>
+            <p className="text-[16px] font-bold text-[var(--color-success-600)] mt-1">{fmtKES(totalNet)}</p>
+          </div>
+          {run.journalEntryId && (
+            <div>
+              <p className="text-[12px] font-medium text-[var(--color-ink-500)]">Journal</p>
+              <Link href={`/accountant/journal/${run.journalEntryId}`} className="text-[16px] font-bold text-[var(--color-accent-600)] hover:underline mt-1 block">
+                #{run.journalEntryId}
+              </Link>
+            </div>
+          )}
         </div>
       </div>
 
-      <div className="card bg-base-100 shadow-sm mt-6">
-        <div className="overflow-x-auto">
-          <table className="table table-sm">
-            <thead>
-              <tr>
-                <th>Employee</th>
-                <th className="text-right">Gross Pay</th>
-                <th className="text-right">NSSF</th>
-                <th className="text-right">SHIF</th>
-                <th className="text-right">AHL</th>
-                <th className="text-right">PAYE</th>
-                <th className="text-right">Other Ded.</th>
-                <th className="text-right">Net Pay</th>
-                <th></th>
+      <div className="mt-6">
+        <TableCard>
+          <thead>
+            <tr>
+              <Th>Employee</Th>
+              <Th right>Gross Pay</Th>
+              <Th right>NSSF</Th>
+              <Th right>SHIF</Th>
+              <Th right>AHL</Th>
+              <Th right>PAYE</Th>
+              <Th right>Other Ded.</Th>
+              <Th right>Net Pay</Th>
+              <Th></Th>
+            </tr>
+          </thead>
+          <tbody>
+            {slipsData.map(row => (
+              <tr key={row.employeeId}>
+                <Td className="font-medium">
+                  {row.employeeName}
+                  <div className="text-[11px] text-[var(--color-ink-400)] font-normal">{row.employeePin || "No PIN"}</div>
+                </Td>
+                <Td right>{fmtKES(row.gross)}</Td>
+                <Td right className="text-[var(--color-ink-500)]">{fmtKES(row.nssf)}</Td>
+                <Td right className="text-[var(--color-ink-500)]">{fmtKES(row.shif)}</Td>
+                <Td right className="text-[var(--color-ink-500)]">{fmtKES(row.ahl)}</Td>
+                <Td right className="text-[var(--color-ink-500)]">{fmtKES(row.paye)}</Td>
+                <Td right className="text-[var(--color-ink-500)]">{fmtKES(row.otherDeductions)}</Td>
+                <Td right className="font-semibold text-[var(--color-accent-700)]">{fmtKES(row.net)}</Td>
+                <Td right>
+                  <a href={`/api/payslip/${run.id}/${row.employeeId}`} target="_blank" className="px-3 py-1.5 text-[12px] font-medium text-[var(--color-ink-600)] bg-white border border-[var(--color-ink-200)] rounded-lg hover:bg-[var(--color-ink-50)] transition-colors">PDF</a>
+                </Td>
               </tr>
-            </thead>
-            <tbody>
-              {slipsData.map(row => (
-                <tr key={row.employeeId}>
-                  <td className="font-medium">
-                    {row.employeeName}
-                    <div className="text-xs text-base-content/50">{row.employeePin || "No PIN"}</div>
-                  </td>
-                  <td className="text-right">{fmtKES(row.gross)}</td>
-                  <td className="text-right text-error">{fmtKES(row.nssf)}</td>
-                  <td className="text-right text-error">{fmtKES(row.shif)}</td>
-                  <td className="text-right text-error">{fmtKES(row.ahl)}</td>
-                  <td className="text-right text-error">{fmtKES(row.paye)}</td>
-                  <td className="text-right text-error">{fmtKES(row.otherDeductions)}</td>
-                  <td className="text-right font-bold text-success">{fmtKES(row.net)}</td>
-                  <td className="text-right">
-                    <a href={`/api/payslip/${run.id}/${row.employeeId}`} target="_blank" className="btn btn-xs btn-outline">PDF</a>
-                  </td>
-                </tr>
-              ))}
-              {slipsData.length === 0 && (
-                <tr>
-                  <td colSpan={9} className="text-center py-6 text-base-content/60">No payslips found in this run.</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+            ))}
+            {slipsData.length === 0 && (
+              <tr>
+                <td colSpan={9} className="text-center py-8 text-[13px] text-[var(--color-ink-500)]">No payslips found in this run.</td>
+              </tr>
+            )}
+          </tbody>
+        </TableCard>
       </div>
     </>
   );
