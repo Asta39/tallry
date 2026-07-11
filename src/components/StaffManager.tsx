@@ -156,18 +156,12 @@ export function PermissionMatrix({
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
-  const [local, setLocal] = useState(matrix);
 
   function toggle(role: string, key: string) {
-    const next = !local[role][key];
-    setLocal((m) => ({ ...m, [role]: { ...m[role], [key]: next } }));
+    const allowed = !matrix[role]?.[key];
     start(async () => {
-      try {
-        await setRolePermission(role, key, next);
-        router.refresh();
-      } catch {
-        setLocal((m) => ({ ...m, [role]: { ...m[role], [key]: !next } }));
-      }
+      await setRolePermission(role, key, allowed);
+      router.refresh();
     });
   }
 
@@ -193,12 +187,12 @@ export function PermissionMatrix({
                     onClick={() => toggle(r, mod.key)}
                     aria-label={`${r} · ${mod.label}`}
                     className={`inline-block w-9 h-5 rounded-full relative transition-colors ${
-                      local[r]?.[mod.key] ? "bg-[var(--color-accent-500)]" : "bg-[var(--color-ink-200)]"
+                      matrix[r]?.[mod.key] ? "bg-[var(--color-accent-500)]" : "bg-[var(--color-ink-200)]"
                     }`}
                   >
                     <span
                       className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${
-                        local[r]?.[mod.key] ? "left-[18px]" : "left-0.5"
+                        matrix[r]?.[mod.key] ? "left-[18px]" : "left-0.5"
                       }`}
                     ></span>
                   </button>

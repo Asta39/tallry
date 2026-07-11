@@ -142,5 +142,6 @@ export function canViewAllData(access: Access): boolean {
 /** Get all system and custom roles for an organization. */
 export async function getAllRoles(orgId: number): Promise<string[]> {
   const custom = await db.select().from(customRoles).where(eq(customRoles.orgId, orgId));
-  return [...ROLES, ...custom.map((c) => c.name)];
+  const uniqueCustom = Array.from(new Set(custom.map((c) => c.name)));
+  return [...ROLES, ...uniqueCustom];
 }
