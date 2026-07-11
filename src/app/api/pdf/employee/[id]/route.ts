@@ -29,7 +29,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     .select()
     .from(loanLedger)
     .where(and(eq(loanLedger.employeeId, employee.id), eq(loanLedger.orgId, o.id)))
-    .orderBy(desc(loanLedger.issueDate));
+    .orderBy(desc(loanLedger.createdAt));
 
   const payslips = await db
     .select({
