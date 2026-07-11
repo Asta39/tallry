@@ -2,7 +2,7 @@
 
 import { requirePerm } from "@/lib/guard";
 import { getOrg } from "@/lib/org";
-import { db, employees, payrollRuns, payrollRunLineItems, statutoryRules, leaveRecords, payrollAdjustments, loanLedger, loanInstallments } from "@/db";
+import { db, employees, payrollRuns, payrollRunLineItems, leaveRecords, payrollAdjustments, loanLedger, loanInstallments, statutoryRules, accounts } from "@/db";
 import { and, eq } from "drizzle-orm";
 import { runPayrollEngine, RuleDef } from "@/lib/payroll";
 import { postEntry } from "@/lib/posting";
@@ -113,29 +113,45 @@ export async function postPayrollRunAction(runId: number, formData: FormData) {
   let totalGross = 0;
   let totalNet = 0;
   let totalTax = 0;
+  let totalLoans = 0;
 
   for (const line of lines) {
     if (line.type === "gross_pay" || (line.type === "addition" && line.subType === "adjustment")) {
       totalGross += line.amountCents;
     } else if (line.type === "net_pay") {
       totalNet += line.amountCents;
-    } else if (line.type === "deduction" && ["PAYE", "NSSF", "SHIF", "AHL"].includes(line.subType || "")) {
+    } else if (line.type === "deduction" && line.subType === "loan") {
+      totalLoans += line.amountCents;
+    } else if (line.type === "deduction") {
       totalTax += line.amountCents;
     }
   }
 
+  let arAccountId: number | null = null;
+  if (totalLoans > 0) {
+    const [ar] = await db.select().from(accounts).where(and(eq(accounts.orgId, o.id), eq(accounts.code, "1200")));
+    if (!ar) throw new Error("Accounts Receivable account (1200) not found. Required for loan recoveries.");
+    arAccountId = ar.id;
+  }
+
   const date = new Date(Number(run.month.split("-")[0]), Number(run.month.split("-")[1]), 0).toISOString().slice(0, 10);
+
+  const journalLines = [
+    { accountId: expenseAccountId, debitCents: totalGross, creditCents: 0 },
+    { accountId: payablesAccountId, debitCents: 0, creditCents: totalNet },
+    { accountId: taxLiabilitiesAccountId, debitCents: 0, creditCents: totalTax }
+  ];
+
+  if (totalLoans > 0 && arAccountId) {
+    journalLines.push({ accountId: arAccountId, debitCents: 0, creditCents: totalLoans });
+  }
 
   const entryId = await postEntry({
     date,
     memo: `Payroll Run for ${run.month}`,
     sourceType: "payroll",
     sourceId: run.id,
-    lines: [
-      { accountId: expenseAccountId, debitCents: totalGross, creditCents: 0 },
-      { accountId: payablesAccountId, debitCents: 0, creditCents: totalNet },
-      { accountId: taxLiabilitiesAccountId, debitCents: 0, creditCents: totalTax }
-    ]
+    lines: journalLines
   });
 
   await db.update(payrollRuns).set({
