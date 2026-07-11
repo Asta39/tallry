@@ -30,7 +30,7 @@ export function RuleForm({ initialData }: { initialData?: any }) {
     { upTo: "", rate: "30" } // empty means infinite
   ];
 
-  const [bands, setBands] = useState(defaultBands);
+  const [bands, setBands] = useState<{ upTo: string; rate: string }[]>(defaultBands);
 
   let parametersJson = "{}";
   try {
