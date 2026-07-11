@@ -1,9 +1,9 @@
 import { redirect } from "next/navigation";
 import { db, members } from "@/db";
 import { eq } from "drizzle-orm";
-import { getAccess, MODULES, ROLES, rolePermMap, type Role } from "@/lib/access";
+import { getAccess, MODULES, rolePermMap, getAllRoles } from "@/lib/access";
 import { PageHeader } from "@/components/ui";
-import { AddStaffForm, StaffList, PermissionMatrix } from "@/components/StaffManager";
+import { AddStaffForm, StaffList, PermissionMatrix, CreateRoleForm } from "@/components/StaffManager";
 
 export const dynamic = "force-dynamic";
 
@@ -13,11 +13,12 @@ export default async function StaffPage() {
   if (access.role !== "admin") redirect("/");
 
   const staff = await db.select().from(members).where(eq(members.orgId, access.orgId));
+  const allRoles = await getAllRoles(access.orgId);
+  const editableRoles = allRoles.filter((r) => r !== "admin");
 
-  const editableRoles = ROLES.filter((r) => r !== "admin");
   const matrix: Record<string, Record<string, boolean>> = {};
   for (const r of editableRoles) {
-    matrix[r] = await rolePermMap(access.orgId, r as Role);
+    matrix[r] = await rolePermMap(access.orgId, r);
   }
 
   const serviceKeyMissing = !process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -38,15 +39,18 @@ export default async function StaffPage() {
       )}
 
       <h2 className="text-[15px] font-semibold mb-3">Add a staff member</h2>
-      <AddStaffForm roles={[...ROLES]} />
+      <AddStaffForm roles={allRoles} />
 
       <h2 className="text-[15px] font-semibold mt-8 mb-3">Team</h2>
       <StaffList
         staff={staff.map((m) => ({ id: m.id, name: m.name, email: m.email, role: m.role, active: m.active }))}
-        roles={[...ROLES]}
+        roles={allRoles}
       />
 
-      <h2 className="text-[15px] font-semibold mt-8 mb-1">What each role can see</h2>
+      <div className="flex items-center justify-between mt-8 mb-1">
+        <h2 className="text-[15px] font-semibold">What each role can see</h2>
+        <CreateRoleForm />
+      </div>
       <p className="text-[12.5px] text-[var(--color-ink-400)] mb-3">
         Toggle modules per role — changes apply to everyone with that role immediately.
         Admins always see everything.

@@ -3,9 +3,10 @@
 import { db, members, rolePermissions, todos, events } from "@/db";
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { getAccess, ROLES, type Role } from "./access";
+import { getAccess, ROLES, getAllRoles, type Role } from "./access";
 import { createAdminClient } from "./supabase/admin";
 import { nowISO } from "./money";
+import { customRoles } from "@/db";
 
 async function requireAdmin() {
   const access = await getAccess();
@@ -22,7 +23,8 @@ export async function createStaff(data: {
   role: string;
 }) {
   const access = await requireAdmin();
-  const role = (ROLES.includes(data.role as Role) ? data.role : "staff") as Role;
+  const validRoles = await getAllRoles(access.orgId);
+  const role = validRoles.includes(data.role) ? data.role : "staff";
   if (data.password.length < 8) throw new Error("Password must be at least 8 characters");
 
   const admin = createAdminClient();
@@ -96,6 +98,23 @@ export async function toggleTodo(id: number, done: boolean) {
   if (!access) throw new Error("Not signed in");
   await db.update(todos).set({ done }).where(and(eq(todos.orgId, access.orgId), eq(todos.id, id)));
   revalidatePath("/");
+}
+
+/* ---------------- Custom Roles ---------------- */
+
+export async function createCustomRole(name: string) {
+  const access = await requireAdmin();
+  const cleanName = name.trim().toLowerCase().replace(/[^a-z0-9_-]/g, "_");
+  if (!cleanName) throw new Error("Invalid role name");
+  const existing = await getAllRoles(access.orgId);
+  if (existing.includes(cleanName)) throw new Error("Role already exists");
+  
+  await db.insert(customRoles).values({
+    orgId: access.orgId,
+    name: cleanName,
+    createdAt: nowISO(),
+  });
+  revalidatePath("/staff");
 }
 
 export async function deleteTodo(id: number) {

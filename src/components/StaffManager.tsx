@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { createStaff, updateStaff, setRolePermission } from "@/lib/staff-actions";
+import { createStaff, updateStaff, setRolePermission, createCustomRole } from "@/lib/staff-actions";
 
 const inputCls =
   "w-full rounded-lg border border-[var(--color-ink-200)] bg-white px-3 py-2 text-[13px] outline-none focus:border-[var(--color-accent-500)] focus:ring-2 focus:ring-[var(--color-accent-100)] mt-1";
@@ -200,7 +200,7 @@ export function PermissionMatrix({
                       className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${
                         local[r][mod.key] ? "left-[18px]" : "left-0.5"
                       }`}
-                    />
+                    ></span>
                   </button>
                 </td>
               ))}
@@ -209,5 +209,46 @@ export function PermissionMatrix({
         </tbody>
       </table>
     </div>
+  );
+}
+
+export function CreateRoleForm() {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const [name, setName] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        setError(null);
+        start(async () => {
+          try {
+            await createCustomRole(name);
+            setName("");
+            router.refresh();
+          } catch (err) {
+            setError(err instanceof Error ? err.message : "Failed to create role");
+          }
+        });
+      }}
+      className="flex items-center gap-2"
+    >
+      {error && <span className="text-[12px] text-[var(--color-bad)] mr-2">{error}</span>}
+      <input
+        required
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        className="rounded-lg border border-[var(--color-ink-200)] bg-white px-3 py-1.5 text-[12.5px] outline-none focus:border-[var(--color-accent-500)] focus:ring-2 focus:ring-[var(--color-accent-100)] w-48"
+        placeholder="Custom role name"
+      />
+      <button
+        disabled={pending}
+        className="rounded-lg bg-[var(--color-ink-900)] hover:bg-black disabled:opacity-50 text-white text-[12.5px] font-medium px-3 py-1.5"
+      >
+        {pending ? "Adding…" : "Add Role"}
+      </button>
+    </form>
   );
 }

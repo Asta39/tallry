@@ -480,6 +480,15 @@ export const payrollRunLineItems = pgTable("payroll_run_line_items", {
   statutoryRuleId: integer("statutory_rule_id").references(() => statutoryRules.id),
 });
 
+export const customRoles = pgTable("custom_roles", {
+  id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
+  name: text("name").notNull(),
+  createdAt: text("created_at").notNull(),
+}, (t) => ({
+  orgNameIdx: uniqueIndex("idx_custom_roles_org_name").on(t.orgId, t.name),
+}));
+
 export const payrollAdjustments = pgTable("payroll_adjustments", {
   id: serial("id").primaryKey(),
   orgId: integer("org_id").notNull().references(() => org.id),

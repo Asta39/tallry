@@ -1,5 +1,5 @@
 import { cache } from "react";
-import { db, org, members, rolePermissions } from "@/db";
+import { db, org, members, rolePermissions, customRoles } from "@/db";
 import { and, eq } from "drizzle-orm";
 import { getUser } from "./supabase/server";
 
@@ -50,7 +50,7 @@ export interface Access {
   orgRow: typeof org.$inferSelect;
   userId: string;
   isOwner: boolean;
-  role: Role;
+  role: string;
   memberName: string;
   memberId: number | null;
   perms: Set<string>;
@@ -86,8 +86,9 @@ export async function getAccess(): Promise<Access | null> {
   const [o] = await db.select().from(org).where(eq(org.id, m.orgId)).limit(1);
   if (!o) return null;
 
-  const role = (ROLES.includes(m.role as Role) ? m.role : "staff") as Role;
-  const perms = new Set(DEFAULT_ROLE_PERMS[role]);
+  const role = m.role;
+  const defaultPerms = DEFAULT_ROLE_PERMS[role as Role] || [];
+  const perms = new Set(defaultPerms);
   if (role !== "admin") {
     const overrides = await db
       .select()
@@ -113,9 +114,10 @@ export async function getAccess(): Promise<Access | null> {
 }
 
 /** Effective permission map for a role (defaults + org overrides). */
-export async function rolePermMap(orgId: number, role: Role): Promise<Record<string, boolean>> {
+export async function rolePermMap(orgId: number, role: string): Promise<Record<string, boolean>> {
   const map: Record<string, boolean> = {};
-  for (const m of MODULES) map[m.key] = DEFAULT_ROLE_PERMS[role].includes(m.key);
+  const defaultPerms = DEFAULT_ROLE_PERMS[role as Role] || [];
+  for (const m of MODULES) map[m.key] = defaultPerms.includes(m.key);
   const overrides = await db
     .select()
     .from(rolePermissions)
@@ -135,4 +137,10 @@ export function canViewAllData(access: Access): boolean {
   if (access.isOwner || access.role === "admin") return true;
   if (!access.orgRow.dataSegregation) return true;
   return false;
+}
+
+/** Get all system and custom roles for an organization. */
+export async function getAllRoles(orgId: number): Promise<string[]> {
+  const custom = await db.select().from(customRoles).where(eq(customRoles.orgId, orgId));
+  return [...ROLES, ...custom.map((c) => c.name)];
 }
