@@ -35,7 +35,12 @@ export async function savePaymentGatewayAction(formData: FormData) {
       };
     }
 
-    const configJson = encryptConfig(config);
+    let configJson: string;
+    try {
+      configJson = encryptConfig(config);
+    } catch (e: any) {
+      return { error: e.message || "Failed to encrypt configuration. Check server logs." };
+    }
 
     const existing = await db
       .select()

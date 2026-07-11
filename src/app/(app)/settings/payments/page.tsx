@@ -15,15 +15,7 @@ export default async function PaymentsSettingsPage() {
   const user = await getUser();
   if (!user || !o) redirect("/login");
 
-  let gateways: any[] = [];
-  let dbError = null;
-
-  try {
-    gateways = await db.select().from(paymentGateways).where(eq(paymentGateways.orgId, o.id));
-  } catch (err: any) {
-    console.error("Failed to query paymentGateways:", err);
-    dbError = err.message;
-  }
+  const gateways = await db.select().from(paymentGateways).where(eq(paymentGateways.orgId, o.id));
 
   // The client component will handle the masked state
   const gatewaysState = gateways.map(g => ({
@@ -39,13 +31,7 @@ export default async function PaymentsSettingsPage() {
       />
 
       <div className="mt-8 space-y-8">
-        {dbError ? (
-          <div className="p-4 bg-red-50 text-red-600 rounded-lg border border-red-200 text-sm">
-            Failed to load payment gateways: {dbError}. If you just deployed, make sure the database migrations ran successfully.
-          </div>
-        ) : (
-          <PaymentGatewayForm gateways={gatewaysState} />
-        )}
+        <PaymentGatewayForm gateways={gatewaysState} />
       </div>
     </div>
   );

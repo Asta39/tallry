@@ -18,7 +18,11 @@ export function PaymentGatewayForm({ gateways }: { gateways: any[] }) {
     formData.append("gatewayId", activeTab);
     
     try {
-      await savePaymentGatewayAction(formData);
+      const res = await savePaymentGatewayAction(formData);
+      if (res && res.error) {
+        alert("Error: " + res.error);
+        return;
+      }
       alert("Settings saved successfully");
     } catch (err: any) {
       alert("Error: " + err.message);
