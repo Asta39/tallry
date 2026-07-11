@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { getUser } from "@/lib/supabase/server";
 import { db, paymentGateways } from "@/db";
 import { eq, and } from "drizzle-orm";
+import { decryptConfig } from "@/lib/payments/crypto";
 import { PageHeader } from "@/components/ui";
 import { PaymentGatewayForm } from "./PaymentGatewayForm";
 
@@ -18,10 +19,18 @@ export default async function PaymentsSettingsPage() {
   const gateways = await db.select().from(paymentGateways).where(eq(paymentGateways.orgId, o.id));
 
   // The client component will handle the masked state
-  const gatewaysState = gateways.map(g => ({
-    ...g,
-    configJson: g.configJson ? "********" : "" // Don't send real config back to client
-  }));
+  const gatewaysState = gateways.map(g => {
+    const conf = decryptConfig(g.configJson);
+    return {
+      ...g,
+      config: {
+        shortcode: conf?.shortcode || "",
+        tillNumber: conf?.tillNumber || "",
+        hasSecrets: !!g.configJson,
+      },
+      configJson: g.configJson ? "********" : "" // Don't send real config back to client
+    };
+  });
 
   return (
     <div className="max-w-4xl mx-auto pb-12">

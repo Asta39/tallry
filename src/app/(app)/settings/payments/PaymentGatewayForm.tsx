@@ -68,7 +68,7 @@ export function PaymentGatewayForm({ gateways }: { gateways: any[] }) {
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">Shortcode (Paybill/Till) *</label>
-                  <input name="shortcode" placeholder="e.g. 174379" required className="w-full h-10 px-3 rounded-lg border border-[var(--color-ink-200)] focus:border-[var(--color-brand-500)] outline-none text-sm" />
+                  <input name="shortcode" defaultValue={mpesa.config?.shortcode} placeholder="e.g. 174379" required className="w-full h-10 px-3 rounded-lg border border-[var(--color-ink-200)] focus:border-[var(--color-brand-500)] outline-none text-sm" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">Consumer Key</label>
@@ -102,7 +102,7 @@ export function PaymentGatewayForm({ gateways }: { gateways: any[] }) {
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">Till Number *</label>
-                  <input name="tillNumber" placeholder="e.g. 54321" required className="w-full h-10 px-3 rounded-lg border border-[var(--color-ink-200)] focus:border-[var(--color-brand-500)] outline-none text-sm" />
+                  <input name="tillNumber" defaultValue={kopokopo.config?.tillNumber} placeholder="e.g. 54321" required className="w-full h-10 px-3 rounded-lg border border-[var(--color-ink-200)] focus:border-[var(--color-brand-500)] outline-none text-sm" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">Client ID</label>

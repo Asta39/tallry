@@ -4,7 +4,7 @@ import { db, paymentGateways } from "@/db";
 import { eq, and } from "drizzle-orm";
 import { requirePerm } from "@/lib/guard";
 import { getOrg, withOrg } from "@/lib/org";
-import { encryptConfig } from "@/lib/payments/crypto";
+import { encryptConfig, decryptConfig } from "@/lib/payments/crypto";
 import { revalidatePath } from "next/cache";
 
 export async function savePaymentGatewayAction(formData: FormData) {
@@ -35,6 +35,24 @@ export async function savePaymentGatewayAction(formData: FormData) {
       };
     }
 
+    const existing = await db
+      .select()
+      .from(paymentGateways)
+      .where(and(eq(paymentGateways.orgId, o.id), eq(paymentGateways.gatewayId, gatewayId)));
+
+    if (existing.length > 0) {
+      const oldConfig = decryptConfig(existing[0].configJson) || {};
+      if (gatewayId === "mpesa_daraja") {
+        config.consumerKey = config.consumerKey || oldConfig.consumerKey;
+        config.consumerSecret = config.consumerSecret || oldConfig.consumerSecret;
+        config.passkey = config.passkey || oldConfig.passkey;
+      } else if (gatewayId === "kopokopo") {
+        config.clientId = config.clientId || oldConfig.clientId;
+        config.clientSecret = config.clientSecret || oldConfig.clientSecret;
+        config.apiKey = config.apiKey || oldConfig.apiKey;
+      }
+    }
+
     let configJson: string;
     try {
       configJson = encryptConfig(config);
@@ -42,16 +60,11 @@ export async function savePaymentGatewayAction(formData: FormData) {
       return { error: e.message || "Failed to encrypt configuration. Check server logs." };
     }
 
-    const existing = await db
-      .select()
-      .from(paymentGateways)
-      .where(and(eq(paymentGateways.orgId, o.id), eq(paymentGateways.gatewayId, gatewayId)));
-
     if (existing.length > 0) {
       await db.update(paymentGateways).set({
         enabled,
         environment,
-        configJson: configJson || existing[0].configJson,
+        configJson,
         updatedAt: new Date().toISOString(),
       }).where(eq(paymentGateways.id, existing[0].id));
     } else {
