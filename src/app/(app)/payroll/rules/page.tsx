@@ -2,7 +2,7 @@ import { requirePerm } from "@/lib/guard";
 import { getOrg } from "@/lib/org";
 import { db, statutoryRules } from "@/db";
 import { eq } from "drizzle-orm";
-import { PageHeader, TableCard, Th, Td, PrimaryButton } from "@/components/ui";
+import { PageHeader, TableCard, Th, Td, PrimaryLink } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +17,7 @@ export default async function PayrollRulesPage() {
       <PageHeader 
         title="Statutory Rules & Tax Rates" 
         subtitle="Manage PAYE, NSSF, SHIF, and Affordable Housing Levy rates"
-        action={<PrimaryButton>Add New Rule</PrimaryButton>}
+        action={<PrimaryLink href="/payroll/rules/new">Add New Rule</PrimaryLink>}
       />
 
       {rules.length === 0 ? (
