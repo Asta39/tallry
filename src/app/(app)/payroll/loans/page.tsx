@@ -4,6 +4,7 @@ import { db, loanLedger, employees } from "@/db";
 import { and, eq } from "drizzle-orm";
 import { PageHeader, TableCard, Th, Td, PrimaryLink } from "@/components/ui";
 import { fmtKES } from "@/lib/money";
+import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
@@ -47,7 +48,11 @@ export default async function PayrollLoansPage() {
           <tbody>
             {loans.map((row) => (
               <tr key={row.loan.id} className="hairline-t hover:bg-[var(--color-ink-50)]/60">
-                <Td className="font-medium">{row.employeeName}</Td>
+                <Td className="font-medium">
+                  <Link href={`/payroll/loans/${row.loan.id}`} className="text-[var(--color-accent-600)] hover:underline">
+                    {row.employeeName}
+                  </Link>
+                </Td>
                 <Td className="capitalize">{row.loan.type.replace("_", " ")}</Td>
                 <Td right>{fmtKES(row.loan.principalCents)}</Td>
                 <Td right>{fmtKES(row.loan.installmentCents)}/mo</Td>

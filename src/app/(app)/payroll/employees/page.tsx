@@ -47,7 +47,11 @@ export default async function EmployeesPage() {
           <tbody>
             {allEmployees.map(e => (
               <tr key={e.id} className="hairline-t hover:bg-[var(--color-ink-50)]/60">
-                <Td className="font-medium">{e.name}</Td>
+                <Td className="font-medium">
+                  <Link href={`/payroll/employees/${e.id}`} className="text-[var(--color-accent-600)] hover:underline">
+                    {e.name}
+                  </Link>
+                </Td>
                 <Td>{e.kraPin || "-"}</Td>
                 <Td>{e.nssfNumber || "-"}</Td>
                 <Td>{e.shifNumber || "-"}</Td>

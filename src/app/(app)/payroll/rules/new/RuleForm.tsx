@@ -1,23 +1,36 @@
 "use client";
 
 import { useState } from "react";
-import { createRuleAction } from "../actions";
+import { createRuleAction, updateRuleAction } from "../actions";
 import { PrimaryButton } from "@/components/ui";
 
-export function RuleForm() {
-  const [calcType, setCalcType] = useState("flat_percent");
+export function RuleForm({ initialData }: { initialData?: any }) {
+  const [calcType, setCalcType] = useState(initialData?.calculationType || "flat_percent");
+
+  // Parse existing params safely
+  let params: any = {};
+  try {
+    if (initialData?.parametersJson) {
+      params = JSON.parse(initialData.parametersJson);
+    }
+  } catch (e) {}
 
   // State for simple flat rules
-  const [rate, setRate] = useState("2.75");
-  const [amount, setAmount] = useState("2400");
-  const [cap, setCap] = useState("1080");
+  const [rate, setRate] = useState(params.rate ? String(params.rate * 100) : "2.75");
+  const [amount, setAmount] = useState(params.amountCents ? String(params.amountCents / 100) : "2400");
+  const [cap, setCap] = useState(params.capCents ? String(params.capCents / 100) : "1080");
 
   // State for banded rules (PAYE)
-  const [bands, setBands] = useState([
+  const defaultBands = params.bands ? params.bands.map((b: any) => ({
+    upTo: b.upToCents ? String(b.upToCents / 100) : "",
+    rate: String(b.rate * 100)
+  })) : [
     { upTo: "24000", rate: "10" },
     { upTo: "32333", rate: "25" },
     { upTo: "", rate: "30" } // empty means infinite
-  ]);
+  ];
+
+  const [bands, setBands] = useState(defaultBands);
 
   let parametersJson = "{}";
   try {
@@ -57,13 +70,14 @@ export function RuleForm() {
   }
 
   return (
-    <form action={createRuleAction} className="p-6 space-y-6">
+    <form action={initialData ? updateRuleAction : createRuleAction} className="p-6 space-y-6">
+      {initialData && <input type="hidden" name="id" value={initialData.id} />}
       <input type="hidden" name="parametersJson" value={parametersJson} />
 
       <div className="grid grid-cols-2 gap-4">
         <div className="col-span-2">
           <label className="block text-[11.5px] font-medium text-[var(--color-ink-500)] mb-1">Rule Type</label>
-          <select name="type" required className="w-full rounded-lg border border-[var(--color-ink-200)] bg-white px-3 py-1.5 text-[13px] outline-none focus:border-[var(--color-accent-500)] focus:ring-2 focus:ring-[var(--color-accent-100)]">
+          <select name="type" required defaultValue={initialData?.type || "PAYE"} className="w-full rounded-lg border border-[var(--color-ink-200)] bg-white px-3 py-1.5 text-[13px] outline-none focus:border-[var(--color-accent-500)] focus:ring-2 focus:ring-[var(--color-accent-100)]">
             <option value="PAYE">PAYE (Income Tax)</option>
             <option value="SHIF">SHIF (Health Insurance)</option>
             <option value="NSSF_1">NSSF Tier 1</option>
@@ -91,7 +105,7 @@ export function RuleForm() {
 
         <div className="col-span-2">
           <label className="block text-[11.5px] font-medium text-[var(--color-ink-500)] mb-1">Effective From</label>
-          <input name="effectiveFrom" type="date" className="w-full rounded-lg border border-[var(--color-ink-200)] bg-white px-3 py-1.5 text-[13px] outline-none focus:border-[var(--color-accent-500)] focus:ring-2 focus:ring-[var(--color-accent-100)]" required />
+          <input name="effectiveFrom" type="date" defaultValue={initialData?.effectiveFrom || ""} className="w-full rounded-lg border border-[var(--color-ink-200)] bg-white px-3 py-1.5 text-[13px] outline-none focus:border-[var(--color-accent-500)] focus:ring-2 focus:ring-[var(--color-accent-100)]" required />
         </div>
       </div>
 
@@ -157,7 +171,7 @@ export function RuleForm() {
       </div>
 
       <div className="flex justify-end pt-4 border-t border-[var(--color-ink-100)]">
-        <PrimaryButton type="submit">Add Rule</PrimaryButton>
+        <PrimaryButton type="submit">{initialData ? "Save Changes" : "Create Rule"}</PrimaryButton>
       </div>
     </form>
   );

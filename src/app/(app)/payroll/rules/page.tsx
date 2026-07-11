@@ -3,6 +3,7 @@ import { getOrg } from "@/lib/org";
 import { db, statutoryRules } from "@/db";
 import { eq } from "drizzle-orm";
 import { PageHeader, TableCard, Th, Td, PrimaryLink } from "@/components/ui";
+import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
@@ -38,7 +39,11 @@ export default async function PayrollRulesPage() {
           <tbody>
             {rules.map((rule) => (
               <tr key={rule.id} className="hairline-t hover:bg-[var(--color-ink-50)]/60">
-                <Td className="font-medium">{rule.type}</Td>
+                <Td className="font-medium">
+                  <Link href={`/payroll/rules/${rule.id}`} className="text-[var(--color-accent-600)] hover:underline">
+                    {rule.type}
+                  </Link>
+                </Td>
                 <Td><div className="badge badge-ghost badge-sm">{rule.calculationType}</div></Td>
                 <Td>{rule.effectiveFrom}</Td>
                 <Td>{rule.effectiveTo || "Present"}</Td>
