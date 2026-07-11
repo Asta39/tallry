@@ -38,6 +38,7 @@ export default async function LoanDetailPage(props: { params: Promise<{ id: stri
       amountCents: loanInstallments.amountCents,
       payrollRunId: loanInstallments.payrollRunId,
       month: payrollRuns.month,
+      runStatus: payrollRuns.status,
       createdAt: loanInstallments.createdAt,
     })
     .from(loanInstallments)
@@ -97,7 +98,8 @@ export default async function LoanDetailPage(props: { params: Promise<{ id: stri
           <thead className="hairline-b">
             <tr>
               <Th>Month</Th>
-              <Th>Amount Paid</Th>
+              <Th>Amount</Th>
+              <Th>Status</Th>
               <Th>Payroll Run</Th>
             </tr>
           </thead>
@@ -107,7 +109,12 @@ export default async function LoanDetailPage(props: { params: Promise<{ id: stri
                 <Td className="font-medium">{inst.month}</Td>
                 <Td>{fmtKES(inst.amountCents)}</Td>
                 <Td>
-                  {inst.payrollRunId ? (
+                  {inst.runStatus === "posted" ? 
+                    <span className="badge badge-success badge-sm">Paid</span> : 
+                    <span className="badge badge-ghost badge-sm">Pending</span>
+                  }
+                </Td>
+                <Td>
                     <Link href={`/payroll/runs/${inst.payrollRunId}`} className="text-[var(--color-accent-600)] hover:underline">
                       Run #{inst.payrollRunId}
                     </Link>

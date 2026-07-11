@@ -51,7 +51,7 @@ export async function createPayrollRunAction(formData: FormData) {
     }));
 
     const empLoans = loans.filter(l => l.employeeId === emp.id).map(l => ({
-      amountCents: l.installmentCents,
+      amountCents: Math.min(l.installmentCents, l.balanceCents),
       loanId: l.id
     }));
 
@@ -159,6 +159,19 @@ export async function postPayrollRunAction(runId: number, formData: FormData) {
       status: "posted",
       journalEntryId: entryId
     }).where(eq(payrollRuns.id, run.id));
+
+    // Update loan balances
+    const installments = await db.select().from(loanInstallments).where(eq(loanInstallments.payrollRunId, run.id));
+    for (const inst of installments) {
+      const [loan] = await db.select().from(loanLedger).where(eq(loanLedger.id, inst.loanId));
+      if (loan) {
+        const newBalance = Math.max(0, loan.balanceCents - inst.amountCents);
+        await db.update(loanLedger).set({
+          balanceCents: newBalance,
+          status: newBalance === 0 ? "paid" : "active"
+        }).where(eq(loanLedger.id, loan.id));
+      }
+    }
 
     revalidatePath(`/payroll/runs/${run.id}`);
     revalidatePath("/payroll/runs");
