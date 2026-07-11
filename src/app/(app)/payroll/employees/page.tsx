@@ -30,10 +30,10 @@ export default async function EmployeesPage() {
         <Link href="/payroll/employees" className="tab tab-active font-medium bg-white">Employees</Link>
       </div>
 
-      <div className="card mt-6">
+      <div className="card bg-base-100 shadow-sm border border-base-content/10">
         <div className="overflow-x-auto">
           <table className="table">
-            <thead>
+            <thead className="bg-base-200/50">
               <tr>
                 <th>Name</th>
                 <th>KRA PIN</th>

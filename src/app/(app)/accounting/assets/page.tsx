@@ -25,14 +25,14 @@ export default async function AssetsPage() {
         action={<Link href="/accounting/assets/new" className="btn btn-primary">Register Asset</Link>}
       />
 
-      <div className="card mt-6">
+      <div className="card bg-base-100 shadow-sm border border-base-content/10 mt-6">
         <div className="flex justify-between items-center p-4 border-b border-base-content/10">
           <h2 className="font-semibold">Asset Register</h2>
           <DepreciationRunner />
         </div>
         <div className="overflow-x-auto">
           <table className="table">
-            <thead>
+            <thead className="bg-base-200/50">
               <tr>
                 <th>Asset Name</th>
                 <th>Purchase Date</th>

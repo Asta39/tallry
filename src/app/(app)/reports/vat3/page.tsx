@@ -72,11 +72,11 @@ export default async function Vat3ReportPage(props: {
         subtitle={`Generate data for the KRA VAT return upload for ${month}`}
       />
 
-      <div className="card mt-6 p-4">
+      <div className="card bg-base-100 shadow-sm border border-base-content/10 p-5 mt-6">
         <form className="flex gap-4 items-end">
           <div>
-            <label className="label text-sm">Select Month</label>
-            <input name="month" type="month" defaultValue={month} className="input input-bordered" />
+            <label className="label text-sm font-medium">Select Month</label>
+            <input name="month" type="month" defaultValue={month} className="input input-bordered w-full max-w-xs" />
           </div>
           <button type="submit" className="btn btn-primary">Run Report</button>
         </form>
@@ -84,10 +84,10 @@ export default async function Vat3ReportPage(props: {
 
       <div className="mt-8">
         <h2 className="text-xl font-bold mb-4">Output VAT (Sales)</h2>
-        <div className="card">
+        <div className="card bg-base-100 shadow-sm border border-base-content/10">
           <div className="overflow-x-auto">
-            <table className="table table-sm">
-              <thead>
+            <table className="table">
+              <thead className="bg-base-200/50">
                 <tr>
                   <th>Customer PIN</th>
                   <th>Customer Name</th>
@@ -99,16 +99,16 @@ export default async function Vat3ReportPage(props: {
               </thead>
               <tbody>
                 {outputData.length === 0 ? (
-                  <tr><td colSpan={6} className="text-center py-4">No sales data for this period.</td></tr>
+                  <tr><td colSpan={6} className="text-center py-8 text-base-content/50">No sales data for this period.</td></tr>
                 ) : (
                   outputData.map((row, i) => (
-                    <tr key={i}>
+                    <tr key={i} className="hover">
                       <td>{row.kraPin || "UNREGISTERED"}</td>
                       <td>{row.contactName || "Cash Sale"}</td>
                       <td>{row.taxClass}</td>
-                      <td className="text-right">{fmtKES(Number(row.totalNet))}</td>
-                      <td className="text-right">{fmtKES(Number(row.totalTax))}</td>
-                      <td className="text-right">{fmtKES(Number(row.totalGross))}</td>
+                      <td className="text-right">{fmtKES(Number(row.totalNet) || 0)}</td>
+                      <td className="text-right">{fmtKES(Number(row.totalTax) || 0)}</td>
+                      <td className="text-right font-medium">{fmtKES(Number(row.totalGross) || 0)}</td>
                     </tr>
                   ))
                 )}
@@ -120,10 +120,10 @@ export default async function Vat3ReportPage(props: {
 
       <div className="mt-8">
         <h2 className="text-xl font-bold mb-4">Input VAT (Purchases)</h2>
-        <div className="card">
+        <div className="card bg-base-100 shadow-sm border border-base-content/10">
           <div className="overflow-x-auto">
-            <table className="table table-sm">
-              <thead>
+            <table className="table">
+              <thead className="bg-base-200/50">
                 <tr>
                   <th>Vendor PIN</th>
                   <th>Vendor Name</th>
@@ -135,16 +135,16 @@ export default async function Vat3ReportPage(props: {
               </thead>
               <tbody>
                 {inputData.length === 0 ? (
-                  <tr><td colSpan={6} className="text-center py-4">No purchase data for this period.</td></tr>
+                  <tr><td colSpan={6} className="text-center py-8 text-base-content/50">No purchase data for this period.</td></tr>
                 ) : (
                   inputData.map((row, i) => (
-                    <tr key={i}>
+                    <tr key={i} className="hover">
                       <td>{row.kraPin || "UNREGISTERED"}</td>
                       <td>{row.contactName || "Cash Expense"}</td>
                       <td>{row.taxClass}</td>
-                      <td className="text-right">{fmtKES(Number(row.totalNet))}</td>
-                      <td className="text-right">{fmtKES(Number(row.totalTax))}</td>
-                      <td className="text-right">{fmtKES(Number(row.totalGross))}</td>
+                      <td className="text-right">{fmtKES(Number(row.totalNet) || 0)}</td>
+                      <td className="text-right">{fmtKES(Number(row.totalTax) || 0)}</td>
+                      <td className="text-right font-medium">{fmtKES(Number(row.totalGross) || 0)}</td>
                     </tr>
                   ))
                 )}

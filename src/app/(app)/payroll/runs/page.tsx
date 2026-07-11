@@ -27,7 +27,7 @@ export default async function PayrollRunsPage() {
         <Link href="/payroll/employees" className="tab font-medium">Employees</Link>
       </div>
 
-      <div className="card mt-6">
+      <div className="card bg-base-100 shadow-sm border border-base-content/10 mt-6">
         <div className="flex justify-between items-center p-4 border-b border-base-content/10">
           <h2 className="font-semibold">Recent Runs</h2>
           <form action={createPayrollRunAction} className="flex gap-2 items-center">
@@ -37,7 +37,7 @@ export default async function PayrollRunsPage() {
         </div>
         <div className="overflow-x-auto">
           <table className="table">
-            <thead>
+            <thead className="bg-base-200/50">
               <tr>
                 <th>Month</th>
                 <th>Status</th>
