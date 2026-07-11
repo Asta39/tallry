@@ -57,12 +57,16 @@ export function DocActions({
   const [gwAmount, setGwAmount] = useState(((doc.totalCents - doc.paidCents) / 100).toFixed(2));
   const [gwDestType, setGwDestType] = useState<"phone" | "till" | "paybill">("phone");
 
-  const run = (fn: () => Promise<unknown>) => {
+  const run = (fn: () => Promise<any>) => {
     setError(null);
     start(async () => {
       try {
-        await fn();
-        router.refresh();
+        const res = await fn();
+        if (res && typeof res === "object" && "error" in res) {
+          setError(res.error);
+        } else {
+          router.refresh();
+        }
       } catch (e) {
         setError(e instanceof Error ? e.message : "Failed");
       }
