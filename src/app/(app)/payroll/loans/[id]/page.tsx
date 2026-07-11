@@ -1,4 +1,4 @@
-import { db, employees, loanLedger, loanInstallments } from "@/db";
+import { db, employees, loanLedger, loanInstallments, payrollRuns } from "@/db";
 import { and, eq, asc } from "drizzle-orm";
 import { getOrg } from "@/lib/org";
 import { requirePerm } from "@/lib/guard";

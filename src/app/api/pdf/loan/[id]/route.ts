@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { renderToBuffer } from "@react-pdf/renderer";
 import React from "react";
-import { db, employees, loanLedger, loanInstallments } from "@/db";
+import { db, employees, loanLedger, loanInstallments, payrollRuns } from "@/db";
 import { and, eq, asc } from "drizzle-orm";
 import { getOrg } from "@/lib/org";
 import { LoanPdf } from "@/lib/pdf/LoanPdf";
