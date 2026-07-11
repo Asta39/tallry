@@ -71,21 +71,35 @@ export function runPayrollEngine(input: PayrollInput, rules: RuleDef[]): LineIte
   // Helper to get rule
   const getRule = (type: string) => rules.find(r => r.type === type);
 
+  // Robust calculation helper for non-banded rules
+  const calculateRule = (rule: RuleDef, baseAmount: number): number => {
+    try {
+      const params = JSON.parse(rule.parametersJson);
+      let amount = 0;
+      if (rule.calculationType === "flat_percent") {
+        amount = Math.round(baseAmount * (params.rate || 0));
+      } else if (rule.calculationType === "flat_amount") {
+        amount = params.amountCents || 0;
+      } else if (rule.calculationType === "capped") {
+        amount = Math.round(baseAmount * (params.rate || 0));
+        if (params.capCents && amount > params.capCents) amount = params.capCents;
+      }
+      return Number.isNaN(amount) ? 0 : amount;
+    } catch {
+      return 0;
+    }
+  };
+
   // 3. NSSF (Pre-tax)
   let nssfCents = 0;
-  const nssfRule = getRule("NSSF");
-  if (nssfRule) {
-    const params = JSON.parse(nssfRule.parametersJson);
-    if (nssfRule.calculationType === "capped") {
-      nssfCents = Math.round(grossCents * params.rate);
-      if (nssfCents > params.capCents) nssfCents = params.capCents;
-    } else if (nssfRule.calculationType === "flat_percent") {
-      nssfCents = Math.round(grossCents * params.rate);
-    }
+  const nssfRules = rules.filter(r => r.type.startsWith("NSSF"));
+  for (const nssfRule of nssfRules) {
+    const amt = calculateRule(nssfRule, grossCents);
+    nssfCents += amt;
     lines.push({
       type: "deduction",
       subType: "NSSF",
-      amountCents: nssfCents,
+      amountCents: amt,
       isDeduction: true,
       statutoryRuleId: nssfRule.id
     });
@@ -95,8 +109,7 @@ export function runPayrollEngine(input: PayrollInput, rules: RuleDef[]): LineIte
   let ahlCents = 0;
   const ahlRule = getRule("AHL");
   if (ahlRule) {
-    const params = JSON.parse(ahlRule.parametersJson);
-    ahlCents = Math.round(grossCents * params.rate);
+    ahlCents = calculateRule(ahlRule, grossCents);
     lines.push({
       type: "deduction",
       subType: "AHL",
@@ -113,40 +126,44 @@ export function runPayrollEngine(input: PayrollInput, rules: RuleDef[]): LineIte
   let payeCents = 0;
   const payeRule = getRule("PAYE");
   if (payeRule) {
-    const params = JSON.parse(payeRule.parametersJson);
-    let remaining = taxablePay;
-    let tax = 0;
-    for (const band of params.bands) {
-      if (remaining <= 0) break;
-      const amountInBand = band.upToCents ? Math.min(remaining, band.upToCents) : remaining;
-      tax += Math.round(amountInBand * band.rate);
-      remaining -= amountInBand;
-    }
+    try {
+      const params = JSON.parse(payeRule.parametersJson);
+      let remaining = taxablePay;
+      let tax = 0;
+      if (params.bands && Array.isArray(params.bands)) {
+        for (const band of params.bands) {
+          if (remaining <= 0) break;
+          const upTo = band.upToCents || Infinity;
+          const amountInBand = Math.min(remaining, upTo);
+          tax += Math.round(amountInBand * (band.rate || 0));
+          remaining -= amountInBand;
+        }
+      }
 
-    const reliefRule = getRule("RELIEF");
-    let relief = 0;
-    let reliefRuleId = undefined;
-    if (reliefRule) {
-      relief = JSON.parse(reliefRule.parametersJson).amountCents;
-      reliefRuleId = reliefRule.id;
-    }
+      const reliefRule = getRule("RELIEF");
+      let relief = 0;
+      if (reliefRule) {
+        relief = calculateRule(reliefRule, grossCents); // RELIEF is usually flat_amount
+      }
 
-    payeCents = Math.max(0, tax - relief);
-    lines.push({
-      type: "deduction",
-      subType: "PAYE",
-      amountCents: payeCents,
-      isDeduction: true,
-      statutoryRuleId: payeRule.id
-    });
+      payeCents = Math.max(0, (Number.isNaN(tax) ? 0 : tax) - relief);
+      lines.push({
+        type: "deduction",
+        subType: "PAYE",
+        amountCents: payeCents,
+        isDeduction: true,
+        statutoryRuleId: payeRule.id
+      });
+    } catch {
+      // ignore
+    }
   }
 
   // 7. SHIF (Post-tax)
   let shifCents = 0;
   const shifRule = getRule("SHIF");
   if (shifRule) {
-    const params = JSON.parse(shifRule.parametersJson);
-    shifCents = Math.round(grossCents * params.rate);
+    shifCents = calculateRule(shifRule, grossCents);
     lines.push({
       type: "deduction",
       subType: "SHIF",
