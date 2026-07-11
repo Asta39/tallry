@@ -1,4 +1,4 @@
-import { db, documents, documentLines, contacts, payments, bankAccounts } from "@/db";
+import { db, documents, documentLines, contacts, payments, bankAccounts, paymentGateways } from "@/db";
 import { and, eq } from "drizzle-orm";
 import { getOrg } from "@/lib/org";
 import { notFound } from "next/navigation";
@@ -28,6 +28,8 @@ export async function DocDetail({ id, printHref }: { id: number; printHref?: str
     : null;
   const pays = await db.select().from(payments).where(and(eq(payments.orgId, orgId), eq(payments.documentId, id)));
   const banks = await db.select().from(bankAccounts).where(eq(bankAccounts.orgId, orgId));
+  const gateways = await db.select().from(paymentGateways).where(and(eq(paymentGateways.orgId, orgId), eq(paymentGateways.enabled, true))).limit(1);
+  const gatewayConnected = gateways.length > 0;
 
   return (
     <>
@@ -52,6 +54,8 @@ export async function DocDetail({ id, printHref }: { id: number; printHref?: str
         }}
         bankAccounts={banks.map((b) => ({ id: b.id, label: b.name }))}
         printHref={printHref}
+        gatewayConnected={gatewayConnected}
+        contactPhone={contact?.phone || ""}
       />
 
       <div className="card mt-5 overflow-x-auto">

@@ -545,6 +545,7 @@ async function _recordPayment(data: {
   revalidatePath("/sales");
   revalidatePath("/purchases");
   revalidatePath("/");
+  return p.id;
 }
 
 /* ---------------- Notifications ---------------- */

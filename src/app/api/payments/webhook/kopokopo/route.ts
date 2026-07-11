@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { getGateway } from "@/lib/payments/gateway";
 import { matchPayment } from "@/lib/payments/match";
 import { recordPayment } from "@/lib/actions";
+import { sendPaymentReceipt } from "@/lib/email/receipts";
 
 export async function POST(req: Request) {
   try {
@@ -51,7 +52,7 @@ export async function POST(req: Request) {
 
     if (matchedInvoiceId) {
       status = "applied";
-      await recordPayment({
+      const paymentId = await recordPayment({
         documentId: matchedInvoiceId,
         amountCents: inbound.amountCents,
         method: "kopokopo",
@@ -59,6 +60,9 @@ export async function POST(req: Request) {
         date: new Date().toISOString().split("T")[0],
         direction: "in",
       });
+      if (paymentId) {
+        await sendPaymentReceipt(paymentId).catch(e => console.error("Receipt failed:", e));
+      }
     } else {
       status = "unmatched";
     }

@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { getGateway } from "@/lib/payments/gateway";
 import { matchPayment } from "@/lib/payments/match";
 import { recordPayment } from "@/lib/actions";
+import { sendPaymentReceipt } from "@/lib/email/receipts";
 
 export async function POST(req: Request) {
   try {
@@ -55,7 +56,7 @@ export async function POST(req: Request) {
     if (matchedInvoiceId) {
       status = "applied";
       // Apply payment to invoice
-      const paymentResult = await recordPayment({
+      const paymentId = await recordPayment({
         documentId: matchedInvoiceId,
         amountCents: inbound.amountCents,
         method: "mpesa",
@@ -63,8 +64,9 @@ export async function POST(req: Request) {
         date: new Date().toISOString().split("T")[0], // YYYY-MM-DD
         direction: "in",
       });
-      // We don't get the payment ID back directly from recordPayment in its current form usually, 
-      // but if we do, we could save it.
+      if (paymentId) {
+        await sendPaymentReceipt(paymentId).catch(e => console.error("Receipt failed:", e));
+      }
     } else {
       status = "unmatched";
     }

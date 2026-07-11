@@ -32,13 +32,14 @@ export const MODULES: { key: string; label: string }[] = [
   { key: "reports", label: "Reports" },
   { key: "settings", label: "Settings" },
   { key: "staff", label: "Staff & roles" },
+  { key: "can_payout", label: "Gateway Payouts" },
 ];
 
 const ALL = MODULES.map((m) => m.key);
 
 export const DEFAULT_ROLE_PERMS: Record<Role, string[]> = {
   admin: ALL,
-  accountant: ALL.filter((k) => !["staff", "settings"].includes(k)),
+  accountant: ALL.filter((k) => !["staff", "settings", "can_payout"].includes(k)),
   sales: ["dashboard", "contacts", "pipeline", "quotes", "invoices", "credit_notes", "items"],
   hr: ["dashboard", "contacts", "reports", "payroll"],
   inventory: ["dashboard", "items", "purchase_orders", "bills", "contacts"],

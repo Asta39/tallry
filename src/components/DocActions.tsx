@@ -11,9 +11,8 @@ import {
   createCreditNoteFromInvoice,
 } from "@/lib/actions";
 import { writeOffInvoice } from "@/lib/phase-a-actions";
-import {
-  convertPoToBill,
-} from "@/lib/actions";
+import { convertPoToBill } from "@/lib/actions";
+import { requestPaymentAction, payOutAction } from "@/lib/payments/actions";
 import { fmtKES, parseKES, todayISO } from "@/lib/money";
 
 const btn =
@@ -36,6 +35,8 @@ export function DocActions({
   };
   bankAccounts: { id: number; label: string }[];
   printHref?: string;
+  gatewayConnected?: boolean;
+  contactPhone?: string;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -46,6 +47,13 @@ export function DocActions({
   const [bankId, setBankId] = useState<number | "">(bankAccounts[0]?.id ?? "");
   const [reference, setReference] = useState("");
   const [error, setError] = useState<string | null>(null);
+
+  // Gateway states
+  const [showRequestPayment, setShowRequestPayment] = useState(false);
+  const [showPayout, setShowPayout] = useState(false);
+  const [gwPhone, setGwPhone] = useState(contactPhone || "");
+  const [gwAmount, setGwAmount] = useState(((doc.totalCents - doc.paidCents) / 100).toFixed(2));
+  const [gwDestType, setGwDestType] = useState<"phone" | "till" | "paybill">("phone");
 
   const run = (fn: () => Promise<unknown>) => {
     setError(null);
@@ -85,6 +93,16 @@ export function DocActions({
         {payable && (
           <button className={primary} disabled={pending} onClick={() => setShowPay((v) => !v)}>
             Record payment
+          </button>
+        )}
+        {payable && doc.type === "invoice" && gatewayConnected && (
+          <button className={primary} disabled={pending} onClick={() => setShowRequestPayment((v) => !v)}>
+            Request via M-Pesa (STK)
+          </button>
+        )}
+        {payable && ["bill", "expense"].includes(doc.type) && gatewayConnected && (
+          <button className={primary} disabled={pending} onClick={() => setShowPayout((v) => !v)}>
+            Pay via Gateway
           </button>
         )}
         {isQuote && doc.status === "open" && (
@@ -247,6 +265,77 @@ export function DocActions({
               Balance due: {fmtKES(doc.totalCents - doc.paidCents)}
               {doc.type === "invoice" && " · If the customer withheld tax, enter the WHT amount — it counts as paid."}
             </span>
+          </div>
+        </div>
+      )}
+
+      {showRequestPayment && (
+        <div className="card p-4 grid grid-cols-2 lg:grid-cols-4 gap-3 items-end border-[var(--color-accent-200)] bg-[var(--color-accent-50)]/50">
+          <label className="block">
+            <span className="text-[12px] font-medium text-[var(--color-ink-600)]">Customer Phone</span>
+            <input className={inputCls + " w-full mt-1"} placeholder="2547..." value={gwPhone} onChange={(e) => setGwPhone(e.target.value)} />
+          </label>
+          <label className="block">
+            <span className="text-[12px] font-medium text-[var(--color-ink-600)]">Amount (KSh)</span>
+            <input className={inputCls + " w-full mt-1"} value={gwAmount} onChange={(e) => setGwAmount(e.target.value)} />
+          </label>
+          <div className="col-span-full flex items-center gap-3">
+            <button
+              className={primary}
+              disabled={pending}
+              onClick={() =>
+                run(async () => {
+                  const amt = parseKES(gwAmount);
+                  if (!amt || amt <= 0) throw new Error("Enter a valid amount");
+                  if (!gwPhone) throw new Error("Enter phone number");
+                  await requestPaymentAction(doc.id, gwPhone, amt);
+                  setShowRequestPayment(false);
+                  alert("Payment request sent to customer's phone!");
+                })
+              }
+            >
+              {pending ? "Sending…" : "Send STK Push"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {showPayout && (
+        <div className="card p-4 grid grid-cols-2 lg:grid-cols-4 gap-3 items-end border-[var(--color-accent-200)] bg-[var(--color-accent-50)]/50">
+          <label className="block">
+            <span className="text-[12px] font-medium text-[var(--color-ink-600)]">Destination Type</span>
+            <select className={inputCls + " w-full mt-1"} value={gwDestType} onChange={(e) => setGwDestType(e.target.value as any)}>
+              <option value="phone">Mobile Number (B2C)</option>
+              <option value="till">Till Number (Buy Goods)</option>
+              <option value="paybill">Paybill Number</option>
+            </select>
+          </label>
+          <label className="block">
+            <span className="text-[12px] font-medium text-[var(--color-ink-600)]">Destination (Phone/Till/Paybill)</span>
+            <input className={inputCls + " w-full mt-1"} value={gwPhone} onChange={(e) => setGwPhone(e.target.value)} />
+          </label>
+          <label className="block">
+            <span className="text-[12px] font-medium text-[var(--color-ink-600)]">Amount (KSh)</span>
+            <input className={inputCls + " w-full mt-1"} value={gwAmount} onChange={(e) => setGwAmount(e.target.value)} />
+          </label>
+          <div className="col-span-full flex items-center gap-3">
+            <button
+              className={primary}
+              disabled={pending}
+              onClick={() =>
+                run(async () => {
+                  if (!confirm("Are you sure you want to send this payout? Real money will be moved immediately.")) return;
+                  const amt = parseKES(gwAmount);
+                  if (!amt || amt <= 0) throw new Error("Enter a valid amount");
+                  if (!gwPhone) throw new Error("Enter destination");
+                  await payOutAction(doc.id, gwPhone, gwDestType, amt);
+                  setShowPayout(false);
+                  alert("Payout dispatched successfully!");
+                })
+              }
+            >
+              {pending ? "Processing…" : "Confirm Payout"}
+            </button>
           </div>
         </div>
       )}
