@@ -106,7 +106,7 @@ export default async function Dashboard({
       </div>
 
       {/* Chart + calendar */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 mt-4 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 mt-4 items-stretch">
         <div className="lg:col-span-3">
           <IncomeExpenseChart data={chartData} />
         </div>

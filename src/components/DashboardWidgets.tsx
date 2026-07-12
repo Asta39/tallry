@@ -14,7 +14,7 @@ export function IncomeExpenseChart({
 }) {
   const max = Math.max(1, ...data.flatMap((d) => [d.incomeCents, d.expenseCents]));
   return (
-    <div className="card p-5">
+    <div className="card p-5 h-full">
       <div className="flex items-center justify-between mb-4">
         <div className="text-[13.5px] font-semibold">Income vs spending</div>
         <div className="flex items-center gap-4 text-[11px] text-[var(--color-ink-400)]">
@@ -191,7 +191,7 @@ export function CalendarWidget({ events }: { events: CalEvent[] }) {
   const selectedEvents = eventDates.get(selected) ?? [];
 
   return (
-    <div className="card p-5">
+    <div className="card p-5 h-full">
       <div className="flex items-center justify-between mb-3">
         <div className="text-[13.5px] font-semibold">Calendar</div>
         <div className="flex items-center gap-1 text-[13px]">
