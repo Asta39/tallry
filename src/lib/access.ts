@@ -15,6 +15,7 @@ export type Role = (typeof ROLES)[number];
 
 export const MODULES: { key: string; label: string }[] = [
   { key: "dashboard", label: "Home dashboard" },
+  { key: "dashboard_metrics", label: "Dashboard Metrics & Overviews" },
   { key: "contacts", label: "Customers & Vendors" },
   { key: "pipeline", label: "Deals pipeline" },
   { key: "quotes", label: "Quotes" },

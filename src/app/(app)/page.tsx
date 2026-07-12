@@ -24,16 +24,17 @@ export default async function Dashboard({
 
   const access = await getAccessCached();
   const viewAll = access ? canViewAllData(access) : true;
+  const viewMetrics = access ? (viewAll || access.perms.has("dashboard_metrics")) : true;
 
   // All independent — fire in parallel
   const [stats, chartData, overview, recentDocs, todoRows, eventRows] =
     await Promise.all([
-      viewAll ? withOrg(() => dashboardStats(today)) : Promise.resolve({
+      viewMetrics ? withOrg(() => dashboardStats(today)) : Promise.resolve({
         cashCents: 0, receivablesCents: 0, overdueReceivablesCents: 0, payablesCents: 0,
         incomeThisMonthCents: 0, expensesThisMonthCents: 0, netVatDueCents: 0
       }),
-      viewAll ? withOrg(() => monthlyIncomeExpense(6)) : Promise.resolve([]),
-      viewAll ? withOrg(() => docStatusOverview(year)) : Promise.resolve({ 
+      viewMetrics ? withOrg(() => monthlyIncomeExpense(6)) : Promise.resolve([]),
+      viewMetrics ? withOrg(() => docStatusOverview(year)) : Promise.resolve({ 
         inv: { draft: 0, open: 0, partial: 0, overdue: 0, paid: 0, void: 0 }, 
         invTotal: 0, 
         qt: { draft: 0, open: 0, accepted: 0, declined: 0 }, 
@@ -79,24 +80,24 @@ export default async function Dashboard({
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="Cash & M-Pesa" hint="across all money accounts" cents={viewAll ? stats.cashCents : undefined} emptyHint={!viewAll ? "Hidden (restricted)" : undefined} />
+        <StatCard label="Cash & M-Pesa" hint="across all money accounts" cents={viewMetrics ? stats.cashCents : undefined} emptyHint={!viewMetrics ? "Hidden (restricted)" : undefined} />
         <StatCard
           label="Money you're owed"
           hint={
-            !viewAll ? "Hidden (restricted)" :
+            !viewMetrics ? "Hidden (restricted)" :
             stats.overdueReceivablesCents > 0
               ? `${fmtKES(stats.overdueReceivablesCents)} overdue`
               : "accounts receivable"
           }
-          cents={viewAll ? stats.receivablesCents : undefined}
-          tone={viewAll && stats.overdueReceivablesCents > 0 ? "warn" : "neutral"}
+          cents={viewMetrics ? stats.receivablesCents : undefined}
+          tone={viewMetrics && stats.overdueReceivablesCents > 0 ? "warn" : "neutral"}
         />
-        <StatCard label="Money you owe" hint={!viewAll ? "Hidden (restricted)" : "accounts payable"} cents={viewAll ? stats.payablesCents : undefined} />
+        <StatCard label="Money you owe" hint={!viewMetrics ? "Hidden (restricted)" : "accounts payable"} cents={viewMetrics ? stats.payablesCents : undefined} />
         <StatCard
           label="VAT due to KRA"
-          hint={!viewAll ? "Hidden (restricted)" : "this month so far"}
-          cents={viewAll ? stats.netVatDueCents : undefined}
-          tone={viewAll && stats.netVatDueCents > 0 ? "warn" : "good"}
+          hint={!viewMetrics ? "Hidden (restricted)" : "this month so far"}
+          cents={viewMetrics ? stats.netVatDueCents : undefined}
+          tone={viewMetrics && stats.netVatDueCents > 0 ? "warn" : "good"}
         />
       </div>
 
