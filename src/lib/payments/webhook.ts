@@ -81,6 +81,7 @@ export async function handleGatewayWebhook(req: Request, gatewayId: GatewayId): 
 }
 
 async function applyInbound(orgId: number, gatewayId: GatewayId, inbound: InboundPayment): Promise<WebhookOutcome> {
+  const direction = inbound.direction ?? "in";
   // 1. Reconcile against a pending STK-push event when we have the request ref.
   //    The conditional UPDATE (status = 'pending') is atomic: only one
   //    concurrent delivery wins the row; losers see zero rows and stop.
@@ -107,6 +108,12 @@ async function applyInbound(orgId: number, gatewayId: GatewayId, inbound: Inboun
       claimed = row;
       pendingAmountCents = row.amountCents;
     }
+  }
+
+  // Payout results must reconcile against a pending event we created at
+  // initiation — an unsolicited "payout succeeded" callback is meaningless.
+  if (direction === "out" && !claimed) {
+    return { kind: "duplicate" };
   }
 
   // 2. No pending row (unsolicited C2B, or a retry after the pending row was
@@ -139,8 +146,10 @@ async function applyInbound(orgId: number, gatewayId: GatewayId, inbound: Inboun
     return { kind: "processed", status: "amount_mismatch" };
   }
 
-  // 4. Match: pending rows carry the invoice they were pushed for.
-  const matchedInvoiceId = claimed.matchedDocumentId ?? (await matchPayment(orgId, inbound));
+  // 4. Match: pending rows carry the document they were initiated for.
+  //    Auto-matching by phone/ref only makes sense for incoming money.
+  const matchedInvoiceId = claimed.matchedDocumentId
+    ?? (direction === "in" ? await matchPayment(orgId, inbound) : null);
 
   if (!matchedInvoiceId) {
     await db.update(paymentEvents).set({ status: "unmatched" }).where(eq(paymentEvents.id, claimed.id));
@@ -156,12 +165,12 @@ async function applyInbound(orgId: number, gatewayId: GatewayId, inbound: Inboun
       method: gatewayId === "mpesa_daraja" ? "mpesa" : "kopokopo",
       reference: inbound.providerRef,
       date: new Date().toISOString().split("T")[0],
-      direction: "in",
+      direction,
     });
     await db.update(paymentEvents)
       .set({ status: "applied", matchedDocumentId: matchedInvoiceId, paymentId })
       .where(eq(paymentEvents.id, claimed.id));
-    if (paymentId) {
+    if (paymentId && direction === "in") {
       await sendPaymentReceipt(paymentId).catch(e => console.error("Receipt failed:", e));
     }
     return { kind: "processed", status: "applied" };

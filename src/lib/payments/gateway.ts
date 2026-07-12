@@ -38,6 +38,8 @@ export interface PaymentGateway {
 
 export interface InboundPayment {
   providerRef: string;      // idempotency key (M-Pesa receipt / KK id)
+  /** "in" = customer payment received, "out" = payout result. Default "in". */
+  direction?: "in" | "out";
   amountCents: number;
   payerPhone?: string;
   payerName?: string;

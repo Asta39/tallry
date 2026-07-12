@@ -26,6 +26,8 @@ export async function savePaymentGatewayAction(formData: FormData) {
         consumerSecret: formData.get("consumerSecret") as string,
         shortcode: formData.get("shortcode") as string,
         passkey: formData.get("passkey") as string,
+        initiatorName: formData.get("initiatorName") as string,
+        securityCredential: formData.get("securityCredential") as string,
       };
     } else if (gatewayId === "kopokopo") {
       config = {
@@ -48,6 +50,8 @@ export async function savePaymentGatewayAction(formData: FormData) {
         config.consumerSecret = config.consumerSecret || oldConfig.consumerSecret;
         config.passkey = config.passkey || oldConfig.passkey;
         config.shortcode = config.shortcode || oldConfig.shortcode;
+        config.initiatorName = config.initiatorName || oldConfig.initiatorName;
+        config.securityCredential = config.securityCredential || oldConfig.securityCredential;
       } else if (gatewayId === "kopokopo") {
         config.clientId = config.clientId || oldConfig.clientId;
         config.clientSecret = config.clientSecret || oldConfig.clientSecret;

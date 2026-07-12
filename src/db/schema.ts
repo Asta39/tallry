@@ -555,6 +555,7 @@ export const paymentEvents = pgTable("payment_events", {
   payerPhone: text("payer_phone"),
   payerName: text("payer_name"),
   accountRef: text("account_ref"),
+  direction: text("direction").notNull().default("in"), // in (customer payment) | out (payout)
   status: text("status").notNull().default("received"), // pending | received | matched | unmatched | applied | failed | amount_mismatch
   matchedDocumentId: integer("matched_document_id"), // if matched to invoice
   paymentId: integer("payment_id"), // if applied (points to customer_payments)

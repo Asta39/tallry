@@ -5,6 +5,11 @@ import { decryptConfig } from "./crypto";
 const SANDBOX_BASE = "https://sandbox.kopokopo.com";
 const PROD_BASE = "https://app.kopokopo.com";
 
+function resourceIdFromLocation(location: string): string {
+  const segments = new URL(location).pathname.split("/").filter(Boolean);
+  return segments[segments.length - 1] || location;
+}
+
 export function getKopoKopoGateway(orgConfig: GatewayOrgConfig): PaymentGateway {
   const config = decryptConfig(orgConfig.configJson);
   const baseUrl = orgConfig.environment === "production" ? PROD_BASE : SANDBOX_BASE;
@@ -71,16 +76,80 @@ export function getKopoKopoGateway(orgConfig: GatewayOrgConfig): PaymentGateway 
         throw new Error(`Kopo Kopo STK push failed: ${err}`);
       }
 
-      // Kopo Kopo returns 201 Created with a Location header pointing to the resource
+      // Kopo Kopo returns 201 Created with a Location header pointing to the
+      // resource; its last path segment is the resource id echoed back as
+      // data.id in the status callback — store that so we can reconcile.
       const location = res.headers.get("Location");
       if (!location) {
         throw new Error("Kopo Kopo STK push succeeded but returned no Location header");
       }
-      return { providerRef: location };
+      return { providerRef: resourceIdFromLocation(location) };
     },
 
     async payOut(input) {
-      throw new Error("Kopo Kopo Payouts not yet implemented");
+      if (input.destinationType !== "phone") {
+        throw new Error("Only phone (mobile wallet) payouts are supported for Kopo Kopo currently");
+      }
+      const token = await getAccessToken();
+
+      // 1. Create (or re-create) a mobile-wallet recipient
+      const recipientRes = await fetch(`${baseUrl}/api/v1/pay_recipients`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          type: "mobile_wallet",
+          pay_recipient: {
+            first_name: "Vendor",
+            last_name: input.accountRef || "Payout",
+            phone_number: input.destination,
+            network: "Safaricom",
+          },
+        }),
+      });
+      if (!recipientRes.ok) {
+        const err = await recipientRes.text();
+        throw new Error(`Kopo Kopo recipient creation failed: ${err}`);
+      }
+      const recipientLocation = recipientRes.headers.get("Location");
+      if (!recipientLocation) throw new Error("Kopo Kopo recipient creation returned no Location header");
+      const recipientRef = resourceIdFromLocation(recipientLocation);
+
+      // 2. Initiate the payment to that recipient
+      const payRes = await fetch(`${baseUrl}/api/v1/payments`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          destination_type: "mobile_wallet",
+          destination_reference: recipientRef,
+          amount: {
+            currency: "KES",
+            value: Math.floor(input.amountCents / 100),
+          },
+          description: input.reason.slice(0, 255),
+          metadata: {
+            accountRef: input.accountRef,
+            orgId: orgConfig.orgId,
+          },
+          _links: {
+            callback_url: `${appBaseUrl()}/api/payments/webhook/kopokopo?orgId=${orgConfig.orgId}`,
+          },
+        }),
+      });
+      if (!payRes.ok) {
+        const err = await payRes.text();
+        throw new Error(`Kopo Kopo payout failed: ${err}`);
+      }
+      const payLocation = payRes.headers.get("Location");
+      if (!payLocation) throw new Error("Kopo Kopo payout returned no Location header");
+      return { providerRef: resourceIdFromLocation(payLocation) };
     },
 
     async parseInbound(req: Request) {
@@ -102,6 +171,44 @@ export function getKopoKopoGateway(orgConfig: GatewayOrgConfig): PaymentGateway 
       }
 
       const body = JSON.parse(rawBody);
+
+      // STK push / payout status callbacks use the data.type envelope
+      // (unlike webhook subscriptions which use topic).
+      if (body.data?.type === "incoming_payment") {
+        const attrs = body.data.attributes || {};
+        const resource = attrs.event?.resource;
+        const requestRef = body.data.id;
+        if (attrs.status !== "Success" || !resource) {
+          return requestRef ? { failed: true as const, requestRef, raw: body } : null;
+        }
+        return {
+          providerRef: resource.reference,
+          amountCents: Math.round(Number(resource.amount) * 100),
+          payerPhone: resource.sender_phone_number,
+          payerName: [resource.sender_first_name, resource.sender_last_name].filter(Boolean).join(" ") || undefined,
+          accountRef: attrs.metadata?.accountRef,
+          requestRef,
+          paidAt: resource.origination_time || new Date().toISOString(),
+          raw: body,
+        };
+      }
+
+      if (body.data?.type === "payment") {
+        const attrs = body.data.attributes || {};
+        const resource = attrs.event?.resource;
+        const requestRef = body.data.id;
+        if (attrs.status !== "Transferred" || !resource) {
+          return requestRef ? { failed: true as const, requestRef, raw: body } : null;
+        }
+        return {
+          providerRef: resource.reference || `kk_pay_${requestRef}`,
+          direction: "out" as const,
+          amountCents: Math.round(Number(resource.amount) * 100),
+          requestRef,
+          paidAt: resource.origination_time || new Date().toISOString(),
+          raw: body,
+        };
+      }
 
       if (body.topic === "buygoods_transaction_received") {
         const event = body.event;

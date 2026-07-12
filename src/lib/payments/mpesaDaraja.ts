@@ -67,11 +67,82 @@ export function getMpesaDarajaGateway(orgConfig: GatewayOrgConfig): PaymentGatew
     },
 
     async payOut(input) {
-      throw new Error("B2C Payouts not yet implemented for M-Pesa");
+      if (input.destinationType !== "phone") {
+        throw new Error("Only phone (B2C) payouts are supported for M-Pesa currently");
+      }
+      if (!config.initiatorName || !config.securityCredential) {
+        throw new Error("M-Pesa payouts require Initiator Name and Security Credential — add them in Settings → Payment Gateways");
+      }
+      if (input.amountCents % 100 !== 0) {
+        throw new Error("M-Pesa payouts must be a whole shilling amount");
+      }
+
+      const token = await getAccessToken();
+      const cbToken = orgConfig.webhookSecret ? `&token=${orgConfig.webhookSecret}` : "";
+      const resultUrl = `${appBaseUrl()}/api/payments/webhook/mpesa_daraja?orgId=${orgConfig.orgId}${cbToken}`;
+
+      const res = await fetch(`${baseUrl}/mpesa/b2c/v1/paymentrequest`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          InitiatorName: config.initiatorName,
+          SecurityCredential: config.securityCredential,
+          CommandID: "BusinessPayment",
+          Amount: input.amountCents / 100,
+          PartyA: shortcode,
+          PartyB: input.destination.replace("+", ""),
+          Remarks: input.reason.slice(0, 100),
+          QueueTimeOutURL: resultUrl,
+          ResultURL: resultUrl,
+          Occasion: (input.accountRef || "").slice(0, 100),
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.text();
+        throw new Error(`M-Pesa B2C payout failed: ${err}`);
+      }
+
+      const data = await res.json();
+      if (!data.ConversationID) {
+        throw new Error(`M-Pesa B2C returned no ConversationID: ${JSON.stringify(data)}`);
+      }
+      return { providerRef: data.ConversationID };
     },
 
     async parseInbound(req: Request) {
       const body = await req.json();
+
+      // B2C payout results arrive under Result (ResultURL/QueueTimeOutURL)
+      const result = body?.Result;
+      if (result) {
+        const requestRef = result.ConversationID;
+        if (!requestRef) return null;
+
+        if (result.ResultCode !== 0) {
+          return { failed: true as const, requestRef, raw: body };
+        }
+
+        const params = result.ResultParameters?.ResultParameter || [];
+        const getParam = (key: string) => params.find((p: any) => p.Key === key)?.Value;
+        const amount = getParam("TransactionAmount");
+        const receipt = getParam("TransactionReceipt") || result.TransactionID;
+        if (!receipt) return null;
+
+        return {
+          providerRef: String(receipt),
+          direction: "out" as const,
+          amountCents: Math.round(Number(amount) * 100),
+          payerName: getParam("ReceiverPartyPublicName") ? String(getParam("ReceiverPartyPublicName")) : undefined,
+          requestRef,
+          paidAt: new Date().toISOString(),
+          raw: body,
+        };
+      }
+
       // Safaricom nests STK push results under Body.stkCallback
       const callback = body?.Body?.stkCallback;
       if (!callback) return null;

@@ -82,6 +82,14 @@ export function PaymentGatewayForm({ gateways }: { gateways: any[] }) {
                   <label className="block text-sm font-medium mb-1">Passkey</label>
                   <input name="passkey" type="password" placeholder="Masked" className="w-full h-10 px-3 rounded-lg border border-[var(--color-ink-200)] focus:border-[var(--color-brand-500)] outline-none text-sm" />
                 </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Initiator Name (for payouts)</label>
+                  <input name="initiatorName" defaultValue={mpesa.config?.initiatorName} placeholder="B2C API operator username" className="w-full h-10 px-3 rounded-lg border border-[var(--color-ink-200)] focus:border-[var(--color-brand-500)] outline-none text-sm" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Security Credential (for payouts)</label>
+                  <input name="securityCredential" type="password" placeholder="Masked — encrypted initiator password" className="w-full h-10 px-3 rounded-lg border border-[var(--color-ink-200)] focus:border-[var(--color-brand-500)] outline-none text-sm" />
+                </div>
               </div>
             </>
           )}

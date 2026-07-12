@@ -76,6 +76,7 @@ export async function payOutAction(documentId: number, destination: string, dest
     const o = await getOrg();
 
     if (!Number.isInteger(amountCents) || amountCents <= 0) return { error: "Invalid amount" };
+    if (amountCents % 100 !== 0) return { error: "Payouts must be a whole shilling amount" };
 
     const [doc] = await db.select().from(documents).where(and(eq(documents.id, documentId), eq(documents.orgId, o.id)));
     if (!doc) return { error: "Document not found" };
@@ -93,13 +94,29 @@ export async function payOutAction(documentId: number, destination: string, dest
 
     const gateway = getGateway(gwConfig);
 
-    await gateway.payOut({
+    const result = await gateway.payOut({
       destination,
       destinationType,
       amountCents,
       accountRef: doc.number,
       reason: `Payout for ${doc.type} ${doc.number}`
     });
+
+    // Pending outbound event: the gateway's result callback reconciles
+    // against this row and only then records the money as paid out.
+    await db.insert(paymentEvents).values({
+      orgId: o.id,
+      gatewayId,
+      providerRef: result.providerRef,
+      direction: "out",
+      amountCents,
+      payerPhone: destinationType === "phone" ? destination : undefined,
+      accountRef: doc.number,
+      status: "pending",
+      matchedDocumentId: documentId,
+      rawJson: JSON.stringify({ payoutRef: result.providerRef, destination, destinationType, amountCents }),
+      createdAt: new Date().toISOString(),
+    }).onConflictDoNothing({ target: [paymentEvents.gatewayId, paymentEvents.providerRef] });
 
     return { success: true };
   } catch (err: any) {
