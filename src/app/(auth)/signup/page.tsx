@@ -168,6 +168,13 @@ export default function SignupPage() {
             >
               {pending ? "Creating account…" : "Create account"}
             </button>
+
+            <p className="text-center text-[11px] text-[var(--color-ink-400)] mt-3">
+              By creating an account you agree to our{" "}
+              <a href="/terms" target="_blank" className="underline hover:text-[var(--color-ink-600)]">Terms of Service</a>{" "}
+              and{" "}
+              <a href="/privacy" target="_blank" className="underline hover:text-[var(--color-ink-600)]">Privacy Policy</a>.
+            </p>
           </form>
         )}
 
@@ -186,6 +193,9 @@ export default function SignupPage() {
 
       <p className="text-center text-[11.5px] text-[var(--color-ink-400)] mt-5">
         KRA-ready accounting for Kenyan businesses.
+      </p>
+      <p className="text-center text-[11px] text-[var(--color-ink-400)] mt-2">
+        <a href="/privacy" className="hover:underline">Privacy Policy</a> · <a href="/terms" className="hover:underline">Terms of Service</a>
       </p>
     </div>
   );

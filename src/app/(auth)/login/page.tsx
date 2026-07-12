@@ -142,6 +142,9 @@ export default function LoginPage() {
       <p className="text-center text-[11.5px] text-[var(--color-ink-400)] mt-5">
         KRA-ready accounting for Kenyan businesses.
       </p>
+      <p className="text-center text-[11px] text-[var(--color-ink-400)] mt-2">
+        <a href="/privacy" className="hover:underline">Privacy Policy</a> · <a href="/terms" className="hover:underline">Terms of Service</a>
+      </p>
     </div>
   );
 }

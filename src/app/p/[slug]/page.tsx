@@ -81,7 +81,9 @@ export default async function PortalPage(props: { params: Promise<{ slug: string
           ))}
         </div>
       )}
-      <div className="text-center text-[11px] text-gray-400 mt-8">Powered by Tallry</div>
+      <div className="text-center text-[11px] text-gray-400 mt-8">
+        Powered by Tallry · <a href="/privacy" className="hover:text-gray-600">Privacy</a> · <a href="/terms" className="hover:text-gray-600">Terms</a>
+      </div>
     </Shell>
   );
 }

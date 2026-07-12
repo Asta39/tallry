@@ -4,6 +4,8 @@ import { NextResponse, type NextRequest } from "next/server";
 /** Public paths that don't require authentication */
 const PUBLIC_PATHS = [
   "/login", "/signup", "/auth/callback", "/forgot-password", "/update-password",
+  // Legal pages — must be readable by anyone (Kenya DPA transparency)
+  "/privacy", "/terms",
   // PWA assets must be reachable without auth
   "/manifest.webmanifest", "/app-icon", "/sw.js",
 ];
