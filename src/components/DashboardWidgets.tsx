@@ -14,7 +14,7 @@ export function IncomeExpenseChart({
 }) {
   const max = Math.max(1, ...data.flatMap((d) => [d.incomeCents, d.expenseCents]));
   return (
-    <div className="card p-5 h-full">
+    <div className="card p-5 h-full flex flex-col">
       <div className="flex items-center justify-between mb-4">
         <div className="text-[13.5px] font-semibold">Income vs spending</div>
         <div className="flex items-center gap-4 text-[11px] text-[var(--color-ink-400)]">
@@ -26,10 +26,10 @@ export function IncomeExpenseChart({
           </span>
         </div>
       </div>
-      <div className="flex items-end gap-2 sm:gap-4 h-40">
+      <div className="flex items-end gap-2 sm:gap-4 flex-1 min-h-[10rem]">
         {data.map((d) => (
-          <div key={d.label} className="flex-1 flex flex-col items-center gap-1 min-w-0">
-            <div className="w-full flex items-end justify-center gap-1 h-32">
+          <div key={d.label} className="flex-1 flex flex-col items-center min-w-0 h-full">
+            <div className="w-full flex items-end justify-center gap-1 flex-1">
               <div
                 className="w-3 sm:w-5 rounded-t bg-[var(--color-accent-500)] transition-all"
                 style={{ height: `${Math.max(2, (d.incomeCents / max) * 100)}%` }}
@@ -41,7 +41,7 @@ export function IncomeExpenseChart({
                 title={`Spending ${fmtKESCompact(d.expenseCents)}`}
               />
             </div>
-            <div className="text-[10.5px] text-[var(--color-ink-400)]">{d.label}</div>
+            <div className="text-[10.5px] text-[var(--color-ink-400)] mt-1">{d.label}</div>
           </div>
         ))}
       </div>
