@@ -2,7 +2,7 @@
 
 import { requirePerm } from "@/lib/guard";
 import { getGateway } from "@/lib/payments/gateway";
-import { db, documents, paymentGateways } from "@/db";
+import { db, documents, paymentGateways, paymentEvents } from "@/db";
 import { eq, and } from "drizzle-orm";
 import { getOrg } from "@/lib/org";
 
@@ -24,11 +24,28 @@ export async function requestPaymentAction(documentId: number, phone: string, am
 
     const gateway = await getGateway(gwConfig);
     
-    await gateway.requestPayment({
+    const result = await gateway.requestPayment({
       phone,
       amountCents,
       accountRef: doc.number,
       description: `Payment for Invoice ${doc.number}`
+    });
+
+    // Save a pending payment event linked to this specific invoice.
+    // When the webhook callback arrives, it will look up this pending event
+    // by providerRef (CheckoutRequestID for Daraja, Location for KopoKopo)
+    // and immediately know which invoice to apply the payment to.
+    await db.insert(paymentEvents).values({
+      orgId: o.id,
+      gatewayId,
+      providerRef: result.providerRef, // CheckoutRequestID (Daraja) or Location URL (KopoKopo)
+      amountCents,
+      payerPhone: phone,
+      accountRef: doc.number,
+      status: "pending",
+      matchedDocumentId: documentId,
+      rawJson: JSON.stringify({ stkPushRef: result.providerRef, phone, amountCents }),
+      createdAt: new Date().toISOString(),
     });
     
     return { success: true };
@@ -68,3 +85,4 @@ export async function payOutAction(documentId: number, destination: string, dest
     return { error: err.message || "Failed to process payout" };
   }
 }
+

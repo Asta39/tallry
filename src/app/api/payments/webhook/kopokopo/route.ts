@@ -40,15 +40,51 @@ export async function POST(req: Request) {
       return NextResponse.json({ status: "ignored" });
     }
 
-    // Idempotency
-    const existing = await db.select().from(paymentEvents).where(eq(paymentEvents.providerRef, inbound.providerRef));
+    // ── Idempotency — check if already processed ──
+    const existing = await db.select().from(paymentEvents)
+      .where(
+        and(
+          eq(paymentEvents.providerRef, inbound.providerRef),
+          eq(paymentEvents.status, "applied")
+        )
+      );
     if (existing.length > 0) {
       return NextResponse.json({ status: "already_processed" });
     }
 
-    const matchedInvoiceId = await matchPayment(orgId, inbound);
+    // ── Look for a pending STK push event we initiated ──
+    // For Kopo Kopo, the pending event has providerRef = Location URL from 201 Created.
+    // The callback has a different providerRef (the M-Pesa receipt number).
+    // We match by accountRef (invoice number) + pending status + same org.
+    let pendingEvent = null;
+    if (inbound.accountRef) {
+      const [found] = await db
+        .select()
+        .from(paymentEvents)
+        .where(
+          and(
+            eq(paymentEvents.orgId, orgId),
+            eq(paymentEvents.gatewayId, "kopokopo"),
+            eq(paymentEvents.accountRef, inbound.accountRef),
+            eq(paymentEvents.status, "pending")
+          )
+        );
+      pendingEvent = found || null;
+    }
+
+    // ── Match to invoice ──
+    let matchedInvoiceId: number | null = null;
     
-    let status = "received";
+    if (pendingEvent && pendingEvent.matchedDocumentId) {
+      // Bulletproof match from our STK push
+      matchedInvoiceId = pendingEvent.matchedDocumentId;
+    } else {
+      // Fuzzy match for organic payments
+      matchedInvoiceId = await matchPayment(orgId, inbound);
+    }
+
+    // ── Apply payment ──
+    let status = "unmatched";
 
     if (matchedInvoiceId) {
       status = "applied";
@@ -63,29 +99,40 @@ export async function POST(req: Request) {
       if (paymentId) {
         await sendPaymentReceipt(paymentId).catch(e => console.error("Receipt failed:", e));
       }
-    } else {
-      status = "unmatched";
     }
 
-    await db.insert(paymentEvents).values({
-      orgId,
-      gatewayId: "kopokopo",
-      providerRef: inbound.providerRef,
-      amountCents: inbound.amountCents,
-      payerPhone: inbound.payerPhone,
-      payerName: inbound.payerName,
-      accountRef: inbound.accountRef,
-      status,
-      matchedDocumentId: matchedInvoiceId,
-      rawJson: JSON.stringify(inbound.raw),
-      createdAt: new Date().toISOString(),
-    });
+    // ── Update or create payment event ──
+    if (pendingEvent) {
+      await db.update(paymentEvents)
+        .set({
+          providerRef: inbound.providerRef, // Replace Location URL with actual receipt
+          amountCents: inbound.amountCents,
+          payerPhone: inbound.payerPhone,
+          payerName: inbound.payerName,
+          status,
+          rawJson: JSON.stringify(inbound.raw),
+        })
+        .where(eq(paymentEvents.id, pendingEvent.id));
+    } else {
+      await db.insert(paymentEvents).values({
+        orgId,
+        gatewayId: "kopokopo",
+        providerRef: inbound.providerRef,
+        amountCents: inbound.amountCents,
+        payerPhone: inbound.payerPhone,
+        payerName: inbound.payerName,
+        accountRef: inbound.accountRef,
+        status,
+        matchedDocumentId: matchedInvoiceId,
+        rawJson: JSON.stringify(inbound.raw),
+        createdAt: new Date().toISOString(),
+      });
+    }
 
     return NextResponse.json({ status: "success" });
 
   } catch (err: any) {
     console.error("Kopo Kopo Webhook Error:", err);
-    // Return 200 OK to Kopo Kopo so they don't block
     return NextResponse.json({ status: "error" });
   }
 }
