@@ -60,6 +60,13 @@ export default async function SettingsPage() {
           <p className="text-[12.5px] text-[var(--color-ink-600)] mt-1">Configure M-Pesa Daraja and Kopo Kopo for automated inbound payments.</p>
         </Link>
       </div>
+
+      <div className="card px-6 py-5 max-w-2xl mt-5 space-y-1.5 hover:bg-[var(--color-ink-50)] transition-colors cursor-pointer">
+        <Link href="/settings/sms" className="block w-full">
+          <div className="font-semibold text-[var(--color-ink-900)]">SMS Receipts</div>
+          <p className="text-[12.5px] text-[var(--color-ink-600)] mt-1">Text customers a secure receipt link via Advanta after every gateway payment.</p>
+        </Link>
+      </div>
     </>
   );
 }

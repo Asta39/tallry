@@ -5,6 +5,7 @@ import { getGateway, isInboundFailure, InboundPayment, GatewayId } from "./gatew
 import { matchPayment } from "./match";
 import { recordPayment } from "@/lib/actions";
 import { sendPaymentReceipt } from "@/lib/email/receipts";
+import { sendPaymentReceiptSms } from "@/lib/sms/receipts";
 import { orgContext } from "@/lib/org";
 
 function timingSafeEqualStr(a: string, b: string): boolean {
@@ -172,6 +173,7 @@ async function applyInbound(orgId: number, gatewayId: GatewayId, inbound: Inboun
       .where(eq(paymentEvents.id, claimed.id));
     if (paymentId && direction === "in") {
       await sendPaymentReceipt(paymentId).catch(e => console.error("Receipt failed:", e));
+      await sendPaymentReceiptSms(paymentId); // never throws
     }
     return { kind: "processed", status: "applied" };
   } catch (e) {

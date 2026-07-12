@@ -501,3 +501,27 @@ CREATE TABLE IF NOT EXISTS receipt_tokens (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_receipt_tokens_token ON receipt_tokens(token);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_receipt_tokens_payment ON receipt_tokens(payment_id);
+
+CREATE TABLE IF NOT EXISTS sms_settings (
+  id SERIAL PRIMARY KEY,
+  org_id INTEGER NOT NULL REFERENCES org(id),
+  provider TEXT NOT NULL DEFAULT 'advanta',
+  enabled BOOLEAN NOT NULL DEFAULT FALSE,
+  config_json TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_sms_settings_org ON sms_settings(org_id);
+
+CREATE TABLE IF NOT EXISTS sms_log (
+  id SERIAL PRIMARY KEY,
+  org_id INTEGER NOT NULL REFERENCES org(id),
+  payment_id INTEGER,
+  phone TEXT NOT NULL,
+  message TEXT NOT NULL,
+  status TEXT NOT NULL,
+  provider_ref TEXT,
+  error TEXT,
+  created_at TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_sms_log_payment ON sms_log(payment_id);

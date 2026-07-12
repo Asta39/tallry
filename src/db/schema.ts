@@ -576,3 +576,29 @@ export const receiptTokens = pgTable("receipt_tokens", {
   tokenUnique: uniqueIndex("idx_receipt_tokens_token").on(t.token),
   paymentUnique: uniqueIndex("idx_receipt_tokens_payment").on(t.paymentId),
 }));
+
+export const smsSettings = pgTable("sms_settings", {
+  id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
+  provider: text("provider").notNull().default("advanta"),
+  enabled: boolean("enabled").notNull().default(false),
+  configJson: text("config_json"), // encrypted: apiKey, partnerId, senderId
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at"),
+}, (t) => ({
+  orgUnique: uniqueIndex("idx_sms_settings_org").on(t.orgId),
+}));
+
+export const smsLog = pgTable("sms_log", {
+  id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
+  paymentId: integer("payment_id"), // set for receipt SMS — dedupe key
+  phone: text("phone").notNull(),
+  message: text("message").notNull(),
+  status: text("status").notNull(), // sent | failed
+  providerRef: text("provider_ref"),
+  error: text("error"),
+  createdAt: text("created_at").notNull(),
+}, (t) => ({
+  paymentUnique: uniqueIndex("idx_sms_log_payment").on(t.paymentId),
+}));
