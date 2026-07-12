@@ -525,3 +525,28 @@ CREATE TABLE IF NOT EXISTS sms_log (
   created_at TEXT NOT NULL
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_sms_log_payment ON sms_log(payment_id);
+
+ALTER TABLE org ADD COLUMN IF NOT EXISTS portal_slug TEXT;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_org_portal_slug ON org(portal_slug);
+
+CREATE TABLE IF NOT EXISTS portal_otps (
+  id SERIAL PRIMARY KEY,
+  org_id INTEGER NOT NULL REFERENCES org(id),
+  phone TEXT NOT NULL,
+  code_hash TEXT NOT NULL,
+  attempts INTEGER NOT NULL DEFAULT 0,
+  consumed BOOLEAN NOT NULL DEFAULT FALSE,
+  expires_at TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_portal_otps_org_phone ON portal_otps(org_id, phone);
+
+CREATE TABLE IF NOT EXISTS portal_sessions (
+  id SERIAL PRIMARY KEY,
+  org_id INTEGER NOT NULL REFERENCES org(id),
+  phone TEXT NOT NULL,
+  token TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_portal_sessions_token ON portal_sessions(token);

@@ -9,7 +9,8 @@ export async function middleware(request: NextRequest) {
     return;
   }
   // Public receipt links: the token in the URL is the credential.
-  if (request.nextUrl.pathname.startsWith("/r/")) {
+  // Customer portal (/p/) authenticates with its own phone+OTP session.
+  if (request.nextUrl.pathname.startsWith("/r/") || request.nextUrl.pathname.startsWith("/p/")) {
     return;
   }
   return await updateSession(request);

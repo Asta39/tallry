@@ -22,6 +22,8 @@ export const org = pgTable("org", {
   /** Supabase auth.users UUID — one org per user. */
   userId: text("user_id").unique(),
   name: text("name").notNull().default(""),
+  /** Public customer-portal slug: tallry.com/p/<slug> */
+  portalSlug: text("portal_slug").unique(),
   kraPin: text("kra_pin"),
   vatRegistered: boolean("vat_registered").notNull().default(true),
   address: text("address"),
@@ -601,4 +603,28 @@ export const smsLog = pgTable("sms_log", {
   createdAt: text("created_at").notNull(),
 }, (t) => ({
   paymentUnique: uniqueIndex("idx_sms_log_payment").on(t.paymentId),
+}));
+
+export const portalOtps = pgTable("portal_otps", {
+  id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
+  phone: text("phone").notNull(), // normalized 254XXXXXXXXX
+  codeHash: text("code_hash").notNull(), // sha256(code + token pepper)
+  attempts: integer("attempts").notNull().default(0),
+  consumed: boolean("consumed").notNull().default(false),
+  expiresAt: text("expires_at").notNull(),
+  createdAt: text("created_at").notNull(),
+}, (t) => ({
+  orgPhoneIdx: index("idx_portal_otps_org_phone").on(t.orgId, t.phone),
+}));
+
+export const portalSessions = pgTable("portal_sessions", {
+  id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
+  phone: text("phone").notNull(),
+  token: text("token").notNull(),
+  expiresAt: text("expires_at").notNull(),
+  createdAt: text("created_at").notNull(),
+}, (t) => ({
+  tokenUnique: uniqueIndex("idx_portal_sessions_token").on(t.token),
 }));
