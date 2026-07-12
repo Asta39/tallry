@@ -25,7 +25,7 @@ export function DocActions({
   doc,
   bankAccounts,
   printHref,
-  gatewayConnected,
+  gateways,
   contactPhone,
 }: {
   doc: {
