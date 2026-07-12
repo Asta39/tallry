@@ -1,5 +1,6 @@
 import {
   Body,
+  Button,
   Container,
   Head,
   Heading,
@@ -18,6 +19,7 @@ interface PaymentReceiptProps {
   paymentMethod: string;
   receiptNumber: string;
   date: string;
+  receiptUrl?: string;
 }
 
 export const PaymentReceipt = ({
@@ -27,6 +29,7 @@ export const PaymentReceipt = ({
   paymentMethod,
   receiptNumber,
   date,
+  receiptUrl,
 }: PaymentReceiptProps) => {
   return (
     <Html>
@@ -59,6 +62,24 @@ export const PaymentReceipt = ({
               <span style={receiptValue}>{receiptNumber}</span>
             </Text>
           </Section>
+
+          {receiptUrl && (
+            <Section style={{ textAlign: "center" as const, margin: "24px 0" }}>
+              <Button
+                href={receiptUrl}
+                style={{
+                  backgroundColor: "#111827",
+                  color: "#ffffff",
+                  padding: "12px 24px",
+                  borderRadius: "8px",
+                  fontSize: "14px",
+                  textDecoration: "none",
+                }}
+              >
+                View / Download PDF Receipt
+              </Button>
+            </Section>
+          )}
 
           <Hr style={hr} />
           <Text style={footer}>

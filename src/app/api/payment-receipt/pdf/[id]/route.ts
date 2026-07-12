@@ -4,6 +4,8 @@ import { and, eq } from "drizzle-orm";
 import { requirePerm } from "@/lib/guard";
 import { getOrg } from "@/lib/org";
 import { PaymentReceiptPdf } from "@/lib/pdf/PaymentReceiptPdf";
+import { getOrCreateReceiptToken, receiptUrl } from "@/lib/receipts/tokens";
+import { qrPngDataUrl } from "@/lib/receipts/qr";
 import { renderToBuffer } from "@react-pdf/renderer";
 import React from "react";
 
@@ -29,7 +31,13 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
     return new NextResponse("Payment not found", { status: 404 });
   }
 
+  const token = await getOrCreateReceiptToken(org.id, paymentId).catch(() => null);
+  const url = token ? receiptUrl(token) : undefined;
+  const qrDataUrl = url ? await qrPngDataUrl(url).catch(() => undefined) : undefined;
+
   const element = React.createElement(PaymentReceiptPdf, {
+    qrDataUrl,
+    receiptUrl: url,
     org,
     contact: {
       displayName: row.contact.displayName,

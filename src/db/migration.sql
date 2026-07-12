@@ -490,3 +490,14 @@ ALTER TABLE payment_gateways ADD COLUMN IF NOT EXISTS webhook_secret TEXT;
 ALTER TABLE payment_events ADD COLUMN IF NOT EXISTS payment_id INTEGER;
 ALTER TABLE payment_events ADD COLUMN IF NOT EXISTS direction TEXT NOT NULL DEFAULT 'in';
 CREATE UNIQUE INDEX IF NOT EXISTS idx_payment_events_gateway_ref ON payment_events(gateway_id, provider_ref);
+
+CREATE TABLE IF NOT EXISTS receipt_tokens (
+  id SERIAL PRIMARY KEY,
+  org_id INTEGER NOT NULL REFERENCES org(id),
+  payment_id INTEGER NOT NULL REFERENCES payments(id),
+  token TEXT NOT NULL,
+  revoked BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_receipt_tokens_token ON receipt_tokens(token);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_receipt_tokens_payment ON receipt_tokens(payment_id);

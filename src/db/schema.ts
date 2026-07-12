@@ -562,5 +562,17 @@ export const paymentEvents = pgTable("payment_events", {
   rawJson: text("raw_json"), // JSON payload from provider
   createdAt: text("created_at").notNull(),
 }, (t) => ({
-  providerRefUnique: uniqueIndex("idx_payment_events_gateway_ref").on(t.gatewayId, t.providerRef),
+  gatewayRefUnique: uniqueIndex("idx_payment_events_gateway_ref").on(t.gatewayId, t.providerRef),
+}));
+
+export const receiptTokens = pgTable("receipt_tokens", {
+  id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
+  paymentId: integer("payment_id").notNull().references(() => payments.id),
+  token: text("token").notNull(),
+  revoked: boolean("revoked").notNull().default(false),
+  createdAt: text("created_at").notNull(),
+}, (t) => ({
+  tokenUnique: uniqueIndex("idx_receipt_tokens_token").on(t.token),
+  paymentUnique: uniqueIndex("idx_receipt_tokens_payment").on(t.paymentId),
 }));

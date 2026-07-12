@@ -61,10 +61,14 @@ export function PaymentReceiptPdf({
   org,
   contact,
   payment,
+  qrDataUrl,
+  receiptUrl,
 }: {
   org: PdfOrg;
   contact: PdfContact;
   payment: PdfPayment;
+  qrDataUrl?: string;   // PNG data URL of the public receipt link
+  receiptUrl?: string;
 }) {
   const brand = org.brandColor || "#0f766e";
   const s = makeStyles(brand);
@@ -109,6 +113,17 @@ export function PaymentReceiptPdf({
             <Text style={[s.cAmount, s.bold]}>{fmtKES(payment.amountCents)}</Text>
           </View>
         </View>
+
+        {qrDataUrl ? (
+          <View style={{ marginTop: 36, flexDirection: "row", alignItems: "center", gap: 12 }}>
+            <Image src={qrDataUrl} style={{ width: 72, height: 72 }} />
+            <View style={{ marginLeft: 12 }}>
+              <Text style={s.sectionLabel}>Digital copy</Text>
+              <Text style={s.muted}>Scan to view or download this receipt anytime.</Text>
+              {receiptUrl ? <Text style={s.muted}>{receiptUrl}</Text> : null}
+            </View>
+          </View>
+        ) : null}
 
         <View style={s.footerSection}>
           <Text style={{ marginBottom: 8 }}>This is a payment receipt for Invoice #{payment.invoiceNumber}.</Text>

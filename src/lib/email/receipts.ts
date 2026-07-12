@@ -3,6 +3,7 @@ import { eq, and } from "drizzle-orm";
 import { sendEmail } from "./resend";
 import PaymentReceipt from "./templates/PaymentReceipt";
 import { fmtKES } from "@/lib/money";
+import { getOrCreateReceiptToken, receiptUrl } from "@/lib/receipts/tokens";
 
 export async function sendPaymentReceipt(paymentId: number) {
   // Fetch payment, invoice, and contact
@@ -17,6 +18,9 @@ export async function sendPaymentReceipt(paymentId: number) {
   const [contact] = await db.select().from(contacts).where(eq(contacts.id, doc.contactId));
   if (!contact || !contact.email) return;
 
+  const token = await getOrCreateReceiptToken(payment.orgId, payment.id)
+    .catch(e => { console.error("Receipt token failed:", e); return null; });
+
   // Send the email
   const htmlComponent = PaymentReceipt({
     customerName: contact.displayName || contact.companyName || "Customer",
@@ -25,6 +29,7 @@ export async function sendPaymentReceipt(paymentId: number) {
     paymentMethod: payment.method,
     receiptNumber: `RCPT-${payment.id}`,
     date: payment.date,
+    receiptUrl: token ? receiptUrl(token) : undefined,
   });
 
   await sendEmail({

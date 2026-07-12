@@ -8,6 +8,10 @@ export async function middleware(request: NextRequest) {
   if (request.nextUrl.pathname.startsWith("/api/payments/webhook/")) {
     return;
   }
+  // Public receipt links: the token in the URL is the credential.
+  if (request.nextUrl.pathname.startsWith("/r/")) {
+    return;
+  }
   return await updateSession(request);
 }
 
