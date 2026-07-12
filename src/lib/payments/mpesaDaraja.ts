@@ -1,10 +1,10 @@
-import { PaymentGateway, InboundPayment } from "./gateway";
+import { PaymentGateway, GatewayOrgConfig, appBaseUrl } from "./gateway";
 import { decryptConfig } from "./crypto";
 
 const SANDBOX_BASE = "https://sandbox.safaricom.co.ke";
 const PROD_BASE = "https://api.safaricom.co.ke";
 
-export function getMpesaDarajaGateway(orgConfig: any): PaymentGateway {
+export function getMpesaDarajaGateway(orgConfig: GatewayOrgConfig): PaymentGateway {
   const config = decryptConfig(orgConfig.configJson);
   const baseUrl = orgConfig.environment === "production" ? PROD_BASE : SANDBOX_BASE;
   const shortcode = config.shortcode;
@@ -29,6 +29,9 @@ export function getMpesaDarajaGateway(orgConfig: any): PaymentGateway {
       const token = await getAccessToken();
       const timestamp = new Date().toISOString().replace(/[^0-9]/g, "").slice(0, 14);
       const password = Buffer.from(`${shortcode}${passkey}${timestamp}`).toString("base64");
+      // Daraja has no webhook signature — a per-org random token in the
+      // callback URL is what authenticates inbound callbacks.
+      const cbToken = orgConfig.webhookSecret ? `&token=${orgConfig.webhookSecret}` : "";
 
       const res = await fetch(`${baseUrl}/mpesa/stkpush/v1/processrequest`, {
         method: "POST",
@@ -45,7 +48,7 @@ export function getMpesaDarajaGateway(orgConfig: any): PaymentGateway {
           PartyA: input.phone.replace("+", ""),
           PartyB: shortcode,
           PhoneNumber: input.phone.replace("+", ""),
-          CallBackURL: `${process.env.NEXT_PUBLIC_APP_URL}/api/payments/webhook/mpesa_daraja?orgId=${orgConfig.orgId}`,
+          CallBackURL: `${appBaseUrl()}/api/payments/webhook/mpesa_daraja?orgId=${orgConfig.orgId}${cbToken}`,
           AccountReference: input.accountRef.slice(0, 12),
           TransactionDesc: input.description.slice(0, 13),
         }),
@@ -57,6 +60,9 @@ export function getMpesaDarajaGateway(orgConfig: any): PaymentGateway {
       }
 
       const data = await res.json();
+      if (!data.CheckoutRequestID) {
+        throw new Error(`M-Pesa STK push returned no CheckoutRequestID: ${JSON.stringify(data)}`);
+      }
       return { providerRef: data.CheckoutRequestID };
     },
 
@@ -70,8 +76,11 @@ export function getMpesaDarajaGateway(orgConfig: any): PaymentGateway {
       const callback = body?.Body?.stkCallback;
       if (!callback) return null;
 
+      const requestRef = callback.CheckoutRequestID;
+
       if (callback.ResultCode !== 0) {
-        // Payment failed or cancelled
+        // Payment failed or cancelled — surface so the pending event can be closed
+        if (requestRef) return { failed: true as const, requestRef, raw: body };
         return null;
       }
 
@@ -85,9 +94,10 @@ export function getMpesaDarajaGateway(orgConfig: any): PaymentGateway {
       if (!mpesaReceiptNumber) return null;
 
       return {
-        providerRef: mpesaReceiptNumber,
+        providerRef: String(mpesaReceiptNumber),
         amountCents: Math.round(Number(amount) * 100),
         payerPhone: phoneNumber ? String(phoneNumber) : undefined,
+        requestRef,
         paidAt: new Date().toISOString(),
         raw: body,
       };

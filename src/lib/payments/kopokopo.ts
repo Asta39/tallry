@@ -1,10 +1,11 @@
-import { PaymentGateway, InboundPayment } from "./gateway";
+import crypto from "crypto";
+import { PaymentGateway, GatewayOrgConfig, appBaseUrl } from "./gateway";
 import { decryptConfig } from "./crypto";
 
 const SANDBOX_BASE = "https://sandbox.kopokopo.com";
 const PROD_BASE = "https://app.kopokopo.com";
 
-export function getKopoKopoGateway(orgConfig: any): PaymentGateway {
+export function getKopoKopoGateway(orgConfig: GatewayOrgConfig): PaymentGateway {
   const config = decryptConfig(orgConfig.configJson);
   const baseUrl = orgConfig.environment === "production" ? PROD_BASE : SANDBOX_BASE;
 
@@ -14,7 +15,7 @@ export function getKopoKopoGateway(orgConfig: any): PaymentGateway {
       client_id: config.clientId,
       client_secret: config.clientSecret,
     });
-    
+
     const res = await fetch(`${baseUrl}/oauth/token`, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -31,6 +32,7 @@ export function getKopoKopoGateway(orgConfig: any): PaymentGateway {
 
     async requestPayment(input) {
       const token = await getAccessToken();
+      const [firstName, ...rest] = (input.payerName || "Customer").trim().split(/\s+/);
 
       // Initiate STK Push via Kopo Kopo
       const res = await fetch(`${baseUrl}/api/v1/incoming_payments`, {
@@ -44,10 +46,10 @@ export function getKopoKopoGateway(orgConfig: any): PaymentGateway {
           payment_channel: "M-PESA STK Push",
           till_number: config.tillNumber,
           subscriber: {
-            first_name: "Customer",
-            last_name: "Tallry",
+            first_name: firstName,
+            last_name: rest.join(" ") || firstName,
             phone_number: input.phone,
-            email: "support@tallry.com"
+            ...(input.payerEmail ? { email: input.payerEmail } : {}),
           },
           amount: {
             currency: "KES",
@@ -59,7 +61,7 @@ export function getKopoKopoGateway(orgConfig: any): PaymentGateway {
             orgId: orgConfig.orgId
           },
           _links: {
-            callback_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/payments/webhook/kopokopo?orgId=${orgConfig.orgId}`
+            callback_url: `${appBaseUrl()}/api/payments/webhook/kopokopo?orgId=${orgConfig.orgId}`
           }
         }),
       });
@@ -71,7 +73,10 @@ export function getKopoKopoGateway(orgConfig: any): PaymentGateway {
 
       // Kopo Kopo returns 201 Created with a Location header pointing to the resource
       const location = res.headers.get("Location");
-      return { providerRef: location || "kopokopo_stk_push" };
+      if (!location) {
+        throw new Error("Kopo Kopo STK push succeeded but returned no Location header");
+      }
+      return { providerRef: location };
     },
 
     async payOut(input) {
@@ -79,14 +84,29 @@ export function getKopoKopoGateway(orgConfig: any): PaymentGateway {
     },
 
     async parseInbound(req: Request) {
-      // In a real app we would verify the HMAC signature from the X-KopoKopo-Signature header using config.apiKey
-      
-      const body = await req.json();
-      
+      // Kopo Kopo signs every webhook: X-KopoKopo-Signature is
+      // HMAC-SHA256(rawBody, apiKey) hex-encoded.
+      const rawBody = await req.text();
+      const signature = req.headers.get("X-KopoKopo-Signature");
+      if (!config.apiKey) {
+        throw new Error("Kopo Kopo apiKey not configured — cannot verify webhook signature");
+      }
+      if (!signature) {
+        throw new Error("Missing X-KopoKopo-Signature header");
+      }
+      const expected = crypto.createHmac("sha256", config.apiKey).update(rawBody).digest("hex");
+      const sigBuf = Buffer.from(signature, "utf8");
+      const expBuf = Buffer.from(expected, "utf8");
+      if (sigBuf.length !== expBuf.length || !crypto.timingSafeEqual(sigBuf, expBuf)) {
+        throw new Error("Invalid Kopo Kopo webhook signature");
+      }
+
+      const body = JSON.parse(rawBody);
+
       if (body.topic === "buygoods_transaction_received") {
         const event = body.event;
         const resource = event.resource;
-        
+
         return {
           providerRef: resource.reference, // e.g., M-Pesa receipt "QK..."
           amountCents: Math.round(Number(resource.amount) * 100),
@@ -97,7 +117,7 @@ export function getKopoKopoGateway(orgConfig: any): PaymentGateway {
           raw: body,
         };
       }
-      
+
       if (body.topic === "b2b_transaction_received" || body.topic === "m_pesa_payment_received") {
         // b2b or paybill format
         const resource = body.event.resource;

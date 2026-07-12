@@ -5,6 +5,7 @@ import { eq, and } from "drizzle-orm";
 import { requirePerm } from "@/lib/guard";
 import { getOrg, withOrg } from "@/lib/org";
 import { encryptConfig, decryptConfig } from "@/lib/payments/crypto";
+import { randomBytes } from "crypto";
 import { revalidatePath } from "next/cache";
 
 export async function savePaymentGatewayAction(formData: FormData) {
@@ -46,10 +47,12 @@ export async function savePaymentGatewayAction(formData: FormData) {
         config.consumerKey = config.consumerKey || oldConfig.consumerKey;
         config.consumerSecret = config.consumerSecret || oldConfig.consumerSecret;
         config.passkey = config.passkey || oldConfig.passkey;
+        config.shortcode = config.shortcode || oldConfig.shortcode;
       } else if (gatewayId === "kopokopo") {
         config.clientId = config.clientId || oldConfig.clientId;
         config.clientSecret = config.clientSecret || oldConfig.clientSecret;
         config.apiKey = config.apiKey || oldConfig.apiKey;
+        config.tillNumber = config.tillNumber || oldConfig.tillNumber;
       }
     }
 
@@ -65,6 +68,8 @@ export async function savePaymentGatewayAction(formData: FormData) {
         enabled,
         environment,
         configJson,
+        // Backfill for rows created before webhook auth existed
+        webhookSecret: existing[0].webhookSecret || randomBytes(24).toString("hex"),
         updatedAt: new Date().toISOString(),
       }).where(eq(paymentGateways.id, existing[0].id));
     } else {
@@ -74,6 +79,8 @@ export async function savePaymentGatewayAction(formData: FormData) {
         enabled,
         environment,
         configJson,
+        // Authenticates inbound webhook callbacks (embedded in callback URL)
+        webhookSecret: randomBytes(24).toString("hex"),
         createdAt: new Date().toISOString(),
       });
     }

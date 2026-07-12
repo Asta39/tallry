@@ -2,6 +2,12 @@ import { type NextRequest } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
 
 export async function middleware(request: NextRequest) {
+  // Provider webhooks authenticate themselves (URL token / HMAC signature),
+  // never via a browser session — a redirect to /login would silently drop
+  // every payment callback.
+  if (request.nextUrl.pathname.startsWith("/api/payments/webhook/")) {
+    return;
+  }
   return await updateSession(request);
 }
 

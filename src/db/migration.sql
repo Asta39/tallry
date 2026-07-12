@@ -486,3 +486,6 @@ CREATE TABLE IF NOT EXISTS payment_events (
   created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_payment_events_org_ref ON payment_events(org_id, provider_ref);
+ALTER TABLE payment_gateways ADD COLUMN IF NOT EXISTS webhook_secret TEXT;
+ALTER TABLE payment_events ADD COLUMN IF NOT EXISTS payment_id INTEGER;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_payment_events_gateway_ref ON payment_events(gateway_id, provider_ref);

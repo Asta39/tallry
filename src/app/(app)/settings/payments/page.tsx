@@ -21,8 +21,9 @@ export default async function PaymentsSettingsPage() {
   // The client component will handle the masked state
   const gatewaysState = gateways.map(g => {
     const conf = decryptConfig(g.configJson);
+    const { webhookSecret: _secret, ...safe } = g; // never send to client
     return {
-      ...g,
+      ...safe,
       config: {
         shortcode: conf?.shortcode || "",
         tillNumber: conf?.tillNumber || "",

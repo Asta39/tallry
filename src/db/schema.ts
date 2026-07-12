@@ -539,6 +539,7 @@ export const paymentGateways = pgTable("payment_gateways", {
   enabled: boolean("enabled").notNull().default(false),
   environment: text("environment").notNull().default("sandbox"), // sandbox | production
   configJson: text("config_json"), // encrypted json string
+  webhookSecret: text("webhook_secret"), // random token embedded in callback URLs
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at"),
 }, (t) => ({
@@ -554,11 +555,11 @@ export const paymentEvents = pgTable("payment_events", {
   payerPhone: text("payer_phone"),
   payerName: text("payer_name"),
   accountRef: text("account_ref"),
-  status: text("status").notNull().default("received"), // received | matched | unmatched | applied | failed
+  status: text("status").notNull().default("received"), // pending | received | matched | unmatched | applied | failed | amount_mismatch
   matchedDocumentId: integer("matched_document_id"), // if matched to invoice
   paymentId: integer("payment_id"), // if applied (points to customer_payments)
   rawJson: text("raw_json"), // JSON payload from provider
   createdAt: text("created_at").notNull(),
 }, (t) => ({
-  providerRefUnique: uniqueIndex("idx_payment_events_provider_ref").on(t.providerRef),
+  providerRefUnique: uniqueIndex("idx_payment_events_gateway_ref").on(t.gatewayId, t.providerRef),
 }));
