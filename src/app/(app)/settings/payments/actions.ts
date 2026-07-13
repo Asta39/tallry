@@ -5,6 +5,7 @@ import { eq, and } from "drizzle-orm";
 import { requirePerm } from "@/lib/guard";
 import { getOrg, withOrg } from "@/lib/org";
 import { encryptConfig, decryptConfig } from "@/lib/payments/crypto";
+import { getGateway } from "@/lib/payments/gateway";
 import { randomBytes } from "crypto";
 import { revalidatePath } from "next/cache";
 
@@ -88,6 +89,36 @@ export async function savePaymentGatewayAction(formData: FormData) {
         createdAt: new Date().toISOString(),
       });
     }
+
+    revalidatePath("/settings/payments");
+    return { success: true };
+  });
+}
+
+export async function registerC2bAction() {
+  return withOrg(async () => {
+    await requirePerm("settings");
+    const o = await getOrg();
+
+    const [gw] = await db.select().from(paymentGateways).where(and(
+      eq(paymentGateways.orgId, o.id),
+      eq(paymentGateways.gatewayId, "mpesa_daraja"),
+      eq(paymentGateways.enabled, true),
+    ));
+    if (!gw) return { error: "Enable and save M-Pesa Daraja first" };
+
+    const gateway = getGateway(gw);
+    if (!gateway.registerC2b) return { error: "This gateway does not support C2B registration" };
+
+    try {
+      await gateway.registerC2b();
+    } catch (e: any) {
+      return { error: e.message || "C2B registration failed" };
+    }
+
+    await db.update(paymentGateways)
+      .set({ c2bRegisteredAt: new Date().toISOString() })
+      .where(eq(paymentGateways.id, gw.id));
 
     revalidatePath("/settings/payments");
     return { success: true };

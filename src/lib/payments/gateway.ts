@@ -34,6 +34,8 @@ export interface PaymentGateway {
    *  Throws on signature verification failure; returns null for
    *  unrecognized payloads. */
   parseInbound(req: Request): Promise<InboundResult | null>;
+  /** Register C2B confirmation/validation URLs with the provider (Daraja paybill). */
+  registerC2b?(): Promise<void>;
 }
 
 export interface InboundPayment {

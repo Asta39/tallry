@@ -113,8 +113,52 @@ export function getMpesaDarajaGateway(orgConfig: GatewayOrgConfig): PaymentGatew
       return { providerRef: data.ConversationID };
     },
 
+    async registerC2b() {
+      const token = await getAccessToken();
+      const cbToken = orgConfig.webhookSecret ? `&token=${orgConfig.webhookSecret}` : "";
+      const base = `${appBaseUrl()}/api/payments/webhook/mpesa_daraja?orgId=${orgConfig.orgId}${cbToken}`;
+
+      const res = await fetch(`${baseUrl}/mpesa/c2b/v1/registerurl`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          ShortCode: shortcode,
+          ResponseType: "Completed", // if validation URL is unreachable, complete the payment anyway
+          ConfirmationURL: base,
+          ValidationURL: `${base}&c2b=validation`,
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.text();
+        throw new Error(`C2B URL registration failed: ${err}`);
+      }
+      const data = await res.json().catch(() => ({}));
+      // Daraja replies ResponseDescription: "success" on OK
+      if (data.ResponseDescription && !/success/i.test(String(data.ResponseDescription))) {
+        throw new Error(`C2B URL registration rejected: ${JSON.stringify(data)}`);
+      }
+    },
+
     async parseInbound(req: Request) {
       const body = await req.json();
+
+      // C2B confirmation: customer paid the paybill directly (no STK push)
+      if (body?.TransID && body?.TransAmount !== undefined) {
+        const name = [body.FirstName, body.MiddleName, body.LastName].filter(Boolean).join(" ");
+        return {
+          providerRef: String(body.TransID),
+          amountCents: Math.round(Number(body.TransAmount) * 100),
+          payerPhone: body.MSISDN ? String(body.MSISDN) : undefined,
+          payerName: name || undefined,
+          accountRef: body.BillRefNumber ? String(body.BillRefNumber) : undefined,
+          paidAt: new Date().toISOString(),
+          raw: body,
+        };
+      }
 
       // B2C payout results arrive under Result (ResultURL/QueueTimeOutURL)
       const result = body?.Result;

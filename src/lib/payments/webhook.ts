@@ -53,6 +53,13 @@ export async function handleGatewayWebhook(req: Request, gatewayId: GatewayId): 
     }
   }
 
+  // C2B validation ping: Safaricom asks permission before completing the
+  // payment. We accept everything (ResponseType "Completed" is also set at
+  // registration); the money event arrives separately via the confirmation.
+  if (url.searchParams.get("c2b") === "validation") {
+    return { kind: "ignored" };
+  }
+
   const gateway = getGateway(gatewayConfig);
 
   // parseInbound throws on bad signature (Kopo Kopo HMAC)

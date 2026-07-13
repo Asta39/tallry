@@ -542,6 +542,7 @@ export const paymentGateways = pgTable("payment_gateways", {
   environment: text("environment").notNull().default("sandbox"), // sandbox | production
   configJson: text("config_json"), // encrypted json string
   webhookSecret: text("webhook_secret"), // random token embedded in callback URLs
+  c2bRegisteredAt: text("c2b_registered_at"), // when paybill C2B URLs were registered with Safaricom
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at"),
 }, (t) => ({

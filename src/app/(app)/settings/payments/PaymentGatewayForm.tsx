@@ -2,11 +2,26 @@
 
 import { useState } from "react";
 import { PrimaryButton } from "@/components/ui";
-import { savePaymentGatewayAction } from "./actions";
+import { savePaymentGatewayAction, registerC2bAction } from "./actions";
 
 export function PaymentGatewayForm({ gateways }: { gateways: any[] }) {
   const [activeTab, setActiveTab] = useState<"mpesa_daraja" | "kopokopo">("mpesa_daraja");
   const [loading, setLoading] = useState(false);
+  const [registering, setRegistering] = useState(false);
+
+  async function handleRegisterC2b() {
+    setRegistering(true);
+    try {
+      const res = await registerC2bAction();
+      if (res && "error" in res && res.error) { alert("Error: " + res.error); return; }
+      alert("Paybill callbacks registered with Safaricom — direct paybill payments will now appear in Gateway Events.");
+      window.location.reload();
+    } catch (err: any) {
+      alert("Error: " + err.message);
+    } finally {
+      setRegistering(false);
+    }
+  }
 
   const mpesa = gateways.find(g => g.gatewayId === "mpesa_daraja") || { enabled: false, environment: "sandbox" };
   const kopokopo = gateways.find(g => g.gatewayId === "kopokopo") || { enabled: false, environment: "sandbox" };
@@ -91,6 +106,27 @@ export function PaymentGatewayForm({ gateways }: { gateways: any[] }) {
                   <input name="securityCredential" type="password" placeholder="Masked — encrypted initiator password" className="w-full h-10 px-3 rounded-lg border border-[var(--color-ink-200)] focus:border-[var(--color-brand-500)] outline-none text-sm" />
                 </div>
               </div>
+
+              {mpesa.id && (
+                <div className="flex items-center justify-between rounded-lg border border-[var(--color-ink-200)] px-4 py-3">
+                  <div>
+                    <div className="text-sm font-medium">Direct paybill payments (C2B)</div>
+                    <p className="text-xs text-[var(--color-ink-500)] mt-0.5">
+                      {mpesa.c2bRegisteredAt
+                        ? `Registered with Safaricom on ${String(mpesa.c2bRegisteredAt).slice(0, 10)} — customers paying the paybill directly are captured automatically.`
+                        : "Register callback URLs so payments made directly to your paybill (without STK push) reach Tallry."}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleRegisterC2b}
+                    disabled={registering}
+                    className="shrink-0 ml-4 px-3 py-2 rounded-lg border border-[var(--color-ink-200)] text-xs font-medium hover:bg-[var(--color-ink-50)] disabled:opacity-50"
+                  >
+                    {registering ? "Registering..." : mpesa.c2bRegisteredAt ? "Re-register" : "Register callbacks"}
+                  </button>
+                </div>
+              )}
             </>
           )}
 
