@@ -306,7 +306,8 @@ export function DocActions({
                   if (!amt || amt <= 0) throw new Error("Enter a valid amount");
                   if (!gwPhone) throw new Error("Enter phone number");
                   if (!gwId) throw new Error("No gateway selected");
-                  await requestPaymentAction(doc.id, gwPhone, amt, gwId);
+                  const res = await requestPaymentAction(doc.id, gwPhone, amt, gwId);
+                  if (res && "error" in res && res.error) throw new Error(res.error);
                   setShowRequestPayment(false);
                   alert("Payment request sent to customer's phone!");
                 })
@@ -362,9 +363,10 @@ export function DocActions({
                   if (!gwPhone) throw new Error("Enter destination");
                   if (!gwId) throw new Error("No gateway selected");
                   if (gwDestType === "paybill" && !gwAccountNo.trim()) throw new Error("Enter the account number for the paybill");
-                  await payOutAction(doc.id, gwPhone, gwDestType, amt, gwId, gwAccountNo.trim() || undefined);
+                  const res = await payOutAction(doc.id, gwPhone, gwDestType, amt, gwId, gwAccountNo.trim() || undefined);
+                  if (res && "error" in res && res.error) throw new Error(res.error);
                   setShowPayout(false);
-                  alert("Payout dispatched successfully!");
+                  alert("Payout dispatched — it will be recorded once the gateway confirms the transfer.");
                 })
               }
             >
