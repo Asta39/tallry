@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { fmtKES, parseKES, todayISO } from "@/lib/money";
+import { SearchableSelect } from "@/components/SearchableSelect";
 import { computeDocument, TAX_CLASSES, type TaxClass } from "@/lib/tax";
 import {
   saveRecurringTemplate,
@@ -161,12 +162,12 @@ export function RecurringManager({
             {docType !== "expense" ? (
               <label className="block">
                 <span className={label}>{docType === "invoice" ? "Customer" : "Vendor"}</span>
-                <select value={contactId} onChange={(e) => setContactId(e.target.value ? Number(e.target.value) : "")} className={input}>
-                  <option value="">Choose…</option>
-                  {contacts.map((c) => (
-                    <option key={c.id} value={c.id}>{c.label}</option>
-                  ))}
-                </select>
+                <SearchableSelect
+                  options={contacts}
+                  value={contactId}
+                  onChange={setContactId}
+                  placeholder={docType === "invoice" ? "Search customers…" : "Search vendors…"}
+                />
               </label>
             ) : (
               <label className="block">

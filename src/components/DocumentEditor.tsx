@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { computeDocument, TAX_CLASSES, type TaxClass } from "@/lib/tax";
 import { fmtKES, parseKES, todayISO } from "@/lib/money";
 import { saveDocument, issueDocument, type DocLineInput } from "@/lib/actions";
+import { SearchableSelect } from "@/components/SearchableSelect";
 
 type Option = { id: number; label: string };
 type ItemOption = {
@@ -195,18 +196,13 @@ export function DocumentEditor({
             <span className="text-[12px] font-medium text-[var(--color-ink-600)]">
               {isSale ? "Customer" : "Vendor"}
             </span>
-            <select
-              className={inputCls + " mt-1"}
+            <SearchableSelect
+              className="mt-1"
+              options={contacts}
               value={contactId}
-              onChange={(e) => setContactId(e.target.value ? Number(e.target.value) : "")}
-            >
-              <option value="">Choose…</option>
-              {contacts.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.label}
-                </option>
-              ))}
-            </select>
+              onChange={setContactId}
+              placeholder={isSale ? "Search customers…" : "Search vendors…"}
+            />
           </label>
         )}
         {isExpense && (
