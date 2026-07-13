@@ -32,7 +32,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
   }
 
   const token = await getOrCreateReceiptToken(org.id, paymentId).catch(() => null);
-  const url = token ? receiptUrl(token) : undefined;
+  const url = token ? await receiptUrl(token) : undefined;
   const qrDataUrl = url ? await qrPngDataUrl(url).catch(() => undefined) : undefined;
 
   const element = React.createElement(PaymentReceiptPdf, {

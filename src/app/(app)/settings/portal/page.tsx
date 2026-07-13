@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { getUser } from "@/lib/supabase/server";
 import { PageHeader } from "@/components/ui";
 import { qrPngDataUrl } from "@/lib/receipts/qr";
+import { appOrigin } from "@/lib/receipts/tokens";
 import { EnableCard, WallQrCard } from "./PortalCards";
 
 export const dynamic = "force-dynamic";
@@ -14,7 +15,7 @@ export default async function PortalSettingsPage() {
   const user = await getUser();
   if (!user || !o) redirect("/login");
 
-  const base = (process.env.NEXT_PUBLIC_APP_URL || "").replace(/\/$/, "");
+  const base = await appOrigin();
   const portalUrl = o.portalSlug ? `${base}/p/${o.portalSlug}` : null;
   const qr = portalUrl ? await qrPngDataUrl(portalUrl) : null;
 

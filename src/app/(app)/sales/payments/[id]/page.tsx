@@ -32,7 +32,7 @@ export default async function PaymentDetailPage(props: { params: Promise<{ id: s
   const token = isIn
     ? await getOrCreateReceiptToken(o.id, payment.id).catch(() => null)
     : null;
-  const publicUrl = token ? receiptUrl(token) : null;
+  const publicUrl = token ? await receiptUrl(token) : null;
   const qr = publicUrl ? await qrPngDataUrl(publicUrl).catch(() => null) : null;
 
   return (

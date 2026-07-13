@@ -11,7 +11,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ token: st
   if (!receipt) return new NextResponse("Receipt not found", { status: 404 });
 
   const { org, payment, doc, contact } = receipt;
-  const url = receiptUrl(token);
+  const url = await receiptUrl(token);
   const qrDataUrl = await qrPngDataUrl(url).catch(() => undefined);
 
   const element = React.createElement(PaymentReceiptPdf, {

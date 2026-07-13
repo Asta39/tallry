@@ -50,7 +50,7 @@ export async function sendPaymentReceiptSms(paymentId: number): Promise<void> {
       : [undefined];
 
     const token = await getOrCreateReceiptToken(payment.orgId, paymentId);
-    const link = receiptUrl(token);
+    const link = await receiptUrl(token);
     const message =
       `${fmtKES(payment.amountCents)} received` +
       (doc ? ` for ${doc.number}` : "") +

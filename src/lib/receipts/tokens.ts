@@ -33,9 +33,26 @@ export async function getOrCreateReceiptToken(orgId: number, paymentId: number):
   throw new Error("Failed to create receipt token");
 }
 
-export function receiptUrl(token: string): string {
-  const base = (process.env.NEXT_PUBLIC_APP_URL || "").replace(/\/$/, "");
-  return `${base}/r/${token}`;
+/** Absolute app origin: env var, else the current request's host. */
+export async function appOrigin(): Promise<string> {
+  const env = process.env.NEXT_PUBLIC_APP_URL;
+  if (env) return env.replace(/\/$/, "");
+  try {
+    const { headers } = await import("next/headers");
+    const h = await headers();
+    const host = h.get("x-forwarded-host") || h.get("host");
+    if (host) {
+      const proto = h.get("x-forwarded-proto") || (host.startsWith("localhost") ? "http" : "https");
+      return `${proto}://${host}`;
+    }
+  } catch {
+    // outside a request scope (scripts) — fall through
+  }
+  return "";
+}
+
+export async function receiptUrl(token: string): Promise<string> {
+  return `${await appOrigin()}/r/${token}`;
 }
 
 /** Public lookup: full receipt payload for a valid token, else null. */

@@ -29,7 +29,7 @@ export async function sendPaymentReceipt(paymentId: number) {
     paymentMethod: payment.method,
     receiptNumber: `RCPT-${payment.id}`,
     date: payment.date,
-    receiptUrl: token ? receiptUrl(token) : undefined,
+    receiptUrl: token ? await receiptUrl(token) : undefined,
   });
 
   await sendEmail({
