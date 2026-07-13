@@ -542,6 +542,15 @@ CREATE TABLE IF NOT EXISTS portal_otps (
 );
 CREATE INDEX IF NOT EXISTS idx_portal_otps_org_phone ON portal_otps(org_id, phone);
 
+CREATE TABLE IF NOT EXISTS reminder_log (
+  id SERIAL PRIMARY KEY,
+  org_id INTEGER NOT NULL REFERENCES org(id),
+  document_id INTEGER NOT NULL REFERENCES documents(id),
+  kind TEXT NOT NULL,
+  sent_at TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_reminder_log_doc_kind ON reminder_log(document_id, kind);
+
 CREATE TABLE IF NOT EXISTS portal_sessions (
   id SERIAL PRIMARY KEY,
   org_id INTEGER NOT NULL REFERENCES org(id),

@@ -619,6 +619,16 @@ export const portalOtps = pgTable("portal_otps", {
   orgPhoneIdx: index("idx_portal_otps_org_phone").on(t.orgId, t.phone),
 }));
 
+export const reminderLog = pgTable("reminder_log", {
+  id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
+  documentId: integer("document_id").notNull().references(() => documents.id),
+  kind: text("kind").notNull(), // overdue_1 | overdue_7 | overdue_14
+  sentAt: text("sent_at").notNull(),
+}, (t) => ({
+  docKindUnique: uniqueIndex("idx_reminder_log_doc_kind").on(t.documentId, t.kind),
+}));
+
 export const portalSessions = pgTable("portal_sessions", {
   id: serial("id").primaryKey(),
   orgId: integer("org_id").notNull().references(() => org.id),
