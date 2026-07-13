@@ -70,7 +70,7 @@ export async function requestPaymentAction(documentId: number, phone: string, am
   }
 }
 
-export async function payOutAction(documentId: number, destination: string, destinationType: "phone" | "till" | "paybill", amountCents: number, gatewayId: string) {
+export async function payOutAction(documentId: number, destination: string, destinationType: "phone" | "till" | "paybill", amountCents: number, gatewayId: string, accountNumber?: string) {
   try {
     await requirePerm("can_payout");
     const o = await getOrg();
@@ -94,9 +94,14 @@ export async function payOutAction(documentId: number, destination: string, dest
 
     const gateway = getGateway(gwConfig);
 
+    if (destinationType === "paybill" && !accountNumber?.trim()) {
+      return { error: "Enter the account number for the receiving paybill" };
+    }
+
     const result = await gateway.payOut({
       destination,
       destinationType,
+      accountNumber: accountNumber?.trim() || undefined,
       amountCents,
       accountRef: doc.number,
       reason: `Payout for ${doc.type} ${doc.number}`

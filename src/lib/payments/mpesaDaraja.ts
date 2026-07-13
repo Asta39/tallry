@@ -67,48 +67,68 @@ export function getMpesaDarajaGateway(orgConfig: GatewayOrgConfig): PaymentGatew
     },
 
     async payOut(input) {
-      if (input.destinationType !== "phone") {
-        throw new Error("Only phone (B2C) payouts are supported for M-Pesa currently");
-      }
       if (!config.initiatorName || !config.securityCredential) {
         throw new Error("M-Pesa payouts require Initiator Name and Security Credential — add them in Settings → Payment Gateways");
       }
       if (input.amountCents % 100 !== 0) {
         throw new Error("M-Pesa payouts must be a whole shilling amount");
       }
+      if (input.destinationType === "paybill" && !input.accountNumber) {
+        throw new Error("Paybill payouts require an account number");
+      }
 
       const token = await getAccessToken();
       const cbToken = orgConfig.webhookSecret ? `&token=${orgConfig.webhookSecret}` : "";
       const resultUrl = `${appBaseUrl()}/api/payments/webhook/mpesa_daraja?orgId=${orgConfig.orgId}${cbToken}`;
 
-      const res = await fetch(`${baseUrl}/mpesa/b2c/v1/paymentrequest`, {
+      const common = {
+        SecurityCredential: config.securityCredential,
+        Amount: input.amountCents / 100,
+        PartyA: shortcode,
+        Remarks: input.reason.slice(0, 100),
+        QueueTimeOutURL: resultUrl,
+        ResultURL: resultUrl,
+      };
+
+      // Phone → B2C; till/paybill → B2B. Result callbacks share the same
+      // Result envelope, so the reconcile pipeline is identical.
+      const isB2C = input.destinationType === "phone";
+      const endpoint = isB2C ? "/mpesa/b2c/v1/paymentrequest" : "/mpesa/b2b/v1/paymentrequest";
+      const body = isB2C
+        ? {
+            ...common,
+            InitiatorName: config.initiatorName,
+            CommandID: "BusinessPayment",
+            PartyB: input.destination.replace("+", ""),
+            Occasion: (input.accountRef || "").slice(0, 100),
+          }
+        : {
+            ...common,
+            Initiator: config.initiatorName,
+            CommandID: input.destinationType === "paybill" ? "BusinessPayBill" : "BusinessBuyGoods",
+            SenderIdentifierType: "4",
+            RecieverIdentifierType: "4", // Daraja's own spelling
+            PartyB: input.destination.replace(/\D/g, ""),
+            AccountReference: (input.accountNumber || input.accountRef || "").slice(0, 13),
+          };
+
+      const res = await fetch(`${baseUrl}${endpoint}`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          InitiatorName: config.initiatorName,
-          SecurityCredential: config.securityCredential,
-          CommandID: "BusinessPayment",
-          Amount: input.amountCents / 100,
-          PartyA: shortcode,
-          PartyB: input.destination.replace("+", ""),
-          Remarks: input.reason.slice(0, 100),
-          QueueTimeOutURL: resultUrl,
-          ResultURL: resultUrl,
-          Occasion: (input.accountRef || "").slice(0, 100),
-        }),
+        body: JSON.stringify(body),
       });
 
       if (!res.ok) {
         const err = await res.text();
-        throw new Error(`M-Pesa B2C payout failed: ${err}`);
+        throw new Error(`M-Pesa ${isB2C ? "B2C" : "B2B"} payout failed: ${err}`);
       }
 
       const data = await res.json();
       if (!data.ConversationID) {
-        throw new Error(`M-Pesa B2C returned no ConversationID: ${JSON.stringify(data)}`);
+        throw new Error(`M-Pesa payout returned no ConversationID: ${JSON.stringify(data)}`);
       }
       return { providerRef: data.ConversationID };
     },

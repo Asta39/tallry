@@ -58,6 +58,7 @@ export function DocActions({
   const [gwPhone, setGwPhone] = useState(contactPhone || "");
   const [gwAmount, setGwAmount] = useState(((doc.totalCents - doc.paidCents) / 100).toFixed(2));
   const [gwDestType, setGwDestType] = useState<"phone" | "till" | "paybill">("phone");
+  const [gwAccountNo, setGwAccountNo] = useState("");
 
   const run = (fn: () => Promise<any>) => {
     setError(null);
@@ -339,6 +340,12 @@ export function DocActions({
             <span className="text-[12px] font-medium text-[var(--color-ink-600)]">Destination (Phone/Till/Paybill)</span>
             <input className={inputCls + " w-full mt-1"} value={gwPhone} onChange={(e) => setGwPhone(e.target.value)} />
           </label>
+          {gwDestType === "paybill" && (
+            <label className="block">
+              <span className="text-[12px] font-medium text-[var(--color-ink-600)]">Account Number</span>
+              <input className={inputCls + " w-full mt-1"} value={gwAccountNo} onChange={(e) => setGwAccountNo(e.target.value)} placeholder="Account at the paybill" />
+            </label>
+          )}
           <label className="block">
             <span className="text-[12px] font-medium text-[var(--color-ink-600)]">Amount (KSh)</span>
             <input className={inputCls + " w-full mt-1"} value={gwAmount} onChange={(e) => setGwAmount(e.target.value)} />
@@ -354,7 +361,8 @@ export function DocActions({
                   if (!amt || amt <= 0) throw new Error("Enter a valid amount");
                   if (!gwPhone) throw new Error("Enter destination");
                   if (!gwId) throw new Error("No gateway selected");
-                  await payOutAction(doc.id, gwPhone, gwDestType, amt, gwId);
+                  if (gwDestType === "paybill" && !gwAccountNo.trim()) throw new Error("Enter the account number for the paybill");
+                  await payOutAction(doc.id, gwPhone, gwDestType, amt, gwId, gwAccountNo.trim() || undefined);
                   setShowPayout(false);
                   alert("Payout dispatched successfully!");
                 })

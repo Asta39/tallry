@@ -26,6 +26,8 @@ export interface PaymentGateway {
   payOut(input: {
     destination: string;  // phone | till | paybill
     destinationType: "phone" | "till" | "paybill";
+    /** Account number at the receiving paybill (required for paybill). */
+    accountNumber?: string;
     amountCents: number;
     accountRef?: string;
     reason: string;
