@@ -94,7 +94,6 @@ export default async function PrintPaymentReceipt({
 
       <div className="border-t border-gray-200 pt-8 mt-12 text-[12px] text-gray-400">
         <p>This is a payment receipt for Invoice #{row.doc.number}.</p>
-        {o.documentFooterText && <p className="mt-4 whitespace-pre-wrap">{o.documentFooterText}</p>}
       </div>
     </div>
     </div>

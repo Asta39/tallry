@@ -68,8 +68,10 @@ export default async function PaymentsPage() {
             {allPayments.map((row) => (
               <tr key={row.payment.id} className="hairline-t">
                 <Td className="text-[var(--color-ink-400)]">{row.payment.date}</Td>
-                <Td className="font-medium text-[var(--color-ink-900)]">
-                  PAY-{row.payment.id.toString().padStart(4, "0")}
+                <Td className="font-medium">
+                  <Link href={`/sales/payments/${row.payment.id}`} className="text-[var(--color-accent-600)] hover:underline">
+                    PAY-{row.payment.id.toString().padStart(4, "0")}
+                  </Link>
                 </Td>
                 <Td>{row.contactName}</Td>
                 <Td>

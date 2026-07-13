@@ -126,8 +126,7 @@ export function PaymentReceiptPdf({
         ) : null}
 
         <View style={s.footerSection}>
-          <Text style={{ marginBottom: 8 }}>This is a payment receipt for Invoice #{payment.invoiceNumber}.</Text>
-          {org.documentFooterText && <Text>{org.documentFooterText}</Text>}
+          <Text>This is a payment receipt for Invoice #{payment.invoiceNumber}.</Text>
         </View>
       </Page>
     </Document>
