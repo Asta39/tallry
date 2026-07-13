@@ -73,7 +73,7 @@ export function getKopoKopoGateway(orgConfig: GatewayOrgConfig): PaymentGateway 
 
       if (!res.ok) {
         const err = await res.text();
-        throw new Error(`Kopo Kopo STK push failed: ${err}`);
+        throw new Error(`Kopo Kopo STK push failed (HTTP ${res.status}): ${err || "empty response"}`);
       }
 
       // Kopo Kopo returns 201 Created with a Location header pointing to the
@@ -112,7 +112,7 @@ export function getKopoKopoGateway(orgConfig: GatewayOrgConfig): PaymentGateway 
       });
       if (!recipientRes.ok) {
         const err = await recipientRes.text();
-        throw new Error(`Kopo Kopo recipient creation failed: ${err}`);
+        throw new Error(`Kopo Kopo recipient creation failed (HTTP ${recipientRes.status}): ${err || "empty response"}`);
       }
       const recipientLocation = recipientRes.headers.get("Location");
       if (!recipientLocation) throw new Error("Kopo Kopo recipient creation returned no Location header");
@@ -145,7 +145,7 @@ export function getKopoKopoGateway(orgConfig: GatewayOrgConfig): PaymentGateway 
       });
       if (!payRes.ok) {
         const err = await payRes.text();
-        throw new Error(`Kopo Kopo payout failed: ${err}`);
+        throw new Error(`Kopo Kopo payout failed (HTTP ${payRes.status}): ${err || "empty response"}`);
       }
       const payLocation = payRes.headers.get("Location");
       if (!payLocation) throw new Error("Kopo Kopo payout returned no Location header");
