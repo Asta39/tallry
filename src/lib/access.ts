@@ -15,7 +15,7 @@ export type Role = (typeof ROLES)[number];
 
 export const MODULES: { key: string; label: string }[] = [
   { key: "dashboard", label: "Home dashboard" },
-  { key: "dashboard_metrics", label: "Dashboard Metrics & Overviews" },
+  { key: "dashboard_metrics", label: "Own metrics only (dashboard shows just their documents)" },
   { key: "contacts", label: "Customers & Vendors" },
   { key: "pipeline", label: "Deals pipeline" },
   { key: "quotes", label: "Quotes" },
@@ -41,10 +41,10 @@ const ALL = MODULES.map((m) => m.key);
 export const DEFAULT_ROLE_PERMS: Record<Role, string[]> = {
   admin: ALL,
   accountant: ALL.filter((k) => !["staff", "settings", "can_payout"].includes(k)),
-  sales: ["dashboard", "contacts", "pipeline", "quotes", "invoices", "credit_notes", "items"],
-  hr: ["dashboard", "contacts", "reports", "payroll"],
-  inventory: ["dashboard", "items", "purchase_orders", "bills", "contacts"],
-  staff: ["dashboard"],
+  sales: ["dashboard", "dashboard_metrics", "contacts", "pipeline", "quotes", "invoices", "credit_notes", "items"],
+  hr: ["dashboard", "dashboard_metrics", "contacts", "reports", "payroll"],
+  inventory: ["dashboard", "dashboard_metrics", "items", "purchase_orders", "bills", "contacts"],
+  staff: ["dashboard", "dashboard_metrics"],
 };
 
 export interface Access {

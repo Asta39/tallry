@@ -1,6 +1,6 @@
-import { db, accounts, journalEntries, journalLines, documents, documentLines, payments, contacts, items } from "@/db";
+import { db, accounts, journalEntries, journalLines, documents, documentLines, payments, contacts, items, documentAssignments } from "@/db";
 import { currentOrgId } from "@/lib/org";
-import { and, eq, gte, lte, inArray, sql, ne } from "drizzle-orm";
+import { and, eq, gte, lte, inArray, sql, ne, exists } from "drizzle-orm";
 
 /**
  * Reporting queries — all derived from the ledger (journal lines), never from
@@ -253,7 +253,7 @@ export async function monthlyIncomeExpense(months = 6): Promise<
 }
 
 /** Invoice/quote status breakdown + money totals for a year (dashboard overview). */
-export async function docStatusOverview(year: string) {
+export async function docStatusOverview(year: string, memberId?: number) {
   const from = `${year}-01-01`;
   const to = `${year}-12-31`;
   const today = new Date().toISOString().slice(0, 10);
@@ -271,7 +271,16 @@ export async function docStatusOverview(year: string) {
         eq(documents.orgId, currentOrgId()),
         gte(documents.date, from),
         lte(documents.date, to),
-        inArray(documents.type, ["invoice", "quote"])
+        inArray(documents.type, ["invoice", "quote"]),
+        // Scoped view: only documents assigned to this staff member
+        memberId
+          ? exists(
+              db.select().from(documentAssignments).where(and(
+                eq(documentAssignments.documentId, documents.id),
+                eq(documentAssignments.memberId, memberId),
+              ))
+            )
+          : undefined
       )
     );
 
@@ -301,8 +310,59 @@ export async function docStatusOverview(year: string) {
   return { inv, invTotal, qt, qtTotal, outstandingCents, pastDueCents, paidCents };
 }
 
-/** 
- * Additional logic for the Sales Dashboard 
+/**
+ * Dashboard cards for a staff member scoped to their own (assigned) documents.
+ * Ledger-wide figures (cash, VAT) intentionally excluded — those are company data.
+ */
+export async function memberDashboardStats(memberId: number, today: string) {
+  const yearStart = today.slice(0, 4) + "-01-01";
+  const docs = await db
+    .select({
+      type: documents.type,
+      status: documents.status,
+      date: documents.date,
+      dueDate: documents.dueDate,
+      totalCents: documents.totalCents,
+      paidCents: documents.paidCents,
+    })
+    .from(documents)
+    .where(
+      and(
+        eq(documents.orgId, currentOrgId()),
+        inArray(documents.type, ["invoice", "bill", "expense"]),
+        exists(
+          db.select().from(documentAssignments).where(and(
+            eq(documentAssignments.documentId, documents.id),
+            eq(documentAssignments.memberId, memberId),
+          ))
+        )
+      )
+    );
+
+  let receivablesCents = 0;
+  let overdueReceivablesCents = 0;
+  let payablesCents = 0;
+  let collectedThisYearCents = 0;
+
+  for (const d of docs) {
+    const bal = d.totalCents - d.paidCents;
+    const open = ["open", "partial", "overdue"].includes(d.status);
+    if (d.type === "invoice") {
+      if (open) {
+        receivablesCents += bal;
+        if (d.dueDate && d.dueDate < today) overdueReceivablesCents += bal;
+      }
+      if (d.date >= yearStart) collectedThisYearCents += d.paidCents;
+    } else if (open) {
+      payablesCents += bal;
+    }
+  }
+
+  return { receivablesCents, overdueReceivablesCents, payablesCents, collectedThisYearCents };
+}
+
+/**
+ * Additional logic for the Sales Dashboard
  */
 export async function salesDashboardStats(today: string, period: "this_month" | "this_year" | "last_6_months" = "last_6_months") {
   // 1. Total Income Trend (Last 6 Months)

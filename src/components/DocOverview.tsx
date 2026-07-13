@@ -49,7 +49,9 @@ export function DocOverview({
   data,
   year,
   years,
+  showBreakdown = true,
 }: {
+  showBreakdown?: boolean;
   data: {
     inv: { draft: number; open: number; partial: number; overdue: number; paid: number; void: number };
     invTotal: number;
@@ -82,6 +84,7 @@ export function DocOverview({
         </div>
       </div>
 
+      {showBreakdown && (
       <div className="hairline-t mt-5 pt-4">
         <form className="flex justify-end mb-3">
           <select
@@ -114,6 +117,7 @@ export function DocOverview({
           </div>
         </div>
       </div>
+      )}
     </div>
   );
 }

@@ -3,7 +3,7 @@ import Link from "next/link";
 import { db, documents, todos, events, documentAssignments } from "@/db";
 import { desc, asc, inArray, and, eq, exists } from "drizzle-orm";
 import { getAccessCached, canViewAllData } from "@/lib/access";
-import { dashboardStats, monthlyIncomeExpense, docStatusOverview } from "@/lib/reports";
+import { dashboardStats, monthlyIncomeExpense, docStatusOverview, memberDashboardStats } from "@/lib/reports";
 import { fmtKES, todayISO } from "@/lib/money";
 import { PageHeader, StatCard, StatusPill, TableCard, Th, Td } from "@/components/ui";
 import { IncomeExpenseChart, TodoWidget, CalendarWidget } from "@/components/DashboardWidgets";
@@ -24,25 +24,18 @@ export default async function Dashboard({
 
   const access = await getAccessCached();
   const viewAll = access ? canViewAllData(access) : true;
-  const viewMetrics = access ? (viewAll || access.perms.has("dashboard_metrics")) : true;
+  // "Own metrics only": staff with the toggle ON see figures derived solely
+  // from documents assigned to them; toggled OFF they see company-wide data.
+  // Admin/owner always sees company-wide.
+  const ownOnly = !!access && !viewAll && access.perms.has("dashboard_metrics") && !!access.memberId;
 
   // All independent — fire in parallel
-  const [stats, chartData, overview, recentDocs, todoRows, eventRows] =
+  const [stats, memberStats, chartData, overview, recentDocs, todoRows, eventRows] =
     await Promise.all([
-      viewMetrics ? withOrg(() => dashboardStats(today)) : Promise.resolve({
-        cashCents: 0, receivablesCents: 0, overdueReceivablesCents: 0, payablesCents: 0,
-        incomeThisMonthCents: 0, expensesThisMonthCents: 0, netVatDueCents: 0
-      }),
-      viewMetrics ? withOrg(() => monthlyIncomeExpense(6)) : Promise.resolve([]),
-      viewMetrics ? withOrg(() => docStatusOverview(year)) : Promise.resolve({ 
-        inv: { draft: 0, open: 0, partial: 0, overdue: 0, paid: 0, void: 0 }, 
-        invTotal: 0, 
-        qt: { draft: 0, open: 0, accepted: 0, declined: 0 }, 
-        qtTotal: 0, 
-        outstandingCents: 0, 
-        pastDueCents: 0, 
-        paidCents: 0 
-      }),
+      ownOnly ? Promise.resolve(null) : withOrg(() => dashboardStats(today)),
+      ownOnly ? withOrg(() => memberDashboardStats(access!.memberId!, today)) : Promise.resolve(null),
+      ownOnly ? Promise.resolve([]) : withOrg(() => monthlyIncomeExpense(6)),
+      withOrg(() => docStatusOverview(year, ownOnly ? access!.memberId! : undefined)),
       db
         .select()
         .from(documents)
@@ -80,38 +73,55 @@ export default async function Dashboard({
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="Cash & M-Pesa" hint="across all money accounts" cents={viewMetrics ? stats.cashCents : undefined} emptyHint={!viewMetrics ? "Hidden (restricted)" : undefined} />
-        <StatCard
-          label="Money you're owed"
-          hint={
-            !viewMetrics ? "Hidden (restricted)" :
-            stats.overdueReceivablesCents > 0
-              ? `${fmtKES(stats.overdueReceivablesCents)} overdue`
-              : "accounts receivable"
-          }
-          cents={viewMetrics ? stats.receivablesCents : undefined}
-          tone={viewMetrics && stats.overdueReceivablesCents > 0 ? "warn" : "neutral"}
-        />
-        <StatCard label="Money you owe" hint={!viewMetrics ? "Hidden (restricted)" : "accounts payable"} cents={viewMetrics ? stats.payablesCents : undefined} />
-        <StatCard
-          label="VAT due to KRA"
-          hint={!viewMetrics ? "Hidden (restricted)" : "this month so far"}
-          cents={viewMetrics ? stats.netVatDueCents : undefined}
-          tone={viewMetrics && stats.netVatDueCents > 0 ? "warn" : "good"}
-        />
+        {ownOnly && memberStats ? (
+          <>
+            <StatCard
+              label="Your outstanding invoices"
+              hint={memberStats.overdueReceivablesCents > 0
+                ? `${fmtKES(memberStats.overdueReceivablesCents)} overdue`
+                : "on documents assigned to you"}
+              cents={memberStats.receivablesCents}
+              tone={memberStats.overdueReceivablesCents > 0 ? "warn" : "neutral"}
+            />
+            <StatCard label="Overdue" hint="on your invoices" cents={memberStats.overdueReceivablesCents} tone={memberStats.overdueReceivablesCents > 0 ? "warn" : "good"} />
+            <StatCard label="Collected this year" hint="payments on your invoices" cents={memberStats.collectedThisYearCents} tone="good" />
+            <StatCard label="Your bills to pay" hint="assigned bills & expenses" cents={memberStats.payablesCents} />
+          </>
+        ) : stats ? (
+          <>
+            <StatCard label="Cash & M-Pesa" hint="across all money accounts" cents={stats.cashCents} />
+            <StatCard
+              label="Money you're owed"
+              hint={stats.overdueReceivablesCents > 0
+                ? `${fmtKES(stats.overdueReceivablesCents)} overdue`
+                : "accounts receivable"}
+              cents={stats.receivablesCents}
+              tone={stats.overdueReceivablesCents > 0 ? "warn" : "neutral"}
+            />
+            <StatCard label="Money you owe" hint="accounts payable" cents={stats.payablesCents} />
+            <StatCard
+              label="VAT due to KRA"
+              hint="this month so far"
+              cents={stats.netVatDueCents}
+              tone={stats.netVatDueCents > 0 ? "warn" : "good"}
+            />
+          </>
+        ) : null}
       </div>
 
-      {/* Invoice & quote overview */}
+      {/* Invoice & quote overview — yearly money breakdown is admin-only */}
       <div className="mt-4">
-        <DocOverview data={overview} year={year} years={years} />
+        <DocOverview data={overview} year={year} years={years} showBreakdown={viewAll} />
       </div>
 
-      {/* Chart + calendar */}
+      {/* Chart (company-wide, hidden in own-metrics view) + calendar */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 mt-4 items-stretch">
-        <div className="lg:col-span-3">
-          <IncomeExpenseChart data={chartData} />
-        </div>
-        <div className="lg:col-span-2">
+        {!ownOnly && (
+          <div className="lg:col-span-3">
+            <IncomeExpenseChart data={chartData} />
+          </div>
+        )}
+        <div className={ownOnly ? "lg:col-span-5" : "lg:col-span-2"}>
           <CalendarWidget
             events={eventRows.map((e) => ({ id: e.id, title: e.title, date: e.date, color: e.color }))}
           />
