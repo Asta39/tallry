@@ -110,6 +110,11 @@ export function EventsTable({ events, invoices }: { events: EventRow[]; invoices
             </div>
 
             <div className="flex flex-wrap items-center gap-3 mt-3 pt-3 hairline-t">
+              {e.status === "failed" ? (
+                <span className="text-[12px] text-[var(--color-ink-400)] flex-1 min-w-[220px]">
+                  Cancelled or expired payment attempt — no money was received. Dismiss to clear it.
+                </span>
+              ) : (
               <select
                 className="h-9 px-2 rounded-lg border border-[var(--color-ink-200)] text-[12.5px] max-w-md flex-1 min-w-[220px]"
                 value={selected[e.id] ?? sugg[0]?.id ?? ""}
@@ -122,9 +127,11 @@ export function EventsTable({ events, invoices }: { events: EventRow[]; invoices
                   </option>
                 ))}
               </select>
-              {phoneMatch && (
+              )}
+              {e.status !== "failed" && phoneMatch && (
                 <span className="text-[11px] text-emerald-600 font-medium">Phone matches top suggestion</span>
               )}
+              {e.status !== "failed" && (
               <button
                 onClick={() => apply(e.id)}
                 disabled={busy === e.id || sugg.length === 0}
@@ -132,6 +139,7 @@ export function EventsTable({ events, invoices }: { events: EventRow[]; invoices
               >
                 {busy === e.id ? "Applying..." : "Apply to invoice"}
               </button>
+              )}
               <button
                 onClick={() => dismiss(e.id)}
                 disabled={busy === e.id}

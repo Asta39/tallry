@@ -9,7 +9,10 @@ import { sendPaymentReceipt } from "@/lib/email/receipts";
 import { sendPaymentReceiptSms } from "@/lib/sms/receipts";
 import { revalidatePath } from "next/cache";
 
-const REVIEWABLE = ["unmatched", "amount_mismatch", "received"];
+// Money actually arrived for these — they can be applied to an invoice.
+const APPLICABLE = ["unmatched", "amount_mismatch", "received"];
+// Failed/cancelled attempts carry no money but can be dismissed from review.
+const DISMISSIBLE = [...APPLICABLE, "failed"];
 
 export async function applyEventToInvoiceAction(eventId: number, documentId: number) {
   return withOrg(async () => {
@@ -23,7 +26,7 @@ export async function applyEventToInvoiceAction(eventId: number, documentId: num
         eq(paymentEvents.id, eventId),
         eq(paymentEvents.orgId, o.id),
         eq(paymentEvents.direction, "in"),
-        inArray(paymentEvents.status, REVIEWABLE),
+        inArray(paymentEvents.status, APPLICABLE),
       ))
       .returning();
     if (!event) return { error: "Event not found or already processed" };
@@ -84,7 +87,7 @@ export async function dismissEventAction(eventId: number, reason: string) {
       .where(and(
         eq(paymentEvents.id, eventId),
         eq(paymentEvents.orgId, o.id),
-        inArray(paymentEvents.status, REVIEWABLE),
+        inArray(paymentEvents.status, DISMISSIBLE),
       ))
       .returning({ id: paymentEvents.id });
     if (!event) return { error: "Event not found or already processed" };
