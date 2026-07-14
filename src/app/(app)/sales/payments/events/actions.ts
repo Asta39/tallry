@@ -3,8 +3,11 @@
 import { db, paymentEvents, documents } from "@/db";
 import { and, eq, inArray } from "drizzle-orm";
 import { requirePerm } from "@/lib/guard";
-import { getOrg, withOrg } from "@/lib/org";
+import { getOrg, withOrg, currentOrgId } from "@/lib/org";
 import { recordPayment } from "@/lib/actions";
+import { postEntry, acct } from "@/lib/posting";
+import { SYS } from "@/lib/coa";
+import { bankAccounts } from "@/db";
 import { sendPaymentReceipt } from "@/lib/email/receipts";
 import { sendPaymentReceiptSms } from "@/lib/sms/receipts";
 import { revalidatePath } from "next/cache";
@@ -94,5 +97,54 @@ export async function dismissEventAction(eventId: number, reason: string) {
 
     revalidatePath("/sales/payments/events");
     return { success: true };
+  });
+}
+
+export async function recordAsIncomeAction(eventId: number) {
+  return withOrg(async () => {
+    await requirePerm("invoices");
+    const o = await getOrg();
+
+    const [event] = await db.update(paymentEvents)
+      .set({ status: "applying" })
+      .where(and(
+        eq(paymentEvents.id, eventId),
+        eq(paymentEvents.orgId, o.id),
+        eq(paymentEvents.direction, "in"),
+        inArray(paymentEvents.status, APPLICABLE),
+      ))
+      .returning();
+    if (!event) return { error: "Event not found or already processed" };
+
+    try {
+      const date = new Date().toISOString().split("T")[0];
+      const method = event.gatewayId === "mpesa_daraja" ? "mpesa" : "kopokopo";
+      const memo = `Direct income via ${method === "mpesa" ? "M-Pesa" : "KopoKopo"} Ref ${event.providerRef}`;
+      
+      const banks = await db.select().from(bankAccounts).where(eq(bankAccounts.orgId, currentOrgId()));
+      const match = banks.find((b) => b.name.toLowerCase().includes(method));
+      const debitAccountId = match ? match.accountId : await acct(SYS.UNDEPOSITED);
+
+      const entryId = await postEntry({
+        date,
+        memo,
+        sourceType: "direct_income",
+        sourceId: event.id,
+        lines: [
+          { accountId: debitAccountId, debitCents: event.amountCents },
+          { accountId: await acct(SYS.SALES), creditCents: event.amountCents }
+        ]
+      });
+
+      await db.update(paymentEvents)
+        .set({ status: "applied" }) // it's applied, though not to an invoice, so no matchedDocumentId
+        .where(eq(paymentEvents.id, event.id));
+
+      revalidatePath("/sales/payments/events");
+      return { success: true };
+    } catch (err: any) {
+      await db.update(paymentEvents).set({ status: event.status }).where(eq(paymentEvents.id, event.id));
+      return { error: err.message || "Failed to record as income" };
+    }
   });
 }

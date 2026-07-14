@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { fmtKES } from "@/lib/money";
-import { applyEventToInvoiceAction, dismissEventAction } from "./actions";
+import { applyEventToInvoiceAction, dismissEventAction, recordAsIncomeAction } from "./actions";
 
 export interface EventRow {
   id: number;
@@ -76,6 +76,16 @@ export function EventsTable({ events, invoices }: { events: EventRow[]; invoices
     } finally { setBusy(null); }
   }
 
+  async function recordAsIncome(eventId: number) {
+    if (!confirm("This will record the payment as direct Sales income without linking it to an invoice. Continue?")) return;
+    setBusy(eventId);
+    try {
+      const res = await recordAsIncomeAction(eventId);
+      if (res && "error" in res && res.error) { alert("Error: " + res.error); return; }
+      window.location.reload();
+    } finally { setBusy(null); }
+  }
+
   if (events.length === 0) {
     return (
       <div className="card px-6 py-10 text-center text-[13px] text-[var(--color-ink-400)]">
@@ -139,6 +149,15 @@ export function EventsTable({ events, invoices }: { events: EventRow[]; invoices
               >
                 {busy === e.id ? "Applying..." : "Apply to invoice"}
               </button>
+              )}
+              {e.status !== "failed" && (
+                <button
+                  onClick={() => recordAsIncome(e.id)}
+                  disabled={busy === e.id}
+                  className="h-9 px-3 rounded-lg border border-[var(--color-ink-200)] text-[12.5px] font-medium text-[var(--color-ink-700)] hover:bg-[var(--color-ink-50)] disabled:opacity-50"
+                >
+                  {busy === e.id ? "Recording..." : "Record as income"}
+                </button>
               )}
               <button
                 onClick={() => dismiss(e.id)}
