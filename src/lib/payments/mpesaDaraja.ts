@@ -138,6 +138,10 @@ export function getMpesaDarajaGateway(orgConfig: GatewayOrgConfig): PaymentGatew
       const cbToken = orgConfig.webhookSecret ? `&token=${orgConfig.webhookSecret}` : "";
       const base = `${appBaseUrl()}/api/payments/webhook/mpesa_daraja?orgId=${orgConfig.orgId}${cbToken}`;
 
+      if (base.includes("localhost")) {
+        throw new Error("M-Pesa requires a public HTTPS URL for C2B Webhooks. Please expose your localhost using a tool like ngrok and update NEXT_PUBLIC_APP_URL in your .env.local file, or test this on your deployed production site.");
+      }
+
       const res = await fetch(`${baseUrl}/mpesa/c2b/v1/registerurl`, {
         method: "POST",
         headers: {

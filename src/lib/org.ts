@@ -43,10 +43,22 @@ export async function getOrg() {
   throw new Error("Organization not found — please complete onboarding.");
 }
 
-export async function withOrg<T>(fn: () => Promise<T>): Promise<T> {
+export async function withOrg<T>(fn: () => Promise<T>, options?: { requireWrite?: boolean }): Promise<T> {
   // Already inside an org context (nested action call) — reuse it.
-  if (orgContext.getStore()) return fn();
+  if (orgContext.getStore()) {
+    if (options?.requireWrite) {
+      const { getEntitlements } = await import("./billing-server");
+      const ents = await getEntitlements(orgContext.getStore()!);
+      if (ents.isReadOnly) throw new Error("Your subscription has expired. Please upgrade to continue creating or editing data.");
+    }
+    return fn();
+  }
   const o = await getOrg();
+  if (options?.requireWrite) {
+    const { getEntitlements } = await import("./billing-server");
+    const ents = await getEntitlements(o.id);
+    if (ents.isReadOnly) throw new Error("Your subscription has expired. Please upgrade to continue creating or editing data.");
+  }
   return orgContext.run(o.id, fn);
 }
 
@@ -63,6 +75,17 @@ export const getOrgCached = cache(getOrg);
 export async function seedOrgDefaults(orgId: number) {
   const existing = await db.select().from(accounts).where(eq(accounts.orgId, orgId)).limit(1);
   if (existing.length > 0) return;
+
+  const { subscriptions } = await import("@/db");
+  const thirtyDaysFromNow = new Date();
+  thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
+  
+  await db.insert(subscriptions).values({
+    orgId,
+    plan: "business",
+    paidUntil: thirtyDaysFromNow.toISOString().split("T")[0],
+    createdAt: new Date().toISOString(),
+  });
 
   const inserted = await db
     .insert(accounts)

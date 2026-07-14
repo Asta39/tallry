@@ -94,6 +94,17 @@ export const activities = pgTable("activities", {
   orgContactIdx: index("idx_activities_org").on(t.orgId, t.contactId),
 }));
 
+export const subscriptions = pgTable("subscriptions", {
+  id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
+  plan: text("plan").notNull().default("free"), // free | standard | business
+  status: text("status").notNull().default("active"), // active | expired
+  paidUntil: text("paid_until").notNull(), // ISO date
+  createdAt: text("created_at").notNull(),
+}, (t) => ({
+  orgUnique: uniqueIndex("idx_subscriptions_org").on(t.orgId),
+}));
+
 export const deals = pgTable("deals", {
   id: serial("id").primaryKey(),
   orgId: integer("org_id").notNull().references(() => org.id),

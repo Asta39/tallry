@@ -758,10 +758,10 @@ export async function saveDocument(data: Parameters<typeof _saveDocument>[0]) {
   if (access && !access.isOwner && access.role !== "admin" && access.memberId) {
     data.assignedMemberIds = Array.from(new Set([...(data.assignedMemberIds || []), access.memberId]));
   }
-  return withOrg(() => _saveDocument(data));
+  return withOrg(() => _saveDocument(data), { requireWrite: true });
 }
 export async function issueDocument(docId: number) {
-  return withOrg(() => _issueDocument(docId));
+  return withOrg(() => _issueDocument(docId), { requireWrite: true });
 }
 export async function voidDoc(docId: number) {
   return withOrg(() => _voidDoc(docId));
