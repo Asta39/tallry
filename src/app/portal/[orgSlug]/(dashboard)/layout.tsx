@@ -22,7 +22,10 @@ export default async function ClientPortalLayout({
   const o = session.org;
 
   return (
-    <div className="min-h-screen bg-[#FAFAFA] font-sans text-[var(--color-ink-900)] flex flex-col">
+    <div 
+      className="min-h-screen bg-[#FAFAFA] font-sans text-[var(--color-ink-900)] flex flex-col"
+      style={{ "--color-brand": o.brandColor || "#0f766e" } as React.CSSProperties}
+    >
       <header className="bg-white border-b border-[var(--color-ink-100)] sticky top-0 z-40">
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-6">
