@@ -15,7 +15,7 @@ export function UpgradePrompt({
   if (!isLocked) return <>{children}</>;
 
   return (
-    <div className="relative min-h-[500px] h-full flex flex-col">
+    <div className="relative min-h-[500px] h-full flex-1 flex flex-col w-full">
       <div className="flex-1 blur-sm opacity-50 pointer-events-none select-none overflow-hidden" aria-hidden="true">
         {children}
       </div>

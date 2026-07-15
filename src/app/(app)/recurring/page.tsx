@@ -6,6 +6,8 @@ import { PageHeader } from "@/components/ui";
 import { RecurringManager, type RecurringRow } from "@/components/RecurringManager";
 import { computeDocument, type TaxClass } from "@/lib/tax";
 import type { DocLineInput } from "@/lib/actions";
+import { UpgradePrompt } from "@/components/UpgradePrompt";
+import { getEntitlements } from "@/lib/billing-server";
 
 export const dynamic = "force-dynamic";
 
@@ -52,19 +54,28 @@ export default async function RecurringPage() {
     };
   });
 
+  const entitlements = await getEntitlements(o.id);
+  const isLocked = !entitlements.limits.recurring;
+
   return (
-    <>
+    <UpgradePrompt 
+      isLocked={isLocked} 
+      featureName="Recurring Templates" 
+      description="Automate your billing with recurring invoices, bills, and expenses. Available on Standard and Business plans."
+    >
       <PageHeader
         title="Recurring Templates"
         subtitle="Automatically generate invoices, bills, or expenses on a schedule"
       />
-      <RecurringManager
-        rows={rows}
-        customers={allContacts.filter((c) => c.kind === "customer" || c.kind === "both").map((c) => ({ id: c.id, label: c.displayName }))}
-        vendors={allContacts.filter((c) => c.kind === "vendor" || c.kind === "both").map((c) => ({ id: c.id, label: c.displayName }))}
-        bankAccounts={banks.map((b) => ({ id: b.id, label: b.name }))}
-        dueCount={rows.filter((r) => r.active && r.nextRunDate <= new Date().toISOString().slice(0, 10)).length}
-      />
-    </>
+      <div className="min-h-[70vh]">
+        <RecurringManager
+          rows={rows}
+          customers={allContacts.filter((c) => c.kind === "customer" || c.kind === "both").map((c) => ({ id: c.id, label: c.displayName }))}
+          vendors={allContacts.filter((c) => c.kind === "vendor" || c.kind === "both").map((c) => ({ id: c.id, label: c.displayName }))}
+          bankAccounts={banks.map((b) => ({ id: b.id, label: b.name }))}
+          dueCount={rows.filter((r) => r.active && r.nextRunDate <= new Date().toISOString().slice(0, 10)).length}
+        />
+      </div>
+    </UpgradePrompt>
   );
 }

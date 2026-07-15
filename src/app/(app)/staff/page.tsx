@@ -4,6 +4,8 @@ import { eq } from "drizzle-orm";
 import { getAccess, MODULES, rolePermMap, getAllRoles } from "@/lib/access";
 import { PageHeader } from "@/components/ui";
 import { AddStaffForm, StaffList, PermissionMatrix, CreateRoleForm } from "@/components/StaffManager";
+import { UpgradePrompt } from "@/components/UpgradePrompt";
+import { getEntitlements } from "@/lib/billing-server";
 
 export const dynamic = "force-dynamic";
 
@@ -12,9 +14,12 @@ export default async function StaffPage() {
   if (!access) redirect("/login");
   if (access.role !== "admin") redirect("/");
 
+  const entitlements = await getEntitlements(access.orgId);
   const staff = await db.select().from(members).where(eq(members.orgId, access.orgId));
   const allEmployees = await db.select().from(employees).where(eq(employees.orgId, access.orgId));
   
+  const isLocked = entitlements.limits.staff !== -1 && staff.length >= entitlements.limits.staff;
+
   const allRoles = await getAllRoles(access.orgId);
   const editableRoles = allRoles.filter((r) => r !== "admin");
 
@@ -41,10 +46,16 @@ export default async function StaffPage() {
       )}
 
       <h2 className="text-[15px] font-semibold mb-3">Add a staff member</h2>
-      <AddStaffForm 
-        roles={allRoles} 
-        employees={allEmployees.map(e => ({ id: e.id, name: e.name }))}
-      />
+      <UpgradePrompt 
+        isLocked={isLocked} 
+        featureName="More Staff Seats" 
+        description={`Your current plan allows up to ${entitlements.limits.staff} staff members (including you). Upgrade to add more team members!`}
+      >
+        <AddStaffForm 
+          roles={allRoles} 
+          employees={allEmployees.map(e => ({ id: e.id, name: e.name }))}
+        />
+      </UpgradePrompt>
 
       <h2 className="text-[15px] font-semibold mt-8 mb-3">Team</h2>
       <StaffList
