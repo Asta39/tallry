@@ -53,7 +53,7 @@ export async function GET(
     lines: lines as any,
     contact: contact as any,
     org: o as any,
-    qrCodeDataUrl: undefined,
+    qrDataUrl: undefined,
   });
 
   const pdfBuffer = await renderToBuffer(
