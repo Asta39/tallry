@@ -45,7 +45,7 @@ export async function GET(
   const [contact] = await db
     .select()
     .from(contacts)
-    .where(and(eq(contacts.orgId, o.id), eq(contacts.id, doc.contactId)))
+    .where(and(eq(contacts.orgId, o.id), eq(contacts.id, session.contactId)))
     .limit(1);
 
   const element = React.createElement(DocumentPdf, {
