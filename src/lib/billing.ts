@@ -1,7 +1,8 @@
 export const PLANS = {
   free: {
     name: "Free",
-    priceCents: 0,
+    monthlyCents: 0,
+    annualCents: 0,
     invoices: 15,
     staff: 1,
     gateways: false,
@@ -14,7 +15,8 @@ export const PLANS = {
   },
   standard: {
     name: "Standard",
-    priceCents: 150000, // KES 1,500
+    monthlyCents: 150000, // KES 1,500
+    annualCents: 1440000, // KES 14,400 (20% off)
     invoices: -1, // unlimited
     staff: 3,
     gateways: true,
@@ -27,7 +29,8 @@ export const PLANS = {
   },
   business: {
     name: "Business",
-    priceCents: 350000, // KES 3,500
+    monthlyCents: 350000, // KES 3,500
+    annualCents: 3360000, // KES 33,600 (20% off)
     invoices: -1,
     staff: 10,
     gateways: true,
@@ -41,6 +44,7 @@ export const PLANS = {
 } as const;
 
 export type PlanKey = keyof typeof PLANS;
+export type BillingCycle = "monthly" | "annual";
 
 export interface Entitlements {
   plan: PlanKey;

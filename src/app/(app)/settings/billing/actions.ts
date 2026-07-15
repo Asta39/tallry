@@ -5,18 +5,25 @@ import { getOrg } from "@/lib/org";
 import { db, subscriptions } from "@/db";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { PLANS, PlanKey } from "@/lib/billing";
+import { PLANS, PlanKey, BillingCycle } from "@/lib/billing";
 
-export async function simulateSubscriptionUpgradeAction(plan: PlanKey) {
+export async function simulateSubscriptionUpgradeAction(plan: PlanKey, cycle: BillingCycle, mpesaPhone: string) {
   try {
     await requirePerm("settings");
     const o = await getOrg();
 
     if (!PLANS[plan]) return { error: "Invalid plan selected" };
 
+    // Simulate STK push delay (e.g. 5 seconds for the user to enter PIN on their phone)
+    await new Promise((resolve) => setTimeout(resolve, 5000));
+
     const today = new Date();
-    // 30 days from today
-    today.setDate(today.getDate() + 30);
+    // Add 30 days for monthly, 365 for annual
+    if (cycle === "annual") {
+      today.setDate(today.getDate() + 365);
+    } else {
+      today.setDate(today.getDate() + 30);
+    }
     const paidUntil = today.toISOString().split("T")[0];
 
     // Check if sub exists

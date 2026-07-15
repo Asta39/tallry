@@ -11,6 +11,7 @@
     "db:push": "tsx src/db/push.ts"
   },
   "dependencies": {
+    "@lottiefiles/react-lottie-player": "^3.6.0",
     "@react-email/components": "^1.0.12",
     "@react-pdf/renderer": "^4.5.1",
     "@sentry/nextjs": "^10.65.0",

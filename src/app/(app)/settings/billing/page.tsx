@@ -18,7 +18,7 @@ export default async function BillingPage() {
         subtitle="Manage your Tallry plan and usage limits."
       />
       <div className="mt-8">
-        <BillingClient entitlements={entitlements} />
+        <BillingClient entitlements={entitlements} orgPhone={o.phone || ""} />
       </div>
     </>
   );
