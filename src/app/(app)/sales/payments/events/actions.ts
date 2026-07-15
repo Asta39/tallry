@@ -40,9 +40,8 @@ export async function applyEventToInvoiceAction(eventId: number, documentId: num
       if (!doc) throw new Error("Invoice not found");
 
       const outstanding = doc.totalCents - doc.paidCents;
-      if (event.amountCents > outstanding) {
-        throw new Error(`Amount exceeds invoice outstanding (${outstanding / 100} KES) — overpayments need a credit note`);
-      }
+      // We allow overpayments. The excess naturally becomes a credit on the 
+      // customer's Accounts Receivable balance, which can be applied to future invoices.
 
       const paymentId = await recordPayment({
         documentId,

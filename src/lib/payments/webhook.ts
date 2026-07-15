@@ -147,11 +147,18 @@ async function applyInbound(orgId: number, gatewayId: GatewayId, inbound: Inboun
   }
 
   // 3. Amount check for reconciled STK pushes — never trust the callback blindly.
-  if (pendingAmountCents !== null && pendingAmountCents !== inbound.amountCents) {
-    await db.update(paymentEvents)
-      .set({ status: "amount_mismatch", amountCents: inbound.amountCents })
-      .where(eq(paymentEvents.id, claimed.id));
-    return { kind: "processed", status: "amount_mismatch" };
+  //    Because M-Pesa only accepts integers, we requested Math.ceil(pending / 100) * 100.
+  //    If the inbound amount perfectly matches either the exact pending amount OR the rounded M-Pesa amount, allow it.
+  if (pendingAmountCents !== null) {
+    const isExactMatch = pendingAmountCents === inbound.amountCents;
+    const isRoundedMatch = gatewayId === "mpesa_daraja" && inbound.amountCents === (Math.ceil(pendingAmountCents / 100) * 100);
+    
+    if (!isExactMatch && !isRoundedMatch) {
+      await db.update(paymentEvents)
+        .set({ status: "amount_mismatch", amountCents: inbound.amountCents })
+        .where(eq(paymentEvents.id, claimed.id));
+      return { kind: "processed", status: "amount_mismatch" };
+    }
   }
 
   // 4. Match: pending rows carry the document they were initiated for.
