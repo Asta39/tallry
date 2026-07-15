@@ -113,7 +113,7 @@ export async function GET(
   );
 
   const isDownload = req.nextUrl.searchParams.get("download") === "1";
-  const filename = `Statement_${contact.name.replace(/[^a-z0-9]/gi, "_")}_${todayISO()}.pdf`;
+  const filename = `Statement_${contact.displayName.replace(/[^a-z0-9]/gi, "_")}_${todayISO()}.pdf`;
 
   return new Response(new Uint8Array(pdfBuffer), {
     headers: {
