@@ -7,10 +7,12 @@ import { fmtKES } from "@/lib/money";
 
 export function ClientDocuments({
   slug,
+  tab,
   documents,
   payments,
 }: {
   slug: string;
+  tab?: string;
   documents: any[];
   payments: any[];
 }) {
@@ -45,63 +47,111 @@ export function ClientDocuments({
 
   return (
     <>
-      <TableCard>
-        <thead className="hairline-b">
-          <tr>
-            <Th>Date</Th>
-            <Th>Number</Th>
-            <Th>Status</Th>
-            <Th right>Total</Th>
-            <Th right>Balance</Th>
-            <Th></Th>
-          </tr>
-        </thead>
-        <tbody>
-          {documents.map((d) => (
-            <tr key={d.id} className="hairline-t">
-              <Td className="text-[var(--color-ink-500)]">{d.date}</Td>
-              <Td className="font-medium capitalize">{d.type} {d.number}</Td>
-              <Td><StatusPill status={d.status} /></Td>
-              <Td right>{fmtKES(d.totalCents)}</Td>
-              <Td right className="font-medium">
-                {d.type === "invoice" && ["open", "partial"].includes(d.status) ? fmtKES(d.totalCents - d.paidCents) : "—"}
-              </Td>
-              <Td right>
-                <div className="flex justify-end gap-2">
-                  {d.type === "invoice" && ["open", "partial"].includes(d.status) && (
-                    <button
-                      onClick={() => { setPayDoc(d); setPhone(""); setError(null); setSuccess(null); }}
-                      className="px-3 py-1 bg-[var(--color-brand)] text-white text-[12px] font-semibold rounded-md shadow-sm hover:opacity-90 transition-all"
-                    >
-                      Pay Now
-                    </button>
-                  )}
-                  <a
-                    href={`/portal/${slug}/api/pdf/${d.id}`}
-                    target="_blank"
-                    className="px-3 py-1 border border-[var(--color-ink-200)] text-[12px] font-medium text-[var(--color-ink-700)] rounded-md hover:bg-[var(--color-ink-50)] transition-all"
-                  >
-                    View PDF
-                  </a>
-                  <a
-                    href={`/portal/${slug}/api/pdf/${d.id}?download=1`}
-                    className="px-3 py-1 bg-[var(--color-ink-900)] text-white text-[12px] font-medium rounded-md hover:bg-black transition-all"
-                  >
-                    Download
-                  </a>
-                </div>
-              </Td>
-            </tr>
-          ))}
-          {documents.length === 0 && (
+      {tab === "receipts" ? (
+        <TableCard>
+          <thead className="hairline-b">
             <tr>
-              <td colSpan={6} className="text-center py-10 text-[13px] text-[var(--color-ink-400)]">
-                No documents found.
-              </td>
+              <Th>Date</Th>
+              <Th>Reference</Th>
+              <Th>Method</Th>
+              <Th right>Amount</Th>
+              <Th></Th>
             </tr>
-          )}
-        </tbody>
-      </TableCard>
+          </thead>
+          <tbody>
+            {payments.map((p) => (
+              <tr key={p.id} className="hairline-t">
+                <Td className="text-[var(--color-ink-500)]">{p.date}</Td>
+                <Td className="font-medium">{p.reference || `PAY-${p.id}`}</Td>
+                <Td className="capitalize">{p.method}</Td>
+                <Td right className="font-medium">{fmtKES(p.amountCents)}</Td>
+                <Td right>
+                  <div className="flex justify-end gap-2">
+                    <a
+                      href={`/portal/${slug}/api/receipt/pdf/${p.id}`}
+                      target="_blank"
+                      className="px-3 py-1 border border-[var(--color-ink-200)] text-[12px] font-medium text-[var(--color-ink-700)] rounded-md hover:bg-[var(--color-ink-50)] transition-all"
+                    >
+                      View Receipt
+                    </a>
+                    <a
+                      href={`/portal/${slug}/api/receipt/pdf/${p.id}?download=1`}
+                      className="px-3 py-1 bg-[var(--color-ink-900)] text-white text-[12px] font-medium rounded-md hover:bg-black transition-all"
+                    >
+                      Download
+                    </a>
+                  </div>
+                </Td>
+              </tr>
+            ))}
+            {payments.length === 0 && (
+              <tr>
+                <td colSpan={5} className="text-center py-10 text-[13px] text-[var(--color-ink-400)]">
+                  No receipts found.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </TableCard>
+      ) : (
+        <TableCard>
+          <thead className="hairline-b">
+            <tr>
+              <Th>Date</Th>
+              <Th>Number</Th>
+              <Th>Status</Th>
+              <Th right>Total</Th>
+              <Th right>Balance</Th>
+              <Th></Th>
+            </tr>
+          </thead>
+          <tbody>
+            {documents.map((d) => (
+              <tr key={d.id} className="hairline-t">
+                <Td className="text-[var(--color-ink-500)]">{d.date}</Td>
+                <Td className="font-medium capitalize">{d.type} {d.number}</Td>
+                <Td><StatusPill status={d.status} /></Td>
+                <Td right>{fmtKES(d.totalCents)}</Td>
+                <Td right className="font-medium">
+                  {d.type === "invoice" && ["open", "partial"].includes(d.status) ? fmtKES(d.totalCents - d.paidCents) : "—"}
+                </Td>
+                <Td right>
+                  <div className="flex justify-end gap-2">
+                    {d.type === "invoice" && ["open", "partial"].includes(d.status) && (
+                      <button
+                        onClick={() => { setPayDoc(d); setPhone(""); setError(null); setSuccess(null); }}
+                        className="px-3 py-1 bg-[var(--color-brand)] text-white text-[12px] font-semibold rounded-md shadow-sm hover:opacity-90 transition-all"
+                      >
+                        Pay Now
+                      </button>
+                    )}
+                    <a
+                      href={`/portal/${slug}/api/pdf/${d.id}`}
+                      target="_blank"
+                      className="px-3 py-1 border border-[var(--color-ink-200)] text-[12px] font-medium text-[var(--color-ink-700)] rounded-md hover:bg-[var(--color-ink-50)] transition-all"
+                    >
+                      View PDF
+                    </a>
+                    <a
+                      href={`/portal/${slug}/api/pdf/${d.id}?download=1`}
+                      className="px-3 py-1 bg-[var(--color-ink-900)] text-white text-[12px] font-medium rounded-md hover:bg-black transition-all"
+                    >
+                      Download
+                    </a>
+                  </div>
+                </Td>
+              </tr>
+            ))}
+            {documents.length === 0 && (
+              <tr>
+                <td colSpan={6} className="text-center py-10 text-[13px] text-[var(--color-ink-400)]">
+                  No documents found.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </TableCard>
+      )}
 
       {/* Payment Modal */}
       {payDoc && (

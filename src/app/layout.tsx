@@ -11,6 +11,7 @@ export const metadata: Metadata = {
     title: "Tallry",
   },
   icons: {
+    icon: "/icon.png",
     apple: "/app-icon?size=192",
   },
 };

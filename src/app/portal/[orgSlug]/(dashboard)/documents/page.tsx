@@ -56,6 +56,9 @@ export default async function ClientPortalDocuments({
         <a href={`/portal/${orgSlug}/documents?tab=quotes`} className={`pb-3 text-[14px] font-medium transition-colors ${tab === "quotes" ? "text-[var(--color-brand)] border-b-2 border-[var(--color-brand)]" : "text-[var(--color-ink-500)] hover:text-[var(--color-ink-900)]"}`}>
           Quotes
         </a>
+        <a href={`/portal/${orgSlug}/documents?tab=receipts`} className={`pb-3 text-[14px] font-medium transition-colors ${tab === "receipts" ? "text-[var(--color-brand)] border-b-2 border-[var(--color-brand)]" : "text-[var(--color-ink-500)] hover:text-[var(--color-ink-900)]"}`}>
+          Receipts
+        </a>
         <a href={`/portal/${orgSlug}/documents?tab=statement`} className={`pb-3 text-[14px] font-medium transition-colors ${tab === "statement" ? "text-[var(--color-brand)] border-b-2 border-[var(--color-brand)]" : "text-[var(--color-ink-500)] hover:text-[var(--color-ink-900)]"}`}>
           Statement of Account
         </a>
@@ -65,7 +68,7 @@ export default async function ClientPortalDocuments({
         {tab === "statement" ? (
           <StatementTab contact={{ id: session.contactId, displayName: "You" } as any} docs={allDocs} pays={allPayments} portalSlug={orgSlug} />
         ) : (
-          <ClientDocuments slug={orgSlug} documents={viewDocs} payments={allPayments} />
+          <ClientDocuments slug={orgSlug} tab={tab} documents={viewDocs} payments={allPayments} />
         )}
       </div>
     </>
