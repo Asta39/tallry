@@ -119,10 +119,16 @@ export function CsvImporter({ entity, label }: { entity: Entity; label: string }
     if (!preview) return;
     start(async () => {
       try {
-        let res: { created: number; skipped: number };
+        let res: { created?: number; skipped?: number; error?: string };
         if (entity === "contacts") res = await importContacts(preview.rows as ContactRow[]);
         else if (entity === "items") res = await importItems(preview.rows as ItemRow[]);
         else res = await importInvoices(preview.rows as InvoiceRow[]);
+        
+        if (res.error) {
+          setError(res.error);
+          return;
+        }
+        
         setResult(
           `✓ Imported ${res.created} ${entity === "invoices" ? "draft invoice(s)" : entity}` +
           (res.skipped ? ` · ${res.skipped} skipped (duplicates/empty)` : "")

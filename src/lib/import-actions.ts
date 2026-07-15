@@ -36,8 +36,9 @@ export interface ContactRow {
   city?: string;
 }
 
-export async function importContacts(rows: ContactRow[]): Promise<{ created: number; skipped: number }> {
-  return withOrg(async () => {
+export async function importContacts(rows: ContactRow[]): Promise<{ created?: number; skipped?: number; error?: string }> {
+  try {
+    return await withOrg(async () => {
     const orgId = currentOrgId();
     const existing = await db.select({ name: contacts.displayName }).from(contacts).where(eq(contacts.orgId, orgId));
     const known = new Set(existing.map((e) => e.name.toLowerCase().trim()));
@@ -63,6 +64,9 @@ export async function importContacts(rows: ContactRow[]): Promise<{ created: num
     revalidatePath("/contacts");
     return { created, skipped };
   });
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Failed to import contacts" };
+  }
 }
 
 export interface ItemRow {
@@ -77,8 +81,9 @@ export interface ItemRow {
   reorderLevel: number;
 }
 
-export async function importItems(rows: ItemRow[]): Promise<{ created: number; skipped: number }> {
-  return withOrg(async () => {
+export async function importItems(rows: ItemRow[]): Promise<{ created?: number; skipped?: number; error?: string }> {
+  try {
+    return await withOrg(async () => {
     const orgId = currentOrgId();
     const existing = await db.select({ name: items.name }).from(items).where(eq(items.orgId, orgId));
     const known = new Set(existing.map((e) => e.name.toLowerCase().trim()));
@@ -104,6 +109,9 @@ export async function importItems(rows: ItemRow[]): Promise<{ created: number; s
     revalidatePath("/items");
     return { created, skipped };
   });
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Failed to import items" };
+  }
 }
 
 export interface InvoiceRow {
@@ -125,8 +133,9 @@ import { getEntitlements, getInvoiceUsage } from "./billing-server";
  * name, created if missing. Review + issue each draft to post it (and get
  * its eTIMS signature) — imports never silently hit the ledger.
  */
-export async function importInvoices(rows: InvoiceRow[]): Promise<{ created: number; skipped: number }> {
-  return withOrg(async () => {
+export async function importInvoices(rows: InvoiceRow[]): Promise<{ created?: number; skipped?: number; error?: string }> {
+  try {
+    return await withOrg(async () => {
     const orgId = currentOrgId();
     const groups = new Map<string, InvoiceRow[]>();
     for (const r of rows) {
@@ -192,4 +201,7 @@ export async function importInvoices(rows: InvoiceRow[]): Promise<{ created: num
     revalidatePath("/sales/invoices");
     return { created, skipped };
   });
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Failed to import invoices" };
+  }
 }
