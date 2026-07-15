@@ -17,3 +17,12 @@
  ○ Compiling middleware ...
  ✓ Compiled middleware in 2.1s
  ✓ Ready in 50.2s
+ ✓ Compiled instrumentation Node.js in 41ms
+ ✓ Compiled instrumentation Edge in 29ms
+[Error: ENOENT: no such file or directory, open '/Users/ianlove/workspaces/zoho-books-clone/.next/static/development/_buildManifest.js.tmp.ku2o4jnuqb'] {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: '/Users/ianlove/workspaces/zoho-books-clone/.next/static/development/_buildManifest.js.tmp.ku2o4jnuqb'
+}
+[?25h

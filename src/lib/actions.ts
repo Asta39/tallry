@@ -927,3 +927,73 @@ export async function deleteCategorizationRule(ruleId: number) {
     revalidatePath("/banking");
   });
 }
+
+/* ---------------- Client Portal ---------------- */
+
+export async function updatePortalUserAction(contactId: number, email: string, password?: string) {
+  return withOrg(async (o) => {
+    // we need crypto to hash password
+    const crypto = await import("crypto");
+    const { portalUsers } = await import("@/db");
+    
+    const [existing] = await db.select().from(portalUsers)
+      .where(and(eq(portalUsers.orgId, o.id), eq(portalUsers.contactId, contactId)))
+      .limit(1);
+
+    if (existing) {
+      const updates: any = { email };
+      if (password) {
+        updates.passwordHash = crypto.createHash("sha256").update(password).digest("hex");
+      }
+      await db.update(portalUsers)
+        .set(updates)
+        .where(eq(portalUsers.id, existing.id));
+    } else {
+      if (!password) return { error: "Password is required for new users." };
+      
+      // Check email collision across the org
+      const [emailClash] = await db.select().from(portalUsers)
+        .where(and(eq(portalUsers.orgId, o.id), eq(portalUsers.email, email)))
+        .limit(1);
+      
+      if (emailClash) return { error: "Email is already in use by another contact." };
+
+      const passwordHash = crypto.createHash("sha256").update(password).digest("hex");
+      await db.insert(portalUsers).values({
+        orgId: o.id,
+        contactId,
+        email,
+        passwordHash,
+        isActive: true,
+        createdAt: new Date().toISOString(),
+      });
+    }
+
+    revalidatePath(`/contacts/${contactId}`);
+    return { success: true };
+  });
+}
+
+export async function saveArticleAction(id: number | null, title: string, content: string, published: boolean) {
+  return withOrg(async (o) => {
+    const { knowledgeArticles } = await import("@/db");
+    
+    if (id) {
+      await db.update(knowledgeArticles)
+        .set({ title, content, published })
+        .where(and(eq(knowledgeArticles.orgId, o.id), eq(knowledgeArticles.id, id)));
+    } else {
+      await db.insert(knowledgeArticles).values({
+        orgId: o.id,
+        title,
+        content,
+        published,
+        createdAt: new Date().toISOString(),
+      });
+    }
+
+    revalidatePath("/settings/knowledge-base");
+    return { success: true };
+  });
+}
+

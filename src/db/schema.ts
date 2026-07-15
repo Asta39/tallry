@@ -650,3 +650,27 @@ export const portalSessions = pgTable("portal_sessions", {
 }, (t) => ({
   tokenUnique: uniqueIndex("idx_portal_sessions_token").on(t.token),
 }));
+
+export const portalUsers = pgTable("portal_users", {
+  id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
+  contactId: integer("contact_id").notNull().references(() => contacts.id),
+  email: text("email").notNull(),
+  passwordHash: text("password_hash").notNull(),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: text("created_at").notNull(),
+}, (t) => ({
+  orgContactIdx: index("idx_portal_users_org_contact").on(t.orgId, t.contactId),
+  emailUnique: uniqueIndex("idx_portal_users_email").on(t.orgId, t.email),
+}));
+
+export const knowledgeArticles = pgTable("knowledge_articles", {
+  id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
+  title: text("title").notNull(),
+  content: text("content").notNull(),
+  published: boolean("published").notNull().default(false),
+  createdAt: text("created_at").notNull(),
+}, (t) => ({
+  orgIdx: index("idx_knowledge_articles_org").on(t.orgId),
+}));

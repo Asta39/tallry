@@ -23,7 +23,7 @@ export async function middleware(request: NextRequest) {
   // Public receipt links: the token in the URL is the credential.
   // Customer portal (/p/) authenticates with its own phone+OTP session.
   // Rate-limited to blunt token brute-forcing and scraping.
-  if (path.startsWith("/r/") || path.startsWith("/p/")) {
+  if (path.startsWith("/r/") || path.startsWith("/p/") || path.startsWith("/portal/")) {
     if (!rateLimit(`pub:${clientIp(request)}`, 60, 60_000)) {
       return new NextResponse("Too many requests", { status: 429 });
     }

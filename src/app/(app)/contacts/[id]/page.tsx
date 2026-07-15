@@ -3,11 +3,12 @@ import { requirePerm } from "@/lib/guard";
 import { getOrg } from "@/lib/org";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { db, contacts, documents, activities, deals, payments } from "@/db";
+import { db, contacts, documents, activities, deals, payments, portalUsers } from "@/db";
 import { fmtKES, todayISO } from "@/lib/money";
 import { addActivity } from "@/lib/actions";
 import { PageHeader, StatusPill, StatCard, TableCard, Th, Td, PrimaryLink } from "@/components/ui";
 import { StatementTab } from "@/components/StatementTab";
+import { ClientPortalTab } from "@/components/ClientPortalTab";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +27,7 @@ const TABS = [
   { key: "deals", label: "Deals", icon: "▤" },
   { key: "statement", label: "Statement", icon: "📄" },
   { key: "notes", label: "Notes & activity", icon: "≡" },
+  { key: "portal", label: "Client Portal", icon: "🔐" },
 ] as const;
 
 function docHref(type: string, id: number) {
@@ -58,7 +60,7 @@ export default async function ContactDetail({
   const isVendor = c.kind === "vendor" || c.kind === "both";
   const isCustomer = c.kind === "customer" || c.kind === "both";
   const visibleTabs = TABS.filter((t) => {
-    if (["invoices", "quotes", "credit_notes"].includes(t.key)) return isCustomer;
+    if (["invoices", "quotes", "credit_notes", "portal"].includes(t.key)) return isCustomer;
     if (t.key === "bills") return isVendor;
     return true;
   });
@@ -76,6 +78,7 @@ export default async function ContactDetail({
     .orderBy(desc(activities.createdAt));
   const contactDeals = await db.select().from(deals).where(and(eq(deals.orgId, o.id), eq(deals.contactId, cid)));
   const contactPayments = await db.select().from(payments).where(and(eq(payments.orgId, o.id), eq(payments.contactId, cid)));
+  const [portalUser] = await db.select().from(portalUsers).where(and(eq(portalUsers.orgId, o.id), eq(portalUsers.contactId, cid))).limit(1);
 
   const owedToYou = allDocs
     .filter((d) => d.type === "invoice" && ["open", "partial"].includes(d.status))
@@ -271,6 +274,14 @@ export default async function ContactDetail({
                 )}
               </div>
             </>
+          )}
+
+          {tab === "portal" && (
+            <ClientPortalTab 
+              contactId={cid} 
+              portalUser={portalUser ? { email: portalUser.email, isActive: portalUser.isActive } : null} 
+              orgSlug={o.portalSlug || o.id.toString()} 
+            />
           )}
         </div>
       </div>
