@@ -24,6 +24,8 @@ export async function portalRequestPaymentAction(slug: string, documentId: numbe
 
   if (!gwConfig) return { error: "No payment gateway configured for this business." };
 
+  if (!doc.contactId) return { error: "Document has no contact" };
+
   const [contact] = await db.select().from(contacts).where(and(eq(contacts.id, doc.contactId), eq(contacts.orgId, session.orgId)));
 
   const gateway = getGateway(gwConfig);

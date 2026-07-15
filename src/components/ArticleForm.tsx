@@ -25,8 +25,8 @@ export function ArticleForm({
 
     start(async () => {
       try {
-        const res = await saveArticleAction(article?.id || null, title, content, published);
-        if (res.error) setError(res.error);
+        const res: any = await saveArticleAction(article?.id || null, title, content, published);
+        if (res?.error) setError(res.error);
         else {
           router.push("/settings/knowledge-base");
         }

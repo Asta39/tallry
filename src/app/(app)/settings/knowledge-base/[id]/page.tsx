@@ -30,7 +30,6 @@ export default async function ArticleEditPage({ params }: { params: Promise<{ id
     <>
       <PageHeader 
         title={article ? "Edit Article" : "New Article"} 
-        backHref="/settings/knowledge-base"
       />
 
       <div className="max-w-3xl">

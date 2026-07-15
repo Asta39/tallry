@@ -34,8 +34,8 @@ export function ClientPortalTab({
 
     start(async () => {
       try {
-        const res = await updatePortalUserAction(contactId, email, password);
-        if (res.error) setError(res.error);
+        const res: any = await updatePortalUserAction(contactId, email, password);
+        if (res?.error) setError(res.error);
         else {
           setSuccess("Portal user updated successfully");
           setPassword(""); // clear password input

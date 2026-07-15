@@ -931,13 +931,14 @@ export async function deleteCategorizationRule(ruleId: number) {
 /* ---------------- Client Portal ---------------- */
 
 export async function updatePortalUserAction(contactId: number, email: string, password?: string) {
-  return withOrg(async (o) => {
+  return withOrg(async () => {
     // we need crypto to hash password
     const crypto = await import("crypto");
     const { portalUsers } = await import("@/db");
+    const orgId = currentOrgId();
     
     const [existing] = await db.select().from(portalUsers)
-      .where(and(eq(portalUsers.orgId, o.id), eq(portalUsers.contactId, contactId)))
+      .where(and(eq(portalUsers.orgId, orgId), eq(portalUsers.contactId, contactId)))
       .limit(1);
 
     if (existing) {
@@ -953,14 +954,14 @@ export async function updatePortalUserAction(contactId: number, email: string, p
       
       // Check email collision across the org
       const [emailClash] = await db.select().from(portalUsers)
-        .where(and(eq(portalUsers.orgId, o.id), eq(portalUsers.email, email)))
+        .where(and(eq(portalUsers.orgId, orgId), eq(portalUsers.email, email)))
         .limit(1);
       
       if (emailClash) return { error: "Email is already in use by another contact." };
 
       const passwordHash = crypto.createHash("sha256").update(password).digest("hex");
       await db.insert(portalUsers).values({
-        orgId: o.id,
+        orgId,
         contactId,
         email,
         passwordHash,
@@ -975,16 +976,17 @@ export async function updatePortalUserAction(contactId: number, email: string, p
 }
 
 export async function saveArticleAction(id: number | null, title: string, content: string, published: boolean) {
-  return withOrg(async (o) => {
+  return withOrg(async () => {
     const { knowledgeArticles } = await import("@/db");
+    const orgId = currentOrgId();
     
     if (id) {
       await db.update(knowledgeArticles)
         .set({ title, content, published })
-        .where(and(eq(knowledgeArticles.orgId, o.id), eq(knowledgeArticles.id, id)));
+        .where(and(eq(knowledgeArticles.orgId, orgId), eq(knowledgeArticles.id, id)));
     } else {
       await db.insert(knowledgeArticles).values({
-        orgId: o.id,
+        orgId,
         title,
         content,
         published,

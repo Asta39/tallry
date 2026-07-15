@@ -89,9 +89,9 @@ export function ClientDocuments({
           ))}
           {documents.length === 0 && (
             <tr>
-              <Td colSpan={6} className="text-center py-10 text-[13px] text-[var(--color-ink-400)]">
+              <td colSpan={6} className="text-center py-10 text-[13px] text-[var(--color-ink-400)]">
                 No documents found.
-              </Td>
+              </td>
             </tr>
           )}
         </tbody>

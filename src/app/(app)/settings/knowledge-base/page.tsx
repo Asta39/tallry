@@ -21,7 +21,6 @@ export default async function KnowledgeBasePage() {
       <PageHeader 
         title="Knowledge Base" 
         subtitle="Manage articles that your clients can read in the Client Portal."
-        backHref="/settings"
       />
 
       <div className="flex justify-end mb-4 max-w-4xl">
@@ -51,7 +50,9 @@ export default async function KnowledgeBasePage() {
                     </Link>
                   </Td>
                   <Td>
-                    <StatusPill status={a.published ? "active" : "draft"} label={a.published ? "Published" : "Draft"} />
+                    <span className={`inline-block rounded-full px-2.5 py-0.5 text-[11px] font-medium ${a.published ? "bg-emerald-50 text-emerald-700" : "bg-[var(--color-ink-100)] text-[var(--color-ink-600)]"}`}>
+                      {a.published ? "Published" : "Draft"}
+                    </span>
                   </Td>
                   <Td className="text-[var(--color-ink-500)] text-[12.5px]">{new Date(a.createdAt).toLocaleDateString()}</Td>
                 </tr>
