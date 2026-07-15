@@ -63,7 +63,7 @@ export default async function ClientPortalDocuments({
 
       <div className="max-w-5xl">
         {tab === "statement" ? (
-          <StatementTab contact={{ id: session.contactId, displayName: "You" } as any} docs={allDocs} pays={allPayments} />
+          <StatementTab contact={{ id: session.contactId, displayName: "You" } as any} docs={allDocs} pays={allPayments} portalSlug={orgSlug} />
         ) : (
           <ClientDocuments slug={orgSlug} documents={viewDocs} payments={allPayments} />
         )}

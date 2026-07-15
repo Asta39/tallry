@@ -77,11 +77,17 @@ export function ClientDocuments({
                     </button>
                   )}
                   <a
-                    href={`/api/pdf/${d.id}`}
+                    href={`/portal/${slug}/api/pdf/${d.id}`}
                     target="_blank"
                     className="px-3 py-1 border border-[var(--color-ink-200)] text-[12px] font-medium text-[var(--color-ink-700)] rounded-md hover:bg-[var(--color-ink-50)] transition-all"
                   >
-                    Download PDF
+                    View PDF
+                  </a>
+                  <a
+                    href={`/portal/${slug}/api/pdf/${d.id}?download=1`}
+                    className="px-3 py-1 bg-[var(--color-ink-900)] text-white text-[12px] font-medium rounded-md hover:bg-black transition-all"
+                  >
+                    Download
                   </a>
                 </div>
               </Td>

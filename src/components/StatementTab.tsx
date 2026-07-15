@@ -5,10 +5,12 @@ export function StatementTab({
   contact,
   docs,
   pays,
+  portalSlug,
 }: {
   contact: any;
   docs: any[];
   pays: any[];
+  portalSlug?: string;
 }) {
   // Build a chronological ledger
   const ledger: {
@@ -60,14 +62,14 @@ export function StatementTab({
         <h2 className="text-[15px] font-semibold">Account Statement</h2>
         <div className="flex gap-2">
           <a
-            href={`/api/statement/pdf/${contact.id}`}
+            href={portalSlug ? `/portal/${portalSlug}/api/statement/pdf/${contact.id}` : `/api/statement/pdf/${contact.id}`}
             target="_blank"
             className="flex items-center gap-1 rounded-md border border-[var(--color-ink-200)] bg-white px-3 py-1.5 text-[12px] font-medium hover:bg-[var(--color-ink-50)] transition-colors"
           >
             <span className="opacity-70">📄</span> View PDF
           </a>
           <a
-            href={`/api/statement/pdf/${contact.id}?download=1`}
+            href={portalSlug ? `/portal/${portalSlug}/api/statement/pdf/${contact.id}?download=1` : `/api/statement/pdf/${contact.id}?download=1`}
             className="flex items-center gap-1 rounded-md bg-[var(--color-ink-900)] text-white px-3 py-1.5 text-[12px] font-medium hover:bg-black transition-colors"
           >
             ↓ Download
