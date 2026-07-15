@@ -7,7 +7,7 @@ import { getClientSession } from "@/lib/client-portal/auth";
 import { StatementPdf } from "@/lib/pdf/StatementPdf";
 import { todayISO } from "@/lib/money";
 import { addDays } from "@/lib/recurring";
-import type { StatementLine } from "@/lib/types";
+import type { StatementLine } from "@/lib/phase-a-actions";
 
 export const dynamic = "force-dynamic";
 
