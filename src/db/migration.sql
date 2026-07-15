@@ -570,3 +570,25 @@ CREATE TABLE IF NOT EXISTS subscriptions (
   created_at TEXT NOT NULL
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_subscriptions_org ON subscriptions(org_id);
+
+CREATE TABLE IF NOT EXISTS portal_users (
+  id SERIAL PRIMARY KEY,
+  org_id INTEGER NOT NULL REFERENCES org(id),
+  contact_id INTEGER NOT NULL REFERENCES contacts(id),
+  email TEXT NOT NULL,
+  password_hash TEXT NOT NULL,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_portal_users_org_contact ON portal_users(org_id, contact_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_portal_users_email ON portal_users(org_id, email);
+
+CREATE TABLE IF NOT EXISTS knowledge_articles (
+  id SERIAL PRIMARY KEY,
+  org_id INTEGER NOT NULL REFERENCES org(id),
+  title TEXT NOT NULL,
+  content TEXT NOT NULL,
+  published BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_knowledge_articles_org ON knowledge_articles(org_id);
