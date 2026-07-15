@@ -16,7 +16,7 @@ export interface StaffMember {
   active: boolean;
 }
 
-export function AddStaffForm({ roles, employees }: { roles: string[], employees?: { id: number, name: string }[] }) {
+export function AddStaffForm({ roles, employees, isLocked }: { roles: string[], employees?: { id: number, name: string }[], isLocked?: boolean }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -76,12 +76,24 @@ export function AddStaffForm({ roles, employees }: { roles: string[], employees?
           ))}
         </select>
       </label>
-      <button
-        disabled={pending}
-        className="rounded-lg bg-[var(--color-accent-500)] hover:bg-[var(--color-accent-600)] disabled:opacity-50 text-white text-[13px] font-medium px-4 py-2.5"
-      >
-        {pending ? "Creating…" : "Create account"}
-      </button>
+      
+      {isLocked ? (
+        <a 
+          href="/settings/billing"
+          className="flex items-center justify-center gap-2 rounded-lg bg-[var(--color-ink-100)] hover:bg-[var(--color-ink-200)] text-[var(--color-ink-900)] text-[13px] font-medium px-4 py-2.5 transition-colors border border-[var(--color-ink-200)]"
+        >
+          <svg className="w-4 h-4 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+          Upgrade to Add
+        </a>
+      ) : (
+        <button
+          disabled={pending}
+          className="rounded-lg bg-[var(--color-accent-500)] hover:bg-[var(--color-accent-600)] disabled:opacity-50 text-white text-[13px] font-medium px-4 py-2.5 transition-colors"
+        >
+          {pending ? "Creating…" : "Create account"}
+        </button>
+      )}
+      
       {error && <div className="col-span-full text-[12.5px] text-[var(--color-bad)]">{error}</div>}
       {ok && <div className="col-span-full text-[12.5px] text-[var(--color-good)] font-medium">✓ {ok}</div>}
     </form>

@@ -46,16 +46,11 @@ export default async function StaffPage() {
       )}
 
       <h2 className="text-[15px] font-semibold mb-3">Add a staff member</h2>
-      <UpgradePrompt 
-        isLocked={isLocked} 
-        featureName="More Staff Seats" 
-        description={`Your current plan allows up to ${entitlements.limits.staff} staff members (including you). Upgrade to add more team members!`}
-      >
-        <AddStaffForm 
-          roles={allRoles} 
-          employees={allEmployees.map(e => ({ id: e.id, name: e.name }))}
-        />
-      </UpgradePrompt>
+      <AddStaffForm 
+        roles={allRoles} 
+        employees={allEmployees.map(e => ({ id: e.id, name: e.name }))}
+        isLocked={isLocked}
+      />
 
       <h2 className="text-[15px] font-semibold mt-8 mb-3">Team</h2>
       <StaffList

@@ -56,7 +56,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             {access.memberId ? <NotificationBell memberId={access.memberId} /> : <div className="w-8" />}
           </div>
         </div>
-        <div className="px-4 py-6 md:px-8 md:py-7 max-w-[1200px] w-full mx-auto">
+        <div className="px-4 py-6 md:px-8 md:py-7 max-w-[1200px] w-full mx-auto flex-1 flex flex-col">
           {children}
         </div>
       </main>
