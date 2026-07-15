@@ -49,19 +49,10 @@ export async function GET(
     .limit(1);
 
   const element = React.createElement(DocumentPdf, {
-    doc,
-    lines,
-    contact,
+    doc: doc as any,
+    lines: lines as any,
+    contact: contact as any,
     org: o as any,
-    settings: {
-      accentColor: o.brandColor || "#0f766e",
-      logoUrl: o.logoUrl,
-      showSignature: true,
-      bankDetails: o.bankDetails,
-      mpesaTill: o.mpesaTill,
-      mpesaPaybill: o.mpesaPaybill,
-      mpesaAccount: o.mpesaAccount,
-    } as any,
     qrCodeDataUrl: undefined,
   });
 
