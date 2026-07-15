@@ -77,13 +77,12 @@ export async function seedOrgDefaults(orgId: number) {
   if (existing.length > 0) return;
 
   const { subscriptions } = await import("@/db");
-  const thirtyDaysFromNow = new Date();
-  thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
+
   
   await db.insert(subscriptions).values({
     orgId,
-    plan: "business",
-    paidUntil: thirtyDaysFromNow.toISOString().split("T")[0],
+    plan: "free",
+    paidUntil: "9999-12-31",
     createdAt: new Date().toISOString(),
   });
 
