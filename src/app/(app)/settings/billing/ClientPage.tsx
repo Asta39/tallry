@@ -103,7 +103,7 @@ export function BillingClient({ entitlements, orgPhone }: { entitlements: Entitl
                 cycle === "annual" ? "bg-[var(--color-brand)] text-white shadow-md" : "bg-transparent text-[var(--color-ink-600)] hover:text-[var(--color-ink-900)]"
               }`}
             >
-              Annual <span className="bg-[var(--color-brand)]/10 text-[var(--color-brand)] text-[10px] px-2 py-0.5 rounded-full font-bold">Save 20%</span>
+              Annual <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${cycle === "annual" ? "bg-white/20 text-white" : "bg-[var(--color-brand)]/10 text-[var(--color-brand)]"}`}>Save 20%</span>
             </button>
           </div>
         </div>
@@ -265,9 +265,9 @@ export function BillingClient({ entitlements, orgPhone }: { entitlements: Entitl
         <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => modal.status !== "processing" && setModal(prev => ({ ...prev, isOpen: false }))} />
           
-          <div className="relative w-full md:w-[420px] bg-white rounded-t-3xl md:rounded-3xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-bottom-8 md:slide-in-from-bottom-0 md:zoom-in-95 duration-200">
+          <div className="relative w-full h-[65vh] md:h-auto md:w-[420px] bg-white rounded-t-3xl md:rounded-3xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-bottom-8 md:slide-in-from-bottom-0 md:zoom-in-95 duration-200 flex flex-col">
             {/* Header */}
-            <div className="flex items-center justify-between p-6 border-b border-[var(--color-ink-100)]">
+            <div className="flex-none flex items-center justify-between p-6 border-b border-[var(--color-ink-100)]">
               <h3 className="text-lg font-bold text-[var(--color-ink-900)]">
                 Upgrade to {modal.plan ? PLANS[modal.plan].name : ""}
               </h3>
@@ -281,11 +281,11 @@ export function BillingClient({ entitlements, orgPhone }: { entitlements: Entitl
               )}
             </div>
             
-            <div className="p-6">
+            <div className="p-6 flex-1 overflow-y-auto flex flex-col">
               {modal.status === "idle" || modal.status === "error" ? (
                 <>
-                  <div className="mb-6">
-                    <p className="text-[14px] text-[var(--color-ink-600)] mb-4">
+                  <div className="mb-auto">
+                    <p className="text-[14px] text-[var(--color-ink-600)] mb-6">
                       You are about to pay <strong>{fmtKES(modal.plan ? (cycle === "annual" ? PLANS[modal.plan].annualCents : PLANS[modal.plan].monthlyCents) : 0).replace(".00", "")}</strong> for the {modal.plan ? PLANS[modal.plan].name : ""} plan ({cycle}).
                     </p>
                     
@@ -303,7 +303,7 @@ export function BillingClient({ entitlements, orgPhone }: { entitlements: Entitl
                         value={modal.phone}
                         onChange={(e) => setModal(prev => ({ ...prev, phone: e.target.value }))}
                         placeholder="07XXXXXXXX"
-                        className="w-full pl-10 pr-4 py-3 bg-[var(--color-ink-50)] border border-[var(--color-ink-200)] rounded-xl text-[14px] focus:ring-2 focus:ring-[var(--color-brand)] focus:border-transparent outline-none transition-all"
+                        className="w-full pl-10 pr-4 py-3 bg-[var(--color-ink-50)] border border-[var(--color-ink-200)] rounded-xl text-[14px] focus:ring-2 focus:ring-[var(--color-brand)] focus:border-transparent outline-none transition-all font-medium"
                       />
                     </div>
                     <p className="mt-2 text-[12px] text-[var(--color-ink-500)]">
@@ -312,21 +312,21 @@ export function BillingClient({ entitlements, orgPhone }: { entitlements: Entitl
                   </div>
                   
                   {modal.error && (
-                    <div className="mb-6 p-3 bg-[var(--color-bad)]/10 text-[var(--color-bad)] rounded-lg text-[13px] font-medium border border-[var(--color-bad)]/20">
+                    <div className="my-6 p-3 bg-[var(--color-bad)]/10 text-[var(--color-bad)] rounded-lg text-[13px] font-medium border border-[var(--color-bad)]/20">
                       {modal.error}
                     </div>
                   )}
                   
                   <button
                     onClick={handlePayment}
-                    className="w-full py-3.5 rounded-xl text-[14px] font-bold text-white bg-gradient-to-r from-[#25D366] to-[#128C7E] hover:opacity-90 shadow-lg shadow-[#25D366]/20 transition-all active:scale-[0.98]"
+                    className="w-full mt-6 py-3.5 rounded-xl text-[14px] font-bold text-white bg-[var(--color-brand)] hover:opacity-90 shadow-lg shadow-[var(--color-brand)]/20 transition-all active:scale-[0.98]"
                   >
                     Pay with M-Pesa
                   </button>
                 </>
               ) : modal.status === "processing" ? (
-                <div className="py-8 flex flex-col items-center justify-center text-center">
-                  <div className="w-32 h-32 mb-4">
+                <div className="py-8 flex flex-col items-center justify-center text-center flex-1">
+                  <div className="w-56 h-56 mb-4">
                     <Player
                       autoplay
                       loop
@@ -340,9 +340,9 @@ export function BillingClient({ entitlements, orgPhone }: { entitlements: Entitl
                   </p>
                 </div>
               ) : (
-                <div className="py-10 flex flex-col items-center justify-center text-center">
-                  <div className="w-16 h-16 bg-[var(--color-good)]/10 text-[var(--color-good)] rounded-full flex items-center justify-center mb-6">
-                    <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
+                <div className="py-10 flex flex-col items-center justify-center text-center flex-1">
+                  <div className="w-20 h-20 bg-[var(--color-good)]/10 text-[var(--color-good)] rounded-full flex items-center justify-center mb-6">
+                    <svg className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
                   </div>
                   <h4 className="text-xl font-bold text-[var(--color-ink-900)] mb-2">Payment Successful!</h4>
                   <p className="text-[14px] text-[var(--color-ink-500)]">
