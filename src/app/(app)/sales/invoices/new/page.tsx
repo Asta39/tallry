@@ -2,6 +2,9 @@ import { DocumentEditor } from "@/components/DocumentEditor";
 import { requirePerm } from "@/lib/guard";
 import { editorOptions, fetchInitialData } from "@/components/docData";
 import { PageHeader } from "@/components/ui";
+import { getEntitlements, getInvoiceUsage } from "@/lib/billing-server";
+import { getOrg } from "@/lib/org";
+import { UpgradePrompt } from "@/components/UpgradePrompt";
 
 export const dynamic = "force-dynamic";
 
@@ -22,8 +25,19 @@ export default async function NewInvoicePage({
       initialData = { ...data, id: undefined, isTemplate: undefined }; // clear ID and isTemplate so it saves as a new normal document
     } catch (err) {}
   }
+
+  const orgRow = await getOrg();
+  const ents = await getEntitlements(orgRow.id);
+  const usage = await getInvoiceUsage(orgRow.id);
+  const limit = ents.limits.invoices;
+  const isLocked = limit !== -1 && usage >= limit;
+
   return (
-    <>
+    <UpgradePrompt 
+      isLocked={isLocked} 
+      featureName="More Invoices" 
+      description={`You've reached your monthly limit of ${limit} invoices on the ${ents.limits.name} plan. Upgrade to issue unlimited invoices.`}
+    >
       <PageHeader title="New invoice" subtitle="VAT is calculated per line, the KRA way" />
       <DocumentEditor
         type="invoice"
@@ -36,6 +50,6 @@ export default async function NewInvoicePage({
         backHref="/sales/invoices"
         detailHref="/sales/invoices"
       />
-    </>
+    </UpgradePrompt>
   );
 }

@@ -1,0 +1,19 @@
+
+> tallry@0.1.0 dev
+> next dev --turbopack
+
+   ▲ Next.js 15.5.20 (Turbopack)
+   - Local:        http://localhost:3000
+   - Network:      http://192.168.100.41:3000
+   - Environments: .env.local
+   - Experiments (use with caution):
+     · serverActions
+
+ ✓ Starting...
+ ○ Compiling instrumentation Node.js ...
+ ✓ Compiled instrumentation Node.js in 32.1s
+ ○ Compiling instrumentation Edge ...
+ ✓ Compiled instrumentation Edge in 4.4s
+ ○ Compiling middleware ...
+ ✓ Compiled middleware in 2.1s
+ ✓ Ready in 50.2s

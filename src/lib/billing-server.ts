@@ -1,5 +1,5 @@
-import { db, subscriptions } from "@/db";
-import { eq } from "drizzle-orm";
+import { db, subscriptions, documents } from "@/db";
+import { eq, and, sql, gte, lt } from "drizzle-orm";
 import { PLANS, PlanKey, Entitlements } from "./billing";
 
 export async function getEntitlements(orgId: number): Promise<Entitlements> {
@@ -29,4 +29,22 @@ export async function getEntitlements(orgId: number): Promise<Entitlements> {
     limits: PLANS[planKey],
     paidUntil: sub.paidUntil,
   };
+}
+
+export async function getInvoiceUsage(orgId: number): Promise<number> {
+  const now = new Date();
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+  
+  const [result] = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(documents)
+    .where(
+      and(
+        eq(documents.orgId, orgId),
+        eq(documents.kind, 'invoice'),
+        gte(documents.createdAt, startOfMonth)
+      )
+    );
+    
+  return Number(result.count || 0);
 }
