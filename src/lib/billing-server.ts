@@ -41,7 +41,7 @@ export async function getInvoiceUsage(orgId: number): Promise<number> {
     .where(
       and(
         eq(documents.orgId, orgId),
-        eq(documents.kind, 'invoice'),
+        eq(documents.type, 'invoice'),
         gte(documents.createdAt, startOfMonth)
       )
     );
