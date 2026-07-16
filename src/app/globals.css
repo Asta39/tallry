@@ -57,6 +57,32 @@ html {
   border: 0.5px solid var(--color-ink-100);
 }
 
+.btn-primary {
+  background-color: var(--color-accent-500);
+  color: white;
+  border-radius: 6px;
+  font-weight: 500;
+  transition: all 0.2s;
+  cursor: pointer;
+}
+.btn-primary:hover {
+  background-color: var(--color-accent-600);
+}
+
+.btn-secondary {
+  background-color: transparent;
+  color: var(--color-ink-600);
+  border: 1px solid var(--color-ink-200);
+  border-radius: 6px;
+  font-weight: 500;
+  transition: all 0.2s;
+  cursor: pointer;
+}
+.btn-secondary:hover {
+  background-color: var(--color-ink-50);
+  color: var(--color-ink-900);
+}
+
 /* Large quiet money numerals — fluid size so long amounts stay on one line */
 .money-lg {
   font-size: clamp(1.1rem, 1.7vw + 0.55rem, 1.5rem);

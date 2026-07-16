@@ -652,3 +652,43 @@ export async function customersReport(fromDate: string, toDate: string) {
   }));
 }
 
+
+/**
+ * Parses a period string (e.g., 'this_month', 'last_month', 'this_quarter', 'this_year', 'all_time')
+ * and returns { fromDate, toDate } in YYYY-MM-DD format.
+ */
+export function parsePeriod(period: string, defaultPeriod: string = "this_month"): { fromDate: string; toDate: string } {
+  const today = new Date();
+  const y = today.getFullYear();
+  const m = today.getMonth(); // 0-indexed
+  const d = today.getDate();
+
+  const toISO = (date: Date) => date.toISOString().slice(0, 10);
+
+  const p = period || defaultPeriod;
+  let fromDate = "";
+  let toDate = toISO(today);
+
+  switch (p) {
+    case "this_month":
+      fromDate = toISO(new Date(y, m, 1));
+      break;
+    case "last_month":
+      fromDate = toISO(new Date(y, m - 1, 1));
+      toDate = toISO(new Date(y, m, 0));
+      break;
+    case "this_quarter":
+      const qStartMonth = Math.floor(m / 3) * 3;
+      fromDate = toISO(new Date(y, qStartMonth, 1));
+      break;
+    case "this_year":
+      fromDate = toISO(new Date(y, 0, 1));
+      break;
+    case "all_time":
+      fromDate = "1970-01-01";
+      break;
+    default:
+      fromDate = toISO(new Date(y, m, 1)); // default this month
+  }
+  return { fromDate, toDate };
+}
