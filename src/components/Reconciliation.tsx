@@ -171,7 +171,11 @@ export function Reconciliation({
             </button>
           </div>
 
-          <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="mt-3 grid grid-cols-2 sm:grid-cols-5 gap-3">
+            <div className="rounded-lg border border-[var(--color-ink-100)] px-3 py-2">
+              <div className="text-[11px] text-[var(--color-ink-400)]">Books balance (ledger)</div>
+              <div className="text-[13.5px] font-semibold tnum">{fmtKES(state.ledgerBalanceCents)}</div>
+            </div>
             <div className="rounded-lg border border-[var(--color-ink-100)] px-3 py-2">
               <div className="text-[11px] text-[var(--color-ink-400)]">Previously reconciled</div>
               <div className="text-[13.5px] font-semibold tnum">{fmtKES(state.alreadyReconciledCents)}</div>
@@ -197,6 +201,15 @@ export function Reconciliation({
               </div>
             </div>
           </div>
+
+          {state.uncategorizedCount > 0 && (
+            <div className="mt-3 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-[12px] text-amber-800">
+              {state.uncategorizedCount} transaction{state.uncategorizedCount > 1 ? "s" : ""} dated on/before the
+              statement date {state.uncategorizedCount > 1 ? "are" : "is"} not booked yet — categorize
+              {state.uncategorizedCount > 1 ? " them" : " it"} in the Transactions list below first, then
+              {state.uncategorizedCount > 1 ? " they" : " it"} will appear here.
+            </div>
+          )}
 
           <div className="mt-3 max-h-72 overflow-y-auto rounded-lg border border-[var(--color-ink-100)]">
             <table className="w-full text-[12.5px]">

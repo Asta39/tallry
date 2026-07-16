@@ -60,6 +60,32 @@ export interface Access {
 
 /** Resolve the signed-in user's org, role and effective permissions. */
 export async function getAccess(): Promise<Access | null> {
+  // Script/cron override (matches getOrg): no request cookies available, act
+  // as the org owner/admin of BIASHARA_ORG_ID.
+  if (process.env.BIASHARA_ORG_ID) {
+    try {
+      const { cookies } = await import("next/headers");
+      await cookies();
+    } catch {
+      const [row] = await db
+        .select()
+        .from(org)
+        .where(eq(org.id, Number(process.env.BIASHARA_ORG_ID)))
+        .limit(1);
+      if (!row) return null;
+      return {
+        orgId: row.id,
+        orgRow: row,
+        userId: row.userId ?? "script",
+        isOwner: true,
+        role: "admin",
+        memberName: row.name,
+        memberId: null,
+        perms: new Set(ALL),
+      };
+    }
+  }
+
   const user = await getUser();
   if (!user) return null;
 

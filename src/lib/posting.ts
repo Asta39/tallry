@@ -6,6 +6,7 @@ import {
   journalEntries,
   journalLines,
   bankAccounts,
+  bankTransactions,
   items,
   payments as paymentsTable,
 } from "@/db";
@@ -284,7 +285,52 @@ export async function postExpense(docId: number): Promise<number> {
     .update(documents)
     .set({ journalEntryId: entryId, status: "paid", paidCents: doc.totalCents })
     .where(eq(documents.id, doc.id));
+
+  // Mirror into the bank register so reconciliation sees this outflow.
+  await mirrorBankTxn({
+    bankAccountId: bank.id,
+    date: doc.date,
+    description: `Expense ${doc.number}`,
+    amountCents: -doc.totalCents,
+    journalEntryId: entryId,
+    externalRef: `exp:${doc.id}`,
+  });
   return entryId;
+}
+
+/**
+ * Mirror a ledger bank movement into the bank register (bank_transactions) so
+ * reconciliation sees every line the real statement will show. Idempotent via
+ * externalRef. Rows arrive already booked (status "categorized",
+ * journalEntryId set) — they are tickable in a reconciliation but never appear
+ * in the "needs categorizing" queue.
+ */
+export async function mirrorBankTxn(params: {
+  bankAccountId: number;
+  date: string;
+  description: string;
+  amountCents: number; // signed: + money in, − money out
+  journalEntryId: number;
+  externalRef: string;
+}) {
+  const orgId = currentOrgId();
+  const [existing] = await db
+    .select({ id: bankTransactions.id })
+    .from(bankTransactions)
+    .where(and(eq(bankTransactions.orgId, orgId), eq(bankTransactions.externalRef, params.externalRef)))
+    .limit(1);
+  if (existing) return;
+  await db.insert(bankTransactions).values({
+    orgId,
+    bankAccountId: params.bankAccountId,
+    date: params.date,
+    description: params.description,
+    amountCents: params.amountCents,
+    status: "categorized",
+    journalEntryId: params.journalEntryId,
+    externalRef: params.externalRef,
+    createdAt: nowISO(),
+  });
 }
 
 /**
@@ -330,6 +376,22 @@ export async function postPayment(paymentId: number): Promise<number> {
     lines,
   });
   await db.update(paymentsTable).set({ journalEntryId: entryId }).where(and(eq(paymentsTable.orgId, currentOrgId()), eq(paymentsTable.id, p.id)));
+
+  // Mirror into the bank register so reconciliation sees this movement.
+  // Direction "in" hits the bank net of WHT (matches the ledger line above).
+  if (bank) {
+    await mirrorBankTxn({
+      bankAccountId: bank.id,
+      date: p.date,
+      description:
+        p.direction === "in"
+          ? `Payment received ${p.number}${p.reference ? ` · ${p.reference}` : ""}`
+          : `Payment out ${p.number}${p.reference ? ` · ${p.reference}` : ""}`,
+      amountCents: p.direction === "in" ? p.amountCents - p.whtCents : -p.amountCents,
+      journalEntryId: entryId,
+      externalRef: `pmt:${p.id}`,
+    });
+  }
 
   if (p.documentId) {
     const [doc] = await db.select().from(documents).where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, p.documentId))).limit(1);

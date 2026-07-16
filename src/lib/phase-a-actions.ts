@@ -17,7 +17,7 @@ import { revalidatePath as nextRevalidatePath } from "next/cache";
 import { withOrg, currentOrgId, getOrg } from "./org";
 import { getAccess } from "./access";
 import { nowISO, todayISO } from "./money";
-import { postEntry, acct } from "./posting";
+import { postEntry, acct, mirrorBankTxn } from "./posting";
 import { SYS } from "./coa";
 import { saveDocument, issueDocument, type DocLineInput } from "./actions";
 import { advance, dueRuns, addDays, type Frequency } from "./recurring";
@@ -94,7 +94,7 @@ export interface ReconciliationState {
     statementDate: string;
     statementBalanceCents: number;
   };
-  /** candidate transactions (categorized, not yet reconciled, dated ≤ statement) */
+  /** candidate transactions (booked to the ledger, not yet reconciled, dated ≤ statement) */
   candidates: {
     id: number;
     date: string;
@@ -105,6 +105,10 @@ export interface ReconciliationState {
   alreadyReconciledCents: number;
   tickedCents: number;
   differenceCents: number; // statement − (alreadyReconciled + ticked)
+  /** the bank account's LEDGER balance through the statement date — the books' truth */
+  ledgerBalanceCents: number;
+  /** lines dated ≤ statement that aren't booked yet — must be categorized before they can reconcile */
+  uncategorizedCount: number;
 }
 
 export async function getReconciliationState(recId: number): Promise<ReconciliationState | null> {
@@ -123,6 +127,8 @@ export async function getReconciliationState(recId: number): Promise<Reconciliat
       .limit(1);
     if (!rec) return null;
 
+    // Only lines already booked to the ledger are tickable: reconciling an
+    // unbooked line would make the statement "match" while the books don't.
     const txns = await db
       .select()
       .from(bankTransactions)
@@ -130,11 +136,44 @@ export async function getReconciliationState(recId: number): Promise<Reconciliat
         and(
           eq(bankTransactions.orgId, orgId),
           eq(bankTransactions.bankAccountId, rec.bankAccountId),
-          inArray(bankTransactions.status, ["categorized", "uncategorized"]),
+          eq(bankTransactions.status, "categorized"),
           lte(bankTransactions.date, rec.statementDate)
         )
       )
       .orderBy(asc(bankTransactions.date), asc(bankTransactions.id));
+
+    const [uncat] = await db
+      .select({ n: sql<number>`count(*)` })
+      .from(bankTransactions)
+      .where(
+        and(
+          eq(bankTransactions.orgId, orgId),
+          eq(bankTransactions.bankAccountId, rec.bankAccountId),
+          eq(bankTransactions.status, "uncategorized"),
+          lte(bankTransactions.date, rec.statementDate)
+        )
+      );
+
+    // Ledger truth: the bank account's journal balance through the statement date.
+    const [bank] = await db
+      .select()
+      .from(bankAccounts)
+      .where(and(eq(bankAccounts.orgId, orgId), eq(bankAccounts.id, rec.bankAccountId)))
+      .limit(1);
+    const { journalLines, journalEntries } = await import("@/db");
+    const [ledger] = await db
+      .select({
+        v: sql<number>`coalesce(sum(${journalLines.debitCents} - ${journalLines.creditCents}), 0)`,
+      })
+      .from(journalLines)
+      .innerJoin(journalEntries, eq(journalLines.entryId, journalEntries.id))
+      .where(
+        and(
+          eq(journalLines.orgId, orgId),
+          eq(journalLines.accountId, bank?.accountId ?? -1),
+          lte(journalEntries.date, rec.statementDate)
+        )
+      );
 
     const already = await reconciledTotal(orgId, rec.bankAccountId);
     const candidates = txns.map((t) => ({
@@ -156,6 +195,8 @@ export async function getReconciliationState(recId: number): Promise<Reconciliat
       alreadyReconciledCents: already,
       tickedCents: ticked,
       differenceCents: rec.statementBalanceCents - already - ticked,
+      ledgerBalanceCents: Number(ledger?.v ?? 0),
+      uncategorizedCount: Number(uncat?.n ?? 0),
     };
   });
 }
@@ -200,15 +241,13 @@ export async function completeReconciliation(recId: number) {
 export async function cancelReconciliation(recId: number) {
   return withOrg(async () => {
     const orgId = currentOrgId();
+    // Clear the session pointer on every ticked line (any status) — leaving a
+    // stale reconciliationId would carry ticks into unrelated sessions.
     await db
       .update(bankTransactions)
       .set({ reconciliationId: null })
       .where(
-        and(
-          eq(bankTransactions.orgId, orgId),
-          eq(bankTransactions.reconciliationId, recId),
-          eq(bankTransactions.status, "categorized")
-        )
+        and(eq(bankTransactions.orgId, orgId), eq(bankTransactions.reconciliationId, recId))
       );
     await db
       .update(bankReconciliations)
@@ -437,7 +476,7 @@ export async function recordDrawings(bankAccountId: number, amountCents: number,
       .limit(1);
     if (!bank) throw new Error("Money account not found");
     const drawings = await ensureAccount("3100", "Owner Drawings", "equity", "equity");
-    await postEntry({
+    const entryId = await postEntry({
       date: todayISO(),
       memo: memo || "Owner drawings",
       sourceType: "drawings",
@@ -445,6 +484,15 @@ export async function recordDrawings(bankAccountId: number, amountCents: number,
         { accountId: drawings, debitCents: amountCents },
         { accountId: bank.accountId, creditCents: amountCents },
       ],
+    });
+    // Mirror into the bank register so reconciliation sees this outflow.
+    await mirrorBankTxn({
+      bankAccountId: bank.id,
+      date: todayISO(),
+      description: memo || "Owner drawings",
+      amountCents: -amountCents,
+      journalEntryId: entryId,
+      externalRef: `drw:${entryId}`,
     });
     revalidatePath("/accountant");
   });
