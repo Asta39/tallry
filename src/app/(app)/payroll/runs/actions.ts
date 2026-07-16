@@ -12,6 +12,8 @@ import { redirect } from "next/navigation";
 export async function createPayrollRunAction(formData: FormData) {
   await requirePerm("accountant");
   const o = await getOrg();
+  const { assertFeatureEntitlement } = await import("@/lib/billing-server");
+  await assertFeatureEntitlement(o.id, "payroll");
 
   const month = formData.get("month") as string;
   if (!month) throw new Error("Month is required");

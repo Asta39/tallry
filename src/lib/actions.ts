@@ -763,6 +763,13 @@ export async function saveDocument(data: Parameters<typeof _saveDocument>[0]) {
   if (access && !access.isOwner && access.role !== "admin" && access.memberId) {
     data.assignedMemberIds = Array.from(new Set([...(data.assignedMemberIds || []), access.memberId]));
   }
+  // Plan cap covers new invoices/quotes only — editing a draft or creating
+  // bills/expenses/etc doesn't consume it. Server-side check: the page-level
+  // UpgradePrompt is cosmetic and doesn't stop a direct call to this action.
+  if (!data.id && (data.type === "invoice" || data.type === "quote") && access) {
+    const { assertInvoiceCapacity } = await import("./billing-server");
+    await assertInvoiceCapacity(access.orgId);
+  }
   return withOrg(() => _saveDocument(data), { requireWrite: true });
 }
 export async function issueDocument(docId: number) {

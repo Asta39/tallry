@@ -7,8 +7,21 @@ import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { PLANS, PlanKey, BillingCycle } from "@/lib/billing";
 
+/**
+ * DEMO ONLY: simulates an STK push and grants the plan without taking any
+ * payment. Until M-Pesa Daraja / KopoKopo billing collection is live, this
+ * must never run in production — real customers must not get paid plans
+ * for free. Gate: only runs when SIMULATED_BILLING_ENABLED=true, which
+ * should stay unset in the Vercel production environment.
+ */
 export async function simulateSubscriptionUpgradeAction(plan: PlanKey, cycle: BillingCycle, mpesaPhone: string) {
   try {
+    if (process.env.SIMULATED_BILLING_ENABLED !== "true") {
+      return {
+        error:
+          "Online upgrades aren't live yet — M-Pesa payment collection is being set up. Contact us to upgrade your plan for now.",
+      };
+    }
     await requirePerm("settings");
     const o = await getOrg();
 
