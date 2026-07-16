@@ -53,7 +53,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             <GlobalSearch />
           </div>
           <div className="flex-1 hidden md:flex justify-end max-w-[150px]">
-            {access.memberId ? <NotificationBell memberId={access.memberId} /> : <div className="w-8" />}
+            <NotificationBell memberId={access.memberId} />
           </div>
         </div>
         <div className="px-4 py-6 md:px-8 md:py-7 max-w-[1200px] w-full mx-auto flex-1 flex flex-col">

@@ -17,7 +17,7 @@ import {
   documentAssignments,
   notifications,
 } from "@/db";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, isNull } from "drizzle-orm";
 import { currentOrgId, withOrg, seedOrgDefaults } from "@/lib/org";
 import { revalidatePath as nextRevalidatePath } from "next/cache";
 import { computeDocument, type TaxClass, TAX_CLASSES } from "./tax";
@@ -550,12 +550,17 @@ async function _recordPayment(data: {
 
 /* ---------------- Notifications ---------------- */
 
-export async function getNotifications(memberId: number) {
+export async function getNotifications(memberId: number | null) {
   return withOrg(async () => {
     return db
       .select()
       .from(notifications)
-      .where(and(eq(notifications.orgId, currentOrgId()), eq(notifications.memberId, memberId)))
+      .where(
+        and(
+          eq(notifications.orgId, currentOrgId()),
+          memberId ? eq(notifications.memberId, memberId) : isNull(notifications.memberId)
+        )
+      )
       .orderBy(desc(notifications.id))
       .limit(20);
   });

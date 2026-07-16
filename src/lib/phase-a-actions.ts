@@ -21,6 +21,7 @@ import { postEntry, acct, mirrorBankTxn } from "./posting";
 import { SYS } from "./coa";
 import { saveDocument, issueDocument, type DocLineInput } from "./actions";
 import { advance, dueRuns, addDays, type Frequency } from "./recurring";
+import { notifyOrg } from "./notifications";
 
 function revalidatePath(path: string) {
   try {
@@ -393,6 +394,13 @@ export async function runDueRecurring(): Promise<{ created: number }> {
       }
     }
     if (created > 0) {
+      await notifyOrg(
+        orgId,
+        ["admin", "sales", "accountant"],
+        "Recurring Templates Ran",
+        `Generated ${created} new document(s) from recurring templates.`,
+        "/sales/invoices"
+      );
       revalidatePath("/");
       revalidatePath("/sales/invoices");
       revalidatePath("/purchases/bills");

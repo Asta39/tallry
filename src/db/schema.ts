@@ -344,7 +344,7 @@ export const events = pgTable("events", {
 export const notifications = pgTable("notifications", {
   id: serial("id").primaryKey(),
   orgId: integer("org_id").notNull().references(() => org.id),
-  memberId: integer("member_id").notNull().references(() => members.id),
+  memberId: integer("member_id").references(() => members.id),
   title: text("title").notNull(),
   body: text("body").notNull(),
   link: text("link"),

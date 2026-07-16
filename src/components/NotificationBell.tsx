@@ -5,7 +5,7 @@ import { getNotifications, markNotificationRead } from "@/lib/actions";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-export function NotificationBell({ memberId }: { memberId: number }) {
+export function NotificationBell({ memberId }: { memberId: number | null }) {
   const router = useRouter();
   const [notifications, setNotifications] = useState<any[]>([]);
   const [open, setOpen] = useState(false);
