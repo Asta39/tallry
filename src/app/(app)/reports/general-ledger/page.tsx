@@ -1,6 +1,6 @@
 import { withOrg } from "@/lib/org";
 import { requirePerm } from "@/lib/guard";
-import { generalLedger, accountBalances } from "@/lib/reports";
+import { generalLedger, accountOpeningBalance, accountBalances } from "@/lib/reports";
 import { fmtKES, todayISO } from "@/lib/money";
 import { PageHeader, TableCard, Th, Td } from "@/components/ui";
 import { PeriodPicker, periodFromSearch, PdfLinks } from "@/components/reportShared";
@@ -26,11 +26,21 @@ export default async function GeneralLedgerPage({
   let rows: Awaited<ReturnType<typeof generalLedger>> = [];
   let totalDr = 0;
   let totalCr = 0;
+  let opening = { balanceCents: 0, debitNature: true };
+  let running: number[] = [];
 
   if (accountId) {
-    rows = await withOrg(() => generalLedger(Number(accountId), from, to));
+    [rows, opening] = await withOrg(() => Promise.all([
+      generalLedger(Number(accountId), from, to),
+      accountOpeningBalance(Number(accountId), from),
+    ]));
     totalDr = rows.reduce((s, r) => s + r.debitCents, 0);
     totalCr = rows.reduce((s, r) => s + r.creditCents, 0);
+    let bal = opening.balanceCents;
+    running = rows.map((r) => {
+      bal += opening.debitNature ? r.debitCents - r.creditCents : r.creditCents - r.debitCents;
+      return bal;
+    });
   }
 
   return (
@@ -55,20 +65,26 @@ export default async function GeneralLedgerPage({
       {accountId ? (
         <TableCard>
           <thead className="hairline-b">
-            <tr><Th>Date</Th><Th>Details</Th><Th right>Debit</Th><Th right>Credit</Th></tr>
+            <tr><Th>Date</Th><Th>Details</Th><Th right>Debit</Th><Th right>Credit</Th><Th right>Balance</Th></tr>
           </thead>
           <tbody>
-            {rows.map((r) => (
+            <tr className="hairline-t bg-[var(--color-ink-50)]/60">
+              <Td /><Td className="italic text-[var(--color-ink-600)]">Opening balance</Td>
+              <Td right /><Td right />
+              <Td right className="italic text-[var(--color-ink-600)]">{fmtKES(opening.balanceCents)}</Td>
+            </tr>
+            {rows.map((r, i) => (
               <tr key={`${r.entryId}-${r.debitCents}-${r.creditCents}`} className="hairline-t">
                 <Td className="whitespace-nowrap">{r.date}</Td>
                 <Td>{r.memo || r.lineMemo || r.sourceType}</Td>
                 <Td right>{r.debitCents > 0 ? fmtKES(r.debitCents) : "-"}</Td>
                 <Td right>{r.creditCents > 0 ? fmtKES(r.creditCents) : "-"}</Td>
+                <Td right>{fmtKES(running[i])}</Td>
               </tr>
             ))}
             {rows.length === 0 && (
               <tr className="hairline-t">
-                <td colSpan={4} className="text-center py-6 text-[var(--color-ink-400)]">
+                <td colSpan={5} className="text-center py-6 text-[var(--color-ink-400)]">
                   No transactions found in this period.
                 </td>
               </tr>
@@ -78,6 +94,7 @@ export default async function GeneralLedgerPage({
                 <Td /><Td>Period Movement</Td>
                 <Td right>{fmtKES(totalDr)}</Td>
                 <Td right>{fmtKES(totalCr)}</Td>
+                <Td right>{fmtKES(running[running.length - 1])}</Td>
               </tr>
             )}
           </tbody>

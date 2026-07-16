@@ -7,6 +7,7 @@ import { fmtKES, todayISO } from "@/lib/money";
 import {
   accountBalances,
   profitAndLoss,
+  cashFlowStatement,
   balanceSheet,
   aging,
   vatReturn,
@@ -219,37 +220,26 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
       } else if (type === "cash-flow") {
         title = "Cash Flow Statement";
-        subtitle = `As of ${asOf}`;
+        subtitle = `${from} to ${to}`;
         columns = [
           { header: "Activity", align: "left", widthPct: 70 },
           { header: "Amount", align: "right", widthPct: 30 },
         ];
-        const balances = await accountBalances({ to: asOf });
-        
-        const operating = balances.filter(b => b.type === "income" || b.type === "expense");
-        const netOp = operating.filter(b => b.type === "income").reduce((s, b) => s + b.balanceCents, 0) - operating.filter(b => b.type === "expense").reduce((s, b) => s + b.balanceCents, 0);
-        
-        const investing = balances.filter(b => b.type === "asset" && b.subtype === "fixed_asset");
-        const netInv = -investing.reduce((s, b) => s + b.balanceCents, 0);
-
-        const financing = balances.filter(b => b.type === "equity" || b.type === "liability");
-        const netFin = financing.reduce((s, b) => s + b.balanceCents, 0);
-
-        const netCash = netOp + netInv + netFin;
+        const cf = await cashFlowStatement(from, to);
 
         rows.push({ id: "op-h", cells: ["Operating Activities"], isHeader: true });
-        rows.push({ id: "op-n", cells: ["Net Income / Operations", fmtKES(netOp)] });
-        rows.push({ id: "op-t", cells: ["Net Cash from Operating Activities", fmtKES(netOp)], isBold: true });
+        rows.push({ id: "op-n", cells: ["Net Income / Operations", fmtKES(cf.netOp)] });
+        rows.push({ id: "op-t", cells: ["Net Cash from Operating Activities", fmtKES(cf.netOp)], isBold: true });
 
         rows.push({ id: "inv-h", cells: ["Investing Activities"], isHeader: true });
-        rows.push({ id: "inv-n", cells: ["Fixed Assets", fmtKES(netInv)] });
-        rows.push({ id: "inv-t", cells: ["Net Cash from Investing Activities", fmtKES(netInv)], isBold: true });
+        rows.push({ id: "inv-n", cells: ["Fixed Assets", fmtKES(cf.netInv)] });
+        rows.push({ id: "inv-t", cells: ["Net Cash from Investing Activities", fmtKES(cf.netInv)], isBold: true });
 
         rows.push({ id: "fin-h", cells: ["Financing Activities"], isHeader: true });
-        rows.push({ id: "fin-n", cells: ["Liabilities & Equity", fmtKES(netFin)] });
-        rows.push({ id: "fin-t", cells: ["Net Cash from Financing Activities", fmtKES(netFin)], isBold: true });
+        rows.push({ id: "fin-n", cells: ["Equity & Long-term Liabilities", fmtKES(cf.netFin)] });
+        rows.push({ id: "fin-t", cells: ["Net Cash from Financing Activities", fmtKES(cf.netFin)], isBold: true });
 
-        rows.push({ id: "net", cells: ["Net Change in Cash", fmtKES(netCash)], isHeader: true, isBold: true });
+        rows.push({ id: "net", cells: ["Net Change in Cash (bank/cash ledger movement)", fmtKES(cf.netChangeActual)], isHeader: true, isBold: true });
 
       } else if (type === "invoices") {
         title = "Invoices Report";

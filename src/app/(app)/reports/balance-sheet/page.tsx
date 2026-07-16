@@ -50,7 +50,7 @@ export default async function BalanceSheetPage({
 
           <tr className="hairline-t bg-[var(--color-ink-50)]/60"><Td className="font-semibold">Owner&apos;s stake (Equity)</Td><Td right /></tr>
           <Rows rows={bs.equity} />
-          <tr className="hairline-t"><Td className="pl-8">Current period earnings</Td><Td right>{fmtKES(bs.currentEarningsCents)}</Td></tr>
+          <tr className="hairline-t"><Td className="pl-8">Retained earnings (since inception)</Td><Td right>{fmtKES(bs.currentEarningsCents)}</Td></tr>
           <tr className="hairline-t"><Td className="font-semibold pl-8">Total equity</Td><Td right className="font-semibold">{fmtKES(bs.totalEquity)}</Td></tr>
 
           <tr className="hairline-t bg-[var(--color-accent-50)]">

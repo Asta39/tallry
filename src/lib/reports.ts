@@ -100,6 +100,32 @@ export async function balanceSheet(asOf: string) {
   };
 }
 
+/**
+ * Cash flow for a period. "Net Change in Cash (actual)" is derived directly from
+ * bank/cash-account ledger movement — the ground truth, since it's just the sum of
+ * debits/credits posted to those accounts. The Operating/Investing/Financing split is
+ * a categorized approximation (no AR/AP/inventory working-capital adjustments), so it
+ * is cross-checked against the actual figure rather than assumed correct.
+ */
+export async function cashFlowStatement(from: string, to: string) {
+  const period = await accountBalances({ from, to });
+  const pl = await profitAndLoss(from, to);
+  const netOp = pl.netProfit;
+
+  const investing = period.filter((b) => b.type === "asset" && b.subtype === "fixed_asset");
+  const netInv = -investing.reduce((s, b) => s + b.balanceCents, 0);
+
+  const financing = period.filter((b) => b.type === "equity" || (b.type === "liability" && b.subtype === "long_term_liability"));
+  const netFin = financing.reduce((s, b) => s + b.balanceCents, 0);
+
+  const netChangeComputed = netOp + netInv + netFin;
+
+  const cashAccounts = period.filter((b) => b.subtype === "bank" || b.subtype === "cash");
+  const netChangeActual = cashAccounts.reduce((s, b) => s + b.balanceCents, 0);
+
+  return { netOp, netInv, netFin, netChangeComputed, netChangeActual };
+}
+
 /** VAT return prep: output VAT (sales) vs input VAT (purchases) from document lines. */
 export async function vatReturn(from: string, to: string) {
   const salesDocs = ["invoice", "credit_note"];
@@ -198,6 +224,27 @@ export async function dashboardStats(today: string) {
     expensesThisMonthCents: pl.totalCogs + pl.totalExpenses,
     netVatDueCents: vat.netVatDue,
   };
+}
+
+/** Signed balance of an account for all activity strictly before `from` — the GL's opening-balance line. */
+export async function accountOpeningBalance(accountId: number, from: string): Promise<{ balanceCents: number; debitNature: boolean }> {
+  const [account] = await db.select().from(accounts).where(eq(accounts.id, accountId));
+  const debitNature = account?.type === "asset" || account?.type === "expense";
+  const [row] = await db
+    .select({
+      debit: sql<number>`coalesce(sum(${journalLines.debitCents}), 0)`,
+      credit: sql<number>`coalesce(sum(${journalLines.creditCents}), 0)`,
+    })
+    .from(journalLines)
+    .innerJoin(journalEntries, eq(journalLines.entryId, journalEntries.id))
+    .where(and(
+      eq(journalLines.orgId, currentOrgId()),
+      eq(journalLines.accountId, accountId),
+      sql`${journalEntries.date} < ${from}`,
+    ));
+  const debit = Number(row?.debit || 0);
+  const credit = Number(row?.credit || 0);
+  return { balanceCents: debitNature ? debit - credit : credit - debit, debitNature };
 }
 
 export async function generalLedger(accountId: number, from?: string, to?: string) {
