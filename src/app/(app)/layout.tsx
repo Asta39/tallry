@@ -23,13 +23,21 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const user = await getUser();
   if (!user) redirect("/login");
 
+  const cookieStore = await cookies();
+  const isImpersonating = !!cookieStore.get("impersonated_org_id")?.value;
+
+  if (user.email) {
+    const superAdmins = (process.env.SUPER_ADMIN_EMAILS || "").split(",").map((e) => e.trim().toLowerCase());
+    if (superAdmins.includes(user.email.toLowerCase()) && !isImpersonating) {
+      redirect("/admin");
+    }
+  }
+
   const access = await getAccessCached();
   // Signed in but neither owner nor staff — needs onboarding
   if (!access || !access.orgRow.name) redirect("/onboarding");
 
   const ents = await getEntitlements(access.orgRow.id);
-  const cookieStore = await cookies();
-  const isImpersonating = !!cookieStore.get("impersonated_org_id")?.value;
 
   return (
     <>
