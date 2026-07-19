@@ -93,6 +93,14 @@ export async function GET(request: Request) {
       if (!existing.name) {
         return NextResponse.redirect(`${origin}/onboarding`);
       }
+
+      // Super admins go straight to the admin panel
+      if (data.user.email) {
+        const superAdmins = (process.env.SUPER_ADMIN_EMAILS || "").split(",").map((e) => e.trim().toLowerCase());
+        if (superAdmins.includes(data.user.email.toLowerCase())) {
+          return NextResponse.redirect(`${origin}/admin`);
+        }
+      }
     }
   }
 
