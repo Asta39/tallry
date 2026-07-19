@@ -20,6 +20,14 @@ export async function GET(request: Request) {
     if (!error && data.user) {
       const userId = data.user.id;
 
+      // Super admins go straight to the admin panel — skip org provisioning
+      if (data.user.email) {
+        const superAdmins = (process.env.SUPER_ADMIN_EMAILS || "").split(",").map((e) => e.trim().toLowerCase());
+        if (superAdmins.includes(data.user.email.toLowerCase())) {
+          return NextResponse.redirect(`${origin}/admin`);
+        }
+      }
+
       // Check if this user already has an org
       const [existing] = await db
         .select()
@@ -92,14 +100,6 @@ export async function GET(request: Request) {
       // Existing user — check if they completed onboarding
       if (!existing.name) {
         return NextResponse.redirect(`${origin}/onboarding`);
-      }
-
-      // Super admins go straight to the admin panel
-      if (data.user.email) {
-        const superAdmins = (process.env.SUPER_ADMIN_EMAILS || "").split(",").map((e) => e.trim().toLowerCase());
-        if (superAdmins.includes(data.user.email.toLowerCase())) {
-          return NextResponse.redirect(`${origin}/admin`);
-        }
       }
     }
   }
