@@ -129,3 +129,31 @@ export async function deactivateAnnouncementAction(id: number) {
   revalidatePath("/admin/announcements");
   return { success: true };
 }
+
+/** Toggle a per-org feature override (beta/pilot tool — grants the feature regardless of plan). */
+export async function toggleFeatureFlagAction(orgId: number, flag: string) {
+  const user = await requireSuperAdmin();
+
+  const allowed = ["gateways", "sms", "payouts", "portal", "recurring", "payroll"];
+  if (!allowed.includes(flag)) return { error: "Unknown feature" };
+
+  const { featureFlags } = await import("@/db");
+  const { and } = await import("drizzle-orm");
+  const [existing] = await db.select().from(featureFlags)
+    .where(and(eq(featureFlags.orgId, orgId), eq(featureFlags.flag, flag))).limit(1);
+
+  if (existing) {
+    await db.delete(featureFlags).where(eq(featureFlags.id, existing.id));
+  } else {
+    await db.insert(featureFlags).values({ orgId, flag, createdBy: user.email, createdAt: new Date().toISOString() });
+  }
+  await logAdminAction({
+    actorEmail: user.email!,
+    action: "feature_flag_toggle",
+    targetType: "org",
+    targetId: orgId,
+    detail: `${flag}: ${existing ? "revoked" : "granted"}`,
+  });
+  revalidatePath(`/admin/orgs/${orgId}`);
+  return { success: true, enabled: !existing };
+}

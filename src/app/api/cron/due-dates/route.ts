@@ -4,10 +4,12 @@ import { and, eq, inArray, isNotNull } from "drizzle-orm";
 import { addDays } from "@/lib/recurring";
 import { todayISO } from "@/lib/money";
 import { notifyOrg } from "@/lib/notifications";
+import { logCronRun } from "@/lib/cron-log";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
+  const started = Date.now();
   try {
     const authHeader = request.headers.get("authorization");
     if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
@@ -78,9 +80,11 @@ export async function GET(request: Request) {
       }
     }
 
+    await logCronRun("due-dates", "success", `${totalAlerts} alert(s) sent across ${orgs.length} org(s)`, Date.now() - started);
     return NextResponse.json({ success: true, alertsSent: totalAlerts });
   } catch (error) {
     console.error("Cron due-dates error:", error);
+    await logCronRun("due-dates", "error", String(error), Date.now() - started);
     return NextResponse.json({ success: false, error: String(error) }, { status: 500 });
   }
 }

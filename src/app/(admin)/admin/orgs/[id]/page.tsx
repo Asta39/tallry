@@ -1,10 +1,11 @@
-import { db, org, members, subscriptions, documents, payments, paymentGateways, paymentEvents } from "@/db";
+import { db, org, members, subscriptions, documents, payments, paymentGateways, paymentEvents, featureFlags } from "@/db";
 import { eq, and, desc, count, sql, gte, inArray } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { fmtKES } from "@/lib/money";
 import { PLANS, PlanKey } from "@/lib/billing";
 import { PlanForm } from "./PlanForm";
+import { FeatureFlagToggles } from "./FeatureFlagToggles";
 import { ImpersonateButton } from "../ImpersonateButton";
 
 export const dynamic = "force-dynamic";
@@ -29,6 +30,7 @@ export default async function AdminOrgDetailPage({ params }: { params: Promise<{
     gateways,
     recentEvents,
     [lastDoc],
+    flagRows,
   ] = await Promise.all([
     o.userId
       ? db.execute(sql`select email, substr(created_at::text, 1, 10) as joined, substr(coalesce(last_sign_in_at::text, ''), 1, 10) as last_login from auth.users where id::text = ${o.userId}`)
@@ -41,6 +43,7 @@ export default async function AdminOrgDetailPage({ params }: { params: Promise<{
     db.select().from(paymentGateways).where(eq(paymentGateways.orgId, orgId)),
     db.select().from(paymentEvents).where(eq(paymentEvents.orgId, orgId)).orderBy(desc(paymentEvents.createdAt)).limit(5),
     db.select({ createdAt: documents.createdAt }).from(documents).where(eq(documents.orgId, orgId)).orderBy(desc(documents.createdAt)).limit(1),
+    db.select({ flag: featureFlags.flag }).from(featureFlags).where(eq(featureFlags.orgId, orgId)),
   ]);
 
   const owner = (ownerRows as unknown as { email: string; joined: string; last_login: string }[])[0];
@@ -167,6 +170,18 @@ export default async function AdminOrgDetailPage({ params }: { params: Promise<{
               ))}
             </ul>
           )}
+        </Card>
+
+        {/* Feature overrides */}
+        <Card title="Feature Access">
+          <p className="text-[11.5px] text-[var(--color-ink-400)] mb-2">
+            Plan features are automatic. Toggles grant a feature this plan doesn&apos;t include — for betas and pilots. Audit-logged.
+          </p>
+          <FeatureFlagToggles
+            orgId={o.id}
+            planFeatures={(["gateways", "sms", "payouts", "portal", "recurring", "payroll"] as const).filter((k) => planDef[k])}
+            overrides={flagRows.map((f) => f.flag)}
+          />
         </Card>
 
         {/* Gateways + events */}

@@ -707,3 +707,26 @@ export const announcements = pgTable("announcements", {
   createdBy: text("created_by"),
   createdAt: text("created_at").notNull(),
 });
+
+/** Execution history for scheduled jobs (recurring documents, due-date alerts). */
+export const cronRuns = pgTable("cron_runs", {
+  id: serial("id").primaryKey(),
+  job: text("job").notNull(), // recurring | due-dates
+  status: text("status").notNull(), // success | error
+  detail: text("detail"),
+  durationMs: integer("duration_ms"),
+  createdAt: text("created_at").notNull(),
+}, (t) => ({
+  jobCreatedIdx: index("idx_cron_runs_job_created").on(t.job, t.createdAt),
+}));
+
+/** Per-org boolean feature overrides — grants a plan-gated feature regardless of plan (beta/pilot tool). */
+export const featureFlags = pgTable("feature_flags", {
+  id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
+  flag: text("flag").notNull(), // gateways | sms | payouts | portal | recurring | payroll
+  createdBy: text("created_by"),
+  createdAt: text("created_at").notNull(),
+}, (t) => ({
+  orgFlagUnique: uniqueIndex("idx_feature_flags_org_flag").on(t.orgId, t.flag),
+}));

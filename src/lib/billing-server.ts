@@ -1,6 +1,19 @@
-import { db, subscriptions, documents, members } from "@/db";
+import { db, subscriptions, documents, members, featureFlags } from "@/db";
 import { eq, and, sql, gte, inArray } from "drizzle-orm";
 import { PLANS, PlanKey, Entitlements } from "./billing";
+
+/** Boolean plan features that a per-org flag can force on regardless of plan. */
+const OVERRIDABLE = ["gateways", "sms", "payouts", "portal", "recurring", "payroll"] as const;
+
+async function applyFeatureFlags(orgId: number, limits: Entitlements["limits"]): Promise<Entitlements["limits"]> {
+  const flags = await db.select({ flag: featureFlags.flag }).from(featureFlags).where(eq(featureFlags.orgId, orgId));
+  if (flags.length === 0) return limits;
+  const patched = { ...limits } as Record<string, unknown>;
+  for (const f of flags) {
+    if ((OVERRIDABLE as readonly string[]).includes(f.flag)) patched[f.flag] = true;
+  }
+  return patched as Entitlements["limits"];
+}
 
 export async function getEntitlements(orgId: number): Promise<Entitlements> {
   const [sub] = await db
@@ -14,7 +27,7 @@ export async function getEntitlements(orgId: number): Promise<Entitlements> {
     return {
       plan: "free",
       isReadOnly: false,
-      limits: PLANS.free,
+      limits: await applyFeatureFlags(orgId, PLANS.free),
       paidUntil: "9999-12-31",
     };
   }
@@ -26,7 +39,7 @@ export async function getEntitlements(orgId: number): Promise<Entitlements> {
   return {
     plan: planKey,
     isReadOnly,
-    limits: PLANS[planKey],
+    limits: await applyFeatureFlags(orgId, PLANS[planKey]),
     paidUntil: sub.paidUntil,
   };
 }
