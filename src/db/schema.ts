@@ -697,3 +697,13 @@ export const adminAuditLog = pgTable("admin_audit_log", {
 }, (t) => ({
   createdIdx: index("idx_admin_audit_created").on(t.createdAt),
 }));
+
+/** Platform-wide announcements shown as a banner in every tenant's app. */
+export const announcements = pgTable("announcements", {
+  id: serial("id").primaryKey(),
+  message: text("message").notNull(),
+  tone: text("tone").notNull().default("info"), // info | warn
+  active: boolean("active").notNull().default(true),
+  createdBy: text("created_by"),
+  createdAt: text("created_at").notNull(),
+});

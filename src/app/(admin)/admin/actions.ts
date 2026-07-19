@@ -3,7 +3,7 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { db, superAdmins, subscriptions, org } from "@/db";
+import { db, superAdmins, subscriptions, org, announcements } from "@/db";
 import { eq } from "drizzle-orm";
 import { requireSuperAdmin } from "@/lib/super-admin";
 import { logAdminAction } from "@/lib/admin-audit";
@@ -97,5 +97,35 @@ export async function setOrgPlanAction(orgId: number, formData: FormData) {
   revalidatePath(`/admin/orgs/${orgId}`);
   revalidatePath("/admin/subscriptions");
   revalidatePath("/admin/revenue");
+  return { success: true };
+}
+
+export async function createAnnouncementAction(formData: FormData) {
+  const user = await requireSuperAdmin();
+
+  const message = String(formData.get("message") || "").trim();
+  const tone = formData.get("tone") === "warn" ? "warn" : "info";
+  if (!message) return { error: "Write a message first" };
+  if (message.length > 200) return { error: "Keep it under 200 characters" };
+
+  // One active announcement at a time — new one replaces the old
+  await db.update(announcements).set({ active: false }).where(eq(announcements.active, true));
+  await db.insert(announcements).values({
+    message,
+    tone,
+    active: true,
+    createdBy: user.email,
+    createdAt: new Date().toISOString(),
+  });
+  await logAdminAction({ actorEmail: user.email!, action: "announcement_publish", detail: `[${tone}] ${message}` });
+  revalidatePath("/admin/announcements");
+  return { success: true };
+}
+
+export async function deactivateAnnouncementAction(id: number) {
+  const user = await requireSuperAdmin();
+  await db.update(announcements).set({ active: false }).where(eq(announcements.id, id));
+  await logAdminAction({ actorEmail: user.email!, action: "announcement_retract", targetId: id });
+  revalidatePath("/admin/announcements");
   return { success: true };
 }

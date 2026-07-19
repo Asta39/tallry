@@ -8,6 +8,8 @@ import { GlobalSearch } from "@/components/GlobalSearch";
 import { InstallPrompt } from "@/components/InstallPrompt";
 import { ImpersonationBanner } from "@/components/ImpersonationBanner";
 import { getEntitlements } from "@/lib/billing-server";
+import { db, announcements } from "@/db";
+import { eq, desc } from "drizzle-orm";
 import Link from "next/link";
 
 const roleLabels: Record<string, string> = {
@@ -38,9 +40,17 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (!access || !access.orgRow.name) redirect("/onboarding");
 
   const ents = await getEntitlements(access.orgRow.id);
+  const [announcement] = await db.select().from(announcements).where(eq(announcements.active, true)).orderBy(desc(announcements.createdAt)).limit(1);
 
   return (
     <>
+      {announcement && (
+        <div className={`no-print px-4 py-2 text-center text-[12.5px] font-medium ${
+          announcement.tone === "warn" ? "bg-amber-100 text-amber-900" : "bg-[var(--color-accent-500)] text-white"
+        }`}>
+          {announcement.message}
+        </div>
+      )}
       {isImpersonating && <ImpersonationBanner orgName={access.orgRow.name} />}
       <div className="flex min-h-screen" style={access.orgRow.brandColor ? { "--color-brand": access.orgRow.brandColor } as React.CSSProperties : undefined}>
         <InstallPrompt />
