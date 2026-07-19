@@ -21,8 +21,10 @@ const groups = [
   {
     label: "Billing & Logs",
     items: [
+      { href: "/admin/revenue", label: "Revenue", icon: "📈" },
       { href: "/admin/payments", label: "M-Pesa Logs", icon: "💸" },
       { href: "/admin/subscriptions", label: "Subscriptions", icon: "💳" },
+      { href: "/admin/audit", label: "Audit Log", icon: "📜" },
     ],
   },
 ];

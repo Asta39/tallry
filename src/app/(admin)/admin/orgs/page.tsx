@@ -1,5 +1,6 @@
 import { db, org, subscriptions } from "@/db";
 import { eq } from "drizzle-orm";
+import Link from "next/link";
 import { ImpersonateButton } from "./ImpersonateButton";
 
 export default async function OrgsPage() {
@@ -40,7 +41,9 @@ export default async function OrgsPage() {
               {orgsWithSubs.map((o) => (
                 <tr key={o.id} className="hover:bg-[var(--color-ink-50)] transition-colors">
                   <td className="px-4 py-3 text-[var(--color-ink-500)]">{o.id}</td>
-                  <td className="px-4 py-3 font-medium">{o.name || "Unnamed Org"}</td>
+                  <td className="px-4 py-3 font-medium">
+                    <Link href={`/admin/orgs/${o.id}`} className="hover:underline text-red-700">{o.name || "Unnamed Org"}</Link>
+                  </td>
                   <td className="px-4 py-3">
                     <div className="text-[var(--color-ink-900)]">{o.email || "-"}</div>
                     <div className="text-xs text-[var(--color-ink-500)]">{o.phone || "-"}</div>
@@ -52,7 +55,8 @@ export default async function OrgsPage() {
                       {o.plan || "None"}
                     </span>
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3 flex items-center gap-3">
+                    <Link href={`/admin/orgs/${o.id}`} className="text-sm font-medium text-[var(--color-ink-600)] hover:underline">Details</Link>
                     <ImpersonateButton orgId={o.id} />
                   </td>
                 </tr>

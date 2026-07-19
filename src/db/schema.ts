@@ -684,3 +684,16 @@ export const superAdmins = pgTable("super_admins", {
 }, (t) => ({
   emailUnique: uniqueIndex("idx_super_admins_email").on(t.email),
 }));
+
+/** Audit trail of super admin actions (impersonation, plan changes, admin management). */
+export const adminAuditLog = pgTable("admin_audit_log", {
+  id: serial("id").primaryKey(),
+  actorEmail: text("actor_email").notNull(),
+  action: text("action").notNull(), // impersonate_start | impersonate_stop | plan_change | paid_until_extend | super_admin_add | super_admin_remove
+  targetType: text("target_type"), // org | super_admin
+  targetId: text("target_id"),
+  detail: text("detail"),
+  createdAt: text("created_at").notNull(),
+}, (t) => ({
+  createdIdx: index("idx_admin_audit_created").on(t.createdAt),
+}));
