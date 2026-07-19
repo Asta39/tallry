@@ -26,6 +26,23 @@ export async function getOrg() {
   }
   const user = await getUser();
   if (!user) throw new Error("Not authenticated — please sign in.");
+  // Super admin impersonation — resolve to the impersonated org, since the
+  // admin account typically owns no org of its own.
+  if (user.email) {
+    const { isSuperAdmin } = await import("./super-admin");
+    if (await isSuperAdmin(user.email)) {
+      try {
+        const { cookies } = await import("next/headers");
+        const impersonatedOrgId = (await cookies()).get("impersonated_org_id")?.value;
+        if (impersonatedOrgId) {
+          const [row] = await db.select().from(org).where(eq(org.id, Number(impersonatedOrgId))).limit(1);
+          if (row) return row;
+        }
+      } catch {
+        // outside a request context — fall through
+      }
+    }
+  }
   const [row] = await db.select().from(org).where(eq(org.userId, user.id)).limit(1);
   if (row) return row;
   // Staff member of someone else's org
