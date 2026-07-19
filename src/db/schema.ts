@@ -674,3 +674,13 @@ export const knowledgeArticles = pgTable("knowledge_articles", {
 }, (t) => ({
   orgIdx: index("idx_knowledge_articles_org").on(t.orgId),
 }));
+
+/** Platform super admins — global, not org-scoped. Env SUPER_ADMIN_EMAILS remains the bootstrap fallback. */
+export const superAdmins = pgTable("super_admins", {
+  id: serial("id").primaryKey(),
+  email: text("email").notNull(),
+  addedBy: text("added_by"),
+  createdAt: text("created_at").notNull(),
+}, (t) => ({
+  emailUnique: uniqueIndex("idx_super_admins_email").on(t.email),
+}));

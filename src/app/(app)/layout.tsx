@@ -26,9 +26,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const cookieStore = await cookies();
   const isImpersonating = !!cookieStore.get("impersonated_org_id")?.value;
 
-  if (user.email) {
-    const superAdmins = (process.env.SUPER_ADMIN_EMAILS || "").split(",").map((e) => e.trim().toLowerCase());
-    if (superAdmins.includes(user.email.toLowerCase()) && !isImpersonating) {
+  if (user.email && !isImpersonating) {
+    const { isSuperAdmin } = await import("@/lib/super-admin");
+    if (await isSuperAdmin(user.email)) {
       redirect("/admin");
     }
   }

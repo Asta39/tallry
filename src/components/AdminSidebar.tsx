@@ -15,6 +15,7 @@ const groups = [
     items: [
       { href: "/admin/orgs", label: "Organizations", icon: "🏢" },
       { href: "/admin/users", label: "Users", icon: "👥" },
+      { href: "/admin/team", label: "Super Admins", icon: "🛡️" },
     ],
   },
   {

@@ -22,8 +22,8 @@ export async function GET(request: Request) {
 
       // Super admins go straight to the admin panel — skip org provisioning
       if (data.user.email) {
-        const superAdmins = (process.env.SUPER_ADMIN_EMAILS || "").split(",").map((e) => e.trim().toLowerCase());
-        if (superAdmins.includes(data.user.email.toLowerCase())) {
+        const { isSuperAdmin } = await import("@/lib/super-admin");
+        if (await isSuperAdmin(data.user.email)) {
           return NextResponse.redirect(`${origin}/admin`);
         }
       }

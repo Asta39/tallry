@@ -90,8 +90,8 @@ export async function getAccess(): Promise<Access | null> {
   if (!user) return null;
 
   // Super Admin Impersonation
-  const superAdmins = (process.env.SUPER_ADMIN_EMAILS || "").split(",").map((e) => e.trim().toLowerCase());
-  if (user.email && superAdmins.includes(user.email.toLowerCase())) {
+  const { isSuperAdmin } = await import("./super-admin");
+  if (user.email && (await isSuperAdmin(user.email))) {
     try {
       const { cookies } = await import("next/headers");
       const cookieStore = await cookies();

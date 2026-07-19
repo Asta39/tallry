@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { getUser } from "@/lib/supabase/server";
+import { isSuperAdmin } from "@/lib/super-admin";
 import { AdminSidebar } from "@/components/AdminSidebar";
 
 export default async function AdminLayout({
@@ -12,8 +13,7 @@ export default async function AdminLayout({
     redirect("/login");
   }
 
-  const superAdmins = (process.env.SUPER_ADMIN_EMAILS || "").split(",").map((e) => e.trim().toLowerCase());
-  if (!superAdmins.includes(user.email.toLowerCase())) {
+  if (!(await isSuperAdmin(user.email))) {
     redirect("/");
   }
 
