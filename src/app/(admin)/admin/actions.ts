@@ -23,7 +23,8 @@ export async function impersonateOrg(orgId: number) {
   const user = await requireSuperAdmin();
 
   const cookieStore = await cookies();
-  cookieStore.set("impersonated_org_id", String(orgId), { path: "/" });
+  // Auto-expires after 1 hour so an impersonation session can't linger forever
+  cookieStore.set("impersonated_org_id", String(orgId), { path: "/", maxAge: 60 * 60 });
   await logAdminAction({ actorEmail: user.email!, action: "impersonate_start", targetType: "org", targetId: orgId });
 
   redirect("/");

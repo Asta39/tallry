@@ -8,7 +8,11 @@ import { SignOutButton } from "./SignOutButton";
 const groups = [
   {
     label: null,
-    items: [{ href: "/admin", label: "Overview", icon: "◧" }],
+    items: [
+      { href: "/admin", label: "Overview", icon: "◧" },
+      { href: "/admin/health", label: "Health", icon: "🩺" },
+      { href: "/admin/funnel", label: "Activation", icon: "🔻" },
+    ],
   },
   {
     label: "Platform",
