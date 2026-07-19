@@ -89,6 +89,39 @@ export async function getAccess(): Promise<Access | null> {
   const user = await getUser();
   if (!user) return null;
 
+  // Super Admin Impersonation
+  const superAdmins = (process.env.SUPER_ADMIN_EMAILS || "").split(",").map((e) => e.trim().toLowerCase());
+  if (user.email && superAdmins.includes(user.email.toLowerCase())) {
+    try {
+      const { cookies } = await import("next/headers");
+      const cookieStore = await cookies();
+      const impersonatedOrgId = cookieStore.get("impersonated_org_id")?.value;
+      
+      if (impersonatedOrgId) {
+        const [row] = await db
+          .select()
+          .from(org)
+          .where(eq(org.id, Number(impersonatedOrgId)))
+          .limit(1);
+          
+        if (row) {
+          return {
+            orgId: row.id,
+            orgRow: row,
+            userId: user.id,
+            isOwner: true, // act as owner
+            role: "admin",
+            memberName: "Super Admin",
+            memberId: null,
+            perms: new Set(ALL),
+          };
+        }
+      }
+    } catch {
+      // Ignore if not in a request context
+    }
+  }
+
   // Owner path
   const [owned] = await db.select().from(org).where(eq(org.userId, user.id)).limit(1);
   if (owned) {
