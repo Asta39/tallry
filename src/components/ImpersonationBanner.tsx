@@ -1,7 +1,7 @@
 "use client";
 
 import { useTransition } from "react";
-import { stopImpersonating } from "@/lib/admin-actions";
+import { stopImpersonating } from "@/app/(admin)/admin/actions";
 
 export function ImpersonationBanner({ orgName }: { orgName: string }) {
   const [isPending, startTransition] = useTransition();
