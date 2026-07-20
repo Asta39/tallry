@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { PLANS, PlanKey, Entitlements, BillingCycle } from "@/lib/billing";
 import { fmtKES } from "@/lib/money";
-import { simulateSubscriptionUpgradeAction } from "./actions";
+import { initiateSubscriptionPaymentAction, checkSubscriptionPaymentAction } from "./actions";
 import { Player } from "@lottiefiles/react-lottie-player";
 
 const ALL_FEATURES = [
@@ -41,15 +41,41 @@ export function BillingClient({ entitlements, orgPhone }: { entitlements: Entitl
   const handlePayment = async () => {
     if (!modal.plan || !modal.phone) return;
     setModal((prev) => ({ ...prev, status: "processing", error: undefined }));
-    
+
     try {
-      const res = await simulateSubscriptionUpgradeAction(modal.plan, cycle, modal.phone);
-      if (res.error) {
+      const res = await initiateSubscriptionPaymentAction(modal.plan, cycle, modal.phone);
+      if ("error" in res && res.error) {
         setModal((prev) => ({ ...prev, status: "error", error: res.error }));
-      } else {
-        setModal((prev) => ({ ...prev, status: "success" }));
-        setTimeout(() => setModal((prev) => ({ ...prev, isOpen: false })), 3000);
+        return;
       }
+      const paymentId = (res as { paymentId: number }).paymentId;
+
+      // Poll every 3s for up to 2 minutes while the customer enters their PIN
+      const deadline = Date.now() + 120_000;
+      while (Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, 3000));
+        const check = await checkSubscriptionPaymentAction(paymentId);
+        if ("error" in check && check.error) {
+          setModal((prev) => ({ ...prev, status: "error", error: check.error }));
+          return;
+        }
+        if ("status" in check) {
+          if (check.status === "complete") {
+            setModal((prev) => ({ ...prev, status: "success" }));
+            setTimeout(() => window.location.reload(), 2500);
+            return;
+          }
+          if (check.status === "failed") {
+            setModal((prev) => ({ ...prev, status: "error", error: check.reason || "Payment failed — no money was taken." }));
+            return;
+          }
+        }
+      }
+      setModal((prev) => ({
+        ...prev,
+        status: "error",
+        error: "We didn't get a confirmation in time. If you completed the payment, your plan will activate automatically within a few minutes.",
+      }));
     } catch (e: any) {
       setModal((prev) => ({ ...prev, status: "error", error: e.message || "An error occurred." }));
     }

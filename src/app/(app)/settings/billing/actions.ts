@@ -2,57 +2,108 @@
 
 import { requirePerm } from "@/lib/guard";
 import { getOrg } from "@/lib/org";
-import { db, subscriptions } from "@/db";
-import { eq } from "drizzle-orm";
+import { db, subscriptions, billingPayments } from "@/db";
+import { eq, and } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { PLANS, PlanKey, BillingCycle } from "@/lib/billing";
+import { intasendStkPush, intasendStatus, normalizeKenyanPhone } from "@/lib/payments/intasend";
+import { applyBillingPayment } from "@/lib/billing-apply";
+
+/** Kick off a real IntaSend M-Pesa STK push for a plan upgrade/renewal. */
+export async function initiateSubscriptionPaymentAction(plan: PlanKey, cycle: BillingCycle, mpesaPhone: string) {
+  try {
+    await requirePerm("settings");
+    const o = await getOrg();
+
+    if (!PLANS[plan] || plan === "free") return { error: "Invalid plan selected" };
+    const amountCents = cycle === "annual" ? PLANS[plan].annualCents : PLANS[plan].monthlyCents;
+    const phone = normalizeKenyanPhone(mpesaPhone);
+
+    const [row] = await db.insert(billingPayments).values({
+      orgId: o.id,
+      plan,
+      cycle,
+      amountCents,
+      phone,
+      createdAt: new Date().toISOString(),
+    }).returning();
+
+    const { invoiceId, state } = await intasendStkPush({
+      amountKes: Math.round(amountCents / 100),
+      phone,
+      apiRef: `tallry-sub-${row.id}`,
+      narrative: `Tallry ${PLANS[plan].name} plan (${cycle})`,
+    });
+
+    await db.update(billingPayments)
+      .set({ invoiceId, state, updatedAt: new Date().toISOString() })
+      .where(eq(billingPayments.id, row.id));
+
+    return { paymentId: row.id };
+  } catch (e: any) {
+    return { error: e.message || "Could not start the payment — try again" };
+  }
+}
 
 /**
- * DEMO ONLY: simulates an STK push and grants the plan without taking any
- * payment. Until M-Pesa Daraja / KopoKopo billing collection is live, this
- * must never run in production — real customers must not get paid plans
- * for free. Gate: only runs when SIMULATED_BILLING_ENABLED=true, which
- * should stay unset in the Vercel production environment.
+ * Poll a pending payment. Returns "complete" once the subscription is active,
+ * "failed" with a reason, or "pending" while the customer is entering their PIN.
  */
-export async function simulateSubscriptionUpgradeAction(plan: PlanKey, cycle: BillingCycle, mpesaPhone: string) {
+export async function checkSubscriptionPaymentAction(paymentId: number) {
+  try {
+    await requirePerm("settings");
+    const o = await getOrg();
+
+    const [p] = await db.select().from(billingPayments)
+      .where(and(eq(billingPayments.id, paymentId), eq(billingPayments.orgId, o.id))).limit(1);
+    if (!p) return { error: "Payment not found" };
+    if (p.state === "applied") return { status: "complete" as const };
+    if (p.state === "FAILED") return { status: "failed" as const, reason: p.failedReason || "Payment failed" };
+    if (!p.invoiceId) return { error: "Payment was never started" };
+
+    const s = await intasendStatus(p.invoiceId);
+    if (s.state === "COMPLETE") {
+      await applyBillingPayment(p.id);
+      revalidatePath("/", "layout");
+      return { status: "complete" as const };
+    }
+    if (s.state === "FAILED") {
+      await db.update(billingPayments)
+        .set({ state: "FAILED", failedReason: s.failedReason, updatedAt: new Date().toISOString() })
+        .where(eq(billingPayments.id, p.id));
+      return { status: "failed" as const, reason: s.failedReason || "Payment failed or was cancelled" };
+    }
+    return { status: "pending" as const };
+  } catch (e: any) {
+    return { error: e.message || "Could not check payment status" };
+  }
+}
+
+/**
+ * DEMO ONLY: simulates an upgrade without payment. Gate: SIMULATED_BILLING_ENABLED=true,
+ * which must stay unset in production.
+ */
+export async function simulateSubscriptionUpgradeAction(plan: PlanKey, cycle: BillingCycle, _mpesaPhone: string) {
   try {
     if (process.env.SIMULATED_BILLING_ENABLED !== "true") {
-      return {
-        error:
-          "Online upgrades aren't live yet — M-Pesa payment collection is being set up. Contact us to upgrade your plan for now.",
-      };
+      return { error: "Simulated billing is disabled." };
     }
     await requirePerm("settings");
     const o = await getOrg();
 
     if (!PLANS[plan]) return { error: "Invalid plan selected" };
 
-    // Simulate STK push delay (e.g. 5 seconds for the user to enter PIN on their phone)
     await new Promise((resolve) => setTimeout(resolve, 5000));
 
     const today = new Date();
-    // Add 30 days for monthly, 365 for annual
-    if (cycle === "annual") {
-      today.setDate(today.getDate() + 365);
-    } else {
-      today.setDate(today.getDate() + 30);
-    }
+    today.setDate(today.getDate() + (cycle === "annual" ? 365 : 30));
     const paidUntil = today.toISOString().split("T")[0];
 
-    // Check if sub exists
     const [existing] = await db.select().from(subscriptions).where(eq(subscriptions.orgId, o.id)).limit(1);
-
     if (existing) {
-      await db.update(subscriptions)
-        .set({ plan, paidUntil } as any)
-        .where(eq(subscriptions.orgId, o.id));
+      await db.update(subscriptions).set({ plan, paidUntil }).where(eq(subscriptions.orgId, o.id));
     } else {
-      await db.insert(subscriptions).values({
-        orgId: o.id,
-        plan,
-        paidUntil,
-        createdAt: new Date().toISOString(),
-      });
+      await db.insert(subscriptions).values({ orgId: o.id, plan, paidUntil, createdAt: new Date().toISOString() });
     }
 
     revalidatePath("/", "layout");

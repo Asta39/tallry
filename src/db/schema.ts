@@ -730,3 +730,22 @@ export const featureFlags = pgTable("feature_flags", {
 }, (t) => ({
   orgFlagUnique: uniqueIndex("idx_feature_flags_org_flag").on(t.orgId, t.flag),
 }));
+
+/** Tallry's own subscription payments, collected via IntaSend STK push. */
+export const billingPayments = pgTable("billing_payments", {
+  id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
+  plan: text("plan").notNull(), // standard | business
+  cycle: text("cycle").notNull(), // monthly | annual
+  amountCents: money("amount_cents").notNull(),
+  phone: text("phone").notNull(),
+  /** IntaSend invoice_id — used to poll status and match webhooks. */
+  invoiceId: text("invoice_id"),
+  state: text("state").notNull().default("PENDING"), // PENDING | PROCESSING | COMPLETE | FAILED | applied
+  failedReason: text("failed_reason"),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at"),
+}, (t) => ({
+  orgIdx: index("idx_billing_payments_org").on(t.orgId),
+  invoiceUnique: uniqueIndex("idx_billing_payments_invoice").on(t.invoiceId),
+}));
