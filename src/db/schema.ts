@@ -779,3 +779,18 @@ export const expenseClaims = pgTable("expense_claims", {
 }, (t) => ({
   orgStatusIdx: index("idx_expense_claims_org_status").on(t.orgId, t.status),
 }));
+
+/** Staff clock in/out shifts. */
+export const timeShifts = pgTable("time_shifts", {
+  id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
+  memberId: integer("member_id"), // null = the org owner clocked in
+  personName: text("person_name").notNull(),
+  clockInAt: text("clock_in_at").notNull(), // ISO timestamp
+  clockOutAt: text("clock_out_at"), // ISO timestamp, null while active
+  durationSeconds: integer("duration_seconds"), // set on clock-out
+  createdAt: text("created_at").notNull(),
+}, (t) => ({
+  orgOpenIdx: index("idx_time_shifts_org_open").on(t.orgId, t.clockOutAt),
+  orgMemberIdx: index("idx_time_shifts_org_member").on(t.orgId, t.memberId),
+}));

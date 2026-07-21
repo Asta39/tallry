@@ -60,6 +60,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           logoUrl={access.orgRow.logoUrl}
           perms={MODULES.map((m) => m.key).filter((k) => access.perms.has(k))}
           roleLabel={access.isOwner ? "Owner" : roleLabels[access.role]}
+          timeTrackingEnabled={access.orgRow.timeTrackingEnabled}
         />
         <main className="flex-1 min-w-0 flex flex-col h-screen overflow-y-auto">
           <div className="h-14 md:hidden shrink-0 no-print" />

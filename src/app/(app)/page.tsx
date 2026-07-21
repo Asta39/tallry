@@ -8,6 +8,8 @@ import { fmtKES, todayISO } from "@/lib/money";
 import { PageHeader, StatCard, StatusPill, TableCard, Th, Td } from "@/components/ui";
 import { IncomeExpenseChart, TodoWidget, CalendarWidget } from "@/components/DashboardWidgets";
 import { DocOverview } from "@/components/DocOverview";
+import { TimeTrackingCard } from "@/components/TimeTrackingCard";
+import { getActiveShift } from "@/lib/time-tracking";
 
 export const dynamic = "force-dynamic";
 
@@ -30,12 +32,13 @@ export default async function Dashboard({
   const ownOnly = !!access && !viewAll && access.perms.has("dashboard_metrics") && !!access.memberId;
 
   // All independent — fire in parallel
-  const [stats, memberStats, chartData, overview, recentDocs, todoRows, eventRows] =
+  const [stats, memberStats, chartData, overview, activeShift, recentDocs, todoRows, eventRows] =
     await Promise.all([
       ownOnly ? Promise.resolve(null) : withOrg(() => dashboardStats(today)),
       ownOnly ? withOrg(() => memberDashboardStats(access!.memberId!, today)) : Promise.resolve(null),
       ownOnly ? Promise.resolve([]) : withOrg(() => monthlyIncomeExpense(6)),
       withOrg(() => docStatusOverview(year, ownOnly ? access!.memberId! : undefined)),
+      o.timeTrackingEnabled ? getActiveShift() : Promise.resolve(null),
       db
         .select()
         .from(documents)
@@ -71,6 +74,21 @@ export default async function Dashboard({
         title={`Good ${greeting()}, ${o?.name ?? "there"}`}
         subtitle={new Date().toLocaleDateString("en-KE", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
       />
+
+      {o.timeTrackingEnabled && (
+        <TimeTrackingCard
+          initialShift={
+            activeShift
+              ? {
+                  id: activeShift.id,
+                  clockInAt: activeShift.clockInAt,
+                  clockOutAt: activeShift.clockOutAt,
+                  durationSeconds: activeShift.durationSeconds,
+                }
+              : null
+          }
+        />
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {ownOnly && memberStats ? (

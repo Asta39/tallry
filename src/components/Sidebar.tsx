@@ -12,7 +12,10 @@ const groups: {
 }[] = [
   {
     label: null,
-    items: [{ href: "/", label: "Home", icon: "◧", perm: "dashboard" }],
+    items: [
+      { href: "/", label: "Home", icon: "◧", perm: "dashboard" },
+      { href: "/time-tracking", label: "Time Tracking", icon: "⏱", perm: "dashboard" },
+    ],
   },
   {
     label: "Selling",
@@ -71,9 +74,10 @@ interface SidebarProps {
   /** module keys the current user may see; undefined = show all */
   perms?: string[];
   roleLabel?: string;
+  timeTrackingEnabled?: boolean;
 }
 
-export function Sidebar({ orgName, orgEmail, logoUrl, perms, roleLabel }: SidebarProps) {
+export function Sidebar({ orgName, orgEmail, logoUrl, perms, roleLabel, timeTrackingEnabled }: SidebarProps) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
@@ -82,7 +86,13 @@ export function Sidebar({ orgName, orgEmail, logoUrl, perms, roleLabel }: Sideba
 
   const allowed = perms ? new Set(perms) : null;
   const visibleGroups = groups
-    .map((g) => ({ ...g, items: g.items.filter((it) => !allowed || allowed.has(it.perm)) }))
+    .map((g) => ({
+      ...g,
+      items: g.items.filter((it) => {
+        if (it.href === "/time-tracking" && !timeTrackingEnabled) return false;
+        return !allowed || allowed.has(it.perm);
+      }),
+    }))
     .filter((g) => g.items.length > 0);
 
   const active = (href: string) =>
