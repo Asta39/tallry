@@ -42,6 +42,8 @@ export default async function SettingsPage() {
           customDocumentColumnName: o.customDocumentColumnName,
           documentFooterText: o.documentFooterText,
           dataSegregation: o.dataSegregation,
+          requireBillApproval: o.requireBillApproval,
+          timeTrackingEnabled: o.timeTrackingEnabled,
           userId: o.userId,
         }}
       />

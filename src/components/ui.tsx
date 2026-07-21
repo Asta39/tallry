@@ -72,6 +72,7 @@ const pillStyles: Record<string, string> = {
   won: "bg-emerald-50 text-emerald-700",
   lost: "bg-red-50 text-red-700",
   uncategorized: "bg-amber-50 text-amber-700",
+  pending_approval: "bg-amber-50 text-amber-700",
   categorized: "bg-emerald-50 text-emerald-700",
   reconciled: "bg-emerald-50 text-emerald-700",
   written_off: "bg-[var(--color-ink-100)] text-[var(--color-ink-400)]",
@@ -87,6 +88,7 @@ const pillLabels: Record<string, string> = {
   declined: "Declined",
   void: "Voided",
   written_off: "Written off",
+  pending_approval: "Awaiting approval",
 };
 
 export function StatusPill({ status, overdue }: { status: string; overdue?: boolean }) {

@@ -33,7 +33,7 @@ import {
 } from "./posting";
 import { addLot, consumeFifo } from "./inventory";
 import { SYS } from "./coa";
-import { nowISO, todayISO } from "./money";
+import { nowISO, todayISO, fmtKES } from "./money";
 import { getTaxDevice } from "./etims";
 import { ETIMS_ENABLED } from "./features";
 import { getUser } from "./supabase/server";
@@ -48,6 +48,7 @@ function revalidatePath(path: string, type?: "page" | "layout") {
 }
 
 import { getOrg } from "@/lib/org";
+import { notifyOrg } from "@/lib/notifications";
 
 type NumberKind = "invoice" | "quote" | "credit_note" | "purchase_order" | "payment";
 async function nextNumber(kind: NumberKind): Promise<string> {
@@ -454,9 +455,16 @@ async function _issueDocument(docId: number) {
     case "credit_note":
       await postCreditNote(docId);
       break;
-    case "bill":
+    case "bill": {
+      const o = await getOrg();
+      if (o.requireBillApproval) {
+        await db.update(documents).set({ status: "pending_approval", approvalNote: null }).where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, docId)));
+        await notifyOrg(currentOrgId(), ["admin", "accountant"], "Bill awaiting approval", `${doc.number} (${fmtKES(doc.totalCents)}) needs approval before it posts.`, "/purchases/bills");
+        break;
+      }
       await postBill(docId);
       break;
+    }
     case "expense":
       await postExpense(docId);
       break;
@@ -678,6 +686,8 @@ export async function saveOrgProfile(data: {
   customDocumentColumnName?: string;
   documentFooterText?: string;
   dataSegregation?: boolean;
+  requireBillApproval?: boolean;
+  timeTrackingEnabled?: boolean;
 }) {
   const user = await getUser();
   if (!user) throw new Error("Not authenticated");
@@ -705,6 +715,8 @@ export async function saveOrgProfile(data: {
         ...(data.customDocumentColumnName !== undefined ? { customDocumentColumnName: data.customDocumentColumnName } : {}),
         ...(data.documentFooterText !== undefined ? { documentFooterText: data.documentFooterText } : {}),
         ...(data.dataSegregation !== undefined ? { dataSegregation: data.dataSegregation } : {}),
+        ...(data.requireBillApproval !== undefined ? { requireBillApproval: data.requireBillApproval } : {}),
+        ...(data.timeTrackingEnabled !== undefined ? { timeTrackingEnabled: data.timeTrackingEnabled } : {}),
       })
       .where(eq(org.id, access.orgId));
   } else {
@@ -726,6 +738,8 @@ export async function saveOrgProfile(data: {
         ...(data.customDocumentColumnName !== undefined ? { customDocumentColumnName: data.customDocumentColumnName } : {}),
         ...(data.documentFooterText !== undefined ? { documentFooterText: data.documentFooterText } : {}),
         ...(data.dataSegregation !== undefined ? { dataSegregation: data.dataSegregation } : {}),
+        ...(data.requireBillApproval !== undefined ? { requireBillApproval: data.requireBillApproval } : {}),
+        ...(data.timeTrackingEnabled !== undefined ? { timeTrackingEnabled: data.timeTrackingEnabled } : {}),
       })
       .returning();
     await seedOrgDefaults(saved.id);
@@ -774,6 +788,32 @@ export async function saveDocument(data: Parameters<typeof _saveDocument>[0]) {
 }
 export async function issueDocument(docId: number) {
   return withOrg(() => _issueDocument(docId), { requireWrite: true });
+}
+/** Approve a bill pending approval and post it to the ledger. */
+export async function approveBillAction(docId: number) {
+  return withOrg(async () => {
+    const access = await getAccess();
+    if (!access?.perms.has("accountant")) throw new Error("Not authorized to approve bills");
+    const [doc] = await db.select().from(documents).where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, docId))).limit(1);
+    if (!doc || doc.type !== "bill") throw new Error("Bill not found");
+    if (doc.status !== "pending_approval") throw new Error("This bill isn't awaiting approval");
+    await postBill(docId);
+    revalidatePath("/purchases/bills");
+    return { success: true };
+  }, { requireWrite: true });
+}
+/** Reject a bill pending approval, sending it back to draft with a note for the submitter. */
+export async function rejectBillAction(docId: number, note: string) {
+  return withOrg(async () => {
+    const access = await getAccess();
+    if (!access?.perms.has("accountant")) throw new Error("Not authorized to reject bills");
+    const [doc] = await db.select().from(documents).where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, docId))).limit(1);
+    if (!doc || doc.type !== "bill") throw new Error("Bill not found");
+    if (doc.status !== "pending_approval") throw new Error("This bill isn't awaiting approval");
+    await db.update(documents).set({ status: "draft", approvalNote: note || "Rejected" }).where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, docId)));
+    revalidatePath("/purchases/bills");
+    return { success: true };
+  });
 }
 export async function voidDoc(docId: number) {
   return withOrg(() => _voidDoc(docId));

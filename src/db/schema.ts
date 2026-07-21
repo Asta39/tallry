@@ -45,6 +45,10 @@ export const org = pgTable("org", {
   dataSegregation: boolean("data_segregation").notNull().default(false),
   /** Books lock: journal entries dated on/before this date are rejected. */
   lockDate: text("lock_date"),
+  /** When on, posting a bill requires an accountant/admin to approve it first. */
+  requireBillApproval: boolean("require_bill_approval").notNull().default(false),
+  /** When on, staff see a clock-in/out card on their dashboard. */
+  timeTrackingEnabled: boolean("time_tracking_enabled").notNull().default(false),
 });
 
 export const accounts = pgTable("accounts", {
@@ -184,6 +188,8 @@ export const documents = pgTable("documents", {
   qrUrl: text("qr_url"),
   // expense-specific: paid-from bank account
   paidFromBankAccountId: integer("paid_from_bank_account_id"),
+  // set when a bill approval is rejected, shown back to the submitter
+  approvalNote: text("approval_note"),
   createdAt: text("created_at").notNull(),
 }, (t) => ({
   orgTypeStatusIdx: index("idx_documents_org").on(t.orgId, t.type, t.status),

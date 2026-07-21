@@ -9,6 +9,8 @@ import {
   convertQuoteToInvoice,
   recordPayment,
   createCreditNoteFromInvoice,
+  approveBillAction,
+  rejectBillAction,
 } from "@/lib/actions";
 import { writeOffInvoice } from "@/lib/phase-a-actions";
 import { convertPoToBill } from "@/lib/actions";
@@ -27,6 +29,7 @@ export function DocActions({
   printHref,
   gateways,
   contactPhone,
+  canApprove,
 }: {
   doc: {
     id: number;
@@ -39,7 +42,10 @@ export function DocActions({
   printHref?: string;
   gateways?: { id: string; name: string }[];
   contactPhone?: string;
+  canApprove?: boolean;
 }) {
+  const [rejectNote, setRejectNote] = useState("");
+  const [showReject, setShowReject] = useState(false);
   const gatewayConnected = gateways && gateways.length > 0;
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -90,6 +96,19 @@ export function DocActions({
           <button className={primary} disabled={pending} onClick={() => run(() => issueDocument(doc.id))}>
             {isQuote ? "Mark as sent" : "Issue"}
           </button>
+        )}
+        {doc.type === "bill" && doc.status === "pending_approval" && canApprove && !showReject && (
+          <>
+            <button className={primary} disabled={pending} onClick={() => run(() => approveBillAction(doc.id))}>
+              Approve &amp; post
+            </button>
+            <button className={danger} disabled={pending} onClick={() => setShowReject(true)}>
+              Reject
+            </button>
+          </>
+        )}
+        {doc.type === "bill" && doc.status === "pending_approval" && !canApprove && (
+          <span className="text-[13px] text-[var(--color-ink-500)]">Waiting for an accountant or admin to approve this bill.</span>
         )}
         {(
           (doc.type === "quote" && ["draft", "open"].includes(doc.status)) ||
@@ -193,12 +212,34 @@ export function DocActions({
             Print
           </a>
         )}
-        {doc.status !== "void" && doc.status !== "draft" && (
+        {doc.status !== "void" && doc.status !== "draft" && doc.status !== "pending_approval" && (
           <button className={danger} disabled={pending} onClick={() => run(() => voidDoc(doc.id))}>
             Void
           </button>
         )}
       </div>
+
+      {showReject && (
+        <div className="card p-4 flex flex-wrap items-end gap-3 border-red-200 bg-red-50/50">
+          <label className="block flex-1 min-w-[240px]">
+            <span className="text-[12px] font-medium text-[var(--color-ink-600)]">Reason (shown to whoever submitted it)</span>
+            <input
+              className={inputCls + " w-full mt-1"}
+              value={rejectNote}
+              onChange={(e) => setRejectNote(e.target.value)}
+              placeholder="e.g. Wrong vendor account, please fix and resubmit"
+            />
+          </label>
+          <button
+            className={danger}
+            disabled={pending}
+            onClick={() => run(async () => { await rejectBillAction(doc.id, rejectNote); setShowReject(false); })}
+          >
+            {pending ? "Rejecting…" : "Confirm rejection"}
+          </button>
+          <button className={secondary} disabled={pending} onClick={() => setShowReject(false)}>Cancel</button>
+        </div>
+      )}
 
       {showPay && (
         <div className="card p-4 grid grid-cols-2 lg:grid-cols-5 gap-3 items-end">

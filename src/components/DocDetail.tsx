@@ -1,6 +1,7 @@
 import { db, documents, documentLines, contacts, payments, bankAccounts, paymentGateways } from "@/db";
 import { and, eq } from "drizzle-orm";
 import { getOrg } from "@/lib/org";
+import { getAccess } from "@/lib/access";
 import { notFound } from "next/navigation";
 import { fmtKES, todayISO } from "@/lib/money";
 import { TAX_CLASSES, type TaxClass } from "@/lib/tax";
@@ -29,6 +30,8 @@ export async function DocDetail({ id, printHref }: { id: number; printHref?: str
   const pays = await db.select().from(payments).where(and(eq(payments.orgId, orgId), eq(payments.documentId, id)));
   const banks = await db.select().from(bankAccounts).where(eq(bankAccounts.orgId, orgId));
   const gateways = await db.select().from(paymentGateways).where(and(eq(paymentGateways.orgId, orgId), eq(paymentGateways.enabled, true)));
+  const access = await getAccess();
+  const canApprove = !!access?.perms.has("accountant");
 
   return (
     <>
@@ -55,7 +58,14 @@ export async function DocDetail({ id, printHref }: { id: number; printHref?: str
         printHref={printHref}
         gateways={gateways.map(g => ({ id: g.gatewayId, name: g.gatewayId === "mpesa_daraja" ? "M-Pesa Daraja" : "Kopo Kopo" }))}
         contactPhone={contact?.phone || ""}
+        canApprove={canApprove}
       />
+
+      {doc.approvalNote && doc.status === "draft" && (
+        <div className="mt-4 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-[13px] text-[var(--color-bad)]">
+          <span className="font-medium">Rejected: </span>{doc.approvalNote}
+        </div>
+      )}
 
       <div className="card mt-5 overflow-x-auto">
         <table className="w-full min-w-[560px]">

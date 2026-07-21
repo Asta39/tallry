@@ -21,6 +21,8 @@ interface OrgData {
   customDocumentColumnName?: string | null;
   documentFooterText?: string | null;
   dataSegregation: boolean;
+  requireBillApproval: boolean;
+  timeTrackingEnabled: boolean;
   userId?: string | null;
 }
 
@@ -43,6 +45,8 @@ export function OrgProfileForm({ initial }: { initial: OrgData }) {
   const [customDocumentColumnName, setCustomDocumentColumnName] = useState(initial.customDocumentColumnName || "");
   const [documentFooterText, setDocumentFooterText] = useState(initial.documentFooterText || "");
   const [dataSegregation, setDataSegregation] = useState(initial.dataSegregation);
+  const [requireBillApproval, setRequireBillApproval] = useState(initial.requireBillApproval);
+  const [timeTrackingEnabled, setTimeTrackingEnabled] = useState(initial.timeTrackingEnabled);
 
   const fileRef = useRef<HTMLInputElement>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(initial.logoUrl || null);
@@ -110,6 +114,8 @@ export function OrgProfileForm({ initial }: { initial: OrgData }) {
           customDocumentColumnName: customDocumentColumnName,
           documentFooterText: documentFooterText,
           dataSegregation,
+          requireBillApproval,
+          timeTrackingEnabled,
         });
         setSaved(true);
         router.refresh();
@@ -257,6 +263,42 @@ export function OrgProfileForm({ initial }: { initial: OrgData }) {
             <div className="text-[12px] text-[var(--color-ink-400)] mt-0.5 max-w-lg">
               When enabled, staff members can only view documents that they have created or have been assigned to. 
               Admins will always be able to see all data.
+            </div>
+          </div>
+        </label>
+      </div>
+
+      {/* Approvals & Workflow */}
+      <div className="card p-6">
+        <div className="text-[11px] font-semibold uppercase tracking-wider text-[var(--color-ink-400)] mb-4">
+          Approvals & Workflow
+        </div>
+        <label className="flex items-start gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={requireBillApproval}
+            onChange={(e) => setRequireBillApproval(e.target.checked)}
+            className="accent-[var(--color-accent-500)] mt-0.5"
+          />
+          <div>
+            <div className="text-[13px] font-medium text-[var(--color-ink-900)]">Require approval before posting bills</div>
+            <div className="text-[12px] text-[var(--color-ink-400)] mt-0.5 max-w-lg">
+              When enabled, issuing a bill sends it for approval instead of posting immediately.
+              Any accountant or admin can approve and post it, or reject it with a note.
+            </div>
+          </div>
+        </label>
+        <label className="flex items-start gap-3 cursor-pointer mt-4 pt-4 hairline-t">
+          <input
+            type="checkbox"
+            checked={timeTrackingEnabled}
+            onChange={(e) => setTimeTrackingEnabled(e.target.checked)}
+            className="accent-[var(--color-accent-500)] mt-0.5"
+          />
+          <div>
+            <div className="text-[13px] font-medium text-[var(--color-ink-900)]">Enable staff clock in / clock out</div>
+            <div className="text-[12px] text-[var(--color-ink-400)] mt-0.5 max-w-lg">
+              Adds a clock-in card to every staff member&apos;s home dashboard and tracks worked hours per shift.
             </div>
           </div>
         </label>
