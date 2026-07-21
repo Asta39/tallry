@@ -749,3 +749,27 @@ export const billingPayments = pgTable("billing_payments", {
   orgIdx: index("idx_billing_payments_org").on(t.orgId),
   invoiceUnique: uniqueIndex("idx_billing_payments_invoice").on(t.invoiceId),
 }));
+
+/** Staff-submitted expense claims for reimbursement — separate from vendor bills/expenses. */
+export const expenseClaims = pgTable("expense_claims", {
+  id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
+  memberId: integer("member_id"), // submitter — null if the owner themselves submitted
+  submittedByName: text("submitted_by_name").notNull(),
+  date: text("date").notNull(),
+  categoryAccountId: integer("category_account_id").notNull(), // expense account to debit
+  description: text("description").notNull(),
+  amountCents: money("amount_cents").notNull(),
+  receiptUrl: text("receipt_url"),
+  status: text("status").notNull().default("pending"), // pending | approved | rejected | paid
+  reviewedByName: text("reviewed_by_name"),
+  reviewNote: text("review_note"),
+  journalEntryId: integer("journal_entry_id"), // set on approval (DR expense · CR payable)
+  paidJournalEntryId: integer("paid_journal_entry_id"), // set on payout (DR payable · CR bank)
+  bankAccountId: integer("bank_account_id"), // set once paid
+  createdAt: text("created_at").notNull(),
+  reviewedAt: text("reviewed_at"),
+  paidAt: text("paid_at"),
+}, (t) => ({
+  orgStatusIdx: index("idx_expense_claims_org_status").on(t.orgId, t.status),
+}));

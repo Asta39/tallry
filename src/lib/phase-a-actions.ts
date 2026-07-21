@@ -416,7 +416,7 @@ export async function runDueRecurring(): Promise<{ created: number }> {
  * ========================================================================= */
 
 /** Ensure an account exists for this org (used for Bad Debts on older orgs). */
-async function ensureAccount(code: string, name: string, type: "asset" | "liability" | "equity" | "income" | "expense", subtype: string): Promise<number> {
+export async function ensureAccount(code: string, name: string, type: "asset" | "liability" | "equity" | "income" | "expense", subtype: string): Promise<number> {
   const orgId = currentOrgId();
   const [existing] = await db
     .select()

@@ -31,6 +31,7 @@ const groups: {
     label: "Spending",
     items: [
       { href: "/purchases/expenses", label: "Expenses", icon: "▨", perm: "expenses" },
+      { href: "/expense-claims", label: "Expense Claims", icon: "🧾", perm: "expense_claims" },
       { href: "/purchases/bills", label: "Bills", icon: "▧", perm: "bills" },
       { href: "/purchases/orders", label: "Purchase Orders", icon: "⊞", perm: "purchase_orders" },
       { href: "/items", label: "Items & Stock", icon: "▣", perm: "items" },
