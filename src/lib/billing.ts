@@ -54,3 +54,11 @@ export interface Entitlements {
 }
 
 
+
+export type ReportingTier = "basic" | "standard" | "advanced";
+const TIER_RANK: Record<ReportingTier, number> = { basic: 0, standard: 1, advanced: 2 };
+
+/** True if `have` meets or exceeds `need` on the reporting-tier ladder. */
+export function meetsReportingTier(have: ReportingTier, need: ReportingTier): boolean {
+  return TIER_RANK[have] >= TIER_RANK[need];
+}
