@@ -26,6 +26,7 @@ interface EditorLine {
   taxClass: TaxClass;
   accountId: number | null;
   customColumnValue: string;
+  costCenterId: number | null;
 }
 
 const emptyLine = (): EditorLine => ({
@@ -37,6 +38,7 @@ const emptyLine = (): EditorLine => ({
   taxClass: "B16",
   accountId: null,
   customColumnValue: "",
+  costCenterId: null,
 });
 
 export interface EditorInitialData {
@@ -60,6 +62,7 @@ export function DocumentEditor({
   items,
   expenseAccounts,
   bankAccounts,
+  costCenters = [],
   backHref,
   detailHref,
   defaultContactId,
@@ -72,6 +75,7 @@ export function DocumentEditor({
   items: ItemOption[];
   expenseAccounts?: Option[];
   bankAccounts?: Option[];
+  costCenters?: Option[];
   backHref: string;
   /** e.g. "/sales/invoices" — new doc id is appended */
   detailHref?: string;
@@ -114,6 +118,7 @@ export function DocumentEditor({
           taxClass: l.taxClass,
           accountId: l.accountId,
           customColumnValue: l.customColumnValue || undefined,
+          costCenterId: l.costCenterId,
         })),
     [lines]
   );
@@ -288,6 +293,9 @@ export function DocumentEditor({
               {(type === "bill" || type === "expense") && (
                 <th className="text-left px-2 py-2.5 font-semibold w-[15%]">Category</th>
               )}
+              {costCenters.length > 0 && (
+                <th className="text-left px-2 py-2.5 font-semibold w-[13%]">Cost center</th>
+              )}
               <th className="text-right px-4 py-2.5 font-semibold w-[13%]">Amount</th>
               <th className="w-8" />
             </tr>
@@ -382,6 +390,20 @@ export function DocumentEditor({
                       </select>
                     </td>
                   )}
+                  {costCenters.length > 0 && (
+                    <td className="px-1 py-2">
+                      <select
+                        className={cellCls}
+                        value={l.costCenterId ?? ""}
+                        onChange={(e) => update(i, { costCenterId: e.target.value ? Number(e.target.value) : null })}
+                      >
+                        <option value="">—</option>
+                        {costCenters.map((c) => (
+                          <option key={c.id} value={c.id}>{c.label}</option>
+                        ))}
+                      </select>
+                    </td>
+                  )}
                   <td className="px-4 py-3.5 text-right text-[13px] tnum">
                     {t ? fmtKES(t.grossCents) : "—"}
                   </td>
@@ -433,6 +455,7 @@ export function DocumentEditor({
                       taxClass: item.taxClass as TaxClass,
                       accountId: null,
                       customColumnValue: "",
+                      costCenterId: null,
                     }];
                   });
                 }

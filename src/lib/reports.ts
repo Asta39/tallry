@@ -739,3 +739,47 @@ export function parsePeriod(period: string, defaultPeriod: string = "this_month"
   }
   return { fromDate, toDate };
 }
+
+/** P&L subtotals per cost center (dimension) for a period — untagged lines roll into "Unassigned". */
+export async function costCenterPnL(from: string, to: string) {
+  const { costCenters } = await import("@/db");
+  const rows = await db
+    .select({
+      costCenterId: journalLines.costCenterId,
+      accountType: accounts.type,
+      debit: sql<number>`coalesce(sum(${journalLines.debitCents}), 0)`,
+      credit: sql<number>`coalesce(sum(${journalLines.creditCents}), 0)`,
+    })
+    .from(journalLines)
+    .innerJoin(journalEntries, eq(journalLines.entryId, journalEntries.id))
+    .innerJoin(accounts, eq(journalLines.accountId, accounts.id))
+    .where(and(
+      eq(journalLines.orgId, currentOrgId()),
+      gte(journalEntries.date, from),
+      lte(journalEntries.date, to),
+      inArray(accounts.type, ["income", "expense"]),
+    ))
+    .groupBy(journalLines.costCenterId, accounts.type);
+
+  const allCostCenters = await db.select().from(costCenters).where(eq(costCenters.orgId, currentOrgId()));
+  const nameById = new Map(allCostCenters.map((c) => [c.id, c.name]));
+
+  const byCostCenter = new Map<number | null, { income: number; expense: number }>();
+  for (const r of rows) {
+    const key = r.costCenterId;
+    const agg = byCostCenter.get(key) || { income: 0, expense: 0 };
+    if (r.accountType === "income") agg.income += Number(r.credit) - Number(r.debit);
+    else agg.expense += Number(r.debit) - Number(r.credit);
+    byCostCenter.set(key, agg);
+  }
+
+  return Array.from(byCostCenter.entries())
+    .map(([id, agg]) => ({
+      costCenterId: id,
+      name: id === null ? "Unassigned" : nameById.get(id) || `Cost center #${id}`,
+      incomeCents: agg.income,
+      expenseCents: agg.expense,
+      netCents: agg.income - agg.expense,
+    }))
+    .sort((a, b) => b.netCents - a.netCents);
+}

@@ -34,6 +34,7 @@ export default async function EditQuotePage({
         members={opts.members}
         contacts={opts.contacts}
         items={opts.items}
+        costCenters={opts.costCenters}
         backHref={`/sales/quotes/${docId}`}
         detailHref="/sales/quotes"
         initialData={initialData as any}

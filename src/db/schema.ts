@@ -217,6 +217,7 @@ export const documentLines = pgTable("document_lines", {
   cogsCents: money("cogs_cents").notNull().default(0), // FIFO cost consumed (audit)
   position: integer("position").notNull().default(0),
   customColumnValue: text("custom_column_value"),
+  costCenterId: integer("cost_center_id"), // optional dimension tag, flows into the posted journal line
 }, (t) => ({
   orgDocIdx: index("idx_document_lines_org").on(t.orgId, t.documentId),
 }));
@@ -302,8 +303,10 @@ export const journalLines = pgTable("journal_lines", {
   creditCents: money("credit_cents").notNull().default(0),
   contactId: integer("contact_id"),
   memo: text("memo"),
+  costCenterId: integer("cost_center_id"), // optional dimension: department / project / location
 }, (t) => ({
   orgEntryAccountIdx: index("idx_journal_lines_org").on(t.orgId, t.entryId, t.accountId),
+  costCenterIdx: index("idx_journal_lines_cost_center").on(t.orgId, t.costCenterId),
 }));
 
 /* ---------------- Team, permissions, dashboard ---------------- */
@@ -796,4 +799,16 @@ export const timeShifts = pgTable("time_shifts", {
 }, (t) => ({
   orgOpenIdx: index("idx_time_shifts_org_open").on(t.orgId, t.clockOutAt),
   orgMemberIdx: index("idx_time_shifts_org_member").on(t.orgId, t.memberId),
+}));
+
+/** Reporting dimension: department / project / location tag on journal lines. */
+export const costCenters = pgTable("cost_centers", {
+  id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
+  name: text("name").notNull(),
+  code: text("code"),
+  active: boolean("active").notNull().default(true),
+  createdAt: text("created_at").notNull(),
+}, (t) => ({
+  orgIdx: index("idx_cost_centers_org").on(t.orgId),
 }));

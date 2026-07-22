@@ -34,6 +34,7 @@ export default async function EditInvoicePage({
         members={opts.members}
         contacts={opts.contacts}
         items={opts.items}
+        costCenters={opts.costCenters}
         backHref={`/sales/invoices/${docId}`}
         detailHref="/sales/invoices"
         initialData={initialData as any}

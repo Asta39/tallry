@@ -31,6 +31,7 @@ export default async function NewQuotePage({
         members={opts.members}
         contacts={opts.contacts}
         items={opts.items}
+        costCenters={opts.costCenters}
         defaultContactId={defaultContactId}
         initialData={initialData as any}
         backHref="/sales/quotes"

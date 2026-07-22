@@ -40,6 +40,9 @@ export default async function AccountantPage() {
         <Link href="/recurring" className="text-[var(--color-accent-600)] font-medium">
           Recurring templates →
         </Link>
+        <Link href="/accountant/cost-centers" className="text-[var(--color-accent-600)] font-medium">
+          Cost centers →
+        </Link>
       </div>
 
       <ChartOfAccountsClient accounts={all} balances={balMap} />

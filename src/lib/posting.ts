@@ -27,6 +27,7 @@ export interface PostLine {
   creditCents?: number;
   contactId?: number | null;
   memo?: string;
+  costCenterId?: number | null;
 }
 
 /** Cache keyed per-org: same account code maps to different ids per org. */
@@ -95,6 +96,7 @@ export async function postEntry(params: {
       creditCents: l.creditCents ?? 0,
       contactId: l.contactId ?? null,
       memo: l.memo,
+      costCenterId: l.costCenterId ?? null,
     }))
   );
   return entry.id;
@@ -145,6 +147,7 @@ export async function postInvoice(docId: number): Promise<number> {
       accountId: l.accountId ?? (await acct(SYS.SALES)),
       creditCents: l.netCents,
       memo: l.description,
+      costCenterId: l.costCenterId,
     });
     if (l.taxCents > 0) {
       post.push({ accountId: await acct(SYS.VAT_OUTPUT), creditCents: l.taxCents });
@@ -188,7 +191,7 @@ export async function postCreditNote(docId: number): Promise<number> {
     },
   ];
   for (const l of lines) {
-    post.push({ accountId: l.accountId ?? (await acct(SYS.SALES)), debitCents: l.netCents });
+    post.push({ accountId: l.accountId ?? (await acct(SYS.SALES)), debitCents: l.netCents, costCenterId: l.costCenterId });
     if (l.taxCents > 0) post.push({ accountId: await acct(SYS.VAT_OUTPUT), debitCents: l.taxCents });
   }
   const entryId = await postEntry({
@@ -226,7 +229,7 @@ export async function postBill(docId: number): Promise<number> {
         });
       }
     }
-    post.push({ accountId: debitAccount, debitCents: l.netCents, memo: l.description });
+    post.push({ accountId: debitAccount, debitCents: l.netCents, memo: l.description, costCenterId: l.costCenterId });
     vatInput += l.taxCents;
   }
   if (vatInput > 0) post.push({ accountId: await acct(SYS.VAT_INPUT), debitCents: vatInput });
@@ -268,6 +271,7 @@ export async function postExpense(docId: number): Promise<number> {
       accountId: l.accountId ?? (await acct("6900")),
       debitCents: l.netCents,
       memo: l.description,
+      costCenterId: l.costCenterId,
     });
     vatInput += l.taxCents;
   }

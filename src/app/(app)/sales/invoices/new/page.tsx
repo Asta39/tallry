@@ -45,6 +45,7 @@ export default async function NewInvoicePage({
         members={opts.members}
         contacts={opts.contacts}
         items={opts.items}
+        costCenters={opts.costCenters}
         defaultContactId={defaultContactId}
         initialData={initialData as any}
         backHref="/sales/invoices"

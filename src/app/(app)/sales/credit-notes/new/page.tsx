@@ -23,6 +23,7 @@ export default async function NewCreditNotePage({
         members={opts.members}
         contacts={opts.contacts}
         items={opts.items}
+        costCenters={opts.costCenters}
         defaultContactId={defaultContactId}
         backHref="/sales/credit-notes"
         detailHref="/sales/credit-notes"

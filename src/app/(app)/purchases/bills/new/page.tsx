@@ -23,6 +23,7 @@ export default async function NewBillPage({
         members={opts.members}
         contacts={opts.contacts}
         items={opts.items}
+        costCenters={opts.costCenters}
         expenseAccounts={opts.expenseAccounts}
         defaultContactId={defaultContactId}
         backHref="/purchases/bills"

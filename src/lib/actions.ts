@@ -261,6 +261,7 @@ export interface DocLineInput {
   taxClass: TaxClass;
   accountId?: number | null;
   customColumnValue?: string | null;
+  costCenterId?: number | null;
 }
 
 async function _saveDocument(data: {
@@ -372,6 +373,7 @@ async function _saveDocument(data: {
         accountId: l.accountId,
         position: i,
         customColumnValue: l.customColumnValue || null,
+        costCenterId: l.costCenterId || null,
       };
     })
   );
