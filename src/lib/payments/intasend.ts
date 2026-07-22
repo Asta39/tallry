@@ -1,11 +1,13 @@
 /**
  * IntaSend client for Zeno's OWN subscription billing (platform-level, not
  * per-org like the Daraja/KopoKopo tenant gateways). Collects plan payments
- * via M-Pesa STK push.
+ * via M-Pesa STK push and hosted checkout (card).
  *
  * Env:
- *   INTASEND_SECRET_KEY   — Bearer token for API calls (required)
- *   INTASEND_TEST_MODE    — "true" → sandbox.intasend.com, else api.intasend.com
+ *   INTASEND_SECRET_KEY       — Bearer token for collect/STK API calls (required)
+ *   INTASEND_PUBLISHABLE_KEY  — Public key for the Checkout API (required for card payments —
+ *                                that endpoint authenticates via X-IntaSend-Public-API-Key, NOT the secret key)
+ *   INTASEND_TEST_MODE        — "true" → sandbox.intasend.com, else api.intasend.com
  */
 
 function baseUrl(): string {
@@ -73,17 +75,28 @@ export interface CheckoutResult {
   url: string;
 }
 
-/** Create a hosted checkout page (card, or M-Pesa/other methods) — customer completes payment on IntaSend's page. */
+/**
+ * Create a hosted checkout page (card, or M-Pesa/other methods) — customer completes payment
+ * on IntaSend's page. Unlike every other call in this file, the Checkout API authenticates via
+ * the PUBLISHABLE key in an X-IntaSend-Public-API-Key header, not the secret Bearer token.
+ */
 export async function intasendCheckout(params: {
   amountKes: number;
   email: string;
   apiRef: string;
   comment?: string;
   redirectUrl: string;
+  host: string;
 }): Promise<CheckoutResult> {
+  const publicKey = process.env.INTASEND_PUBLISHABLE_KEY;
+  if (!publicKey) throw new Error("INTASEND_PUBLISHABLE_KEY is not configured");
+
   const res = await fetch(`${baseUrl()}/api/v1/checkout/`, {
     method: "POST",
-    headers: authHeaders(),
+    headers: {
+      "Content-Type": "application/json",
+      "X-IntaSend-Public-API-Key": publicKey,
+    },
     body: JSON.stringify({
       amount: String(params.amountKes),
       currency: "KES",
@@ -91,8 +104,9 @@ export async function intasendCheckout(params: {
       api_ref: params.apiRef,
       comment: params.comment || "Zeno subscription",
       redirect_url: params.redirectUrl,
+      host: params.host,
+      method: "CARD-PAYMENT",
       card_tarrif: "BUSINESS-PAYS",
-      mobile_tarrif: "BUSINESS-PAYS",
     }),
   });
 

@@ -75,6 +75,7 @@ export async function initiateCardPaymentAction(plan: PlanKey, cycle: BillingCyc
       apiRef: `zeno-sub-${row.id}`,
       comment: `Zeno ${PLANS[plan].name} plan (${cycle})`,
       redirectUrl: `${origin}/settings/billing?payment=${row.id}`,
+      host: origin,
     });
 
     await db.update(billingPayments)
