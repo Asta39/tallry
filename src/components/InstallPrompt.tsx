@@ -79,11 +79,8 @@ export function InstallPrompt() {
         className="pointer-events-auto flex items-center gap-3 rounded-xl bg-white/95 backdrop-blur border border-[var(--color-ink-100)] shadow-lg pl-3 pr-2 py-2 max-w-[420px] w-full"
         style={{ boxShadow: "0 6px 24px rgba(0,0,0,0.10)" }}
       >
-        <div
-          className="shrink-0 w-9 h-9 rounded-lg flex items-center justify-center text-white text-[15px] font-bold"
-          style={{ background: "var(--color-brand, #0f766e)" }}
-        >
-          T
+        <div className="shrink-0 w-9 h-9 rounded-lg overflow-hidden bg-white border border-[var(--color-ink-100)] flex items-center justify-center">
+          <img src="/images/brand/zeno-icon.png" alt="" className="w-7 h-7 object-contain" />
         </div>
         <div className="min-w-0 flex-1">
           <div className="text-[13px] font-medium leading-tight">Install Zeno</div>
