@@ -119,6 +119,25 @@ function CreatedByLine({ doc, style }: { doc: PdfDoc; style?: Record<string, unk
   );
 }
 
+const dateLabels: Record<string, string> = {
+  invoice: "Invoice Date",
+  quote: "Quote Date",
+  bill: "Bill Date",
+  credit_note: "Credit Note Date",
+  purchase_order: "PO Date",
+  expense: "Expense Date",
+};
+
+const billToLabels: Record<string, string> = {
+  quote: "Quote for",
+  purchase_order: "Quote for",
+  expense: "Expense for",
+};
+
+function billToLabel(type: string): string {
+  return billToLabels[type] || "Bill To";
+}
+
 function makeStyles(brand: string) {
   return StyleSheet.create({
     page: { paddingTop: 42, paddingLeft: 42, paddingRight: 42, paddingBottom: 140, fontSize: 9.5, fontFamily: "Helvetica", color: "#1d1d1f" },
@@ -227,7 +246,7 @@ export function DocumentPdf({
         {template === "beige" && <View fixed style={{ position: "absolute", top: -100, left: -100, width: 1000, height: 1500, backgroundColor: "#faf9f5", zIndex: -1 }} />}
         {template === "pastel" && <View fixed style={{ position: "absolute", top: -100, left: -100, width: 1000, height: 1500, backgroundColor: org.brandColor || "#0f766e", opacity: 0.05, zIndex: -1 }} />}
 
-        {/* Header */}
+        {/* Header — split view: seller info left, doc title/bill-to/dates stacked right */}
         {template === "default" && (
           <View style={s.headerRow}>
             <View style={{ maxWidth: 260 }}>
@@ -242,16 +261,27 @@ export function DocumentPdf({
                 </Text>
               ) : null}
             </View>
-            <View>
+            <View style={{ alignItems: "flex-end" }}>
               <Text style={s.docTitle}>{titles[doc.type] ?? doc.type.toUpperCase()}</Text>
-              <View style={s.metaRight}>
-                <Text>
-                  No: <Text style={s.bold}>{doc.number}</Text>
-                </Text>
-                <Text>Date: {doc.date}</Text>
-                {doc.dueDate ? <Text>Due: {doc.dueDate}</Text> : null}
-                <StatusBadgeText doc={doc} />
-                <CreatedByLine doc={doc} />
+              <Text style={{ fontSize: 10, fontFamily: "Helvetica-Bold", textAlign: "right", marginTop: 2 }}># {doc.number}</Text>
+              <StatusBadgeText doc={doc} style={{ textAlign: "right" }} />
+
+              <View style={{ alignItems: "flex-end", marginTop: 18 }}>
+                <Text style={[s.sectionLabel, { textAlign: "right" }]}>{billToLabel(doc.type)}</Text>
+                <Text style={s.bold}>{contact?.displayName ?? "Walk-in customer"}</Text>
+                {contact?.address ? <Text style={[s.muted, { textAlign: "right" }]}>{contact.address}</Text> : null}
+                {contact?.city ? <Text style={[s.muted, { textAlign: "right" }]}>{contact.city}</Text> : null}
+                {contact?.kraPin ? (
+                  <Text style={{ textAlign: "right" }}>
+                    Buyer PIN: <Text style={s.bold}>{contact.kraPin}</Text>
+                  </Text>
+                ) : null}
+              </View>
+
+              <View style={[s.metaRight, { marginTop: 14 }]}>
+                <Text>{dateLabels[doc.type] || "Date"}: {doc.date}</Text>
+                {doc.dueDate ? <Text>Due Date: {doc.dueDate}</Text> : null}
+                <CreatedByLine doc={doc} style={{ textAlign: "right" }} />
               </View>
             </View>
           </View>
@@ -407,20 +437,20 @@ export function DocumentPdf({
           </View>
         )}
 
-        {/* Bill to */}
-        <View style={s.billTo}>
-          <Text style={s.sectionLabel}>
-            {["quote", "purchase_order"].includes(doc.type) ? "Quote for" : doc.type === "expense" ? "Expense for" : "Bill to"}
-          </Text>
-          <Text style={s.bold}>{contact?.displayName ?? "Walk-in customer"}</Text>
-          {contact?.address ? <Text style={s.muted}>{contact.address}</Text> : null}
-          {contact?.city ? <Text style={s.muted}>{contact.city}</Text> : null}
-          {contact?.kraPin ? (
-            <Text>
-              Buyer PIN: <Text style={s.bold}>{contact.kraPin}</Text>
-            </Text>
-          ) : null}
-        </View>
+        {/* Bill to — folded into the split header for "default"; other templates keep it as its own block */}
+        {template !== "default" && (
+          <View style={s.billTo}>
+            <Text style={s.sectionLabel}>{billToLabel(doc.type)}</Text>
+            <Text style={s.bold}>{contact?.displayName ?? "Walk-in customer"}</Text>
+            {contact?.address ? <Text style={s.muted}>{contact.address}</Text> : null}
+            {contact?.city ? <Text style={s.muted}>{contact.city}</Text> : null}
+            {contact?.kraPin ? (
+              <Text>
+                Buyer PIN: <Text style={s.bold}>{contact.kraPin}</Text>
+              </Text>
+            ) : null}
+          </View>
+        )}
 
         {/* Line items */}
         <View style={s.table}>
