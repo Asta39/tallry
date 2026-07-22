@@ -45,10 +45,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <>
       {announcement && (
-        <div className={`no-print px-4 py-2 text-center text-[12.5px] font-medium ${
+        <div className={`no-print h-9 flex items-center justify-center px-4 text-center text-[12.5px] font-medium md:relative md:h-auto md:py-2 fixed top-0 inset-x-0 z-50 md:static ${
           announcement.tone === "warn" ? "bg-amber-100 text-amber-900" : "bg-[var(--color-accent-500)] text-white"
         }`}>
-          {announcement.message}
+          <span className="truncate">{announcement.message}</span>
         </div>
       )}
       {isImpersonating && <ImpersonationBanner orgName={access.orgRow.name} />}
@@ -61,8 +61,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           perms={MODULES.map((m) => m.key).filter((k) => access.perms.has(k))}
           roleLabel={access.isOwner ? "Owner" : roleLabels[access.role]}
           timeTrackingEnabled={access.orgRow.timeTrackingEnabled}
+          topOffsetClass={announcement ? "top-9" : "top-0"}
         />
         <main className="flex-1 min-w-0 flex flex-col h-screen overflow-y-auto">
+          {announcement && <div className="h-9 md:hidden shrink-0 no-print" />}
           <div className="h-14 md:hidden shrink-0 no-print" />
           <div className="sticky top-14 md:top-0 z-30 bg-white/80 backdrop-blur-md border-b border-[var(--color-ink-100)] px-4 py-3 md:py-0 md:px-8 md:h-14 flex items-center justify-between no-print gap-4">
             <div className="flex-1 hidden md:block max-w-[150px]">

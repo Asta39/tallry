@@ -79,9 +79,11 @@ interface SidebarProps {
   perms?: string[];
   roleLabel?: string;
   timeTrackingEnabled?: boolean;
+  /** Tailwind top-offset class for the mobile fixed bar, e.g. "top-9" when an announcement banner is showing above it. */
+  topOffsetClass?: string;
 }
 
-export function Sidebar({ orgName, orgEmail, logoUrl, perms, roleLabel, timeTrackingEnabled }: SidebarProps) {
+export function Sidebar({ orgName, orgEmail, logoUrl, perms, roleLabel, timeTrackingEnabled, topOffsetClass = "top-0" }: SidebarProps) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
@@ -183,7 +185,7 @@ export function Sidebar({ orgName, orgEmail, logoUrl, perms, roleLabel, timeTrac
   return (
     <>
       {/* Mobile top bar */}
-      <div className="md:hidden no-print fixed top-0 inset-x-0 z-40 sidebar-chrome border-b border-[var(--color-ink-100)] flex items-center gap-3 px-4 h-14">
+      <div className={`md:hidden no-print fixed ${topOffsetClass} inset-x-0 z-40 sidebar-chrome border-b border-[var(--color-ink-100)] flex items-center gap-3 px-4 h-14`}>
         <button
           onClick={() => setOpen(true)}
           aria-label="Open menu"
