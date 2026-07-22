@@ -4,7 +4,7 @@ import { ImageResponse } from "next/og";
 export const dynamic = "force-dynamic";
 
 /**
- * Dynamically-rendered PWA icon — a rounded brand-teal tile with a white "T".
+ * Dynamically-rendered PWA icon — the Zeno gold monogram on a brand-teal tile.
  * ?size=192|512, ?pad=1 for the maskable (safe-zone) variant.
  */
 export function GET(req: Request) {
@@ -13,6 +13,7 @@ export function GET(req: Request) {
   const pad = url.searchParams.get("pad") === "1";
   const inset = pad ? Math.round(size * 0.12) : 0;
   const box = size - inset * 2;
+  const iconUrl = `${url.origin}/images/brand/zeno-icon.png`;
 
   return new ImageResponse(
     (
@@ -35,13 +36,10 @@ export function GET(req: Request) {
             justifyContent: "center",
             background: "#0f766e",
             borderRadius: pad ? box * 0.5 : box * 0.22,
-            color: "white",
-            fontSize: box * 0.6,
-            fontWeight: 700,
-            fontFamily: "sans-serif",
           }}
         >
-          T
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={iconUrl} width={box * 0.62} height={box * 0.62} style={{ objectFit: "contain" }} alt="" />
         </div>
       </div>
     ),
