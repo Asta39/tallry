@@ -41,8 +41,8 @@ export default function UpdatePasswordPage() {
   return (
     <div className="w-full max-w-[400px] px-4">
       <div className="text-center mb-8">
-        <div className="flex justify-center mb-6">
-          <img src="/images/logo.png" alt="Zeno Logo" className="h-20 w-auto object-contain" />
+        <div className="flex justify-center mb-2">
+          <img src="/images/logo.png" alt="Zeno Logo" className="h-40 w-auto object-contain" />
         </div>
         <h1 className="text-[22px] font-semibold text-[var(--color-ink-900)] leading-tight">
           Set a new password
