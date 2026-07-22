@@ -20,7 +20,7 @@ export interface PayrollInput {
 }
 
 export interface LineItem {
-  type: "gross_pay" | "deduction" | "addition" | "net_pay";
+  type: "gross_pay" | "deduction" | "addition" | "net_pay" | "employer_cost";
   subType: string;
   amountCents: number;
   isDeduction: boolean;
@@ -83,7 +83,15 @@ export function runPayrollEngine(input: PayrollInput, rules: RuleDef[]): LineIte
       } else if (rule.calculationType === "capped") {
         amount = Math.round(baseAmount * (params.rate || 0));
         if (params.capCents && amount > params.capCents) amount = params.capCents;
+      } else if (rule.calculationType === "banded_range") {
+        // Rate applies only to the slice of baseAmount between lowerCents and upperCents
+        // (e.g. NSSF Tier II: 6% of the band between KES 8,000 and 72,000, not of gross from zero).
+        const lower = params.lowerCents || 0;
+        const upper = params.upperCents ?? Infinity;
+        const slice = Math.max(0, Math.min(baseAmount, upper) - lower);
+        amount = Math.round(slice * (params.rate || 0));
       }
+      if (params.minCents && amount < params.minCents) amount = params.minCents;
       return Number.isNaN(amount) ? 0 : amount;
     } catch {
       return 0;
@@ -92,7 +100,7 @@ export function runPayrollEngine(input: PayrollInput, rules: RuleDef[]): LineIte
 
   // 3. NSSF (Pre-tax)
   let nssfCents = 0;
-  const nssfRules = rules.filter(r => r.type.startsWith("NSSF"));
+  const nssfRules = rules.filter(r => r.type.startsWith("NSSF") && !r.type.endsWith("_EMPLOYER"));
   for (const nssfRule of nssfRules) {
     const amt = calculateRule(nssfRule, grossCents);
     nssfCents += amt;
@@ -195,6 +203,22 @@ export function runPayrollEngine(input: PayrollInput, rules: RuleDef[]): LineIte
     amountCents: netPayCents,
     isDeduction: false
   });
+
+  // 10. Employer-borne statutory costs (NSSF employer match, AHL employer 1.5%, NITA levy) —
+  // these are NOT deducted from the employee's pay; they're an additional employer expense/liability.
+  const employerRules = rules.filter(r => r.type.endsWith("_EMPLOYER") || r.type === "NITA");
+  for (const rule of employerRules) {
+    const amt = calculateRule(rule, grossCents);
+    if (amt > 0) {
+      lines.push({
+        type: "employer_cost",
+        subType: rule.type,
+        amountCents: amt,
+        isDeduction: false,
+        statutoryRuleId: rule.id
+      });
+    }
+  }
 
   return lines;
 }

@@ -21,6 +21,11 @@ export async function createEmployeeAction(formData: FormData) {
   if (!name || basicSalaryCents < 0) {
     throw new Error("Missing or invalid required fields");
   }
+  // KRA PIN is required for PAYE remittance filing on iTax — without it payroll can run
+  // but the org won't be able to file correctly for this employee.
+  if (!kraPin || !/^[A-Za-z]\d{9}[A-Za-z]$/.test(kraPin.trim())) {
+    throw new Error("A valid KRA PIN is required (e.g. A123456789Z)");
+  }
 
   await db.insert(employees).values({
     orgId: o.id,

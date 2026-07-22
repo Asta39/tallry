@@ -18,30 +18,47 @@ export function RuleForm({ initialData }: { initialData?: any }) {
   // State for simple flat rules
   const [rate, setRate] = useState(params.rate ? String(params.rate * 100) : "2.75");
   const [amount, setAmount] = useState(params.amountCents ? String(params.amountCents / 100) : "2400");
-  const [cap, setCap] = useState(params.capCents ? String(params.capCents / 100) : "1080");
+  const [cap, setCap] = useState(params.capCents ? String(params.capCents / 100) : "");
+  const [minAmount, setMinAmount] = useState(params.minCents ? String(params.minCents / 100) : "");
 
-  // State for banded rules (PAYE)
+  // State for banded-range rules (e.g. NSSF Tier II: a rate on the slice between two amounts)
+  const [lower, setLower] = useState(params.lowerCents ? String(params.lowerCents / 100) : "8000");
+  const [upper, setUpper] = useState(params.upperCents ? String(params.upperCents / 100) : "72000");
+
+  // State for banded rules (PAYE) — 2023 Finance Act schedule, still current
   const defaultBands = params.bands ? params.bands.map((b: any) => ({
     upTo: b.upToCents ? String(b.upToCents / 100) : "",
     rate: String(b.rate * 100)
   })) : [
     { upTo: "24000", rate: "10" },
-    { upTo: "32333", rate: "25" },
-    { upTo: "", rate: "30" } // empty means infinite
+    { upTo: "8333", rate: "25" },
+    { upTo: "467667", rate: "30" },
+    { upTo: "300000", rate: "32.5" },
+    { upTo: "", rate: "35" } // empty means infinite
   ];
 
   const [bands, setBands] = useState<{ upTo: string; rate: string }[]>(defaultBands);
 
+  const minCents = minAmount ? Math.round(parseFloat(minAmount) * 100) : undefined;
+
   let parametersJson = "{}";
   try {
     if (calcType === "flat_percent") {
-      parametersJson = JSON.stringify({ rate: parseFloat(rate) / 100 });
+      parametersJson = JSON.stringify({ rate: parseFloat(rate) / 100, minCents });
     } else if (calcType === "flat_amount") {
       parametersJson = JSON.stringify({ amountCents: Math.round(parseFloat(amount) * 100) });
     } else if (calcType === "capped") {
-      parametersJson = JSON.stringify({ 
+      parametersJson = JSON.stringify({
         rate: parseFloat(rate) / 100,
-        capCents: Math.round(parseFloat(cap) * 100)
+        capCents: Math.round(parseFloat(cap) * 100),
+        minCents
+      });
+    } else if (calcType === "banded_range") {
+      parametersJson = JSON.stringify({
+        lowerCents: Math.round(parseFloat(lower || "0") * 100),
+        upperCents: upper ? Math.round(parseFloat(upper) * 100) : null,
+        rate: parseFloat(rate) / 100,
+        minCents
       });
     } else if (calcType === "banded") {
       parametersJson = JSON.stringify({
@@ -79,12 +96,19 @@ export function RuleForm({ initialData }: { initialData?: any }) {
           <label className="block text-[11.5px] font-medium text-[var(--color-ink-500)] mb-1">Rule Type</label>
           <select name="type" required defaultValue={initialData?.type || "PAYE"} className="w-full rounded-lg border border-[var(--color-ink-200)] bg-white px-3 py-1.5 text-[13px] outline-none focus:border-[var(--color-accent-500)] focus:ring-2 focus:ring-[var(--color-accent-100)]">
             <option value="PAYE">PAYE (Income Tax)</option>
-            <option value="SHIF">SHIF (Health Insurance)</option>
-            <option value="NSSF_1">NSSF Tier 1</option>
-            <option value="NSSF_2">NSSF Tier 2</option>
-            <option value="AHL">Affordable Housing Levy</option>
+            <option value="SHIF">SHIF (Health Insurance) — employee</option>
+            <option value="NSSF_1">NSSF Tier 1 — employee</option>
+            <option value="NSSF_2">NSSF Tier 2 — employee</option>
+            <option value="AHL">Affordable Housing Levy — employee</option>
             <option value="RELIEF">Personal Relief</option>
+            <option value="NSSF_1_EMPLOYER">NSSF Tier 1 — employer match</option>
+            <option value="NSSF_2_EMPLOYER">NSSF Tier 2 — employer match</option>
+            <option value="AHL_EMPLOYER">Affordable Housing Levy — employer</option>
+            <option value="NITA">NITA Training Levy — employer</option>
           </select>
+          <p className="text-[11px] text-[var(--color-ink-400)] mt-1">
+            "Employee" rules are deducted from pay. "Employer" rules and NITA are an extra business cost, not deducted from anyone's pay.
+          </p>
         </div>
 
         <div className="col-span-2">
@@ -97,9 +121,10 @@ export function RuleForm({ initialData }: { initialData?: any }) {
             className="w-full rounded-lg border border-[var(--color-ink-200)] bg-white px-3 py-1.5 text-[13px] outline-none focus:border-[var(--color-accent-500)] focus:ring-2 focus:ring-[var(--color-accent-100)]"
           >
             <option value="flat_percent">Flat Percentage (e.g. SHIF, AHL)</option>
-            <option value="capped">Capped Percentage (e.g. NSSF)</option>
-            <option value="banded">Banded Tax Brackets (e.g. PAYE)</option>
-            <option value="flat_amount">Flat Fixed Amount (e.g. Personal Relief)</option>
+            <option value="banded_range">Percentage of a Band (e.g. NSSF Tier 1/2)</option>
+            <option value="capped">Capped Percentage (legacy single-tier caps)</option>
+            <option value="banded">Progressive Tax Brackets (PAYE)</option>
+            <option value="flat_amount">Flat Fixed Amount (e.g. Personal Relief, NITA)</option>
           </select>
         </div>
 
@@ -114,10 +139,37 @@ export function RuleForm({ initialData }: { initialData?: any }) {
         <h4 className="text-[13px] font-semibold text-[var(--color-ink-900)] mb-4">Rule Settings</h4>
         
         {calcType === "flat_percent" && (
-          <div>
-            <label className="block text-[11.5px] font-medium text-[var(--color-ink-500)] mb-1">Percentage Rate (%)</label>
-            <input type="number" step="0.01" value={rate} onChange={e => setRate(e.target.value)} required placeholder="e.g. 2.75" className="w-full rounded-lg border border-[var(--color-ink-200)] bg-white px-3 py-1.5 text-[13px] outline-none focus:border-[var(--color-accent-500)] focus:ring-2 focus:ring-[var(--color-accent-100)]" />
-            <p className="text-[11px] text-[var(--color-ink-400)] mt-1">Enter percentage as a number (e.g., 2.75 for SHIF, 1.5 for AHL).</p>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-[11.5px] font-medium text-[var(--color-ink-500)] mb-1">Percentage Rate (%)</label>
+              <input type="number" step="0.01" value={rate} onChange={e => setRate(e.target.value)} required placeholder="e.g. 2.75" className="w-full rounded-lg border border-[var(--color-ink-200)] bg-white px-3 py-1.5 text-[13px] outline-none focus:border-[var(--color-accent-500)] focus:ring-2 focus:ring-[var(--color-accent-100)]" />
+              <p className="text-[11px] text-[var(--color-ink-400)] mt-1">e.g. 2.75 for SHIF, 1.5 for AHL.</p>
+            </div>
+            <div>
+              <label className="block text-[11.5px] font-medium text-[var(--color-ink-500)] mb-1">Minimum (KSh, optional)</label>
+              <input type="number" step="0.01" value={minAmount} onChange={e => setMinAmount(e.target.value)} placeholder="e.g. 300 for SHIF's floor" className="w-full rounded-lg border border-[var(--color-ink-200)] bg-white px-3 py-1.5 text-[13px] outline-none focus:border-[var(--color-accent-500)] focus:ring-2 focus:ring-[var(--color-accent-100)]" />
+              <p className="text-[11px] text-[var(--color-ink-400)] mt-1">Won't deduct less than this even for very low earners.</p>
+            </div>
+          </div>
+        )}
+
+        {calcType === "banded_range" && (
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-[11.5px] font-medium text-[var(--color-ink-500)] mb-1">Band Lower Bound (KSh)</label>
+              <input type="number" step="0.01" value={lower} onChange={e => setLower(e.target.value)} required placeholder="e.g. 8000" className="w-full rounded-lg border border-[var(--color-ink-200)] bg-white px-3 py-1.5 text-[13px] outline-none focus:border-[var(--color-accent-500)] focus:ring-2 focus:ring-[var(--color-accent-100)]" />
+            </div>
+            <div>
+              <label className="block text-[11.5px] font-medium text-[var(--color-ink-500)] mb-1">Band Upper Bound (KSh)</label>
+              <input type="number" step="0.01" value={upper} onChange={e => setUpper(e.target.value)} placeholder="e.g. 72000, blank = no ceiling" className="w-full rounded-lg border border-[var(--color-ink-200)] bg-white px-3 py-1.5 text-[13px] outline-none focus:border-[var(--color-accent-500)] focus:ring-2 focus:ring-[var(--color-accent-100)]" />
+            </div>
+            <div>
+              <label className="block text-[11.5px] font-medium text-[var(--color-ink-500)] mb-1">Percentage Rate (%)</label>
+              <input type="number" step="0.01" value={rate} onChange={e => setRate(e.target.value)} required placeholder="e.g. 6" className="w-full rounded-lg border border-[var(--color-ink-200)] bg-white px-3 py-1.5 text-[13px] outline-none focus:border-[var(--color-accent-500)] focus:ring-2 focus:ring-[var(--color-accent-100)]" />
+            </div>
+            <p className="col-span-2 text-[11px] text-[var(--color-ink-400)]">
+              The rate applies only to gross pay between the lower and upper bound — not to the whole salary. NSSF Tier 1: 0–8,000 at 6%. NSSF Tier 2: 8,000–72,000 at 6%.
+            </p>
           </div>
         )}
 
@@ -137,9 +189,9 @@ export function RuleForm({ initialData }: { initialData?: any }) {
             </div>
             <div>
               <label className="block text-[11.5px] font-medium text-[var(--color-ink-500)] mb-1">Maximum Cap (KSh)</label>
-              <input type="number" step="0.01" value={cap} onChange={e => setCap(e.target.value)} required placeholder="e.g. 1080" className="w-full rounded-lg border border-[var(--color-ink-200)] bg-white px-3 py-1.5 text-[13px] outline-none focus:border-[var(--color-accent-500)] focus:ring-2 focus:ring-[var(--color-accent-100)]" />
+              <input type="number" step="0.01" value={cap} onChange={e => setCap(e.target.value)} required placeholder="e.g. 3840" className="w-full rounded-lg border border-[var(--color-ink-200)] bg-white px-3 py-1.5 text-[13px] outline-none focus:border-[var(--color-accent-500)] focus:ring-2 focus:ring-[var(--color-accent-100)]" />
             </div>
-            <p className="col-span-2 text-[11px] text-[var(--color-ink-400)]">Used for rules like NSSF which deduct 6% up to a maximum cap (e.g., 1080).</p>
+            <p className="col-span-2 text-[11px] text-[var(--color-ink-400)]">A flat percentage of the whole gross, capped at a maximum. For NSSF use "Percentage of a Band" instead — NSSF's rate only applies within a band, not the whole salary.</p>
           </div>
         )}
 

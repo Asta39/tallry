@@ -9,6 +9,34 @@ import { postEntry } from "@/lib/posting";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
+/** Working days (Mon-Sat) in a "YYYY-MM" month — used to pro-rate unpaid leave, instead of a hardcoded 21. */
+function workingDaysInMonth(month: string): number {
+  const [y, m] = month.split("-").map(Number);
+  const daysInMonth = new Date(y, m, 0).getDate();
+  let count = 0;
+  for (let d = 1; d <= daysInMonth; d++) {
+    if (new Date(y, m - 1, d).getDay() !== 0) count++; // exclude Sundays only
+  }
+  return count;
+}
+
+/**
+ * Pick the statutory rule effective for this pay period, one per exact `type`.
+ * Rules carry effectiveFrom/effectiveTo; if a rate change produced more than one
+ * active row for the same type (e.g. old + new NSSF rule), the one with the
+ * latest effectiveFrom wins rather than an arbitrary row.
+ */
+function selectEffectiveRules(allRules: RuleDef[] & { effectiveFrom: string; effectiveTo: string | null }[], month: string): RuleDef[] {
+  const periodEnd = new Date(Number(month.split("-")[0]), Number(month.split("-")[1]), 0).toISOString().slice(0, 10);
+  const active = allRules.filter((r: any) => r.effectiveFrom <= periodEnd && (!r.effectiveTo || r.effectiveTo >= periodEnd));
+  const byType = new Map<string, any>();
+  for (const r of active as any[]) {
+    const existing = byType.get(r.type);
+    if (!existing || r.effectiveFrom > existing.effectiveFrom) byType.set(r.type, r);
+  }
+  return [...byType.values()];
+}
+
 export async function createPayrollRunAction(formData: FormData) {
   await requirePerm("accountant");
   const o = await getOrg();
@@ -30,65 +58,71 @@ export async function createPayrollRunAction(formData: FormData) {
   }
 
   const rulesData = await db.select().from(statutoryRules).where(eq(statutoryRules.orgId, o.id));
-  const rules = rulesData as RuleDef[];
-
-  const [run] = await db.insert(payrollRuns).values({
-    orgId: o.id,
-    month,
-    status: "draft",
-    createdAt: new Date().toISOString()
-  }).returning();
+  const rules = selectEffectiveRules(rulesData as any, month);
+  const daysInMonth = workingDaysInMonth(month);
 
   const leaves = await db.select().from(leaveRecords).where(and(eq(leaveRecords.orgId, o.id), eq(leaveRecords.month, month)));
-  const adjustments = await db.select().from(payrollAdjustments).where(and(eq(payrollAdjustments.orgId, o.id), eq(payrollAdjustments.correctingRunId, run.id)));
   const loans = await db.select().from(loanLedger).where(and(eq(loanLedger.orgId, o.id), eq(loanLedger.status, "active")));
 
-  for (const emp of activeEmployees) {
-    const empLeave = leaves.find(l => l.employeeId === emp.id)?.unpaidDaysCount || 0;
-    const empAdjs = adjustments.filter(a => a.employeeId === emp.id).map(a => ({
-      amountCents: a.amountCents,
-      isTaxable: a.isTaxable,
-      isDeduction: a.isDeduction,
-      reason: a.reason
-    }));
+  const run = await db.transaction(async (tx) => {
+    const [run] = await tx.insert(payrollRuns).values({
+      orgId: o.id,
+      month,
+      status: "draft",
+      createdAt: new Date().toISOString()
+    }).returning();
 
-    const empLoans = loans.filter(l => l.employeeId === emp.id).map(l => ({
-      amountCents: Math.min(l.installmentCents, l.balanceCents),
-      loanId: l.id
-    }));
+    const adjustments = await tx.select().from(payrollAdjustments).where(and(eq(payrollAdjustments.orgId, o.id), eq(payrollAdjustments.correctingRunId, run.id)));
 
-    const lines = runPayrollEngine({
-      employeeId: emp.id,
-      basicSalaryCents: emp.basicSalaryCents,
-      unpaidLeaveDays: empLeave,
-      workingDaysInMonth: 21,
-      adjustments: empAdjs,
-      loanInstallments: empLoans
-    }, rules);
+    for (const emp of activeEmployees) {
+      const empLeave = leaves.find(l => l.employeeId === emp.id)?.unpaidDaysCount || 0;
+      const empAdjs = adjustments.filter(a => a.employeeId === emp.id).map(a => ({
+        amountCents: a.amountCents,
+        isTaxable: a.isTaxable,
+        isDeduction: a.isDeduction,
+        reason: a.reason
+      }));
 
-    for (const line of lines) {
-      await db.insert(payrollRunLineItems).values({
-        orgId: o.id,
-        payrollRunId: run.id,
+      const empLoans = loans.filter(l => l.employeeId === emp.id).map(l => ({
+        amountCents: Math.min(l.installmentCents, l.balanceCents),
+        loanId: l.id
+      }));
+
+      const lines = runPayrollEngine({
         employeeId: emp.id,
-        type: line.type,
-        subType: line.subType,
-        amountCents: line.amountCents,
-        isDeduction: line.isDeduction,
-        statutoryRuleId: line.statutoryRuleId
-      });
+        basicSalaryCents: emp.basicSalaryCents,
+        unpaidLeaveDays: empLeave,
+        workingDaysInMonth: daysInMonth,
+        adjustments: empAdjs,
+        loanInstallments: empLoans
+      }, rules);
+
+      for (const line of lines) {
+        await tx.insert(payrollRunLineItems).values({
+          orgId: o.id,
+          payrollRunId: run.id,
+          employeeId: emp.id,
+          type: line.type,
+          subType: line.subType,
+          amountCents: line.amountCents,
+          isDeduction: line.isDeduction,
+          statutoryRuleId: line.statutoryRuleId
+        });
+      }
+
+      for (const loan of empLoans) {
+        await tx.insert(loanInstallments).values({
+          orgId: o.id,
+          loanId: loan.loanId,
+          payrollRunId: run.id,
+          amountCents: loan.amountCents,
+          createdAt: new Date().toISOString()
+        });
+      }
     }
 
-    for (const loan of empLoans) {
-      await db.insert(loanInstallments).values({
-        orgId: o.id,
-        loanId: loan.loanId,
-        payrollRunId: run.id,
-        amountCents: loan.amountCents,
-        createdAt: new Date().toISOString()
-      });
-    }
-  }
+    return run;
+  });
 
   revalidatePath("/payroll/runs");
   redirect(`/payroll/runs/${run.id}`);
@@ -117,6 +151,7 @@ export async function postPayrollRunAction(runId: number, formData: FormData) {
     let totalNet = 0;
     let totalTax = 0;
     let totalLoans = 0;
+    let totalEmployerCost = 0;
 
     for (const line of lines) {
       if (line.type === "gross_pay") {
@@ -127,6 +162,8 @@ export async function postPayrollRunAction(runId: number, formData: FormData) {
         totalLoans += line.amountCents;
       } else if (line.type === "deduction" && line.subType !== "adjustment") {
         totalTax += line.amountCents;
+      } else if (line.type === "employer_cost") {
+        totalEmployerCost += line.amountCents;
       }
     }
 
@@ -149,6 +186,14 @@ export async function postPayrollRunAction(runId: number, formData: FormData) {
       journalLines.push({ accountId: arAccountId, debitCents: 0, creditCents: totalLoans });
     }
 
+    // Employer-borne statutory costs (NSSF employer match, AHL employer, NITA) are an
+    // additional payroll expense — not deducted from any employee's pay — balanced
+    // against the same statutory liability account.
+    if (totalEmployerCost > 0) {
+      journalLines.push({ accountId: expenseAccountId, debitCents: totalEmployerCost, creditCents: 0 });
+      journalLines.push({ accountId: taxLiabilitiesAccountId, debitCents: 0, creditCents: totalEmployerCost });
+    }
+
     const entryId = await postEntry({
       date,
       memo: `Payroll Run for ${run.month}`,
@@ -157,23 +202,27 @@ export async function postPayrollRunAction(runId: number, formData: FormData) {
       lines: journalLines
     });
 
-    await db.update(payrollRuns).set({
-      status: "posted",
-      journalEntryId: entryId
-    }).where(eq(payrollRuns.id, run.id));
+    // Journal entry is posted; the run-status flip and loan-balance updates that
+    // follow it are grouped so a mid-loop failure can't leave loans half-updated.
+    await db.transaction(async (tx) => {
+      await tx.update(payrollRuns).set({
+        status: "posted",
+        journalEntryId: entryId
+      }).where(eq(payrollRuns.id, run.id));
 
-    // Update loan balances
-    const installments = await db.select().from(loanInstallments).where(eq(loanInstallments.payrollRunId, run.id));
-    for (const inst of installments) {
-      const [loan] = await db.select().from(loanLedger).where(eq(loanLedger.id, inst.loanId));
-      if (loan) {
-        const newBalance = Math.max(0, loan.balanceCents - inst.amountCents);
-        await db.update(loanLedger).set({
-          balanceCents: newBalance,
-          status: newBalance === 0 ? "paid" : "active"
-        }).where(eq(loanLedger.id, loan.id));
+      // Update loan balances
+      const installments = await tx.select().from(loanInstallments).where(eq(loanInstallments.payrollRunId, run.id));
+      for (const inst of installments) {
+        const [loan] = await tx.select().from(loanLedger).where(eq(loanLedger.id, inst.loanId));
+        if (loan) {
+          const newBalance = Math.max(0, loan.balanceCents - inst.amountCents);
+          await tx.update(loanLedger).set({
+            balanceCents: newBalance,
+            status: newBalance === 0 ? "paid" : "active"
+          }).where(eq(loanLedger.id, loan.id));
+        }
       }
-    }
+    });
 
     revalidatePath(`/payroll/runs/${run.id}`);
     revalidatePath("/payroll/runs");
