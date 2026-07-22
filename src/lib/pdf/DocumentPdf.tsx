@@ -68,6 +68,34 @@ const titles: Record<string, string> = {
   purchase_order: "PURCHASE ORDER",
 };
 
+/** Status badge shown near the top of every PDF — label + color, per doc type and payment state. */
+function statusBadge(doc: PdfDoc): { label: string; color: string } | null {
+  const today = new Date().toISOString().slice(0, 10);
+  const isPayable = ["invoice", "bill", "expense"].includes(doc.type);
+
+  if (doc.status === "void") return { label: "VOID", color: "#86868b" };
+  if (doc.status === "declined") return { label: "DECLINED", color: "#c0392b" };
+  if (doc.status === "accepted") return { label: "ACCEPTED", color: "#1f8a4c" };
+  if (doc.status === "draft") return { label: "DRAFT", color: "#86868b" };
+  if (doc.status === "paid") return { label: "PAID", color: "#1f8a4c" };
+  if (doc.status === "partial") return { label: "PARTIALLY PAID", color: "#b8860b" };
+  if (doc.status === "open") {
+    if (isPayable) {
+      if (doc.dueDate && doc.dueDate < today) return { label: "OVERDUE", color: "#c0392b" };
+      return { label: "UNPAID", color: "#c0392b" };
+    }
+    if (doc.type === "quote") return { label: "AWAITING RESPONSE", color: "#b8860b" };
+    return { label: "OPEN", color: "#b8860b" };
+  }
+  return null;
+}
+
+function StatusBadgeText({ doc, style }: { doc: PdfDoc; style?: Record<string, unknown> }) {
+  const badge = statusBadge(doc);
+  if (!badge) return null;
+  return <Text style={{ fontFamily: "Helvetica-Bold", marginTop: 2, color: badge.color, ...(style || {}) }}>{badge.label}</Text>;
+}
+
 function makeStyles(brand: string) {
   return StyleSheet.create({
     page: { paddingTop: 42, paddingLeft: 42, paddingRight: 42, paddingBottom: 140, fontSize: 9.5, fontFamily: "Helvetica", color: "#1d1d1f" },
@@ -199,9 +227,7 @@ export function DocumentPdf({
                 </Text>
                 <Text>Date: {doc.date}</Text>
                 {doc.dueDate ? <Text>Due: {doc.dueDate}</Text> : null}
-                {doc.status === "paid" ? (
-                  <Text style={{ color: "#1f8a4c", fontFamily: "Helvetica-Bold", marginTop: 2 }}>PAID</Text>
-                ) : null}
+                <StatusBadgeText doc={doc} />
               </View>
             </View>
           </View>
@@ -235,7 +261,7 @@ export function DocumentPdf({
                <View style={{ textAlign: "right", lineHeight: 1.5 }}>
                  <Text>Date: {doc.date}</Text>
                  {doc.dueDate ? <Text>Due: {doc.dueDate}</Text> : null}
-                 {doc.status === "paid" ? <Text style={{ color: "#1f8a4c", fontFamily: "Helvetica-Bold", marginTop: 2 }}>PAID</Text> : null}
+                 <StatusBadgeText doc={doc} />
                </View>
             </View>
           </View>
@@ -272,7 +298,7 @@ export function DocumentPdf({
                  <Text>No: <Text style={s.bold}>{doc.number}</Text></Text>
                  <Text>Date: {doc.date}</Text>
                  {doc.dueDate ? <Text>Due: {doc.dueDate}</Text> : null}
-                 {doc.status === "paid" ? <Text style={{ color: "#1f8a4c", fontFamily: "Helvetica-Bold", marginTop: 2 }}>PAID</Text> : null}
+                 <StatusBadgeText doc={doc} />
                </View>
             </View>
           </View>
@@ -298,7 +324,7 @@ export function DocumentPdf({
                  <Text>No: <Text style={s.bold}>{doc.number}</Text></Text>
                  <Text>Date: {doc.date}</Text>
                  {doc.dueDate ? <Text>Due: {doc.dueDate}</Text> : null}
-                 {doc.status === "paid" ? <Text style={{ color: "#1f8a4c", fontFamily: "Helvetica-Bold", marginTop: 2 }}>PAID</Text> : null}
+                 <StatusBadgeText doc={doc} />
                </View>
             </View>
             <View style={{ height: 1, backgroundColor: "#1d1d1f", marginTop: 20 }} />
@@ -315,7 +341,7 @@ export function DocumentPdf({
                <View>
                  <Text style={{ fontSize: 20, fontFamily: "Helvetica-Bold", letterSpacing: 2 }}>{titles[doc.type] ?? doc.type.toUpperCase()}</Text>
                  <Text style={{ fontSize: 8, textAlign: "right", marginTop: 4 }}>DATE: {doc.date} | NO: {doc.number}</Text>
-                 {doc.status === "paid" ? <Text style={{ fontSize: 8, textAlign: "right", color: "#1f8a4c", fontFamily: "Helvetica-Bold", marginTop: 2 }}>PAID</Text> : null}
+                 <StatusBadgeText doc={doc} style={{ fontSize: 8, textAlign: "right" }} />
                </View>
              </View>
              <View style={{ flexDirection: "row", justifyContent: "space-between", backgroundColor: "#f5f5f7", padding: 10 }}>
@@ -346,7 +372,7 @@ export function DocumentPdf({
               <View style={s.metaRight}>
                 <Text>No: <Text style={s.bold}>{doc.number}</Text></Text>
                 {doc.dueDate ? <Text>Due: {doc.dueDate}</Text> : null}
-                {doc.status === "paid" ? <Text style={{ color: org.brandColor, fontFamily: "Helvetica-Bold", marginTop: 2 }}>PAID</Text> : null}
+                <StatusBadgeText doc={doc} />
               </View>
             </View>
           </View>
