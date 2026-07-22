@@ -278,6 +278,8 @@ async function _saveDocument(data: {
   assignedMemberIds?: number[];
   isTemplate?: boolean;
   saveAsTemplate?: boolean;
+  createdByName?: string;
+  createdByRole?: string;
   lines: DocLineInput[];
 }): Promise<number> {
   const totals = computeDocument(
@@ -349,6 +351,8 @@ async function _saveDocument(data: {
         taxCents: totals.taxCents,
         totalCents: totals.totalCents,
         paidFromBankAccountId: data.paidFromBankAccountId,
+        createdByName: data.createdByName,
+        createdByRole: data.createdByRole,
         createdAt: nowISO(),
       })
       .returning();
@@ -780,6 +784,11 @@ export async function saveDocument(data: Parameters<typeof _saveDocument>[0]) {
   const access = await getAccess();
   if (access && !access.isOwner && access.role !== "admin" && access.memberId) {
     data.assignedMemberIds = Array.from(new Set([...(data.assignedMemberIds || []), access.memberId]));
+  }
+  // Snapshot the creator on new documents only — editing a draft shouldn't reassign authorship.
+  if (!data.id && access) {
+    data.createdByName = access.memberName;
+    data.createdByRole = access.isOwner ? "owner" : access.role;
   }
   // Plan cap covers new invoices/quotes only — editing a draft or creating
   // bills/expenses/etc doesn't consume it. Server-side check: the page-level

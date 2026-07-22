@@ -78,6 +78,8 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
         paidCents: doc.paidCents,
         cuInvoiceNumber: ETIMS_ENABLED ? doc.cuInvoiceNumber : null,
         cuSerial: ETIMS_ENABLED ? doc.cuSerial : null,
+        createdByName: doc.createdByName,
+        createdByRole: doc.createdByRole,
       },
       contact,
       lines: lines.map((l) => ({

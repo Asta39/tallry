@@ -222,6 +222,9 @@ export const documents = pgTable("documents", {
   paidFromBankAccountId: integer("paid_from_bank_account_id"),
   // set when a bill approval is rejected, shown back to the submitter
   approvalNote: text("approval_note"),
+  // Snapshot of who created the document — survives staff renames/removal, shown on the PDF as "Sales Agent".
+  createdByName: text("created_by_name"),
+  createdByRole: text("created_by_role"),
   createdAt: text("created_at").notNull(),
 }, (t) => ({
   orgTypeStatusIdx: index("idx_documents_org").on(t.orgId, t.type, t.status),

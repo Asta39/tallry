@@ -50,6 +50,8 @@ export interface PdfDoc {
   paidCents: number;
   cuInvoiceNumber?: string | null;
   cuSerial?: string | null;
+  createdByName?: string | null;
+  createdByRole?: string | null;
 }
 
 export interface PdfContact {
@@ -94,6 +96,27 @@ function StatusBadgeText({ doc, style }: { doc: PdfDoc; style?: Record<string, u
   const badge = statusBadge(doc);
   if (!badge) return null;
   return <Text style={{ fontFamily: "Helvetica-Bold", marginTop: 2, color: badge.color, ...(style || {}) }}>{badge.label}</Text>;
+}
+
+const roleLabels: Record<string, string> = {
+  owner: "Owner",
+  admin: "Admin",
+  accountant: "Accountant",
+  sales: "Sales",
+  hr: "HR",
+  inventory: "Inventory",
+  staff: "Staff",
+};
+
+/** "Sales Agent" line — who on staff created this document, shown next to the doc number/date. */
+function CreatedByLine({ doc, style }: { doc: PdfDoc; style?: Record<string, unknown> }) {
+  if (!doc.createdByName) return null;
+  const roleLabel = doc.createdByRole ? roleLabels[doc.createdByRole] || doc.createdByRole : null;
+  return (
+    <Text style={{ fontSize: 8, color: "#6e6e73", marginTop: 2, ...(style || {}) }}>
+      Sales Agent: {doc.createdByName}{roleLabel ? ` (${roleLabel})` : ""}
+    </Text>
+  );
 }
 
 function makeStyles(brand: string) {
@@ -228,6 +251,7 @@ export function DocumentPdf({
                 <Text>Date: {doc.date}</Text>
                 {doc.dueDate ? <Text>Due: {doc.dueDate}</Text> : null}
                 <StatusBadgeText doc={doc} />
+                <CreatedByLine doc={doc} />
               </View>
             </View>
           </View>
@@ -262,6 +286,7 @@ export function DocumentPdf({
                  <Text>Date: {doc.date}</Text>
                  {doc.dueDate ? <Text>Due: {doc.dueDate}</Text> : null}
                  <StatusBadgeText doc={doc} />
+                 <CreatedByLine doc={doc} />
                </View>
             </View>
           </View>
@@ -299,6 +324,7 @@ export function DocumentPdf({
                  <Text>Date: {doc.date}</Text>
                  {doc.dueDate ? <Text>Due: {doc.dueDate}</Text> : null}
                  <StatusBadgeText doc={doc} />
+                 <CreatedByLine doc={doc} />
                </View>
             </View>
           </View>
@@ -325,6 +351,7 @@ export function DocumentPdf({
                  <Text>Date: {doc.date}</Text>
                  {doc.dueDate ? <Text>Due: {doc.dueDate}</Text> : null}
                  <StatusBadgeText doc={doc} />
+                 <CreatedByLine doc={doc} />
                </View>
             </View>
             <View style={{ height: 1, backgroundColor: "#1d1d1f", marginTop: 20 }} />
@@ -342,6 +369,7 @@ export function DocumentPdf({
                  <Text style={{ fontSize: 20, fontFamily: "Helvetica-Bold", letterSpacing: 2 }}>{titles[doc.type] ?? doc.type.toUpperCase()}</Text>
                  <Text style={{ fontSize: 8, textAlign: "right", marginTop: 4 }}>DATE: {doc.date} | NO: {doc.number}</Text>
                  <StatusBadgeText doc={doc} style={{ fontSize: 8, textAlign: "right" }} />
+                 <CreatedByLine doc={doc} style={{ textAlign: "right" }} />
                </View>
              </View>
              <View style={{ flexDirection: "row", justifyContent: "space-between", backgroundColor: "#f5f5f7", padding: 10 }}>
@@ -373,6 +401,7 @@ export function DocumentPdf({
                 <Text>No: <Text style={s.bold}>{doc.number}</Text></Text>
                 {doc.dueDate ? <Text>Due: {doc.dueDate}</Text> : null}
                 <StatusBadgeText doc={doc} />
+                <CreatedByLine doc={doc} />
               </View>
             </View>
           </View>

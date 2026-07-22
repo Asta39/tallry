@@ -18,6 +18,16 @@ const typeLabels: Record<string, string> = {
   purchase_order: "Purchase order",
 };
 
+const roleLabels: Record<string, string> = {
+  owner: "Owner",
+  admin: "Admin",
+  accountant: "Accountant",
+  sales: "Sales",
+  hr: "HR",
+  inventory: "Inventory",
+  staff: "Staff",
+};
+
 export async function DocDetail({ id, printHref }: { id: number; printHref?: string }) {
   const org = await getOrg();
   const orgId = org.id;
@@ -37,7 +47,13 @@ export async function DocDetail({ id, printHref }: { id: number; printHref?: str
     <>
       <PageHeader
         title={`${typeLabels[doc.type] ?? doc.type} ${doc.number}`}
-        subtitle={contact ? `${contact.displayName} · ${doc.date}` : doc.date}
+        subtitle={
+          [
+            contact?.displayName,
+            doc.date,
+            doc.createdByName ? `Created by ${doc.createdByName}${doc.createdByRole ? ` (${roleLabels[doc.createdByRole] || doc.createdByRole})` : ""}` : null,
+          ].filter(Boolean).join(" · ")
+        }
         action={
           <StatusPill
             status={doc.status}
