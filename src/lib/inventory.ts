@@ -1,4 +1,4 @@
-import { db, stockLots, warehouses } from "@/db";
+import { db, stockLots, warehouses, items } from "@/db";
 import { currentOrgId } from "@/lib/org";
 import { eq, and, gt, asc, sql } from "drizzle-orm";
 
@@ -105,6 +105,26 @@ export async function stockByWarehouse(itemId: number) {
     .where(and(eq(stockLots.orgId, currentOrgId()), eq(stockLots.itemId, itemId)))
     .groupBy(stockLots.warehouseId, warehouses.name);
   return rows.map((r) => ({ warehouseId: r.warehouseId, warehouseName: r.warehouseName, qty: Number(r.qty) }));
+}
+
+/** All items with on-hand stock in a given warehouse — for the warehouse detail page. */
+export async function itemsInWarehouse(warehouseId: number) {
+  const rows = await db
+    .select({
+      itemId: stockLots.itemId,
+      name: items.name,
+      sku: items.sku,
+      unit: items.unit,
+      qty: sql<number>`coalesce(sum(${stockLots.remainingQty}), 0)`,
+      value: sql<number>`coalesce(sum(${stockLots.remainingQty} * ${stockLots.unitCostCents}), 0)`,
+    })
+    .from(stockLots)
+    .innerJoin(items, eq(stockLots.itemId, items.id))
+    .where(and(eq(stockLots.orgId, currentOrgId()), eq(stockLots.warehouseId, warehouseId)))
+    .groupBy(stockLots.itemId, items.name, items.sku, items.unit)
+    .having(sql`coalesce(sum(${stockLots.remainingQty}), 0) > 0`)
+    .orderBy(asc(items.name));
+  return rows.map((r) => ({ itemId: r.itemId, name: r.name, sku: r.sku, unit: r.unit, qty: Number(r.qty), valueCents: Math.round(Number(r.value)) }));
 }
 
 /**

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { createWarehouseAction, renameWarehouseAction, setDefaultWarehouseAction, archiveWarehouseAction } from "@/lib/warehouses";
 
 type Warehouse = { id: number; name: string; isDefault: boolean; archived: boolean };
@@ -69,7 +70,9 @@ function Row({ w }: { w: Warehouse }) {
   return (
     <tr className={`hairline-t ${w.archived ? "opacity-50" : ""}`}>
       <td className="px-4 py-2.5 text-[13px] font-medium">
-        {w.name}
+        <Link href={`/items/warehouses/${w.id}`} className="hover:underline">
+          {w.name}
+        </Link>
         {w.isDefault && <span className="ml-2 text-[10px] uppercase tracking-wide text-[var(--color-accent-600)]">default</span>}
         {w.archived && <span className="ml-2 text-[10px] uppercase tracking-wide text-[var(--color-bad)]">archived</span>}
       </td>

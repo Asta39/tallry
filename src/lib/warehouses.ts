@@ -6,7 +6,7 @@ import { withOrg, currentOrgId } from "@/lib/org";
 import { requirePerm } from "@/lib/guard";
 import { nowISO, todayISO } from "@/lib/money";
 import { revalidatePath } from "next/cache";
-import { transferStock, stockByWarehouse } from "@/lib/inventory";
+import { transferStock, stockByWarehouse, itemsInWarehouse } from "@/lib/inventory";
 
 export async function listWarehouses() {
   return withOrg(() => db.select().from(warehouses).where(eq(warehouses.orgId, currentOrgId())).orderBy(warehouses.name));
@@ -90,4 +90,15 @@ export async function transferStockAction(data: {
 
 export async function getItemStockByWarehouse(itemId: number) {
   return withOrg(() => stockByWarehouse(itemId));
+}
+
+export async function getWarehouseDetail(id: number) {
+  return withOrg(async () => {
+    const orgId = currentOrgId();
+    const [w] = await db.select().from(warehouses).where(and(eq(warehouses.orgId, orgId), eq(warehouses.id, id))).limit(1);
+    if (!w) return null;
+    const stockItems = await itemsInWarehouse(id);
+    const totalValueCents = stockItems.reduce((sum, i) => sum + i.valueCents, 0);
+    return { warehouse: w, items: stockItems, totalValueCents };
+  });
 }
