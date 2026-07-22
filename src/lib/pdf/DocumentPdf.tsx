@@ -192,7 +192,7 @@ function makeStyles(brand: string) {
       backgroundColor: brand,
       borderRadius: 4,
       fontSize: 8,
-      fontFamily: "Helvetica-Bold",
+      fontFamily: "Helvetica",
       color: "#ffffff",
       lineHeight: 1.4,
     },
