@@ -20,6 +20,8 @@ interface OrgData {
   brandColor?: string | null;
   customDocumentColumnName?: string | null;
   documentFooterText?: string | null;
+  paymentInfoText?: string | null;
+  termsText?: string | null;
   dataSegregation: boolean;
   requireBillApproval: boolean;
   timeTrackingEnabled: boolean;
@@ -44,6 +46,8 @@ export function OrgProfileForm({ initial }: { initial: OrgData }) {
   const [brandColor, setBrandColor] = useState(initial.brandColor || "#0f766e");
   const [customDocumentColumnName, setCustomDocumentColumnName] = useState(initial.customDocumentColumnName || "");
   const [documentFooterText, setDocumentFooterText] = useState(initial.documentFooterText || "");
+  const [paymentInfoText, setPaymentInfoText] = useState(initial.paymentInfoText || "");
+  const [termsText, setTermsText] = useState(initial.termsText || "");
   const [dataSegregation, setDataSegregation] = useState(initial.dataSegregation);
   const [requireBillApproval, setRequireBillApproval] = useState(initial.requireBillApproval);
   const [timeTrackingEnabled, setTimeTrackingEnabled] = useState(initial.timeTrackingEnabled);
@@ -113,6 +117,8 @@ export function OrgProfileForm({ initial }: { initial: OrgData }) {
           brandColor,
           customDocumentColumnName: customDocumentColumnName,
           documentFooterText: documentFooterText,
+          paymentInfoText: paymentInfoText,
+          termsText: termsText,
           dataSegregation,
           requireBillApproval,
           timeTrackingEnabled,
@@ -388,15 +394,27 @@ export function OrgProfileForm({ initial }: { initial: OrgData }) {
             )}
           </label>
           <label className="block">
-            <span className={labelCls}>Document Footer Text</span>
+            <span className={labelCls}>Payment Information</span>
             <div className="text-[12px] text-[var(--color-ink-400)] mb-1">
-              Default terms and conditions or payment info displayed at the bottom of PDFs.
+              M-Pesa, bank, or other payment details shown under a bold "Payment Information" heading at the bottom of PDFs.
             </div>
             <textarea
-              value={documentFooterText}
-              onChange={(e) => setDocumentFooterText(e.target.value)}
+              value={paymentInfoText}
+              onChange={(e) => setPaymentInfoText(e.target.value)}
               className={inputCls + " h-24 resize-none"}
-              placeholder="Terms and conditions, Payment Info..."
+              placeholder="M-Pesa Till: 123456&#10;Bank: DTB - Account 0000000000"
+            />
+          </label>
+          <label className="block">
+            <span className={labelCls}>Terms &amp; Conditions</span>
+            <div className="text-[12px] text-[var(--color-ink-400)] mb-1">
+              Shown under a bold "Terms &amp; Conditions" heading at the bottom of PDFs.
+            </div>
+            <textarea
+              value={termsText}
+              onChange={(e) => setTermsText(e.target.value)}
+              className={inputCls + " h-24 resize-none"}
+              placeholder="Payment due within 14 days..."
             />
           </label>
         </div>

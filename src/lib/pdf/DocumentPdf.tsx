@@ -23,6 +23,8 @@ export interface PdfOrg {
   brandColor: string;
   customDocumentColumnName?: string | null;
   documentFooterText?: string | null;
+  paymentInfoText?: string | null;
+  termsText?: string | null;
 }
 
 export interface PdfLine {
@@ -192,8 +194,19 @@ function makeStyles(brand: string) {
       borderTopWidth: 0.5,
       borderTopColor: "#e8e8ed",
       fontSize: 8,
-      fontFamily: "Helvetica-Bold",
       color: "#1d1d1f",
+      lineHeight: 1.4,
+    },
+    docFooterHeading: {
+      fontSize: 8,
+      fontFamily: "Helvetica-Bold",
+      textTransform: "uppercase",
+      letterSpacing: 0.6,
+      marginBottom: 3,
+    },
+    docFooterBody: {
+      fontSize: 8,
+      fontFamily: "Helvetica",
       lineHeight: 1.4,
     },
     footer: {
@@ -570,10 +583,21 @@ export function DocumentPdf({
           </View>
         ) : null}
 
-        {/* Custom footer text */}
-        {["invoice", "quote", "credit_note"].includes(doc.type) && org.documentFooterText ? (
+        {/* Payment info + Terms & Conditions — bold headings, normal-weight body */}
+        {["invoice", "quote", "credit_note"].includes(doc.type) && (org.paymentInfoText || org.termsText) ? (
           <View style={s.docFooterText}>
-            <Text>{org.documentFooterText}</Text>
+            {org.paymentInfoText ? (
+              <View>
+                <Text style={s.docFooterHeading}>Payment Information</Text>
+                <Text style={s.docFooterBody}>{org.paymentInfoText}</Text>
+              </View>
+            ) : null}
+            {org.termsText ? (
+              <View style={{ marginTop: org.paymentInfoText ? 10 : 0 }}>
+                <Text style={s.docFooterHeading}>Terms &amp; Conditions</Text>
+                <Text style={s.docFooterBody}>{org.termsText}</Text>
+              </View>
+            ) : null}
           </View>
         ) : null}
 

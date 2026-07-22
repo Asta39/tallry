@@ -42,6 +42,8 @@ export const org = pgTable("org", {
   cuSerial: text("cu_serial"), // eTIMS control unit serial (simulated in v1)
   customDocumentColumnName: text("custom_document_column_name"),
   documentFooterText: text("document_footer_text"),
+  paymentInfoText: text("payment_info_text"),
+  termsText: text("terms_text"),
   dataSegregation: boolean("data_segregation").notNull().default(false),
   /** Books lock: journal entries dated on/before this date are rejected. */
   lockDate: text("lock_date"),

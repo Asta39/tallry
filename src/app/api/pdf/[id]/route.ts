@@ -61,6 +61,8 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
         logoUrl: o.logoUrl,
         brandColor: o.brandColor ?? "#0f766e",
         documentFooterText: o.documentFooterText,
+        paymentInfoText: o.paymentInfoText,
+        termsText: o.termsText,
         customDocumentColumnName: o.customDocumentColumnName,
         invoiceTemplate: o.invoiceTemplate,
         quoteTemplate: o.quoteTemplate,

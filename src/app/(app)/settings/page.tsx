@@ -41,6 +41,8 @@ export default async function SettingsPage() {
           brandColor: o.brandColor,
           customDocumentColumnName: o.customDocumentColumnName,
           documentFooterText: o.documentFooterText,
+          paymentInfoText: o.paymentInfoText,
+          termsText: o.termsText,
           dataSegregation: o.dataSegregation,
           requireBillApproval: o.requireBillApproval,
           timeTrackingEnabled: o.timeTrackingEnabled,

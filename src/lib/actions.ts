@@ -693,6 +693,8 @@ export async function saveOrgProfile(data: {
   brandColor?: string;
   customDocumentColumnName?: string;
   documentFooterText?: string;
+  paymentInfoText?: string;
+  termsText?: string;
   dataSegregation?: boolean;
   requireBillApproval?: boolean;
   timeTrackingEnabled?: boolean;
@@ -722,6 +724,8 @@ export async function saveOrgProfile(data: {
         ...(data.brandColor !== undefined ? { brandColor: data.brandColor } : {}),
         ...(data.customDocumentColumnName !== undefined ? { customDocumentColumnName: data.customDocumentColumnName } : {}),
         ...(data.documentFooterText !== undefined ? { documentFooterText: data.documentFooterText } : {}),
+        ...(data.paymentInfoText !== undefined ? { paymentInfoText: data.paymentInfoText } : {}),
+        ...(data.termsText !== undefined ? { termsText: data.termsText } : {}),
         ...(data.dataSegregation !== undefined ? { dataSegregation: data.dataSegregation } : {}),
         ...(data.requireBillApproval !== undefined ? { requireBillApproval: data.requireBillApproval } : {}),
         ...(data.timeTrackingEnabled !== undefined ? { timeTrackingEnabled: data.timeTrackingEnabled } : {}),
@@ -745,6 +749,8 @@ export async function saveOrgProfile(data: {
         ...(data.brandColor !== undefined ? { brandColor: data.brandColor } : {}),
         ...(data.customDocumentColumnName !== undefined ? { customDocumentColumnName: data.customDocumentColumnName } : {}),
         ...(data.documentFooterText !== undefined ? { documentFooterText: data.documentFooterText } : {}),
+        ...(data.paymentInfoText !== undefined ? { paymentInfoText: data.paymentInfoText } : {}),
+        ...(data.termsText !== undefined ? { termsText: data.termsText } : {}),
         ...(data.dataSegregation !== undefined ? { dataSegregation: data.dataSegregation } : {}),
         ...(data.requireBillApproval !== undefined ? { requireBillApproval: data.requireBillApproval } : {}),
         ...(data.timeTrackingEnabled !== undefined ? { timeTrackingEnabled: data.timeTrackingEnabled } : {}),
