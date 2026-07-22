@@ -785,7 +785,10 @@ export const billingPayments = pgTable("billing_payments", {
   plan: text("plan").notNull(), // standard | business
   cycle: text("cycle").notNull(), // monthly | annual
   amountCents: money("amount_cents").notNull(),
-  phone: text("phone").notNull(),
+  /** "mpesa" (STK push, requires phone) or "card" (hosted checkout, requires email). */
+  method: text("method").notNull().default("mpesa"),
+  phone: text("phone"),
+  email: text("email"),
   /** IntaSend invoice_id — used to poll status and match webhooks. */
   invoiceId: text("invoice_id"),
   state: text("state").notNull().default("PENDING"), // PENDING | PROCESSING | COMPLETE | FAILED | applied

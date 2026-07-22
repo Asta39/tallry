@@ -6,7 +6,8 @@ import { db, subscriptions, billingPayments } from "@/db";
 import { eq, and } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { PLANS, PlanKey, BillingCycle } from "@/lib/billing";
-import { intasendStkPush, intasendStatus, normalizeKenyanPhone } from "@/lib/payments/intasend";
+import { intasendStkPush, intasendStatus, intasendCheckout, normalizeKenyanPhone } from "@/lib/payments/intasend";
+import { headers } from "next/headers";
 import { applyBillingPayment } from "@/lib/billing-apply";
 
 /** Kick off a real IntaSend M-Pesa STK push for a plan upgrade/renewal. */
@@ -40,6 +41,47 @@ export async function initiateSubscriptionPaymentAction(plan: PlanKey, cycle: Bi
       .where(eq(billingPayments.id, row.id));
 
     return { paymentId: row.id };
+  } catch (e: any) {
+    return { error: e.message || "Could not start the payment — try again" };
+  }
+}
+
+/** Kick off a card payment via IntaSend hosted checkout — returns a URL to redirect the customer to. */
+export async function initiateCardPaymentAction(plan: PlanKey, cycle: BillingCycle, email: string) {
+  try {
+    await requirePerm("settings");
+    const o = await getOrg();
+
+    if (!PLANS[plan] || plan === "free") return { error: "Invalid plan selected" };
+    if (!email || !email.includes("@")) return { error: "Enter a valid email address" };
+    const amountCents = cycle === "annual" ? PLANS[plan].annualCents : PLANS[plan].monthlyCents;
+
+    const [row] = await db.insert(billingPayments).values({
+      orgId: o.id,
+      plan,
+      cycle,
+      amountCents,
+      method: "card",
+      email,
+      createdAt: new Date().toISOString(),
+    }).returning();
+
+    const h = await headers();
+    const origin = `${h.get("x-forwarded-proto") || "https"}://${h.get("host")}`;
+
+    const { id, url } = await intasendCheckout({
+      amountKes: Math.round(amountCents / 100),
+      email,
+      apiRef: `zeno-sub-${row.id}`,
+      comment: `Zeno ${PLANS[plan].name} plan (${cycle})`,
+      redirectUrl: `${origin}/settings/billing?payment=${row.id}`,
+    });
+
+    await db.update(billingPayments)
+      .set({ invoiceId: id, state: "PENDING", updatedAt: new Date().toISOString() })
+      .where(eq(billingPayments.id, row.id));
+
+    return { paymentId: row.id, checkoutUrl: url };
   } catch (e: any) {
     return { error: e.message || "Could not start the payment — try again" };
   }

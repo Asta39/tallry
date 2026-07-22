@@ -68,6 +68,43 @@ export async function intasendStkPush(params: {
   return { invoiceId, state: body?.invoice?.state || "PENDING" };
 }
 
+export interface CheckoutResult {
+  id: string;
+  url: string;
+}
+
+/** Create a hosted checkout page (card, or M-Pesa/other methods) — customer completes payment on IntaSend's page. */
+export async function intasendCheckout(params: {
+  amountKes: number;
+  email: string;
+  apiRef: string;
+  comment?: string;
+  redirectUrl: string;
+}): Promise<CheckoutResult> {
+  const res = await fetch(`${baseUrl()}/api/v1/checkout/`, {
+    method: "POST",
+    headers: authHeaders(),
+    body: JSON.stringify({
+      amount: String(params.amountKes),
+      currency: "KES",
+      email: params.email,
+      api_ref: params.apiRef,
+      comment: params.comment || "Zeno subscription",
+      redirect_url: params.redirectUrl,
+      card_tarrif: "BUSINESS-PAYS",
+      mobile_tarrif: "BUSINESS-PAYS",
+    }),
+  });
+
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const detail = body?.detail || body?.errors?.[0]?.detail || JSON.stringify(body);
+    throw new Error(`IntaSend checkout failed (${res.status}): ${detail}`);
+  }
+  if (!body?.id || !body?.url) throw new Error("IntaSend response missing checkout id/url");
+  return { id: body.id, url: body.url };
+}
+
 export interface PaymentStatus {
   state: "PENDING" | "PROCESSING" | "COMPLETE" | "FAILED" | string;
   failedReason: string | null;

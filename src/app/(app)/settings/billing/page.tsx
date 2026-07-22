@@ -18,7 +18,7 @@ export default async function BillingPage() {
         subtitle="Manage your Zeno plan and usage limits."
       />
       <div className="mt-8">
-        <BillingClient entitlements={entitlements} orgPhone={o.phone || ""} />
+        <BillingClient entitlements={entitlements} orgPhone={o.phone || ""} orgEmail={o.email || ""} />
       </div>
     </>
   );

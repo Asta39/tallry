@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { PLANS, PlanKey, Entitlements, BillingCycle } from "@/lib/billing";
 import { fmtKES } from "@/lib/money";
-import { initiateSubscriptionPaymentAction, checkSubscriptionPaymentAction } from "./actions";
+import { initiateSubscriptionPaymentAction, initiateCardPaymentAction, checkSubscriptionPaymentAction } from "./actions";
 import { Player } from "@lottiefiles/react-lottie-player";
 
 const ALL_FEATURES = [
@@ -17,26 +18,72 @@ const ALL_FEATURES = [
   { key: "payouts", label: "B2B Payouts" },
 ];
 
-export function BillingClient({ entitlements, orgPhone }: { entitlements: Entitlements; orgPhone: string }) {
+export function BillingClient({ entitlements, orgPhone, orgEmail }: { entitlements: Entitlements; orgPhone: string; orgEmail: string }) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [cycle, setCycle] = useState<BillingCycle>("monthly");
-  
+
   // Payment Modal State
   const [modal, setModal] = useState<{
     isOpen: boolean;
     plan: PlanKey | null;
+    method: "mpesa" | "card";
     phone: string;
-    status: "idle" | "processing" | "success" | "error";
+    email: string;
+    status: "idle" | "processing" | "redirecting" | "success" | "error";
     error?: string;
   }>({
     isOpen: false,
     plan: null,
+    method: "mpesa",
     phone: orgPhone,
+    email: orgEmail,
     status: "idle",
   });
 
   const handleUpgradeClick = (plan: PlanKey) => {
     setModal((prev) => ({ ...prev, isOpen: true, plan, status: "idle", error: undefined }));
   };
+
+  const pollPayment = async (paymentId: number) => {
+    // Poll every 3s for up to 2 minutes while the payment settles
+    const deadline = Date.now() + 120_000;
+    while (Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 3000));
+      const check = await checkSubscriptionPaymentAction(paymentId);
+      if ("error" in check && check.error) {
+        setModal((prev) => ({ ...prev, isOpen: true, status: "error", error: check.error }));
+        return;
+      }
+      if ("status" in check) {
+        if (check.status === "complete") {
+          setModal((prev) => ({ ...prev, isOpen: true, status: "success" }));
+          setTimeout(() => window.location.reload(), 2500);
+          return;
+        }
+        if (check.status === "failed") {
+          setModal((prev) => ({ ...prev, isOpen: true, status: "error", error: check.reason || "Payment failed — no money was taken." }));
+          return;
+        }
+      }
+    }
+    setModal((prev) => ({
+      ...prev,
+      isOpen: true,
+      status: "error",
+      error: "We didn't get a confirmation in time. If you completed the payment, your plan will activate automatically within a few minutes.",
+    }));
+  };
+
+  // Resume polling if we've just been redirected back from IntaSend's hosted card checkout.
+  useEffect(() => {
+    const paymentId = searchParams.get("payment");
+    if (!paymentId) return;
+    setModal((prev) => ({ ...prev, isOpen: true, status: "processing" }));
+    router.replace("/settings/billing");
+    pollPayment(Number(paymentId));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handlePayment = async () => {
     if (!modal.plan || !modal.phone) return;
@@ -49,33 +96,24 @@ export function BillingClient({ entitlements, orgPhone }: { entitlements: Entitl
         return;
       }
       const paymentId = (res as { paymentId: number }).paymentId;
+      await pollPayment(paymentId);
+    } catch (e: any) {
+      setModal((prev) => ({ ...prev, status: "error", error: e.message || "An error occurred." }));
+    }
+  };
 
-      // Poll every 3s for up to 2 minutes while the customer enters their PIN
-      const deadline = Date.now() + 120_000;
-      while (Date.now() < deadline) {
-        await new Promise((r) => setTimeout(r, 3000));
-        const check = await checkSubscriptionPaymentAction(paymentId);
-        if ("error" in check && check.error) {
-          setModal((prev) => ({ ...prev, status: "error", error: check.error }));
-          return;
-        }
-        if ("status" in check) {
-          if (check.status === "complete") {
-            setModal((prev) => ({ ...prev, status: "success" }));
-            setTimeout(() => window.location.reload(), 2500);
-            return;
-          }
-          if (check.status === "failed") {
-            setModal((prev) => ({ ...prev, status: "error", error: check.reason || "Payment failed — no money was taken." }));
-            return;
-          }
-        }
+  const handleCardPayment = async () => {
+    if (!modal.plan || !modal.email) return;
+    setModal((prev) => ({ ...prev, status: "redirecting", error: undefined }));
+
+    try {
+      const res = await initiateCardPaymentAction(modal.plan, cycle, modal.email);
+      if ("error" in res && res.error) {
+        setModal((prev) => ({ ...prev, status: "error", error: res.error }));
+        return;
       }
-      setModal((prev) => ({
-        ...prev,
-        status: "error",
-        error: "We didn't get a confirmation in time. If you completed the payment, your plan will activate automatically within a few minutes.",
-      }));
+      const { checkoutUrl } = res as { paymentId: number; checkoutUrl: string };
+      window.location.href = checkoutUrl;
     } catch (e: any) {
       setModal((prev) => ({ ...prev, status: "error", error: e.message || "An error occurred." }));
     }
@@ -314,42 +352,102 @@ export function BillingClient({ entitlements, orgPhone }: { entitlements: Entitl
                     <p className="text-[14px] text-[var(--color-ink-600)] mb-6">
                       You are about to pay <strong>{fmtKES(modal.plan ? (cycle === "annual" ? PLANS[modal.plan].annualCents : PLANS[modal.plan].monthlyCents) : 0).replace(".00", "")}</strong> for the {modal.plan ? PLANS[modal.plan].name : ""} plan ({cycle}).
                     </p>
-                    
-                    <label className="block text-[13px] font-semibold text-[var(--color-ink-900)] mb-2">
-                      M-Pesa Phone Number
-                    </label>
-                    <div className="relative">
-                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <svg className="h-5 w-5 text-[var(--color-ink-400)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                        </svg>
+
+                    {/* Payment method accordion */}
+                    <div className="rounded-2xl border border-[var(--color-ink-200)] overflow-hidden divide-y divide-[var(--color-ink-100)]">
+                      {/* M-Pesa row */}
+                      <div>
+                        <button
+                          type="button"
+                          onClick={() => setModal((prev) => ({ ...prev, method: "mpesa" }))}
+                          className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-[var(--color-ink-50)] transition-colors"
+                        >
+                          <div className="w-9 h-9 rounded-full bg-[var(--color-good)]/10 text-[var(--color-good)] flex items-center justify-center shrink-0">
+                            <svg className="w-4.5 h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                            </svg>
+                          </div>
+                          <span className="flex-1 text-[14px] font-semibold text-[var(--color-ink-900)]">M-Pesa</span>
+                          <svg className={`w-4 h-4 text-[var(--color-ink-400)] transition-transform duration-200 ${modal.method === "mpesa" ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </button>
+                        <div className={`grid transition-all duration-300 ease-in-out ${modal.method === "mpesa" ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
+                          <div className="overflow-hidden">
+                            <div className="px-4 pb-4 pt-1">
+                              <input
+                                type="tel"
+                                value={modal.phone}
+                                onChange={(e) => setModal((prev) => ({ ...prev, phone: e.target.value }))}
+                                placeholder="07XXXXXXXX"
+                                className="w-full px-3.5 py-3 bg-[var(--color-ink-50)] border border-[var(--color-ink-200)] rounded-xl text-[14px] focus:ring-2 focus:ring-[var(--color-brand)] focus:border-transparent outline-none transition-all font-medium"
+                              />
+                              <p className="mt-2 text-[12px] text-[var(--color-ink-500)]">
+                                An STK push will be sent to this number. Please have your phone ready.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
                       </div>
-                      <input 
-                        type="tel"
-                        value={modal.phone}
-                        onChange={(e) => setModal(prev => ({ ...prev, phone: e.target.value }))}
-                        placeholder="07XXXXXXXX"
-                        className="w-full pl-10 pr-4 py-3 bg-[var(--color-ink-50)] border border-[var(--color-ink-200)] rounded-xl text-[14px] focus:ring-2 focus:ring-[var(--color-brand)] focus:border-transparent outline-none transition-all font-medium"
-                      />
+
+                      {/* Card row */}
+                      <div>
+                        <button
+                          type="button"
+                          onClick={() => setModal((prev) => ({ ...prev, method: "card" }))}
+                          className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-[var(--color-ink-50)] transition-colors"
+                        >
+                          <div className="w-9 h-9 rounded-full bg-[var(--color-brand)]/10 text-[var(--color-brand)] flex items-center justify-center shrink-0">
+                            <svg className="w-4.5 h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M3 6h18a1 1 0 011 1v10a1 1 0 01-1 1H3a1 1 0 01-1-1V7a1 1 0 011-1zM6 15h4" />
+                            </svg>
+                          </div>
+                          <span className="flex-1 text-[14px] font-semibold text-[var(--color-ink-900)]">Card</span>
+                          <svg className={`w-4 h-4 text-[var(--color-ink-400)] transition-transform duration-200 ${modal.method === "card" ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </button>
+                        <div className={`grid transition-all duration-300 ease-in-out ${modal.method === "card" ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
+                          <div className="overflow-hidden">
+                            <div className="px-4 pb-4 pt-1">
+                              <input
+                                type="email"
+                                value={modal.email}
+                                onChange={(e) => setModal((prev) => ({ ...prev, email: e.target.value }))}
+                                placeholder="you@business.com"
+                                className="w-full px-3.5 py-3 bg-[var(--color-ink-50)] border border-[var(--color-ink-200)] rounded-xl text-[14px] focus:ring-2 focus:ring-[var(--color-brand)] focus:border-transparent outline-none transition-all font-medium"
+                              />
+                              <p className="mt-2 text-[12px] text-[var(--color-ink-500)]">
+                                You'll be taken to a secure page to enter your card details.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                    <p className="mt-2 text-[12px] text-[var(--color-ink-500)]">
-                      An STK push will be sent to this number. Please have your phone ready.
-                    </p>
                   </div>
-                  
+
                   {modal.error && (
                     <div className="my-6 p-3 bg-[var(--color-bad)]/10 text-[var(--color-bad)] rounded-lg text-[13px] font-medium border border-[var(--color-bad)]/20">
                       {modal.error}
                     </div>
                   )}
-                  
+
                   <button
-                    onClick={handlePayment}
+                    onClick={modal.method === "card" ? handleCardPayment : handlePayment}
                     className="w-full mt-6 py-3.5 rounded-xl text-[14px] font-bold text-white bg-[var(--color-brand)] hover:opacity-90 shadow-lg shadow-[var(--color-brand)]/20 transition-all active:scale-[0.98]"
                   >
-                    Pay with M-Pesa
+                    {modal.method === "card" ? "Continue to card payment" : "Pay with M-Pesa"}
                   </button>
                 </>
+              ) : modal.status === "redirecting" ? (
+                <div className="py-10 flex flex-col items-center justify-center text-center flex-1">
+                  <div className="w-8 h-8 border-2 border-[var(--color-brand)] border-t-transparent rounded-full animate-spin mb-5" />
+                  <h4 className="text-lg font-bold text-[var(--color-ink-900)] mb-2">Taking you to checkout…</h4>
+                  <p className="text-[14px] text-[var(--color-ink-500)] max-w-[250px]">
+                    Enter your card details on IntaSend's secure page — you'll be brought back here automatically.
+                  </p>
+                </div>
               ) : modal.status === "processing" ? (
                 <div className="py-8 flex flex-col items-center justify-center text-center flex-1">
                   <div className="w-56 h-56 mb-4">
@@ -360,9 +458,13 @@ export function BillingClient({ entitlements, orgPhone }: { entitlements: Entitl
                       style={{ height: '100%', width: '100%' }}
                     />
                   </div>
-                  <h4 className="text-lg font-bold text-[var(--color-ink-900)] mb-2">Check Your Phone</h4>
+                  <h4 className="text-lg font-bold text-[var(--color-ink-900)] mb-2">
+                    {modal.method === "card" ? "Confirming Payment" : "Check Your Phone"}
+                  </h4>
                   <p className="text-[14px] text-[var(--color-ink-500)] max-w-[250px]">
-                    We've sent an M-Pesa prompt to <strong>{modal.phone}</strong>. Please enter your PIN to complete the payment.
+                    {modal.method === "card"
+                      ? "We're confirming your card payment with IntaSend — this only takes a moment."
+                      : <>We've sent an M-Pesa prompt to <strong>{modal.phone}</strong>. Please enter your PIN to complete the payment.</>}
                   </p>
                 </div>
               ) : (
