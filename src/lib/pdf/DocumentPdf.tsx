@@ -188,12 +188,12 @@ function makeStyles(brand: string) {
     grandText: { fontSize: 12, fontFamily: "Helvetica-Bold", color: brand },
     docFooterText: {
       marginTop: 24,
-      padding: 10,
-      backgroundColor: brand,
-      borderRadius: 4,
+      paddingTop: 12,
+      borderTopWidth: 0.5,
+      borderTopColor: "#e8e8ed",
       fontSize: 8,
-      fontFamily: "Helvetica",
-      color: "#ffffff",
+      fontFamily: "Helvetica-Bold",
+      color: "#1d1d1f",
       lineHeight: 1.4,
     },
     footer: {
