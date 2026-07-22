@@ -143,7 +143,7 @@ function makeStyles(brand: string) {
     page: { paddingTop: 42, paddingLeft: 42, paddingRight: 42, paddingBottom: 140, fontSize: 9.5, fontFamily: "Helvetica", color: "#1d1d1f" },
     headerRow: { flexDirection: "row", justifyContent: "space-between" },
     logo: { maxWidth: 220, maxHeight: 90, objectFit: "contain", objectPosition: "left", marginBottom: 12 },
-    orgName: { fontSize: 15, fontFamily: "Helvetica-Bold" },
+    orgName: { fontSize: 10.5, fontFamily: "Helvetica-Bold" },
     muted: { color: "#6e6e73" },
     docTitle: { fontSize: 19, fontFamily: "Helvetica-Bold", color: brand, textAlign: "right" },
     metaRight: { textAlign: "right", marginTop: 4, lineHeight: 1.5 },
@@ -188,11 +188,12 @@ function makeStyles(brand: string) {
     grandText: { fontSize: 12, fontFamily: "Helvetica-Bold", color: brand },
     docFooterText: {
       marginTop: 24,
-      paddingTop: 12,
-      borderTopWidth: 0.5,
-      borderTopColor: "#e8e8ed",
+      padding: 10,
+      backgroundColor: brand,
+      borderRadius: 4,
       fontSize: 8,
-      color: "#86868b",
+      fontFamily: "Helvetica-Bold",
+      color: "#ffffff",
       lineHeight: 1.4,
     },
     footer: {
@@ -334,7 +335,7 @@ export function DocumentPdf({
                    </View>
                 )}
                 <View>
-                  <Text style={{ fontSize: 20, fontFamily: "Helvetica-Bold" }}>{org.name}</Text>
+                  <Text style={{ fontSize: 12, fontFamily: "Helvetica-Bold" }}>{org.name}</Text>
                   {org.kraPin ? <Text style={{ marginTop: 2, fontSize: 8 }}>KRA PIN: {org.kraPin}</Text> : null}
                 </View>
               </View>
@@ -364,7 +365,7 @@ export function DocumentPdf({
           <View style={{ marginBottom: 12 }}>
             <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
               <View>
-                 {org.logoUrl ? <Image style={[s.logo, { marginBottom: 0 }]} src={org.logoUrl} /> : <Text style={[s.orgName, { fontSize: 22 }]}>{org.name}</Text>}
+                 {org.logoUrl ? <Image style={[s.logo, { marginBottom: 0 }]} src={org.logoUrl} /> : <Text style={[s.orgName, { fontSize: 12 }]}>{org.name}</Text>}
               </View>
               <Text style={[s.docTitle, { color: org.brandColor }]}>{titles[doc.type] ?? doc.type.toUpperCase()}</Text>
             </View>
@@ -393,7 +394,7 @@ export function DocumentPdf({
              <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 20 }}>
                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
                  {org.logoUrl ? <Image style={{ width: 30, height: 30, objectFit: "contain" }} src={org.logoUrl} /> : <View style={{ width: 16, height: 16, backgroundColor: "#1d1d1f" }} />}
-                 <Text style={[s.orgName, { fontSize: 18 }]}>{org.name}</Text>
+                 <Text style={[s.orgName, { fontSize: 11 }]}>{org.name}</Text>
                </View>
                <View>
                  <Text style={{ fontSize: 20, fontFamily: "Helvetica-Bold", letterSpacing: 2 }}>{titles[doc.type] ?? doc.type.toUpperCase()}</Text>
@@ -418,7 +419,7 @@ export function DocumentPdf({
           <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 12 }}>
             <View style={{ maxWidth: 260 }}>
               {org.logoUrl ? <Image style={s.logo} src={org.logoUrl} /> : null}
-              <Text style={[s.orgName, { color: org.brandColor, fontSize: 18 }]}>{org.name}</Text>
+              <Text style={[s.orgName, { color: org.brandColor, fontSize: 11 }]}>{org.name}</Text>
               {org.address ? <Text style={s.muted}>{org.address}</Text> : null}
               {org.phone ? <Text style={s.muted}>{org.phone}</Text> : null}
               {org.email ? <Text style={s.muted}>{org.email}</Text> : null}
