@@ -812,3 +812,31 @@ export const costCenters = pgTable("cost_centers", {
 }, (t) => ({
   orgIdx: index("idx_cost_centers_org").on(t.orgId),
 }));
+
+/** Batch vendor payment run — select open bills, pay them together from one bank account. */
+export const paymentRuns = pgTable("payment_runs", {
+  id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
+  date: text("date").notNull(),
+  bankAccountId: integer("bank_account_id").notNull(),
+  method: text("method").notNull().default("bank"), // mpesa | bank | cash | card | cheque
+  status: text("status").notNull().default("draft"), // draft | posted
+  totalCents: money("total_cents").notNull().default(0),
+  createdAt: text("created_at").notNull(),
+  postedAt: text("posted_at"),
+}, (t) => ({
+  orgIdx: index("idx_payment_runs_org").on(t.orgId),
+}));
+
+export const paymentRunItems = pgTable("payment_run_items", {
+  id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
+  runId: integer("run_id").notNull().references(() => paymentRuns.id),
+  billId: integer("bill_id").notNull(),
+  amountCents: money("amount_cents").notNull(),
+  paymentId: integer("payment_id"), // set once posted (points at the `payments` row created)
+  status: text("status").notNull().default("pending"), // pending | paid | failed
+  failReason: text("fail_reason"),
+}, (t) => ({
+  orgRunIdx: index("idx_payment_run_items_run").on(t.orgId, t.runId),
+}));

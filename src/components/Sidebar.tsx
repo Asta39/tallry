@@ -37,6 +37,7 @@ const groups: {
       { href: "/expense-claims", label: "Expense Claims", icon: "🧾", perm: "expense_claims" },
       { href: "/purchases/bills", label: "Bills", icon: "▧", perm: "bills" },
       { href: "/purchases/orders", label: "Purchase Orders", icon: "⊞", perm: "purchase_orders" },
+      { href: "/purchases/payment-runs", label: "Payment Runs", icon: "⊙", perm: "bills" },
       { href: "/items", label: "Items & Stock", icon: "▣", perm: "items" },
     ],
   },
