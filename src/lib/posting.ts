@@ -156,7 +156,7 @@ export async function postInvoice(docId: number): Promise<number> {
     if (l.itemId) {
       const [item] = await db.select().from(items).where(and(eq(items.orgId, currentOrgId()), eq(items.id, l.itemId))).limit(1);
       if (item?.trackInventory) {
-        const cogs = await consumeFifo(l.itemId, l.qty);
+        const cogs = await consumeFifo(l.itemId, l.qty, l.warehouseId ?? undefined);
         if (cogs > 0) {
           post.push({ accountId: await acct(SYS.COGS), debitCents: cogs, memo: l.description });
           post.push({ accountId: await acct(SYS.INVENTORY), creditCents: cogs });
@@ -226,6 +226,7 @@ export async function postBill(docId: number): Promise<number> {
           unitCostCents: l.qty > 0 ? Math.round(l.netCents / l.qty) : 0,
           sourceType: "bill",
           sourceId: doc.id,
+          warehouseId: l.warehouseId ?? undefined,
         });
       }
     }

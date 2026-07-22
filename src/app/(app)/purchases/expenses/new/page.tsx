@@ -18,6 +18,7 @@ export default async function NewExpensePage() {
         contacts={opts.contacts}
         items={[]}
         costCenters={opts.costCenters}
+        warehouses={opts.warehouses}
         expenseAccounts={opts.expenseAccounts}
         bankAccounts={opts.bankAccounts}
         backHref="/purchases/expenses"

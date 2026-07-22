@@ -18,6 +18,7 @@ export default async function NewPurchaseOrderPage() {
         contacts={opts.contacts}
         items={opts.items}
         costCenters={opts.costCenters}
+        warehouses={opts.warehouses}
         expenseAccounts={opts.expenseAccounts}
         backHref="/purchases/orders"
         detailHref="/purchases/orders"

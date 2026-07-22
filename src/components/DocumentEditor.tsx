@@ -27,6 +27,7 @@ interface EditorLine {
   accountId: number | null;
   customColumnValue: string;
   costCenterId: number | null;
+  warehouseId: number | null;
 }
 
 const emptyLine = (): EditorLine => ({
@@ -39,6 +40,7 @@ const emptyLine = (): EditorLine => ({
   accountId: null,
   customColumnValue: "",
   costCenterId: null,
+  warehouseId: null,
 });
 
 export interface EditorInitialData {
@@ -63,6 +65,7 @@ export function DocumentEditor({
   expenseAccounts,
   bankAccounts,
   costCenters = [],
+  warehouses = [],
   backHref,
   detailHref,
   defaultContactId,
@@ -76,6 +79,7 @@ export function DocumentEditor({
   expenseAccounts?: Option[];
   bankAccounts?: Option[];
   costCenters?: Option[];
+  warehouses?: Option[];
   backHref: string;
   /** e.g. "/sales/invoices" — new doc id is appended */
   detailHref?: string;
@@ -119,6 +123,7 @@ export function DocumentEditor({
           accountId: l.accountId,
           customColumnValue: l.customColumnValue || undefined,
           costCenterId: l.costCenterId,
+          warehouseId: l.warehouseId,
         })),
     [lines]
   );
@@ -296,6 +301,9 @@ export function DocumentEditor({
               {costCenters.length > 0 && (
                 <th className="text-left px-2 py-2.5 font-semibold w-[13%]">Cost center</th>
               )}
+              {warehouses.length > 0 && (
+                <th className="text-left px-2 py-2.5 font-semibold w-[13%]">Warehouse</th>
+              )}
               <th className="text-right px-4 py-2.5 font-semibold w-[13%]">Amount</th>
               <th className="w-8" />
             </tr>
@@ -404,6 +412,20 @@ export function DocumentEditor({
                       </select>
                     </td>
                   )}
+                  {warehouses.length > 0 && (
+                    <td className="px-1 py-2">
+                      <select
+                        className={cellCls}
+                        value={l.warehouseId ?? ""}
+                        onChange={(e) => update(i, { warehouseId: e.target.value ? Number(e.target.value) : null })}
+                      >
+                        <option value="">Default</option>
+                        {warehouses.map((w) => (
+                          <option key={w.id} value={w.id}>{w.label}</option>
+                        ))}
+                      </select>
+                    </td>
+                  )}
                   <td className="px-4 py-3.5 text-right text-[13px] tnum">
                     {t ? fmtKES(t.grossCents) : "—"}
                   </td>
@@ -456,6 +478,7 @@ export function DocumentEditor({
                       accountId: null,
                       customColumnValue: "",
                       costCenterId: null,
+                      warehouseId: null,
                     }];
                   });
                 }

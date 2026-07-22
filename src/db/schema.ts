@@ -152,14 +152,43 @@ export const stockLots = pgTable("stock_lots", {
   id: serial("id").primaryKey(),
   orgId: integer("org_id").notNull().references(() => org.id),
   itemId: integer("item_id").notNull(),
+  warehouseId: integer("warehouse_id").notNull(),
   date: text("date").notNull(),
   qty: doublePrecision("qty").notNull(),
   remainingQty: doublePrecision("remaining_qty").notNull(),
   unitCostCents: money("unit_cost_cents").notNull(),
-  sourceType: text("source_type").notNull(), // bill | opening | adjustment
+  sourceType: text("source_type").notNull(), // bill | opening | adjustment | transfer
   sourceId: integer("source_id"),
 }, (t) => ({
   orgItemIdx: index("idx_stock_lots_org").on(t.orgId, t.itemId),
+  orgWarehouseIdx: index("idx_stock_lots_warehouse").on(t.orgId, t.warehouseId),
+}));
+
+export const warehouses = pgTable("warehouses", {
+  id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
+  name: text("name").notNull(),
+  isDefault: boolean("is_default").notNull().default(false),
+  archived: boolean("archived").notNull().default(false),
+  createdAt: text("created_at").notNull(),
+}, (t) => ({
+  orgIdx: index("idx_warehouses_org").on(t.orgId),
+}));
+
+/** Move stock between warehouses at the same weighted-average cost — no GL impact, inventory stays the same asset. */
+export const stockTransfers = pgTable("stock_transfers", {
+  id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
+  itemId: integer("item_id").notNull(),
+  fromWarehouseId: integer("from_warehouse_id").notNull(),
+  toWarehouseId: integer("to_warehouse_id").notNull(),
+  qty: doublePrecision("qty").notNull(),
+  unitCostCents: money("unit_cost_cents").notNull(),
+  date: text("date").notNull(),
+  note: text("note"),
+  createdAt: text("created_at").notNull(),
+}, (t) => ({
+  orgIdx: index("idx_stock_transfers_org").on(t.orgId),
 }));
 
 /**
@@ -218,6 +247,7 @@ export const documentLines = pgTable("document_lines", {
   position: integer("position").notNull().default(0),
   customColumnValue: text("custom_column_value"),
   costCenterId: integer("cost_center_id"), // optional dimension tag, flows into the posted journal line
+  warehouseId: integer("warehouse_id"), // stock location for tracked items; null = org's default warehouse
 }, (t) => ({
   orgDocIdx: index("idx_document_lines_org").on(t.orgId, t.documentId),
 }));

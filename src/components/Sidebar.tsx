@@ -39,6 +39,8 @@ const groups: {
       { href: "/purchases/orders", label: "Purchase Orders", icon: "⊞", perm: "purchase_orders" },
       { href: "/purchases/payment-runs", label: "Payment Runs", icon: "⊙", perm: "bills" },
       { href: "/items", label: "Items & Stock", icon: "▣", perm: "items" },
+      { href: "/items/warehouses", label: "Warehouses", icon: "⌂", perm: "items" },
+      { href: "/items/transfers", label: "Stock Transfers", icon: "⇄", perm: "items" },
     ],
   },
   {
