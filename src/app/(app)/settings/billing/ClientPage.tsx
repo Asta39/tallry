@@ -362,10 +362,8 @@ export function BillingClient({ entitlements, orgPhone, orgEmail }: { entitlemen
                           onClick={() => setModal((prev) => ({ ...prev, method: "mpesa" }))}
                           className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-[var(--color-ink-50)] transition-colors"
                         >
-                          <div className="w-9 h-9 rounded-full bg-[var(--color-good)]/10 text-[var(--color-good)] flex items-center justify-center shrink-0">
-                            <svg className="w-4.5 h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                            </svg>
+                          <div className="w-9 h-9 rounded-lg bg-white border border-[var(--color-ink-100)] flex items-center justify-center shrink-0 overflow-hidden">
+                            <img src="/images/brand/mpesa-logo.png" alt="" className="w-full h-full object-contain p-0.5" />
                           </div>
                           <span className="flex-1 text-[14px] font-semibold text-[var(--color-ink-900)]">M-Pesa</span>
                           <svg className={`w-4 h-4 text-[var(--color-ink-400)] transition-transform duration-200 ${modal.method === "mpesa" ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -397,10 +395,8 @@ export function BillingClient({ entitlements, orgPhone, orgEmail }: { entitlemen
                           onClick={() => setModal((prev) => ({ ...prev, method: "card" }))}
                           className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-[var(--color-ink-50)] transition-colors"
                         >
-                          <div className="w-9 h-9 rounded-full bg-[var(--color-brand)]/10 text-[var(--color-brand)] flex items-center justify-center shrink-0">
-                            <svg className="w-4.5 h-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M3 6h18a1 1 0 011 1v10a1 1 0 01-1 1H3a1 1 0 01-1-1V7a1 1 0 011-1zM6 15h4" />
-                            </svg>
+                          <div className="w-9 h-9 rounded-lg bg-white border border-[var(--color-ink-100)] flex items-center justify-center shrink-0 overflow-hidden">
+                            <img src="/images/brand/card-logo.png" alt="" className="w-full h-full object-contain p-0.5" />
                           </div>
                           <span className="flex-1 text-[14px] font-semibold text-[var(--color-ink-900)]">Card</span>
                           <svg className={`w-4 h-4 text-[var(--color-ink-400)] transition-transform duration-200 ${modal.method === "card" ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
