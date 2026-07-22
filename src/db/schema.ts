@@ -62,9 +62,12 @@ export const accounts = pgTable("accounts", {
   description: text("description"),
   isSystem: boolean("is_system").notNull().default(false),
   archived: boolean("archived").notNull().default(false),
+  /** Optional parent for chart-of-accounts hierarchy (self-reference). */
+  parentAccountId: integer("parent_account_id"),
 }, (t) => ({
   orgIdx: index("idx_accounts_org").on(t.orgId),
   orgCodeUnique: uniqueIndex("idx_accounts_org_code").on(t.orgId, t.code),
+  parentIdx: index("idx_accounts_parent").on(t.parentAccountId),
 }));
 
 export const contacts = pgTable("contacts", {
