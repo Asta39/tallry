@@ -589,7 +589,7 @@ export function DocumentPdf({
             {org.paymentInfoText ? (
               <View>
                 <Text style={s.docFooterHeading}>Payment Information</Text>
-                <Text style={s.docFooterBody}>{org.paymentInfoText}</Text>
+                <Text style={[s.docFooterBody, s.bold]}>{org.paymentInfoText}</Text>
               </View>
             ) : null}
             {org.termsText ? (
