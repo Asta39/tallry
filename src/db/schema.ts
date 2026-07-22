@@ -870,3 +870,26 @@ export const paymentRunItems = pgTable("payment_run_items", {
 }, (t) => ({
   orgRunIdx: index("idx_payment_run_items_run").on(t.orgId, t.runId),
 }));
+
+/** A named budget for a fiscal year — one set of monthly targets per account. */
+export const budgets = pgTable("budgets", {
+  id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
+  name: text("name").notNull(),
+  fiscalYear: text("fiscal_year").notNull(), // e.g. "2026"
+  createdAt: text("created_at").notNull(),
+}, (t) => ({
+  orgIdx: index("idx_budgets_org").on(t.orgId),
+}));
+
+export const budgetLines = pgTable("budget_lines", {
+  id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
+  budgetId: integer("budget_id").notNull().references(() => budgets.id),
+  accountId: integer("account_id").notNull(),
+  month: text("month").notNull(), // "2026-01"
+  amountCents: money("amount_cents").notNull().default(0),
+}, (t) => ({
+  orgBudgetIdx: index("idx_budget_lines_budget").on(t.orgId, t.budgetId),
+  budgetAccountMonthUnique: uniqueIndex("idx_budget_lines_unique").on(t.budgetId, t.accountId, t.month),
+}));

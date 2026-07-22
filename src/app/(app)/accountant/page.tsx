@@ -43,6 +43,9 @@ export default async function AccountantPage() {
         <Link href="/accountant/cost-centers" className="text-[var(--color-accent-600)] font-medium">
           Cost centers →
         </Link>
+        <Link href="/accounting/budgets" className="text-[var(--color-accent-600)] font-medium">
+          Budgets →
+        </Link>
       </div>
 
       <ChartOfAccountsClient accounts={all} balances={balMap} />
