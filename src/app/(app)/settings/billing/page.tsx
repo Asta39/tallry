@@ -15,7 +15,7 @@ export default async function BillingPage() {
     <>
       <PageHeader
         title="Billing & Subscription"
-        subtitle="Manage your Tallry plan and usage limits."
+        subtitle="Manage your Zeno plan and usage limits."
       />
       <div className="mt-8">
         <BillingClient entitlements={entitlements} orgPhone={o.phone || ""} />

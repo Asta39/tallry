@@ -1,4 +1,4 @@
-# Tallry — Design Direction (reference lock)
+# Zeno — Design Direction (reference lock)
 
 Brief: Designing an accounting + light-ERP/CRM web app for Kenyan SMB owners (non-accountants)
 on desktop web. Goal: get paid and stay KRA-compliant without learning accounting.

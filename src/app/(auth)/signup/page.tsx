@@ -49,7 +49,7 @@ export default function SignupPage() {
       {/* Wordmark */}
       <div className="text-center mb-8">
         <div className="flex justify-center mb-6">
-          <img src="/images/logo.png" alt="Tallry Logo" className="h-12 w-auto object-contain" />
+          <img src="/images/logo.png" alt="Zeno Logo" className="h-12 w-auto object-contain" />
         </div>
         <h1 className="text-[22px] font-semibold text-[var(--color-ink-900)] leading-tight">
           Create your account

@@ -114,7 +114,7 @@ export function PaymentGatewayForm({ gateways }: { gateways: any[] }) {
                     <p className="text-xs text-[var(--color-ink-500)] mt-0.5">
                       {mpesa.c2bRegisteredAt
                         ? `Registered with Safaricom on ${String(mpesa.c2bRegisteredAt).slice(0, 10)} — customers paying the paybill directly are captured automatically.`
-                        : "Register callback URLs so payments made directly to your paybill (without STK push) reach Tallry."}
+                        : "Register callback URLs so payments made directly to your paybill (without STK push) reach Zeno."}
                     </p>
                   </div>
                   <button

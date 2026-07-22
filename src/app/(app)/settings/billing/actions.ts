@@ -31,8 +31,8 @@ export async function initiateSubscriptionPaymentAction(plan: PlanKey, cycle: Bi
     const { invoiceId, state } = await intasendStkPush({
       amountKes: Math.round(amountCents / 100),
       phone,
-      apiRef: `tallry-sub-${row.id}`,
-      narrative: `Tallry ${PLANS[plan].name} plan (${cycle})`,
+      apiRef: `zeno-sub-${row.id}`,
+      narrative: `Zeno ${PLANS[plan].name} plan (${cycle})`,
     });
 
     await db.update(billingPayments)

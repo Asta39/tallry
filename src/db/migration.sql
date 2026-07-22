@@ -1,4 +1,4 @@
--- Tallry — Postgres schema (Supabase)
+-- Zeno — Postgres schema (Supabase)
 -- Money columns are BIGINT integer cents. Idempotent.
 
 CREATE TABLE IF NOT EXISTS org (

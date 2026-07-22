@@ -53,7 +53,7 @@ export function SmsSettingsForm({ settings }: { settings: { enabled: boolean; ha
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium mb-1">Sender ID *</label>
-            <input name="senderId" defaultValue={settings.senderId} placeholder="e.g. TALLRY" className={inputCls} />
+            <input name="senderId" defaultValue={settings.senderId} placeholder="e.g. ZENO" className={inputCls} />
           </div>
           <div>
             <label className="block text-sm font-medium mb-1">Partner ID</label>

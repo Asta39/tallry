@@ -65,7 +65,7 @@ export async function sendTestSmsAction(phone: string) {
     const cfg = await getOrgSmsConfig(o.id);
     if (!cfg) return { error: "SMS is not enabled — save your Advanta settings first" };
 
-    const result = await sendSms(cfg, phone, `Test message from ${o.name || "Tallry"} — SMS receipts are working.`);
+    const result = await sendSms(cfg, phone, `Test message from ${o.name || "Zeno"} — SMS receipts are working.`);
     if (!result.ok) return { error: result.error || "Send failed" };
     return { success: true };
   });

@@ -1,4 +1,4 @@
-# Tallry
+# Zeno
 
 A Kenya-first accounting + CRM + light-ERP web app that works like Zoho Books on the
 inside — double-entry ledger, quote-to-cash, procure-to-pay, FIFO inventory, KRA

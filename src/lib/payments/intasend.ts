@@ -1,5 +1,5 @@
 /**
- * IntaSend client for Tallry's OWN subscription billing (platform-level, not
+ * IntaSend client for Zeno's OWN subscription billing (platform-level, not
  * per-org like the Daraja/KopoKopo tenant gateways). Collects plan payments
  * via M-Pesa STK push.
  *
@@ -54,7 +54,7 @@ export async function intasendStkPush(params: {
       amount: String(params.amountKes),
       phone_number: params.phone,
       api_ref: params.apiRef,
-      narrative: params.narrative || "Tallry subscription",
+      narrative: params.narrative || "Zeno subscription",
     }),
   });
 

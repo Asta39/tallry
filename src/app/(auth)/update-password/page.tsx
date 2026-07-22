@@ -42,7 +42,7 @@ export default function UpdatePasswordPage() {
     <div className="w-full max-w-[400px] px-4">
       <div className="text-center mb-8">
         <div className="flex justify-center mb-6">
-          <img src="/images/logo.png" alt="Tallry Logo" className="h-12 w-auto object-contain" />
+          <img src="/images/logo.png" alt="Zeno Logo" className="h-12 w-auto object-contain" />
         </div>
         <h1 className="text-[22px] font-semibold text-[var(--color-ink-900)] leading-tight">
           Set a new password

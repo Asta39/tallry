@@ -1,4 +1,4 @@
-# Tallry — Product Spec (v1)
+# Zeno — Product Spec (v1)
 
 A Kenya-first accounting + light-ERP/CRM web app that behaves like Zoho Books inside
 (double-entry ledger, quote-to-cash, procure-to-pay, FIFO inventory, KRA compliance)

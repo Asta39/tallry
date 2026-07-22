@@ -1,11 +1,11 @@
-# Tallry vs QuickBooks — Gap Analysis & Bridge Plan
+# Zeno vs QuickBooks — Gap Analysis & Bridge Plan
 
-Where Tallry already matches QuickBooks, what's missing, and a phased plan to close
-the gap — tuned for the Kenyan market (where Tallry can actually *beat* QuickBooks).
+Where Zeno already matches QuickBooks, what's missing, and a phased plan to close
+the gap — tuned for the Kenyan market (where Zeno can actually *beat* QuickBooks).
 
 ---
 
-## What Tallry already has (matches QuickBooks Online "Simple Start / Essentials")
+## What Zeno already has (matches QuickBooks Online "Simple Start / Essentials")
 
 - Double-entry ledger, chart of accounts, manual journals, general ledger
 - Customers & vendors (contacts) with statements-style history
@@ -103,10 +103,10 @@ the gap — tuned for the Kenyan market (where Tallry can actually *beat* QuickB
 Don't out-QuickBooks QuickBooks on generic accounting depth — win on **Kenya**:
 M-Pesa reconciliation, KRA/eTIMS, WHT, payroll with local statutories, pay-by-paybill
 auto-match, priced in KES. A Nairobi SMB doesn't need QuickBooks' 200 features; they need
-the 30 that matter *here*, done cleanly. Phases A + B alone put Tallry ahead of QuickBooks
+the 30 that matter *here*, done cleanly. Phases A + B alone put Zeno ahead of QuickBooks
 for most Kenyan small businesses. Phase D makes it a category they can't get elsewhere.
 
 ### Fastest single win for "why buy QuickBooks?"
 Bank reconciliation (Phase A) + M-Pesa auto-match payments (Phase B). Once a business
 owner sees payments land and reconcile themselves, QuickBooks' manual bank feed looks
-worse — and Tallry costs less in KES.
+worse — and Zeno costs less in KES.

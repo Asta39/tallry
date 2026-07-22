@@ -1,13 +1,13 @@
 import type { MetadataRoute } from "next";
 
 /**
- * PWA manifest — makes Tallry installable to desktop/phone home screen.
+ * PWA manifest — makes Zeno installable to desktop/phone home screen.
  * Icons are generated dynamically by src/app/app-icon/route.tsx.
  */
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Tallry — Accounting for Kenya",
-    short_name: "Tallry",
+    name: "Zeno — Accounting for Kenya",
+    short_name: "Zeno",
     description: "KRA-ready accounting, invoicing, M-Pesa reconciliation and reports.",
     start_url: "/",
     scope: "/",

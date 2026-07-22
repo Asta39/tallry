@@ -12,7 +12,7 @@ import { useEffect, useState } from "react";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type BIPEvent = any;
 
-const DISMISS_KEY = "tallry-install-dismissed";
+const DISMISS_KEY = "zeno-install-dismissed";
 
 export function InstallPrompt() {
   const [deferred, setDeferred] = useState<BIPEvent | null>(null);
@@ -86,7 +86,7 @@ export function InstallPrompt() {
           T
         </div>
         <div className="min-w-0 flex-1">
-          <div className="text-[13px] font-medium leading-tight">Install Tallry</div>
+          <div className="text-[13px] font-medium leading-tight">Install Zeno</div>
           <div className="text-[11.5px] text-[var(--color-ink-400)] leading-tight mt-0.5">
             {iosHint ? "Tap Share, then “Add to Home Screen”." : "Add to your device for quick access."}
           </div>

@@ -127,7 +127,7 @@ export function Sidebar({ orgName, orgEmail, logoUrl, perms, roleLabel, timeTrac
           <div className="min-w-0">
             <div className="text-[13.5px] font-semibold tracking-tight truncate leading-tight">{displayName}</div>
             <div className="text-[10.5px] text-[var(--color-ink-400)] mt-0.5">
-              {roleLabel ? `${roleLabel} · ` : ""}Powered by Tallry
+              {roleLabel ? `${roleLabel} · ` : ""}Powered by Zeno
             </div>
           </div>
         </div>

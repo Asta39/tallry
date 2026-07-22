@@ -19,7 +19,7 @@ export async function sendEmail({
   
   try {
     const { data, error } = await resend.emails.send({
-      from: "Tallry <onboarding@resend.dev>", // Using Resend's testing domain
+      from: "Zeno <onboarding@resend.dev>", // Using Resend's testing domain
       to,
       subject,
       react,

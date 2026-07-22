@@ -59,7 +59,7 @@ export default async function SettingsPage() {
       <div className="card px-6 py-5 max-w-2xl mt-5 space-y-1.5 hover:bg-[var(--color-ink-50)] transition-colors cursor-pointer">
         <Link href="/settings/billing" className="block w-full">
           <div className="font-semibold text-[var(--color-ink-900)]">Billing & Subscription</div>
-          <p className="text-[12.5px] text-[var(--color-ink-600)] mt-1">Manage your Tallry plan, view limits, and upgrade.</p>
+          <p className="text-[12.5px] text-[var(--color-ink-600)] mt-1">Manage your Zeno plan, view limits, and upgrade.</p>
         </Link>
       </div>
 

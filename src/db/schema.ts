@@ -22,7 +22,7 @@ export const org = pgTable("org", {
   /** Supabase auth.users UUID — one org per user. */
   userId: text("user_id").unique(),
   name: text("name").notNull().default(""),
-  /** Public customer-portal slug: tallry.com/p/<slug> */
+  /** Public customer-portal slug: zeno.com/p/<slug> */
   portalSlug: text("portal_slug").unique(),
   kraPin: text("kra_pin"),
   vatRegistered: boolean("vat_registered").notNull().default(true),
@@ -737,7 +737,7 @@ export const featureFlags = pgTable("feature_flags", {
   orgFlagUnique: uniqueIndex("idx_feature_flags_org_flag").on(t.orgId, t.flag),
 }));
 
-/** Tallry's own subscription payments, collected via IntaSend STK push. */
+/** Zeno's own subscription payments, collected via IntaSend STK push. */
 export const billingPayments = pgTable("billing_payments", {
   id: serial("id").primaryKey(),
   orgId: integer("org_id").notNull().references(() => org.id),

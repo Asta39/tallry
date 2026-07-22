@@ -1,4 +1,4 @@
-# Tallry Monetization Plan
+# Zeno Monetization Plan
 
 _Reference document. Drafted 2026-07-13. Prices are working hypotheses — validate with the first 10 target customers before building step 2._
 
@@ -8,7 +8,7 @@ M-Pesa has no auto-renewing subscription primitive and card penetration among Ke
 
 ## Model
 
-**Prepaid subscription, dogfooding our own rails.** Tallry itself runs as a platform org with its own Daraja/Kopo Kopo gateway config. A business paying its subscription is just an STK push through the existing, tested gateway code (pending event → webhook confirm → apply). No new payment infrastructure; the billing system doubles as a product demo.
+**Prepaid subscription, dogfooding our own rails.** Zeno itself runs as a platform org with its own Daraja/Kopo Kopo gateway config. A business paying its subscription is just an STK push through the existing, tested gateway code (pending event → webhook confirm → apply). No new payment infrastructure; the billing system doubles as a product demo.
 
 ## Plans
 

@@ -91,7 +91,7 @@ export default function ClientPortalLogin() {
         </div>
 
         <div className="mt-8 text-center text-[12px] text-[var(--color-ink-400)]">
-          Powered by Tallry
+          Powered by Zeno
         </div>
       </div>
     </div>

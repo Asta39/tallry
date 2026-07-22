@@ -32,7 +32,7 @@ _Reference document. Drafted 2026-07-13. These are the six items from the "full 
 
 ## 2. C2B URL registration
 
-**Problem.** Customers paying the org's paybill directly (no STK push) generate confirmations only if Safaricom knows where to send them. Today those payments never reach Tallry.
+**Problem.** Customers paying the org's paybill directly (no STK push) generate confirmations only if Safaricom knows where to send them. Today those payments never reach Zeno.
 
 **Design.**
 - One-time per-org call to Daraja `/mpesa/c2b/v1/registerurl` with `ConfirmationURL` + `ValidationURL` pointing at the existing webhook (with org token).

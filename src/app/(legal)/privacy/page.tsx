@@ -1,4 +1,4 @@
-export const metadata = { title: "Privacy Policy — Tallry" };
+export const metadata = { title: "Privacy Policy — Zeno" };
 
 const LAST_UPDATED = "12 July 2026";
 
@@ -9,20 +9,20 @@ export default function PrivacyPage() {
       <p className="text-gray-500">Last updated: {LAST_UPDATED}</p>
 
       <p>
-        Tallry (&quot;we&quot;, &quot;us&quot;, &quot;the Service&quot;) is an accounting and payments
+        Zeno (&quot;we&quot;, &quot;us&quot;, &quot;the Service&quot;) is an accounting and payments
         platform for Kenyan businesses. This policy explains what personal data we collect, why,
         and the rights you have under the <strong>Data Protection Act, 2019 (Kenya)</strong> and
-        its regulations. It applies to business owners and staff who use Tallry, and to their
+        its regulations. It applies to business owners and staff who use Zeno, and to their
         customers whose details are processed through the Service.
       </p>
 
       <h2>1. Who is responsible for your data</h2>
       <p>
-        For account data of businesses using Tallry, we act as <strong>data controller</strong>.
-        For the customer and supplier records a business keeps inside Tallry (names, phone
+        For account data of businesses using Zeno, we act as <strong>data controller</strong>.
+        For the customer and supplier records a business keeps inside Zeno (names, phone
         numbers, invoices, payments), that business is the data controller and we act as its{" "}
         <strong>data processor</strong>. Contact for all data matters:{" "}
-        <a href="mailto:privacy@tallry.com">privacy@tallry.com</a>.
+        <a href="mailto:privacy@zeno.com">privacy@zeno.com</a>.
       </p>
 
       <h2>2. What we collect</h2>
@@ -82,15 +82,15 @@ export default function PrivacyPage() {
         <li>receive your data in a portable format.</li>
       </ul>
       <p>
-        Write to <a href="mailto:privacy@tallry.com">privacy@tallry.com</a>. We respond within a
+        Write to <a href="mailto:privacy@zeno.com">privacy@zeno.com</a>. We respond within a
         reasonable time and at no cost, as the Act requires. If unsatisfied, you may complain to
         the <strong>Office of the Data Protection Commissioner (ODPC)</strong> —{" "}
         <a href="https://www.odpc.go.ke" target="_blank" rel="noopener noreferrer">www.odpc.go.ke</a>.
       </p>
 
-      <h2>8. Customers of businesses using Tallry</h2>
+      <h2>8. Customers of businesses using Zeno</h2>
       <p>
-        If a business you paid uses Tallry, your phone number and payment details were provided
+        If a business you paid uses Zeno, your phone number and payment details were provided
         to us by that business or by the payment network to issue your receipt. Direct your
         requests to that business first; we assist them in fulfilling your rights.
       </p>

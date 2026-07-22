@@ -1,4 +1,4 @@
-export const metadata = { title: "Terms of Service — Tallry" };
+export const metadata = { title: "Terms of Service — Zeno" };
 
 const LAST_UPDATED = "12 July 2026";
 
@@ -9,13 +9,13 @@ export default function TermsPage() {
       <p className="text-gray-500">Last updated: {LAST_UPDATED}</p>
 
       <p>
-        These terms govern use of Tallry, an accounting and payments platform for Kenyan
+        These terms govern use of Zeno, an accounting and payments platform for Kenyan
         businesses. By creating an account or using the Service you agree to them.
       </p>
 
       <h2>1. The Service</h2>
       <p>
-        Tallry provides bookkeeping, invoicing, payroll, payment-gateway integration (M-Pesa,
+        Zeno provides bookkeeping, invoicing, payroll, payment-gateway integration (M-Pesa,
         Kopo Kopo), and receipt delivery tools. We are a software provider — we are{" "}
         <strong>not</strong> a bank, a money remitter, or a tax agent.
       </p>
@@ -84,7 +84,7 @@ export default function TermsPage() {
       </p>
 
       <p>
-        Questions: <a href="mailto:support@tallry.com">support@tallry.com</a>
+        Questions: <a href="mailto:support@zeno.com">support@zeno.com</a>
       </p>
     </>
   );

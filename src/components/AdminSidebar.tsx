@@ -53,7 +53,7 @@ export function AdminSidebar({ userEmail }: { userEmail: string }) {
           </div>
           <div className="min-w-0">
             <div className="text-[13.5px] font-semibold tracking-tight truncate leading-tight">Super Admin</div>
-            <div className="text-[10.5px] text-[var(--color-ink-400)] mt-0.5">Tallry Platform</div>
+            <div className="text-[10.5px] text-[var(--color-ink-400)] mt-0.5">Zeno Platform</div>
           </div>
         </div>
       </div>

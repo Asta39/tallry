@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import { applyBillingPayment } from "@/lib/billing-apply";
 
 /**
- * IntaSend webhook for Tallry subscription payments — safety net for the
+ * IntaSend webhook for Zeno subscription payments — safety net for the
  * client-side status poll (covers "paid but closed the tab").
  *
  * Configure in the IntaSend dashboard: URL https://<domain>/api/payments/intasend,
