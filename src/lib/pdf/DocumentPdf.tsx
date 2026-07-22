@@ -266,8 +266,8 @@ export function DocumentPdf({
               <Text style={{ fontSize: 10, fontFamily: "Helvetica-Bold", textAlign: "right", marginTop: 2 }}># {doc.number}</Text>
               <StatusBadgeText doc={doc} style={{ textAlign: "right" }} />
 
-              <View style={{ alignItems: "flex-end", marginTop: 18 }}>
-                <Text style={[s.sectionLabel, { textAlign: "right" }]}>{billToLabel(doc.type)}</Text>
+              <View style={{ alignItems: "flex-end", marginTop: 12 }}>
+                <Text style={[s.sectionLabel, { textAlign: "right", marginBottom: 1 }]}>{billToLabel(doc.type)}</Text>
                 <Text style={s.bold}>{contact?.displayName ?? "Walk-in customer"}</Text>
                 {contact?.address ? <Text style={[s.muted, { textAlign: "right" }]}>{contact.address}</Text> : null}
                 {contact?.city ? <Text style={[s.muted, { textAlign: "right" }]}>{contact.city}</Text> : null}
@@ -278,9 +278,9 @@ export function DocumentPdf({
                 ) : null}
               </View>
 
-              <View style={[s.metaRight, { marginTop: 14 }]}>
-                <Text>{dateLabels[doc.type] || "Date"}: {doc.date}</Text>
-                {doc.dueDate ? <Text>Due Date: {doc.dueDate}</Text> : null}
+              <View style={{ alignItems: "flex-end", marginTop: 10 }}>
+                <Text style={{ textAlign: "right" }}>{dateLabels[doc.type] || "Date"}: {doc.date}</Text>
+                {doc.dueDate ? <Text style={{ textAlign: "right" }}>Due Date: {doc.dueDate}</Text> : null}
                 <CreatedByLine doc={doc} style={{ textAlign: "right" }} />
               </View>
             </View>
