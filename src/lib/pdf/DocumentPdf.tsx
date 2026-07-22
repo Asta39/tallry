@@ -586,16 +586,16 @@ export function DocumentPdf({
         {/* Payment info + Terms & Conditions — bold headings, normal-weight body */}
         {["invoice", "quote", "credit_note"].includes(doc.type) && (org.paymentInfoText || org.termsText) ? (
           <View style={s.docFooterText}>
-            {org.paymentInfoText ? (
-              <View>
-                <Text style={s.docFooterHeading}>Payment Information</Text>
-                <Text style={[s.docFooterBody, s.bold]}>{org.paymentInfoText}</Text>
-              </View>
-            ) : null}
             {org.termsText ? (
-              <View style={{ marginTop: org.paymentInfoText ? 10 : 0 }}>
+              <View>
                 <Text style={s.docFooterHeading}>Terms &amp; Conditions</Text>
                 <Text style={s.docFooterBody}>{org.termsText}</Text>
+              </View>
+            ) : null}
+            {org.paymentInfoText ? (
+              <View style={{ marginTop: org.termsText ? 10 : 0 }}>
+                <Text style={s.docFooterHeading}>Payment Information</Text>
+                <Text style={[s.docFooterBody, s.bold]}>{org.paymentInfoText}</Text>
               </View>
             ) : null}
           </View>
