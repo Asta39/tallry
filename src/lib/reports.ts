@@ -1,6 +1,6 @@
 import { db, accounts, journalEntries, journalLines, documents, documentLines, payments, contacts, items, documentAssignments } from "@/db";
 import { currentOrgId } from "@/lib/org";
-import { and, eq, gte, lte, inArray, sql, ne, exists } from "drizzle-orm";
+import { and, eq, gte, lte, inArray, sql, exists } from "drizzle-orm";
 
 /**
  * Reporting queries — all derived from the ledger (journal lines), never from
@@ -145,8 +145,10 @@ export async function vatReturn(from: string, to: string) {
         eq(documents.orgId, currentOrgId()),
         gte(documents.date, from),
         lte(documents.date, to),
-        ne(documents.status, "draft"),
-        ne(documents.status, "void"),
+        // Only documents actually posted to the ledger count as VAT — a bill sitting in
+        // "pending_approval" (or any other non-posted status) has no journal entry yet
+        // and must not be claimed as input VAT until it's approved and posted.
+        inArray(documents.status, ["open", "paid", "partial"]),
         inArray(documents.type, [...salesDocs, ...purchaseDocs])
       )
     )

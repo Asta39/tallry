@@ -428,10 +428,29 @@ async function _saveDocument(data: {
 
 /** Issue (post) a draft document. For invoices this also signs via the tax device. */
 async function _issueDocument(docId: number) {
-  const [doc] = await db.select().from(documents).where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, docId))).limit(1);
-  if (!doc) throw new Error("Not found");
-  if (doc.status !== "draft") throw new Error("Already issued");
+  const orgId = currentOrgId();
+  // Atomic claim: flips status off "draft" only for the request that gets there
+  // first, so two concurrent "Issue" clicks can't both pass the check and both
+  // post a journal entry (and, for stocked items, both draw down FIFO stock).
+  const [claimed] = await db
+    .update(documents)
+    .set({ status: "issuing" })
+    .where(and(eq(documents.orgId, orgId), eq(documents.id, docId), eq(documents.status, "draft")))
+    .returning();
+  if (!claimed) throw new Error("Already issued");
+  const doc = claimed;
 
+  try {
+    await _issueClaimedDocument(doc);
+  } catch (e) {
+    // Release the claim so the document isn't stuck mid-issue after a failed post.
+    await db.update(documents).set({ status: "draft" }).where(and(eq(documents.orgId, orgId), eq(documents.id, docId), eq(documents.status, "issuing")));
+    throw e;
+  }
+}
+
+async function _issueClaimedDocument(doc: typeof documents.$inferSelect) {
+  const docId = doc.id;
   switch (doc.type) {
     case "invoice": {
       // KRA eTIMS signing — gated behind ETIMS_ENABLED (off until a real
@@ -606,39 +625,54 @@ async function _addBankTransaction(data: {
 
 /** Categorize an uncategorized bank line: creates the journal. */
 async function _categorizeTransaction(txnId: number, categoryAccountId: number) {
-  const [txn] = await db.select().from(bankTransactions).where(eq(bankTransactions.id, txnId)).limit(1);
-  if (!txn) throw new Error("Transaction not found");
-  const [bank] = await db
-    .select()
-    .from(bankAccounts)
-    .where(and(eq(bankAccounts.orgId, currentOrgId()), eq(bankAccounts.id, txn.bankAccountId)))
-    .limit(1);
-  if (!bank) throw new Error("Bank account not found");
-  const amount = Math.abs(txn.amountCents);
-  const entryId = await postEntry({
-    date: txn.date,
-    memo: txn.description,
-    sourceType: "bank_txn",
-    sourceId: txn.id,
-    lines:
-      txn.amountCents >= 0
-        ? [
-            { accountId: bank.accountId, debitCents: amount },
-            { accountId: categoryAccountId, creditCents: amount },
-          ]
-        : [
-            { accountId: categoryAccountId, debitCents: amount },
-            { accountId: bank.accountId, creditCents: amount },
-          ],
-  });
-  await db
+  const orgId = currentOrgId();
+  // Atomic claim: only the first request to hit this sees status flip from
+  // "uncategorized" — a concurrent double-click or bulk-select overlap on the
+  // same row is rejected instead of posting the same bank movement twice.
+  const [claimed] = await db
     .update(bankTransactions)
-    .set({ status: "categorized", categoryAccountId, journalEntryId: entryId })
-    .where(eq(bankTransactions.id, txnId));
-  // Learn: remember this description→account choice for future imports
-  const { learnRule } = await import("./categorization");
-  await learnRule(txn.description, txn.amountCents >= 0 ? "in" : "out", categoryAccountId);
-  revalidatePath("/banking");
+    .set({ status: "categorizing" })
+    .where(and(eq(bankTransactions.orgId, orgId), eq(bankTransactions.id, txnId), eq(bankTransactions.status, "uncategorized")))
+    .returning();
+  if (!claimed) throw new Error("This transaction was already categorized");
+  const txn = claimed;
+  try {
+    const [bank] = await db
+      .select()
+      .from(bankAccounts)
+      .where(and(eq(bankAccounts.orgId, currentOrgId()), eq(bankAccounts.id, txn.bankAccountId)))
+      .limit(1);
+    if (!bank) throw new Error("Bank account not found");
+    const amount = Math.abs(txn.amountCents);
+    const entryId = await postEntry({
+      date: txn.date,
+      memo: txn.description,
+      sourceType: "bank_txn",
+      sourceId: txn.id,
+      lines:
+        txn.amountCents >= 0
+          ? [
+              { accountId: bank.accountId, debitCents: amount },
+              { accountId: categoryAccountId, creditCents: amount },
+            ]
+          : [
+              { accountId: categoryAccountId, debitCents: amount },
+              { accountId: bank.accountId, creditCents: amount },
+            ],
+    });
+    await db
+      .update(bankTransactions)
+      .set({ status: "categorized", categoryAccountId, journalEntryId: entryId })
+      .where(eq(bankTransactions.id, txnId));
+    // Learn: remember this description→account choice for future imports
+    const { learnRule } = await import("./categorization");
+    await learnRule(txn.description, txn.amountCents >= 0 ? "in" : "out", categoryAccountId);
+    revalidatePath("/banking");
+  } catch (e) {
+    // Release the claim so the transaction isn't stuck "categorizing" forever after a failed post.
+    await db.update(bankTransactions).set({ status: "uncategorized" }).where(and(eq(bankTransactions.id, txnId), eq(bankTransactions.status, "categorizing")));
+    throw e;
+  }
 }
 
 async function _bulkCategorizeTransactions(updates: { txnId: number; categoryAccountId: number }[]) {

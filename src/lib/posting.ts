@@ -399,22 +399,75 @@ export async function postPayment(paymentId: number): Promise<number> {
   }
 
   if (p.documentId) {
-    const [doc] = await db.select().from(documents).where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, p.documentId))).limit(1);
+    // Atomic increment — two near-simultaneous payments against the same invoice
+    // must not race on a read-then-write of paidCents and lose one payment's
+    // contribution to this denormalized field (the ledger itself is unaffected
+    // either way; this is the document-level cache used for status/balance-due display).
+    const { sql: rawSql } = await import("drizzle-orm");
+    const [doc] = await db
+      .update(documents)
+      .set({ paidCents: rawSql`${documents.paidCents} + ${p.amountCents}` })
+      .where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, p.documentId)))
+      .returning();
     if (doc) {
-      const paid = doc.paidCents + p.amountCents;
-      const status = paid >= doc.totalCents ? "paid" : "partial";
-      await db.update(documents).set({ paidCents: paid, status }).where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, doc.id)));
+      const status = doc.paidCents >= doc.totalCents ? "paid" : "partial";
+      if (doc.status !== status) {
+        await db.update(documents).set({ status }).where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, doc.id)));
+      }
     }
   }
   return entryId;
 }
 
-/** Void a posted document: post reversal, mark void. */
+/** Void a posted document: post reversal, restore/undo any FIFO stock movement, mark void. */
 export async function voidDocument(docId: number, date: string): Promise<void> {
-  const [doc] = await db.select().from(documents).where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, docId))).limit(1);
+  const orgId = currentOrgId();
+  const [doc] = await db.select().from(documents).where(and(eq(documents.orgId, orgId), eq(documents.id, docId))).limit(1);
   if (!doc) throw new Error("Document not found");
+
   if (doc.journalEntryId) {
+    // Don't silently break a completed bank reconciliation — the ticked bank
+    // register line was matched against this entry; reversing it now would
+    // leave that reconciliation's totals no longer reconcilable.
+    const [mirrored] = await db
+      .select({ reconciliationId: bankTransactions.reconciliationId })
+      .from(bankTransactions)
+      .where(and(eq(bankTransactions.orgId, orgId), eq(bankTransactions.journalEntryId, doc.journalEntryId)))
+      .limit(1);
+    if (mirrored?.reconciliationId) {
+      throw new Error("This document's bank entry has already been reconciled — reopen that reconciliation before voiding.");
+    }
     await reverseEntry(doc.journalEntryId, date, `Void ${doc.number}`);
   }
-  await db.update(documents).set({ status: "void" }).where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, docId)));
+
+  // Undo the FIFO stock movement so stock-on-hand/valuation reports don't
+  // permanently disagree with the reversed GL Inventory account.
+  if (doc.type === "invoice") {
+    const { lines } = await getDocWithLines(docId);
+    for (const l of lines) {
+      if (l.itemId && l.cogsCents && l.qty > 0) {
+        await addLot({
+          itemId: l.itemId,
+          date,
+          qty: l.qty,
+          unitCostCents: Math.round(l.cogsCents / l.qty),
+          sourceType: "adjustment",
+          sourceId: doc.id,
+          warehouseId: l.warehouseId ?? undefined,
+        });
+      }
+    }
+  } else if (doc.type === "bill") {
+    const { lines } = await getDocWithLines(docId);
+    for (const l of lines) {
+      if (l.itemId) {
+        const [item] = await db.select().from(items).where(and(eq(items.orgId, orgId), eq(items.id, l.itemId))).limit(1);
+        if (item?.trackInventory && l.qty > 0) {
+          await consumeFifo(l.itemId, l.qty, l.warehouseId ?? undefined);
+        }
+      }
+    }
+  }
+
+  await db.update(documents).set({ status: "void" }).where(and(eq(documents.orgId, orgId), eq(documents.id, docId)));
 }
