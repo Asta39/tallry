@@ -75,6 +75,7 @@ export async function DocDetail({ id, printHref }: { id: number; printHref?: str
         gateways={gateways.map(g => ({ id: g.gatewayId, name: g.gatewayId === "mpesa_daraja" ? "M-Pesa Daraja" : "Kopo Kopo" }))}
         contactPhone={contact?.phone || ""}
         canApprove={canApprove}
+        poLines={doc.type === "purchase_order" ? lines.map((l) => ({ id: l.id, description: l.description, qty: l.qty, billedQty: l.billedQty })) : undefined}
       />
 
       {doc.approvalNote && doc.status === "draft" && (

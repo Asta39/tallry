@@ -30,6 +30,7 @@ export function DocActions({
   gateways,
   contactPhone,
   canApprove,
+  poLines,
 }: {
   doc: {
     id: number;
@@ -43,6 +44,7 @@ export function DocActions({
   gateways?: { id: string; name: string }[];
   contactPhone?: string;
   canApprove?: boolean;
+  poLines?: { id: number; description: string; qty: number; billedQty: number }[];
 }) {
   const [rejectNote, setRejectNote] = useState("");
   const [showReject, setShowReject] = useState(false);
@@ -65,6 +67,13 @@ export function DocActions({
   const [gwAmount, setGwAmount] = useState(((doc.totalCents - doc.paidCents) / 100).toFixed(2));
   const [gwDestType, setGwDestType] = useState<"phone" | "till" | "paybill">("phone");
   const [gwAccountNo, setGwAccountNo] = useState("");
+
+  // PO → bill conversion (partial receipt)
+  const [showConvertPo, setShowConvertPo] = useState(false);
+  const remainingPoLines = (poLines ?? []).map((l) => ({ ...l, remaining: l.qty - l.billedQty }));
+  const [poQtys, setPoQtys] = useState<Record<number, string>>(() =>
+    Object.fromEntries(remainingPoLines.map((l) => [l.id, String(l.remaining)]))
+  );
 
   const run = (fn: () => Promise<any>) => {
     setError(null);
@@ -183,17 +192,8 @@ export function DocActions({
             Write off
           </button>
         )}
-        {doc.type === "purchase_order" && doc.status === "open" && (
-          <button
-            className={secondary}
-            disabled={pending}
-            onClick={() =>
-              start(async () => {
-                const id = await convertPoToBill(doc.id);
-                router.push(`/purchases/bills/${id}`);
-              })
-            }
-          >
+        {doc.type === "purchase_order" && ["open", "partial"].includes(doc.status) && (
+          <button className={secondary} disabled={pending} onClick={() => setShowConvertPo((v) => !v)}>
             Convert to bill →
           </button>
         )}
@@ -238,6 +238,59 @@ export function DocActions({
             {pending ? "Rejecting…" : "Confirm rejection"}
           </button>
           <button className={secondary} disabled={pending} onClick={() => setShowReject(false)}>Cancel</button>
+        </div>
+      )}
+
+      {showConvertPo && (
+        <div className="card p-4 space-y-3">
+          <p className="text-[12.5px] text-[var(--color-ink-600)]">
+            Bill only part of an order by lowering a line's quantity below what's remaining — the rest stays open on this PO to bill later.
+          </p>
+          <div className="rounded-lg border border-[var(--color-ink-100)] overflow-x-auto">
+            <table className="w-full min-w-[420px]">
+              <thead className="hairline-b">
+                <tr className="text-[11.5px] uppercase tracking-wide text-[var(--color-ink-400)]">
+                  <th className="text-left px-3 py-2 font-semibold">Line</th>
+                  <th className="text-right px-3 py-2 font-semibold">Remaining</th>
+                  <th className="text-right px-3 py-2 font-semibold w-28">Bill now</th>
+                </tr>
+              </thead>
+              <tbody>
+                {remainingPoLines.map((l) => (
+                  <tr key={l.id} className="hairline-t">
+                    <td className="px-3 py-2 text-[13px]">{l.description}</td>
+                    <td className="px-3 py-2 text-[13px] text-right tnum">{l.remaining}</td>
+                    <td className="px-2 py-1.5">
+                      <input
+                        className={inputCls + " w-full text-right"}
+                        value={poQtys[l.id] ?? ""}
+                        onChange={(e) => setPoQtys((q) => ({ ...q, [l.id]: e.target.value }))}
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              className={primary}
+              disabled={pending}
+              onClick={() =>
+                run(async () => {
+                  const lineQtys: Record<number, number> = {};
+                  for (const l of remainingPoLines) {
+                    lineQtys[l.id] = parseFloat(poQtys[l.id] ?? "0") || 0;
+                  }
+                  const id = await convertPoToBill(doc.id, lineQtys);
+                  router.push(`/purchases/bills/${id}`);
+                })
+              }
+            >
+              {pending ? "Converting…" : "Create bill"}
+            </button>
+            <button className={secondary} disabled={pending} onClick={() => setShowConvertPo(false)}>Cancel</button>
+          </div>
         </div>
       )}
 

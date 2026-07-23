@@ -17,7 +17,7 @@ import {
   documentAssignments,
   notifications,
 } from "@/db";
-import { eq, and, ne, desc, isNull } from "drizzle-orm";
+import { eq, and, ne, desc, isNull, sql } from "drizzle-orm";
 import { currentOrgId, withOrg, seedOrgDefaults } from "@/lib/org";
 import { revalidatePath as nextRevalidatePath } from "next/cache";
 import { computeDocument, type TaxClass, TAX_CLASSES } from "./tax";
@@ -958,22 +958,41 @@ async function _createCreditNoteFromInvoice(invoiceId: number): Promise<number> 
   return cnId;
 }
 
-async function _convertPoToBill(poId: number): Promise<number> {
+/**
+ * Convert a PO to a bill, optionally billing less than the full remaining quantity
+ * per line (partial receipt). `lineQtys` maps documentLines.id → qty to bill now;
+ * omit a line (or the whole map) to default to its full remaining quantity.
+ */
+async function _convertPoToBill(poId: number, lineQtys?: Record<number, number>): Promise<number> {
   const orgId = currentOrgId();
-  // Atomic claim: blocks converting an already-closed PO (no guard existed before —
-  // a second conversion attempt would just create another full-quantity bill
-  // against a PO that was already fully billed) and a concurrent double-click.
+  // Atomic claim: a PO can be claimed from "open" (nothing billed yet) or "partial"
+  // (some already billed) — but not from "closed" (fully billed) or mid-claim by
+  // a concurrent request, closing the original "no guard at all" bug.
   const [po] = await db
     .update(documents)
     .set({ status: "converting" })
-    .where(and(eq(documents.orgId, orgId), eq(documents.id, poId), eq(documents.type, "purchase_order"), eq(documents.status, "open")))
+    .where(and(
+      eq(documents.orgId, orgId), eq(documents.id, poId), eq(documents.type, "purchase_order"),
+      sql`${documents.status} IN ('open', 'partial')`
+    ))
     .returning();
-  if (!po) throw new Error("This purchase order was already converted to a bill (or isn't open)");
+  if (!po) throw new Error("This purchase order was already fully billed (or isn't open)");
   try {
-    const lines = await db
+    const poLines = await db
       .select()
       .from(documentLines)
-      .where(and(eq(documentLines.orgId, currentOrgId()), eq(documentLines.documentId, poId)));
+      .where(and(eq(documentLines.orgId, orgId), eq(documentLines.documentId, poId)));
+
+    const toBill: { line: typeof poLines[number]; qty: number }[] = [];
+    for (const l of poLines) {
+      const remaining = l.qty - l.billedQty;
+      const requested = lineQtys?.[l.id] ?? remaining;
+      if (requested < 0) throw new Error(`Can't bill a negative quantity for "${l.description}"`);
+      if (requested > remaining + 1e-9) throw new Error(`"${l.description}" only has ${remaining} remaining to bill`);
+      if (requested > 0) toBill.push({ line: l, qty: requested });
+    }
+    if (toBill.length === 0) throw new Error("Nothing left to bill on this purchase order");
+
     const billId = await _saveDocument({
       type: "bill",
       contactId: po.contactId,
@@ -981,10 +1000,10 @@ async function _convertPoToBill(poId: number): Promise<number> {
       taxInclusive: po.taxInclusive,
       billNumber: `BILL-${po.number}`,
       notes: po.notes ?? undefined,
-      lines: lines.map((l) => ({
+      lines: toBill.map(({ line: l, qty }) => ({
         itemId: l.itemId,
         description: l.description,
-        qty: l.qty,
+        qty,
         unitPriceCents: l.unitPriceCents,
         discountPct: l.discountPct,
         taxClass: l.taxClass as TaxClass,
@@ -994,15 +1013,23 @@ async function _convertPoToBill(poId: number): Promise<number> {
     await db
       .update(documents)
       .set({ sourceDocId: poId })
-      .where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, billId)));
+      .where(and(eq(documents.orgId, orgId), eq(documents.id, billId)));
+
+    for (const { line: l, qty } of toBill) {
+      await db.update(documentLines).set({ billedQty: l.billedQty + qty }).where(eq(documentLines.id, l.id));
+    }
+    const fullyBilled = poLines.every((l) => {
+      const billedNow = toBill.find((t) => t.line.id === l.id)?.qty ?? 0;
+      return l.billedQty + billedNow >= l.qty - 1e-9;
+    });
     await db
       .update(documents)
-      .set({ status: "closed" })
-      .where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, poId)));
+      .set({ status: fullyBilled ? "closed" : "partial" })
+      .where(and(eq(documents.orgId, orgId), eq(documents.id, poId)));
     revalidatePath("/purchases");
     return billId;
   } catch (e) {
-    await db.update(documents).set({ status: "open" }).where(and(eq(documents.orgId, orgId), eq(documents.id, poId), eq(documents.status, "converting")));
+    await db.update(documents).set({ status: po.status }).where(and(eq(documents.orgId, orgId), eq(documents.id, poId), eq(documents.status, "converting")));
     throw e;
   }
 }
@@ -1032,8 +1059,8 @@ async function _importBankTransactions(
 export async function createCreditNoteFromInvoice(invoiceId: number) {
   return withOrg(() => _createCreditNoteFromInvoice(invoiceId));
 }
-export async function convertPoToBill(poId: number) {
-  return withOrg(() => _convertPoToBill(poId));
+export async function convertPoToBill(poId: number, lineQtys?: Record<number, number>) {
+  return withOrg(() => _convertPoToBill(poId, lineQtys));
 }
 export async function importBankTransactions(
   bankAccountId: number,

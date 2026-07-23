@@ -256,6 +256,8 @@ export const documentLines = pgTable("document_lines", {
   customColumnValue: text("custom_column_value"),
   costCenterId: integer("cost_center_id"), // optional dimension tag, flows into the posted journal line
   warehouseId: integer("warehouse_id"), // stock location for tracked items; null = org's default warehouse
+  /** Purchase-order lines only: running total already billed via convertPoToBill, enabling partial receipt/billing. */
+  billedQty: doublePrecision("billed_qty").notNull().default(0),
 }, (t) => ({
   orgDocIdx: index("idx_document_lines_org").on(t.orgId, t.documentId),
 }));
