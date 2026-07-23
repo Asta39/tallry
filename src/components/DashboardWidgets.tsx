@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { addTodo, toggleTodo, deleteTodo, addEvent, deleteEvent } from "@/lib/staff-actions";
 import { fmtKESCompact, todayISO } from "@/lib/money";
 
@@ -142,10 +143,17 @@ export function TodoWidget({ todos }: { todos: TodoItem[] }) {
 /* ---------------- Calendar with events ---------------- */
 
 export interface CalEvent {
-  id: number;
+  /** Composite string id (e.g. "evt-12", "doc-45") — unique across merged event sources. */
+  id: string;
   title: string;
   date: string;
   color: string;
+  /** Present for system-derived events (invoice/bill due dates, recurring runs) — makes the entry a link instead of plain text. */
+  href?: string;
+  /** Only manually-added calendar events are deletable. */
+  deletable?: boolean;
+  /** The underlying `events` table row id, needed for deleteEvent() — only set for manual events. */
+  dbId?: number;
 }
 
 export function CalendarWidget({ events }: { events: CalEvent[] }) {
@@ -206,36 +214,45 @@ export function CalendarWidget({ events }: { events: CalEvent[] }) {
           <div key={d}>{d}</div>
         ))}
       </div>
-      <div className="grid grid-cols-7 gap-y-0.5">
+      <div className="grid grid-cols-7 gap-y-1 gap-x-0.5">
         {grid.map((date, i) => {
           if (!date) return <div key={i} />;
-          const evs = eventDates.get(date);
+          const evs = eventDates.get(date) ?? [];
           const isToday = date === today;
           const isSelected = date === selected;
           return (
             <button
               key={i}
               onClick={() => setSelected(date)}
-              className={`relative mx-auto w-8 h-8 rounded-full text-[12px] tnum transition-colors ${
-                isSelected
-                  ? "bg-[var(--color-accent-500)] text-white font-semibold"
-                  : isToday
-                  ? "border border-[var(--color-accent-500)] text-[var(--color-accent-700)] font-semibold"
-                  : "hover:bg-[var(--color-ink-50)]"
+              className={`flex flex-col items-center gap-0.5 rounded-lg py-1 px-0.5 transition-colors ${
+                isSelected ? "bg-[var(--color-accent-500)]/10" : "hover:bg-[var(--color-ink-50)]"
               }`}
             >
-              {Number(date.slice(8))}
-              {evs && (
-                <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 flex gap-0.5">
-                  {evs.slice(0, 3).map((e) => (
-                    <span
-                      key={e.id}
-                      className="w-1 h-1 rounded-full"
-                      style={{ background: isSelected ? "white" : e.color }}
-                    />
-                  ))}
-                </span>
-              )}
+              <span
+                className={`w-6 h-6 flex items-center justify-center rounded-full text-[12px] tnum ${
+                  isSelected
+                    ? "bg-[var(--color-accent-500)] text-white font-semibold"
+                    : isToday
+                    ? "border border-[var(--color-accent-500)] text-[var(--color-accent-700)] font-semibold"
+                    : ""
+                }`}
+              >
+                {Number(date.slice(8))}
+              </span>
+              <span className="flex flex-col items-stretch gap-[1px] w-full">
+                {evs.slice(0, 2).map((e) => (
+                  <span
+                    key={e.id}
+                    className="text-[7.5px] leading-[10px] font-semibold truncate px-[3px] rounded-[3px]"
+                    style={{ background: `${e.color}1a`, color: e.color }}
+                  >
+                    {e.title}
+                  </span>
+                ))}
+                {evs.length > 2 && (
+                  <span className="text-[7.5px] leading-[10px] text-[var(--color-ink-400)] text-center">+{evs.length - 2}</span>
+                )}
+              </span>
             </button>
           );
         })}
@@ -250,19 +267,27 @@ export function CalendarWidget({ events }: { events: CalEvent[] }) {
           {selectedEvents.map((e) => (
             <li key={e.id} className="group flex items-center gap-2 text-[12.5px]">
               <span className="w-2 h-2 rounded-full shrink-0" style={{ background: e.color }} />
-              <span className="flex-1 min-w-0 truncate">{e.title}</span>
-              <button
-                onClick={() =>
-                  start(async () => {
-                    await deleteEvent(e.id);
-                    router.refresh();
-                  })
-                }
-                className="opacity-0 group-hover:opacity-100 text-[var(--color-ink-200)] hover:text-[var(--color-bad)]"
-                aria-label="Delete event"
-              >
-                ×
-              </button>
+              {e.href ? (
+                <Link href={e.href} className="flex-1 min-w-0 truncate hover:underline" style={{ color: e.color }}>
+                  {e.title}
+                </Link>
+              ) : (
+                <span className="flex-1 min-w-0 truncate">{e.title}</span>
+              )}
+              {e.deletable && e.dbId != null && (
+                <button
+                  onClick={() =>
+                    start(async () => {
+                      await deleteEvent(e.dbId!);
+                      router.refresh();
+                    })
+                  }
+                  className="opacity-0 group-hover:opacity-100 text-[var(--color-ink-200)] hover:text-[var(--color-bad)]"
+                  aria-label="Delete event"
+                >
+                  ×
+                </button>
+              )}
             </li>
           ))}
           {selectedEvents.length === 0 && (

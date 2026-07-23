@@ -76,7 +76,13 @@ export default async function AppLayout({ children }: { children: React.ReactNod
                 {ents.plan === 'free' ? 'Free Plan' : ents.plan === 'standard' ? 'Standard Plan' : 'Business Plan'}
               </Link>
             </div>
-            <div className="flex-1 max-w-md mx-auto">
+            <div className="flex-1 flex items-center gap-2 max-w-md mx-auto md:hidden">
+              <div className="flex-1 min-w-0">
+                <GlobalSearch />
+              </div>
+              <NotificationBell memberId={access.memberId} variant="inline" />
+            </div>
+            <div className="hidden md:block flex-1 max-w-md mx-auto">
               <GlobalSearch />
             </div>
             <div className="flex-1 hidden md:flex justify-end max-w-[150px]">

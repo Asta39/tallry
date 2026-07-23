@@ -5,7 +5,7 @@ import { getNotifications, markNotificationRead } from "@/lib/actions";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-export function NotificationBell({ memberId }: { memberId: number | null }) {
+export function NotificationBell({ memberId, variant = "fixed" }: { memberId: number | null; variant?: "fixed" | "inline" }) {
   const router = useRouter();
   const [notifications, setNotifications] = useState<any[]>([]);
   const [open, setOpen] = useState(false);
@@ -22,8 +22,10 @@ export function NotificationBell({ memberId }: { memberId: number | null }) {
 
   const unreadCount = notifications.filter((n) => !n.isRead).length;
 
+  const wrapperClass = variant === "fixed" ? "fixed top-4 right-4 md:top-7 md:right-8 z-50" : "relative shrink-0";
+
   return (
-    <div className="fixed top-4 right-4 md:top-7 md:right-8 z-50">
+    <div className={wrapperClass}>
       <button
         onClick={() => setOpen(!open)}
         className="relative p-2 rounded-full bg-white border border-[var(--color-ink-200)] shadow-sm hover:bg-[var(--color-ink-50)] transition-colors"
@@ -40,7 +42,7 @@ export function NotificationBell({ memberId }: { memberId: number | null }) {
       </button>
 
       {open && (
-        <div className="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-lg border border-[var(--color-ink-200)] overflow-hidden">
+        <div className="absolute right-0 mt-2 w-80 max-w-[90vw] bg-white rounded-lg shadow-lg border border-[var(--color-ink-200)] overflow-hidden">
           <div className="px-4 py-3 border-b border-[var(--color-ink-100)] bg-[var(--color-ink-50)] flex justify-between items-center">
             <h3 className="text-sm font-semibold text-[var(--color-ink-600)]">Notifications</h3>
           </div>

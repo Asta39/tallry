@@ -1,7 +1,7 @@
 import { withOrg, getOrg } from "@/lib/org";
 import Link from "next/link";
-import { db, documents, todos, events, documentAssignments } from "@/db";
-import { desc, asc, inArray, and, eq, exists } from "drizzle-orm";
+import { db, documents, todos, events, documentAssignments, recurringTemplates } from "@/db";
+import { desc, asc, inArray, and, eq, exists, isNotNull } from "drizzle-orm";
 import { getAccessCached, canViewAllData } from "@/lib/access";
 import { dashboardStats, monthlyIncomeExpense, docStatusOverview, memberDashboardStats } from "@/lib/reports";
 import { fmtKES, todayISO } from "@/lib/money";
@@ -32,7 +32,7 @@ export default async function Dashboard({
   const ownOnly = !!access && !viewAll && access.perms.has("dashboard_metrics") && !!access.memberId;
 
   // All independent — fire in parallel
-  const [stats, memberStats, chartData, overview, activeShift, recentDocs, todoRows, eventRows] =
+  const [stats, memberStats, chartData, overview, activeShift, recentDocs, todoRows, eventRows, dueDocs, recurringRows] =
     await Promise.all([
       ownOnly ? Promise.resolve(null) : withOrg(() => dashboardStats(today)),
       ownOnly ? withOrg(() => memberDashboardStats(access!.memberId!, today)) : Promise.resolve(null),
@@ -64,6 +64,29 @@ export default async function Dashboard({
         .orderBy(asc(todos.done), desc(todos.id))
         .limit(30),
       db.select().from(events).where(eq(events.orgId, o.id)),
+      // Due-date calendar entries: invoices/bills still owed, with a due date on file.
+      db
+        .select()
+        .from(documents)
+        .where(
+          and(
+            eq(documents.orgId, o.id),
+            inArray(documents.type, ["invoice", "bill"]),
+            inArray(documents.status, ["open", "partial"]),
+            isNotNull(documents.dueDate),
+            viewAll ? undefined : exists(
+              db.select().from(documentAssignments)
+              .where(and(
+                eq(documentAssignments.documentId, documents.id),
+                eq(documentAssignments.memberId, access!.memberId!)
+              ))
+            )
+          )
+        ),
+      // Recurring templates' next scheduled run.
+      viewAll
+        ? db.select().from(recurringTemplates).where(and(eq(recurringTemplates.orgId, o.id), eq(recurringTemplates.active, true)))
+        : Promise.resolve([]),
     ]);
 
   const years = [thisYear, String(Number(thisYear) - 1), String(Number(thisYear) - 2)];
@@ -141,7 +164,23 @@ export default async function Dashboard({
         )}
         <div className={ownOnly ? "lg:col-span-5" : "lg:col-span-2"}>
           <CalendarWidget
-            events={eventRows.map((e) => ({ id: e.id, title: e.title, date: e.date, color: e.color }))}
+            events={[
+              ...eventRows.map((e) => ({ id: `evt-${e.id}`, title: e.title, date: e.date, color: "#515154", deletable: true, dbId: e.id })),
+              ...dueDocs.map((d) => ({
+                id: `doc-${d.id}`,
+                title: d.number,
+                date: d.dueDate!,
+                color: d.type === "invoice" ? "#2563eb" : "#b8860b",
+                href: d.type === "invoice" ? `/sales/invoices/${d.id}` : `/purchases/bills/${d.id}`,
+              })),
+              ...recurringRows.map((r) => ({
+                id: `rec-${r.id}`,
+                title: r.name,
+                date: r.nextRunDate,
+                color: "#1f8a4c",
+                href: "/recurring",
+              })),
+            ]}
           />
         </div>
       </div>

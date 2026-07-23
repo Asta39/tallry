@@ -69,18 +69,18 @@ export function DocOverview({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-6">
         <div>
           <div className="text-[13.5px] font-semibold mb-2">Invoice overview</div>
-          <Row count={data.inv.draft} label="Draft" total={data.invTotal} color={C.gray} href="/sales/invoices" />
-          <Row count={data.inv.open} label="Awaiting payment" total={data.invTotal} color={C.blue} href="/sales/invoices" />
-          <Row count={data.inv.partial} label="Partially paid" total={data.invTotal} color={C.amber} href="/sales/invoices" />
-          <Row count={data.inv.overdue} label="Overdue" total={data.invTotal} color={C.red} href="/reports/aging" />
-          <Row count={data.inv.paid} label="Paid" total={data.invTotal} color={C.green} href="/sales/invoices" />
+          <Row count={data.inv.draft} label="Draft" total={data.invTotal} color={C.gray} href="/sales/invoices?status=draft" />
+          <Row count={data.inv.open} label="Awaiting payment" total={data.invTotal} color={C.blue} href="/sales/invoices?status=open" />
+          <Row count={data.inv.partial} label="Partially paid" total={data.invTotal} color={C.amber} href="/sales/invoices?status=partial" />
+          <Row count={data.inv.overdue} label="Overdue" total={data.invTotal} color={C.red} href="/sales/invoices?status=overdue" />
+          <Row count={data.inv.paid} label="Paid" total={data.invTotal} color={C.green} href="/sales/invoices?status=paid" />
         </div>
         <div>
           <div className="text-[13.5px] font-semibold mb-2">Quote overview</div>
-          <Row count={data.qt.draft} label="Draft" total={data.qtTotal} color={C.gray} href="/sales/quotes" />
-          <Row count={data.qt.open} label="Sent" total={data.qtTotal} color={C.blue} href="/sales/quotes" />
-          <Row count={data.qt.accepted} label="Accepted" total={data.qtTotal} color={C.green} href="/sales/quotes" />
-          <Row count={data.qt.declined} label="Declined" total={data.qtTotal} color={C.red} href="/sales/quotes" />
+          <Row count={data.qt.draft} label="Draft" total={data.qtTotal} color={C.gray} href="/sales/quotes?status=draft" />
+          <Row count={data.qt.open} label="Sent" total={data.qtTotal} color={C.blue} href="/sales/quotes?status=open" />
+          <Row count={data.qt.accepted} label="Accepted" total={data.qtTotal} color={C.green} href="/sales/quotes?status=accepted" />
+          <Row count={data.qt.declined} label="Declined" total={data.qtTotal} color={C.red} href="/sales/quotes?status=declined" />
         </div>
       </div>
 

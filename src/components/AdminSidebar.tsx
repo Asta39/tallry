@@ -99,7 +99,7 @@ export function AdminSidebar({ userEmail }: { userEmail: string }) {
   return (
     <>
       <div className="md:hidden no-print fixed top-0 inset-x-0 z-40 px-3 pt-3">
-        <div className="relative sidebar-chrome rounded-2xl shadow-[0_2px_14px_rgba(0,0,0,0.08)] border border-[var(--color-ink-100)]/70 h-16 flex items-center justify-center">
+        <div className="relative sidebar-chrome rounded-[32px] shadow-[0_2px_14px_rgba(0,0,0,0.08)] border border-[var(--color-ink-100)]/70 h-16 flex items-center justify-center">
           <button
             onClick={() => setOpen(true)}
             aria-label="Open menu"
