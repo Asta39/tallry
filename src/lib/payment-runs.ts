@@ -116,9 +116,16 @@ export async function postPaymentRunAction(runId: number) {
     await requirePerm("accountant");
     const orgId = currentOrgId();
 
-    const [run] = await db.select().from(paymentRuns).where(and(eq(paymentRuns.orgId, orgId), eq(paymentRuns.id, runId))).limit(1);
-    if (!run) throw new Error("Payment run not found");
-    if (run.status !== "draft") throw new Error("This run has already been posted");
+    // Atomic claim: two concurrent "Post run" clicks must not both loop over
+    // the same items — the per-bill remaining-balance check below narrows the
+    // window but doesn't close it (both could read the same starting balance
+    // before either payment lands), so the run itself is claimed first.
+    const [run] = await db
+      .update(paymentRuns)
+      .set({ status: "posting" })
+      .where(and(eq(paymentRuns.orgId, orgId), eq(paymentRuns.id, runId), eq(paymentRuns.status, "draft")))
+      .returning();
+    if (!run) throw new Error("This run has already been posted");
 
     const items = await db.select().from(paymentRunItems).where(and(eq(paymentRunItems.orgId, orgId), eq(paymentRunItems.runId, runId)));
 

@@ -86,28 +86,38 @@ export async function approveExpenseClaimAction(id: number) {
     const access = await getAccess();
     const orgId = currentOrgId();
 
-    const [claim] = await db.select().from(expenseClaims).where(and(eq(expenseClaims.id, id), eq(expenseClaims.orgId, orgId))).limit(1);
-    if (!claim) throw new Error("Claim not found");
-    if (claim.status !== "pending") throw new Error("Claim already reviewed");
+    // Atomic claim: two accountants approving simultaneously must not both
+    // post the payable journal for the same claim.
+    const [claim] = await db
+      .update(expenseClaims)
+      .set({ status: "approving" })
+      .where(and(eq(expenseClaims.id, id), eq(expenseClaims.orgId, orgId), eq(expenseClaims.status, "pending")))
+      .returning();
+    if (!claim) throw new Error("Claim already reviewed");
 
-    const payable = await payableAccountId();
-    const entryId = await postEntry({
-      date: todayISO(),
-      memo: `Expense claim: ${claim.description} (${claim.submittedByName})`,
-      sourceType: "expense_claim",
-      sourceId: claim.id,
-      lines: [
-        { accountId: claim.categoryAccountId, debitCents: claim.amountCents },
-        { accountId: payable, creditCents: claim.amountCents },
-      ],
-    });
+    try {
+      const payable = await payableAccountId();
+      const entryId = await postEntry({
+        date: todayISO(),
+        memo: `Expense claim: ${claim.description} (${claim.submittedByName})`,
+        sourceType: "expense_claim",
+        sourceId: claim.id,
+        lines: [
+          { accountId: claim.categoryAccountId, debitCents: claim.amountCents },
+          { accountId: payable, creditCents: claim.amountCents },
+        ],
+      });
 
-    await db.update(expenseClaims).set({
-      status: "approved",
-      reviewedByName: access?.memberName || "Owner",
-      journalEntryId: entryId,
-      reviewedAt: nowISO(),
-    }).where(eq(expenseClaims.id, id));
+      await db.update(expenseClaims).set({
+        status: "approved",
+        reviewedByName: access?.memberName || "Owner",
+        journalEntryId: entryId,
+        reviewedAt: nowISO(),
+      }).where(eq(expenseClaims.id, id));
+    } catch (e) {
+      await db.update(expenseClaims).set({ status: "pending" }).where(and(eq(expenseClaims.id, id), eq(expenseClaims.status, "approving")));
+      throw e;
+    }
 
     revalidatePath("/expense-claims");
     return { success: true };
@@ -120,16 +130,17 @@ export async function rejectExpenseClaimAction(id: number, note: string) {
     const access = await getAccess();
     const orgId = currentOrgId();
 
-    const [claim] = await db.select().from(expenseClaims).where(and(eq(expenseClaims.id, id), eq(expenseClaims.orgId, orgId))).limit(1);
-    if (!claim) throw new Error("Claim not found");
-    if (claim.status !== "pending") throw new Error("Claim already reviewed");
-
-    await db.update(expenseClaims).set({
-      status: "rejected",
-      reviewedByName: access?.memberName || "Owner",
-      reviewNote: note || null,
-      reviewedAt: nowISO(),
-    }).where(eq(expenseClaims.id, id));
+    const [claim] = await db
+      .update(expenseClaims)
+      .set({
+        status: "rejected",
+        reviewedByName: access?.memberName || "Owner",
+        reviewNote: note || null,
+        reviewedAt: nowISO(),
+      })
+      .where(and(eq(expenseClaims.id, id), eq(expenseClaims.orgId, orgId), eq(expenseClaims.status, "pending")))
+      .returning();
+    if (!claim) throw new Error("Claim already reviewed");
 
     revalidatePath("/expense-claims");
     return { success: true };
@@ -142,41 +153,51 @@ export async function payExpenseClaimAction(id: number, bankAccountId: number) {
     await requirePerm("accountant");
     const orgId = currentOrgId();
 
-    const [claim] = await db.select().from(expenseClaims).where(and(eq(expenseClaims.id, id), eq(expenseClaims.orgId, orgId))).limit(1);
-    if (!claim) throw new Error("Claim not found");
-    if (claim.status !== "approved") throw new Error("Only approved claims can be paid");
+    // Atomic claim: two concurrent "Pay" clicks on the same approved claim must
+    // not both post a reimbursement — that would pay the employee twice.
+    const [claim] = await db
+      .update(expenseClaims)
+      .set({ status: "paying" })
+      .where(and(eq(expenseClaims.id, id), eq(expenseClaims.orgId, orgId), eq(expenseClaims.status, "approved")))
+      .returning();
+    if (!claim) throw new Error("Only approved claims can be paid");
 
-    const [bank] = await db.select().from(bankAccounts).where(and(eq(bankAccounts.id, bankAccountId), eq(bankAccounts.orgId, orgId))).limit(1);
-    if (!bank) throw new Error("Bank account not found");
+    try {
+      const [bank] = await db.select().from(bankAccounts).where(and(eq(bankAccounts.id, bankAccountId), eq(bankAccounts.orgId, orgId))).limit(1);
+      if (!bank) throw new Error("Bank account not found");
 
-    const payable = await payableAccountId();
-    const date = todayISO();
-    const entryId = await postEntry({
-      date,
-      memo: `Reimbursement paid: ${claim.description} (${claim.submittedByName})`,
-      sourceType: "expense_claim_payment",
-      sourceId: claim.id,
-      lines: [
-        { accountId: payable, debitCents: claim.amountCents },
-        { accountId: bank.accountId, creditCents: claim.amountCents },
-      ],
-    });
+      const payable = await payableAccountId();
+      const date = todayISO();
+      const entryId = await postEntry({
+        date,
+        memo: `Reimbursement paid: ${claim.description} (${claim.submittedByName})`,
+        sourceType: "expense_claim_payment",
+        sourceId: claim.id,
+        lines: [
+          { accountId: payable, debitCents: claim.amountCents },
+          { accountId: bank.accountId, creditCents: claim.amountCents },
+        ],
+      });
 
-    await mirrorBankTxn({
-      bankAccountId: bank.id,
-      date,
-      description: `Reimbursement · ${claim.submittedByName}`,
-      amountCents: -claim.amountCents,
-      journalEntryId: entryId,
-      externalRef: `expclaim:${claim.id}`,
-    });
+      await mirrorBankTxn({
+        bankAccountId: bank.id,
+        date,
+        description: `Reimbursement · ${claim.submittedByName}`,
+        amountCents: -claim.amountCents,
+        journalEntryId: entryId,
+        externalRef: `expclaim:${claim.id}`,
+      });
 
-    await db.update(expenseClaims).set({
-      status: "paid",
-      paidJournalEntryId: entryId,
-      bankAccountId: bank.id,
-      paidAt: nowISO(),
-    }).where(eq(expenseClaims.id, id));
+      await db.update(expenseClaims).set({
+        status: "paid",
+        paidJournalEntryId: entryId,
+        bankAccountId: bank.id,
+        paidAt: nowISO(),
+      }).where(eq(expenseClaims.id, id));
+    } catch (e) {
+      await db.update(expenseClaims).set({ status: "approved" }).where(and(eq(expenseClaims.id, id), eq(expenseClaims.status, "paying")));
+      throw e;
+    }
 
     revalidatePath("/expense-claims");
     revalidatePath("/banking");

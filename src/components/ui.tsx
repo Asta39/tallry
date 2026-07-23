@@ -92,7 +92,7 @@ const pillLabels: Record<string, string> = {
 };
 
 export function StatusPill({ status, overdue }: { status: string; overdue?: boolean }) {
-  const s = overdue && status === "open" ? "overdue" : status;
+  const s = overdue && (status === "open" || status === "partial") ? "overdue" : status;
   return (
     <span
       className={`inline-block rounded-full px-2.5 py-0.5 text-[11px] font-medium ${

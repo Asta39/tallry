@@ -58,7 +58,7 @@ export async function DocList({
   const statsRaw = await db
     .select({
       status: documents.status,
-      overdue: sql<boolean>`${documents.status} = 'open' AND ${documents.dueDate} < ${today}`,
+      overdue: sql<boolean>`${documents.status} IN ('open', 'partial') AND ${documents.dueDate} < ${today}`,
       total: sql<number>`sum(${documents.totalCents})`.mapWith(Number),
       paid: sql<number>`sum(${documents.paidCents})`.mapWith(Number),
     })
@@ -80,6 +80,7 @@ export async function DocList({
     if (r.status === "partial") {
       stats.partial += amt;
       outstandingTotal += (amt - r.paid);
+      if (r.overdue) stats.overdue += amt;
     }
     if (r.status === "paid") stats.paid += amt;
   }
@@ -98,7 +99,7 @@ export async function DocList({
       : undefined,
     statusFilter !== "all"
       ? statusFilter === "overdue"
-        ? and(eq(documents.status, "open"), sql`${documents.dueDate} < ${today}`)
+        ? and(sql`${documents.status} IN ('open', 'partial')`, sql`${documents.dueDate} < ${today}`)
         : eq(documents.status, statusFilter)
       : undefined
   );

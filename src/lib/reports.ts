@@ -341,7 +341,7 @@ export async function docStatusOverview(year: string, memberId?: number) {
 
   for (const d of docs) {
     if (d.type === "invoice") {
-      const isOverdue = d.status === "open" && !!d.dueDate && d.dueDate < today;
+      const isOverdue = (d.status === "open" || d.status === "partial") && !!d.dueDate && d.dueDate < today;
       if (isOverdue) inv.overdue++;
       else if (d.status in inv) inv[d.status as keyof typeof inv]++;
       if (["open", "partial"].includes(d.status)) {

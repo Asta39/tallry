@@ -213,5 +213,7 @@ function docHref(type: string, id: number) {
 }
 
 function isOverdue(status: string, dueDate: string | null, today: string) {
-  return status === "open" && !!dueDate && dueDate < today;
+  // "partial" invoices/bills are still owed money past due — they must count as
+  // overdue too, not just fully-unpaid "open" ones.
+  return (status === "open" || status === "partial") && !!dueDate && dueDate < today;
 }

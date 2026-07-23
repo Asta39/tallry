@@ -57,7 +57,7 @@ export async function DocDetail({ id, printHref }: { id: number; printHref?: str
         action={
           <StatusPill
             status={doc.status}
-            overdue={doc.status === "open" && !!doc.dueDate && doc.dueDate < todayISO()}
+            overdue={(doc.status === "open" || doc.status === "partial") && !!doc.dueDate && doc.dueDate < todayISO()}
           />
         }
       />

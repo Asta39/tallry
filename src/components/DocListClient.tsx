@@ -149,7 +149,7 @@ export function DocListClient({
                 </Td>
                 <Td>{contactName ?? "—"}</Td>
                 <Td>
-                  <StatusPill status={d.status} overdue={d.status === "open" && !!d.dueDate && d.dueDate < today} />
+                  <StatusPill status={d.status} overdue={(d.status === "open" || d.status === "partial") && !!d.dueDate && d.dueDate < today} />
                 </Td>
                 <Td right>{fmtKES(d.totalCents)}</Td>
                 <Td right className="font-medium">

@@ -17,7 +17,7 @@ import {
   documentAssignments,
   notifications,
 } from "@/db";
-import { eq, and, desc, isNull } from "drizzle-orm";
+import { eq, and, ne, desc, isNull } from "drizzle-orm";
 import { currentOrgId, withOrg, seedOrgDefaults } from "@/lib/org";
 import { revalidatePath as nextRevalidatePath } from "next/cache";
 import { computeDocument, type TaxClass, TAX_CLASSES } from "./tax";
@@ -300,16 +300,12 @@ async function _saveDocument(data: {
     if (existing.type === "quote") {
       if (existing.status !== "draft" && existing.status !== "open") throw new Error("Only draft or open quotes can be edited");
     } else if (existing.type === "invoice") {
-      if (!["draft", "open", "partial"].includes(existing.status)) throw new Error("Only draft, open, or partial invoices can be edited");
-      if (existing.status !== "draft") {
-        if (totals.totalCents <= existing.paidCents) {
-          newStatus = "paid";
-        } else if (existing.paidCents > 0) {
-          newStatus = "partial";
-        } else {
-          newStatus = "open";
-        }
-      }
+      // Once issued, postInvoice() has already written AR/Sales/VAT to the ledger for the
+      // original amounts. Editing line items here only rewrote the document's own totals —
+      // the journal entry was never reversed/reposted — so an edited invoice would silently
+      // diverge from its own GL entry (e.g. edit total below paidCents flips status to "paid"
+      // while the ledger still carries the original AR balance). Void and reissue instead.
+      if (existing.status !== "draft") throw new Error("Issued invoices can't be edited — void and reissue instead");
     } else {
       if (existing.status !== "draft") throw new Error("Only drafts can be edited");
     }
@@ -517,9 +513,27 @@ async function _markQuote(docId: number, status: "accepted" | "declined") {
 
 /** Convert an accepted quote into a draft invoice. */
 async function _convertQuoteToInvoice(quoteId: number): Promise<number> {
-  const [quote] = await db.select().from(documents).where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, quoteId))).limit(1);
-  if (!quote || quote.type !== "quote") throw new Error("Quote not found");
+  const orgId = currentOrgId();
+  // Atomic claim: a double-click (or a second explicit call) on an
+  // already-converted quote must not create a second, independent invoice.
+  const [quote] = await db
+    .update(documents)
+    .set({ status: "converting" })
+    .where(and(eq(documents.orgId, orgId), eq(documents.id, quoteId), eq(documents.type, "quote"), ne(documents.status, "accepted")))
+    .returning();
+  if (!quote) throw new Error("This quote was already converted to an invoice");
   const lines = await db.select().from(documentLines).where(eq(documentLines.documentId, quoteId));
+  let invoiceId: number;
+  try {
+    invoiceId = await _convertQuoteToInvoiceInner(quote, lines);
+  } catch (e) {
+    await db.update(documents).set({ status: "open" }).where(and(eq(documents.orgId, orgId), eq(documents.id, quoteId), eq(documents.status, "converting")));
+    throw e;
+  }
+  return invoiceId;
+}
+
+async function _convertQuoteToInvoiceInner(quote: typeof documents.$inferSelect, lines: (typeof documentLines.$inferSelect)[]): Promise<number> {
   const invoiceId = await saveDocument({
     type: "invoice",
     contactId: quote.contactId,
@@ -540,9 +554,9 @@ async function _convertQuoteToInvoice(quoteId: number): Promise<number> {
   });
   await db
     .update(documents)
-    .set({ sourceDocId: quoteId, status: "draft" })
+    .set({ sourceDocId: quote.id, status: "draft" })
     .where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, invoiceId)));
-  await db.update(documents).set({ status: "accepted" }).where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, quoteId)));
+  await db.update(documents).set({ status: "accepted" }).where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, quote.id)));
   return invoiceId;
 }
 
@@ -847,10 +861,22 @@ export async function approveBillAction(docId: number) {
   return withOrg(async () => {
     const access = await getAccess();
     if (!access?.perms.has("accountant")) throw new Error("Not authorized to approve bills");
-    const [doc] = await db.select().from(documents).where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, docId))).limit(1);
-    if (!doc || doc.type !== "bill") throw new Error("Bill not found");
-    if (doc.status !== "pending_approval") throw new Error("This bill isn't awaiting approval");
-    await postBill(docId);
+    const orgId = currentOrgId();
+    // Atomic claim: only the first "Approve" click flips status off
+    // pending_approval — two accountants clicking simultaneously must not
+    // both pass the check and both post the bill twice.
+    const [claimed] = await db
+      .update(documents)
+      .set({ status: "approving" })
+      .where(and(eq(documents.orgId, orgId), eq(documents.id, docId), eq(documents.type, "bill"), eq(documents.status, "pending_approval")))
+      .returning();
+    if (!claimed) throw new Error("This bill isn't awaiting approval");
+    try {
+      await postBill(docId);
+    } catch (e) {
+      await db.update(documents).set({ status: "pending_approval" }).where(and(eq(documents.orgId, orgId), eq(documents.id, docId), eq(documents.status, "approving")));
+      throw e;
+    }
     revalidatePath("/purchases/bills");
     return { success: true };
   }, { requireWrite: true });
@@ -860,10 +886,13 @@ export async function rejectBillAction(docId: number, note: string) {
   return withOrg(async () => {
     const access = await getAccess();
     if (!access?.perms.has("accountant")) throw new Error("Not authorized to reject bills");
-    const [doc] = await db.select().from(documents).where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, docId))).limit(1);
-    if (!doc || doc.type !== "bill") throw new Error("Bill not found");
-    if (doc.status !== "pending_approval") throw new Error("This bill isn't awaiting approval");
-    await db.update(documents).set({ status: "draft", approvalNote: note || "Rejected" }).where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, docId)));
+    const orgId = currentOrgId();
+    const [claimed] = await db
+      .update(documents)
+      .set({ status: "draft", approvalNote: note || "Rejected" })
+      .where(and(eq(documents.orgId, orgId), eq(documents.id, docId), eq(documents.type, "bill"), eq(documents.status, "pending_approval")))
+      .returning();
+    if (!claimed) throw new Error("This bill isn't awaiting approval");
     revalidatePath("/purchases/bills");
     return { success: true };
   });
