@@ -61,6 +61,7 @@ export async function DocList({
       overdue: sql<boolean>`${documents.status} IN ('open', 'partial') AND ${documents.dueDate} < ${today}`,
       total: sql<number>`sum(${documents.totalCents})`.mapWith(Number),
       paid: sql<number>`sum(${documents.paidCents})`.mapWith(Number),
+      credited: sql<number>`sum(${documents.creditedCents})`.mapWith(Number),
     })
     .from(documents)
     .where(baseWhere)
@@ -74,12 +75,12 @@ export async function DocList({
     if (r.status === "draft") stats.draft += amt;
     if (r.status === "open") {
       stats.pending += amt;
-      outstandingTotal += (amt - r.paid);
+      outstandingTotal += (amt - r.paid - r.credited);
       if (r.overdue) stats.overdue += amt;
     }
     if (r.status === "partial") {
       stats.partial += amt;
-      outstandingTotal += (amt - r.paid);
+      outstandingTotal += (amt - r.paid - r.credited);
       if (r.overdue) stats.overdue += amt;
     }
     if (r.status === "paid") stats.paid += amt;

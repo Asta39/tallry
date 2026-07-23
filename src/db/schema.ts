@@ -214,6 +214,9 @@ export const documents = pgTable("documents", {
   taxCents: money("tax_cents").notNull().default(0),
   totalCents: money("total_cents").notNull().default(0),
   paidCents: money("paid_cents").notNull().default(0),
+  /** Sum of credit notes applied against this invoice — kept separate from paidCents
+   * (real cash received) so cash-collected reports don't get inflated by non-cash credits. */
+  creditedCents: money("credited_cents").notNull().default(0),
   sourceDocId: integer("source_doc_id"), // quote → invoice lineage
   journalEntryId: integer("journal_entry_id"),
   // eTIMS fields (populated on invoice issue by the TaxDevice)

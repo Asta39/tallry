@@ -160,15 +160,23 @@ export async function DocDetail({ id, printHref }: { id: number; printHref?: str
               <span>Total</span>
               <span className="tnum">{fmtKES(doc.totalCents)}</span>
             </div>
-            {doc.paidCents > 0 && (
+            {(doc.paidCents > 0 || doc.creditedCents > 0) && (
               <>
-                <div className="flex justify-between text-[var(--color-good)]">
-                  <span>Paid</span>
-                  <span className="tnum">−{fmtKES(doc.paidCents)}</span>
-                </div>
+                {doc.paidCents > 0 && (
+                  <div className="flex justify-between text-[var(--color-good)]">
+                    <span>Paid</span>
+                    <span className="tnum">−{fmtKES(doc.paidCents)}</span>
+                  </div>
+                )}
+                {doc.creditedCents > 0 && (
+                  <div className="flex justify-between text-[var(--color-good)]">
+                    <span>Credited</span>
+                    <span className="tnum">−{fmtKES(doc.creditedCents)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between font-semibold">
                   <span>Balance due</span>
-                  <span className="tnum">{fmtKES(doc.totalCents - doc.paidCents)}</span>
+                  <span className="tnum">{fmtKES(doc.totalCents - doc.paidCents - doc.creditedCents)}</span>
                 </div>
               </>
             )}

@@ -186,7 +186,7 @@ export async function aging(type: "invoice" | "bill", asOf: string) {
   const rows = docs.map((d) => {
     const due = d.dueDate ?? d.date;
     const days = Math.floor((Date.parse(asOf) - Date.parse(due)) / 86_400_000);
-    const balance = d.totalCents - d.paidCents;
+    const balance = d.totalCents - d.paidCents - d.creditedCents;
     const bucket =
       days <= 0 ? "current" : days <= 30 ? "d1_30" : days <= 60 ? "d31_60" : days <= 90 ? "d61_90" : "d90plus";
     buckets[bucket] += balance;
@@ -313,6 +313,7 @@ export async function docStatusOverview(year: string, memberId?: number) {
       dueDate: documents.dueDate,
       totalCents: documents.totalCents,
       paidCents: documents.paidCents,
+      creditedCents: documents.creditedCents,
     })
     .from(documents)
     .where(
@@ -345,7 +346,7 @@ export async function docStatusOverview(year: string, memberId?: number) {
       if (isOverdue) inv.overdue++;
       else if (d.status in inv) inv[d.status as keyof typeof inv]++;
       if (["open", "partial"].includes(d.status)) {
-        const bal = d.totalCents - d.paidCents;
+        const bal = d.totalCents - d.paidCents - d.creditedCents;
         outstandingCents += bal;
         if (d.dueDate && d.dueDate < today) pastDueCents += bal;
       }
@@ -373,6 +374,7 @@ export async function memberDashboardStats(memberId: number, today: string) {
       dueDate: documents.dueDate,
       totalCents: documents.totalCents,
       paidCents: documents.paidCents,
+      creditedCents: documents.creditedCents,
     })
     .from(documents)
     .where(
@@ -394,7 +396,7 @@ export async function memberDashboardStats(memberId: number, today: string) {
   let collectedThisYearCents = 0;
 
   for (const d of docs) {
-    const bal = d.totalCents - d.paidCents;
+    const bal = d.totalCents - d.paidCents - d.creditedCents;
     const open = ["open", "partial", "overdue"].includes(d.status);
     if (d.type === "invoice") {
       if (open) {
@@ -496,6 +498,7 @@ export async function invoicesReport(fromDate: string, toDate: string) {
       status: documents.status,
       totalCents: documents.totalCents,
       paidCents: documents.paidCents,
+      creditedCents: documents.creditedCents,
       contactId: documents.contactId,
       customerName: contacts.displayName,
     })
@@ -518,7 +521,7 @@ export async function invoicesReport(fromDate: string, toDate: string) {
     status: r.status,
     totalCents: Number(r.totalCents),
     paidCents: Number(r.paidCents),
-    balanceCents: Number(r.totalCents) - Number(r.paidCents),
+    balanceCents: Number(r.totalCents) - Number(r.paidCents) - Number(r.creditedCents),
     customerName: r.customerName,
   }));
 }
@@ -677,6 +680,7 @@ export async function customersReport(fromDate: string, toDate: string) {
       customerName: contacts.displayName,
       totalSalesCents: sql<number>`coalesce(sum(${documents.totalCents}), 0)`,
       paidCents: sql<number>`coalesce(sum(${documents.paidCents}), 0)`,
+      creditedCents: sql<number>`coalesce(sum(${documents.creditedCents}), 0)`,
     })
     .from(documents)
     .innerJoin(contacts, eq(documents.contactId, contacts.id))
@@ -697,7 +701,7 @@ export async function customersReport(fromDate: string, toDate: string) {
     customerName: r.customerName,
     totalSalesCents: Number(r.totalSalesCents),
     paidCents: Number(r.paidCents),
-    balanceCents: Number(r.totalSalesCents) - Number(r.paidCents),
+    balanceCents: Number(r.totalSalesCents) - Number(r.paidCents) - Number(r.creditedCents),
   }));
 }
 

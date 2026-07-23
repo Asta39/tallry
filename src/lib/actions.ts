@@ -959,43 +959,52 @@ async function _createCreditNoteFromInvoice(invoiceId: number): Promise<number> 
 }
 
 async function _convertPoToBill(poId: number): Promise<number> {
+  const orgId = currentOrgId();
+  // Atomic claim: blocks converting an already-closed PO (no guard existed before —
+  // a second conversion attempt would just create another full-quantity bill
+  // against a PO that was already fully billed) and a concurrent double-click.
   const [po] = await db
-    .select()
-    .from(documents)
-    .where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, poId)))
-    .limit(1);
-  if (!po || po.type !== "purchase_order") throw new Error("Purchase order not found");
-  const lines = await db
-    .select()
-    .from(documentLines)
-    .where(and(eq(documentLines.orgId, currentOrgId()), eq(documentLines.documentId, poId)));
-  const billId = await _saveDocument({
-    type: "bill",
-    contactId: po.contactId,
-    date: todayISO(),
-    taxInclusive: po.taxInclusive,
-    billNumber: `BILL-${po.number}`,
-    notes: po.notes ?? undefined,
-    lines: lines.map((l) => ({
-      itemId: l.itemId,
-      description: l.description,
-      qty: l.qty,
-      unitPriceCents: l.unitPriceCents,
-      discountPct: l.discountPct,
-      taxClass: l.taxClass as TaxClass,
-      accountId: l.accountId,
-    })),
-  });
-  await db
     .update(documents)
-    .set({ sourceDocId: poId })
-    .where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, billId)));
-  await db
-    .update(documents)
-    .set({ status: "closed" })
-    .where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, poId)));
-  revalidatePath("/purchases");
-  return billId;
+    .set({ status: "converting" })
+    .where(and(eq(documents.orgId, orgId), eq(documents.id, poId), eq(documents.type, "purchase_order"), eq(documents.status, "open")))
+    .returning();
+  if (!po) throw new Error("This purchase order was already converted to a bill (or isn't open)");
+  try {
+    const lines = await db
+      .select()
+      .from(documentLines)
+      .where(and(eq(documentLines.orgId, currentOrgId()), eq(documentLines.documentId, poId)));
+    const billId = await _saveDocument({
+      type: "bill",
+      contactId: po.contactId,
+      date: todayISO(),
+      taxInclusive: po.taxInclusive,
+      billNumber: `BILL-${po.number}`,
+      notes: po.notes ?? undefined,
+      lines: lines.map((l) => ({
+        itemId: l.itemId,
+        description: l.description,
+        qty: l.qty,
+        unitPriceCents: l.unitPriceCents,
+        discountPct: l.discountPct,
+        taxClass: l.taxClass as TaxClass,
+        accountId: l.accountId,
+      })),
+    });
+    await db
+      .update(documents)
+      .set({ sourceDocId: poId })
+      .where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, billId)));
+    await db
+      .update(documents)
+      .set({ status: "closed" })
+      .where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, poId)));
+    revalidatePath("/purchases");
+    return billId;
+  } catch (e) {
+    await db.update(documents).set({ status: "open" }).where(and(eq(documents.orgId, orgId), eq(documents.id, poId), eq(documents.status, "converting")));
+    throw e;
+  }
 }
 
 /* ---------------- Bank statement import ---------------- */

@@ -10,7 +10,7 @@ import {
   items,
   payments as paymentsTable,
 } from "@/db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { currentOrgId } from "@/lib/org";
 import { SYS } from "./coa";
 import { addLot, consumeFifo } from "./inventory";
@@ -205,6 +205,26 @@ export async function postCreditNote(docId: number): Promise<number> {
     .update(documents)
     .set({ journalEntryId: entryId, status: "open" })
     .where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, doc.id)));
+
+  // If this credit note was raised against a specific invoice, apply it to that
+  // invoice's balance due — kept in creditedCents (separate from paidCents, which
+  // represents actual cash received) so the invoice's own status/balance-due
+  // display and every list/report using it stay in sync with the credit note,
+  // without inflating "cash collected" figures.
+  if (doc.sourceDocId) {
+    const [inv] = await db
+      .update(documents)
+      .set({ creditedCents: sql`${documents.creditedCents} + ${doc.totalCents}` })
+      .where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, doc.sourceDocId), eq(documents.type, "invoice")))
+      .returning();
+    if (inv && !["draft", "void"].includes(inv.status)) {
+      const remaining = inv.totalCents - inv.paidCents - inv.creditedCents;
+      const status = remaining <= 0 ? "paid" : inv.paidCents > 0 || inv.creditedCents > 0 ? "partial" : "open";
+      if (inv.status !== status) {
+        await db.update(documents).set({ status }).where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, inv.id)));
+      }
+    }
+  }
   return entryId;
 }
 
@@ -403,14 +423,13 @@ export async function postPayment(paymentId: number): Promise<number> {
     // must not race on a read-then-write of paidCents and lose one payment's
     // contribution to this denormalized field (the ledger itself is unaffected
     // either way; this is the document-level cache used for status/balance-due display).
-    const { sql: rawSql } = await import("drizzle-orm");
     const [doc] = await db
       .update(documents)
-      .set({ paidCents: rawSql`${documents.paidCents} + ${p.amountCents}` })
+      .set({ paidCents: sql`${documents.paidCents} + ${p.amountCents}` })
       .where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, p.documentId)))
       .returning();
     if (doc) {
-      const status = doc.paidCents >= doc.totalCents ? "paid" : "partial";
+      const status = doc.paidCents + doc.creditedCents >= doc.totalCents ? "paid" : "partial";
       if (doc.status !== status) {
         await db.update(documents).set({ status }).where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, doc.id)));
       }
