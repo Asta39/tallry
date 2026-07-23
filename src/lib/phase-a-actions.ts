@@ -292,6 +292,7 @@ export async function saveRecurringTemplate(data: {
   taxInclusive: boolean;
   autoIssue: boolean;
   notes?: string;
+  assignedMemberId?: number | null;
   lines: DocLineInput[];
 }) {
   return withOrg(async () => {
@@ -315,6 +316,7 @@ export async function saveRecurringTemplate(data: {
       taxInclusive: data.taxInclusive,
       autoIssue: data.autoIssue,
       notes: data.notes ?? null,
+      assignedMemberId: data.assignedMemberId ?? null,
       linesJson: JSON.stringify(data.lines),
     };
     if (data.id) {
@@ -369,6 +371,7 @@ export async function runDueRecurring(): Promise<{ created: number; stillBehind:
       );
 
     let created = 0;
+    let unassignedCreated = 0;
     const stillBehind: string[] = [];
     for (const t of due) {
       const runs = dueRuns(t.nextRunDate, t.frequency as Frequency, today);
@@ -383,12 +386,18 @@ export async function runDueRecurring(): Promise<{ created: number; stillBehind:
           taxInclusive: t.taxInclusive,
           notes: t.notes ? `${t.notes}` : `Recurring: ${t.name}`,
           paidFromBankAccountId: t.paidFromBankAccountId,
+          // Assign to the template's owner (if set) so the generated document stays
+          // visible to them under data segregation and they — not every accountant/sales
+          // person — get pinged (saveDocument fires a per-document "New Assignment"
+          // notification straight to this assignee).
+          assignedMemberIds: t.assignedMemberId ? [t.assignedMemberId] : undefined,
           lines,
         });
         if (t.autoIssue) {
           await issueDocument(docId);
         }
         created++;
+        if (!t.assignedMemberId) unassignedCreated++;
         cursor = advance(runDate, t.frequency as Frequency);
         await db
           .update(recurringTemplates)
@@ -402,15 +411,21 @@ export async function runDueRecurring(): Promise<{ created: number; stillBehind:
         stillBehind.push(t.name);
       }
     }
-    if (created > 0) {
+    // Assigned templates already notified their owner per-document (via saveDocument's
+    // assignment notification) — only broadcast the role-wide digest for the
+    // unassigned ones, so assignees aren't double-pinged and everyone else isn't
+    // spammed about documents they can't even see under data segregation.
+    if (unassignedCreated > 0) {
       await notifyOrg(
         orgId,
         ["admin", "sales", "accountant"],
         "Recurring Templates Ran",
-        `Generated ${created} new document(s) from recurring templates.` +
+        `Generated ${unassignedCreated} new document(s) from recurring templates.` +
           (stillBehind.length > 0 ? ` ${stillBehind.length} template(s) are still behind and need another run.` : ""),
         "/sales/invoices"
       );
+    }
+    if (created > 0) {
       revalidatePath("/");
       revalidatePath("/sales/invoices");
       revalidatePath("/purchases/bills");

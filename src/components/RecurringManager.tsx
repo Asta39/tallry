@@ -23,6 +23,7 @@ export interface RecurringRow {
   docType: string;
   contactId: number | null;
   contactName: string | null;
+  assignedMemberId: number | null;
   paidFromBankAccountId: number | null;
   frequency: string;
   nextRunDate: string;
@@ -48,12 +49,14 @@ export function RecurringManager({
   customers,
   vendors,
   bankAccounts,
+  staff,
   dueCount,
 }: {
   rows: RecurringRow[];
   customers: Option[];
   vendors: Option[];
   bankAccounts: Option[];
+  staff: Option[];
   dueCount: number;
 }) {
   const router = useRouter();
@@ -72,6 +75,7 @@ export function RecurringManager({
   const [nextRun, setNextRun] = useState(todayISO());
   const [dueInDays, setDueInDays] = useState("30");
   const [autoIssue, setAutoIssue] = useState(false);
+  const [assignedMemberId, setAssignedMemberId] = useState<number | "">("");
   const [lines, setLines] = useState<FormLine[]>([emptyLine()]);
 
   function resetForm() {
@@ -84,6 +88,7 @@ export function RecurringManager({
     setNextRun(todayISO());
     setDueInDays("30");
     setAutoIssue(false);
+    setAssignedMemberId("");
     setLines([emptyLine()]);
   }
 
@@ -97,6 +102,7 @@ export function RecurringManager({
     setNextRun(r.nextRunDate);
     setDueInDays(String(r.dueInDays));
     setAutoIssue(r.autoIssue);
+    setAssignedMemberId(r.assignedMemberId ?? "");
     setLines(
       r.lines.length
         ? r.lines.map((l) => ({
@@ -142,6 +148,7 @@ export function RecurringManager({
           dueInDays: Number(dueInDays) || 30,
           taxInclusive: false,
           autoIssue,
+          assignedMemberId: assignedMemberId === "" ? null : assignedMemberId,
           lines: parsedLines,
         });
         setShowForm(false);
@@ -253,6 +260,20 @@ export function RecurringManager({
                 Issue automatically (off = create as draft for review)
               </span>
             </label>
+            {staff.length > 0 && (
+              <label className="block">
+                <span className={label}>Assign to</span>
+                <select value={assignedMemberId} onChange={(e) => setAssignedMemberId(e.target.value ? Number(e.target.value) : "")} className={input}>
+                  <option value="">Unassigned (visible to everyone with access)</option>
+                  {staff.map((s) => (
+                    <option key={s.id} value={s.id}>{s.label}</option>
+                  ))}
+                </select>
+                <div className="text-[11px] text-[var(--color-ink-400)] mt-1">
+                  Generated documents are assigned to this person — only they get notified when this template runs, and (with data segregation on) only they'll see the resulting documents.
+                </div>
+              </label>
+            )}
           </div>
 
           <div className="mt-4 rounded-lg border border-[var(--color-ink-100)] overflow-x-auto">

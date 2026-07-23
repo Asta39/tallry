@@ -1,6 +1,6 @@
 import { requirePerm } from "@/lib/guard";
 import { getOrg } from "@/lib/org";
-import { db, recurringTemplates, contacts, bankAccounts } from "@/db";
+import { db, recurringTemplates, contacts, bankAccounts, members } from "@/db";
 import { and, eq, desc } from "drizzle-orm";
 import { PageHeader } from "@/components/ui";
 import { RecurringManager, type RecurringRow } from "@/components/RecurringManager";
@@ -31,6 +31,11 @@ export default async function RecurringPage() {
     .from(bankAccounts)
     .where(and(eq(bankAccounts.orgId, o.id), eq(bankAccounts.archived, false)));
 
+  const staff = await db
+    .select()
+    .from(members)
+    .where(and(eq(members.orgId, o.id), eq(members.active, true)));
+
   const rows: RecurringRow[] = templates.map((t) => {
     const contact = t.contactId ? allContacts.find((c) => c.id === t.contactId) : null;
     const lines: DocLineInput[] = JSON.parse(t.linesJson);
@@ -46,6 +51,7 @@ export default async function RecurringPage() {
       docType: t.docType,
       contactId: t.contactId,
       contactName: contact?.displayName ?? null,
+      assignedMemberId: t.assignedMemberId,
       paidFromBankAccountId: t.paidFromBankAccountId,
       frequency: t.frequency,
       nextRunDate: t.nextRunDate,
@@ -77,6 +83,7 @@ export default async function RecurringPage() {
           customers={allContacts.filter((c) => c.kind === "customer" || c.kind === "both").map((c) => ({ id: c.id, label: c.displayName }))}
           vendors={allContacts.filter((c) => c.kind === "vendor" || c.kind === "both").map((c) => ({ id: c.id, label: c.displayName }))}
           bankAccounts={banks.map((b) => ({ id: b.id, label: b.name }))}
+          staff={staff.map((m) => ({ id: m.id, label: m.name || m.email }))}
           dueCount={rows.filter((r) => r.active && r.nextRunDate <= new Date().toISOString().slice(0, 10)).length}
         />
       </div>

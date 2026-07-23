@@ -58,3 +58,18 @@ export async function notifyOrg(
 
   await db.insert(notifications).values(inserts);
 }
+
+/** Notify exact staff members (not a whole role) — used when a document/template is assigned to specific people. */
+export async function notifyMembers(orgId: number, memberIds: number[], title: string, body: string, link?: string) {
+  if (memberIds.length === 0) return;
+  await db.insert(notifications).values(
+    memberIds.map((memberId) => ({
+      orgId,
+      memberId,
+      title,
+      body,
+      link,
+      createdAt: nowISO(),
+    }))
+  );
+}

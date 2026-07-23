@@ -393,14 +393,23 @@ async function _saveDocument(data: {
         }))
       );
 
-      // Insert notifications for assignments
+      // Insert notifications for assignments — link to the actual document, not
+      // always the invoice URL (was wrong for bill/expense/credit_note/PO).
+      const assignmentPath: Record<string, string> = {
+        quote: "sales/quotes",
+        invoice: "sales/invoices",
+        credit_note: "sales/credit-notes",
+        bill: "purchases/bills",
+        expense: "purchases/expenses",
+        purchase_order: "purchases/orders",
+      };
       await db.insert(notifications).values(
         data.assignedMemberIds.map((memberId) => ({
           orgId,
           memberId,
           title: "New Assignment",
           body: `You have been assigned to ${data.type} #${docId}`,
-          link: `/${data.type === "quote" ? "sales/quotes" : "sales/invoices"}/${docId}`,
+          link: `/${assignmentPath[data.type] || "sales/invoices"}/${docId}`,
           createdAt: nowISO(),
         }))
       );

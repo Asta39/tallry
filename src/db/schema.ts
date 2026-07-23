@@ -484,6 +484,9 @@ export const recurringTemplates = pgTable("recurring_templates", {
   dueInDays: integer("due_in_days").notNull().default(30),
   paidFromBankAccountId: integer("paid_from_bank_account_id"),
   notes: text("notes"),
+  /** Staff member who owns this template — generated documents are assigned to them
+   * (so they stay visible under data segregation) and only they get the run notification. */
+  assignedMemberId: integer("assigned_member_id"),
   createdAt: text("created_at").notNull(),
 }, (t) => ({
   orgNextRunIdx: index("idx_recurring_org_next").on(t.orgId, t.active, t.nextRunDate),
