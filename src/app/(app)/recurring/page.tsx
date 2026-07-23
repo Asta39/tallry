@@ -44,13 +44,17 @@ export default async function RecurringPage() {
       id: t.id,
       name: t.name,
       docType: t.docType,
+      contactId: t.contactId,
       contactName: contact?.displayName ?? null,
+      paidFromBankAccountId: t.paidFromBankAccountId,
       frequency: t.frequency,
       nextRunDate: t.nextRunDate,
+      dueInDays: t.dueInDays,
       autoIssue: t.autoIssue,
       active: t.active,
       totalCents,
       lastRunAt: t.lastRunAt,
+      lines,
     };
   });
 

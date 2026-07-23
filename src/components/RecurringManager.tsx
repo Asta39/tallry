@@ -21,13 +21,17 @@ export interface RecurringRow {
   id: number;
   name: string;
   docType: string;
+  contactId: number | null;
   contactName: string | null;
+  paidFromBankAccountId: number | null;
   frequency: string;
   nextRunDate: string;
+  dueInDays: number;
   autoIssue: boolean;
   active: boolean;
   totalCents: number;
   lastRunAt: string | null;
+  lines: DocLineInput[];
 }
 
 interface FormLine {
@@ -55,6 +59,7 @@ export function RecurringManager({
   const router = useRouter();
   const [pending, start] = useTransition();
   const [showForm, setShowForm] = useState(rows.length === 0);
+  const [editingId, setEditingId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -68,6 +73,43 @@ export function RecurringManager({
   const [dueInDays, setDueInDays] = useState("30");
   const [autoIssue, setAutoIssue] = useState(false);
   const [lines, setLines] = useState<FormLine[]>([emptyLine()]);
+
+  function resetForm() {
+    setEditingId(null);
+    setName("");
+    setDocType("invoice");
+    setContactId("");
+    setPaidFrom(bankAccounts[0]?.id ?? "");
+    setFrequency("monthly");
+    setNextRun(todayISO());
+    setDueInDays("30");
+    setAutoIssue(false);
+    setLines([emptyLine()]);
+  }
+
+  function editRow(r: RecurringRow) {
+    setEditingId(r.id);
+    setName(r.name);
+    setDocType(r.docType as typeof docType);
+    setContactId(r.contactId ?? "");
+    setPaidFrom(r.paidFromBankAccountId ?? "");
+    setFrequency(r.frequency as Frequency);
+    setNextRun(r.nextRunDate);
+    setDueInDays(String(r.dueInDays));
+    setAutoIssue(r.autoIssue);
+    setLines(
+      r.lines.length
+        ? r.lines.map((l) => ({
+            description: l.description,
+            qty: String(l.qty),
+            price: (l.unitPriceCents / 100).toFixed(2),
+            taxClass: (l.taxClass || "B16") as TaxClass,
+          }))
+        : [emptyLine()]
+    );
+    setError(null);
+    setShowForm(true);
+  }
 
   const contacts = docType === "invoice" ? customers : vendors;
 
@@ -90,6 +132,7 @@ export function RecurringManager({
     start(async () => {
       try {
         await saveRecurringTemplate({
+          id: editingId ?? undefined,
           name,
           docType,
           contactId: contactId === "" ? null : contactId,
@@ -102,7 +145,7 @@ export function RecurringManager({
           lines: parsedLines,
         });
         setShowForm(false);
-        setName(""); setLines([emptyLine()]);
+        resetForm();
         router.refresh();
       } catch (e) {
         setError(e instanceof Error ? e.message : "Could not save");
@@ -129,7 +172,10 @@ export function RecurringManager({
     <>
       <div className="flex items-center gap-3 mb-4 flex-wrap">
         <button
-          onClick={() => setShowForm((v) => !v)}
+          onClick={() => {
+            if (showForm) resetForm();
+            setShowForm((v) => !v);
+          }}
           className="rounded-lg bg-[var(--color-accent-500)] hover:bg-[var(--color-accent-600)] text-white text-[13px] font-medium px-4 py-2"
         >
           {showForm ? "Close form" : "+ New recurring template"}
@@ -146,6 +192,9 @@ export function RecurringManager({
 
       {showForm && (
         <div className="card p-5 mb-5">
+          {editingId && (
+            <div className="mb-4 text-[12.5px] font-medium text-[var(--color-accent-600)]">Editing template</div>
+          )}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <label className="block sm:col-span-2">
               <span className={label}>Template name</span>
@@ -262,7 +311,7 @@ export function RecurringManager({
             disabled={pending}
             className="mt-4 rounded-lg bg-[var(--color-accent-500)] hover:bg-[var(--color-accent-600)] disabled:opacity-50 text-white text-[13px] font-medium px-5 py-2.5"
           >
-            {pending ? "Saving…" : "Save template"}
+            {pending ? "Saving…" : editingId ? "Save changes" : "Save template"}
           </button>
         </div>
       )}
@@ -288,7 +337,11 @@ export function RecurringManager({
             </thead>
             <tbody>
               {rows.map((r) => (
-                <tr key={r.id} className="hairline-t">
+                <tr
+                  key={r.id}
+                  onClick={() => editRow(r)}
+                  className="hairline-t cursor-pointer hover:bg-[var(--color-ink-50)] transition-colors"
+                >
                   <td className="px-4 py-3 text-[13px] font-medium">
                     {r.name}
                     {r.autoIssue && <span className="ml-2 text-[10.5px] text-[var(--color-accent-600)] font-semibold">AUTO-ISSUE</span>}
@@ -301,26 +354,37 @@ export function RecurringManager({
                   <td className="px-4 py-3">
                     <button
                       disabled={pending}
-                      onClick={() =>
+                      onClick={(e) => {
+                        e.stopPropagation();
                         start(async () => {
                           await setRecurringActive(r.id, !r.active);
                           router.refresh();
-                        })
-                      }
+                        });
+                      }}
                     >
                       <StatusPill status={r.active ? "paid" : "draft"} />
                     </button>
                   </td>
-                  <td className="px-3 py-3">
+                  <td className="px-3 py-3 whitespace-nowrap">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        editRow(r);
+                      }}
+                      className="text-[12px] font-medium text-[var(--color-accent-600)] hover:underline mr-3"
+                    >
+                      Edit
+                    </button>
                     <button
                       disabled={pending}
-                      onClick={() =>
+                      onClick={(e) => {
+                        e.stopPropagation();
                         start(async () => {
                           if (!confirm(`Delete template "${r.name}"? Already-created documents stay.`)) return;
                           await deleteRecurringTemplate(r.id);
                           router.refresh();
-                        })
-                      }
+                        });
+                      }}
                       className="text-[12px] text-[var(--color-ink-400)] hover:text-[var(--color-bad)]"
                     >
                       Delete
