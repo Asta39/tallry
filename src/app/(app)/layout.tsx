@@ -65,8 +65,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         />
         <main className="flex-1 min-w-0 flex flex-col h-screen overflow-y-auto">
           {announcement && <div className="h-9 md:hidden shrink-0 no-print" />}
-          <div className="h-14 md:hidden shrink-0 no-print" />
-          <div className="sticky top-14 md:top-0 z-30 bg-white/80 backdrop-blur-md border-b border-[var(--color-ink-100)] px-4 py-3 md:py-0 md:px-8 md:h-14 flex items-center justify-between no-print gap-4">
+          <div className="h-[76px] md:hidden shrink-0 no-print" />
+          <div className="sticky top-[76px] md:top-0 z-30 bg-white/80 backdrop-blur-md border-b border-[var(--color-ink-100)] px-4 py-3 md:py-0 md:px-8 md:h-14 flex items-center justify-between no-print gap-4">
             <div className="flex-1 hidden md:block max-w-[150px]">
               <Link 
                 href="/settings/billing" 

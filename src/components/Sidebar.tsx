@@ -185,18 +185,23 @@ export function Sidebar({ orgName, orgEmail, logoUrl, perms, roleLabel, timeTrac
 
   return (
     <>
-      {/* Mobile top bar */}
-      <div className={`md:hidden no-print fixed ${topOffsetClass} inset-x-0 z-40 sidebar-chrome border-b border-[var(--color-ink-100)] flex items-center gap-3 px-4 h-14`}>
-        <button
-          onClick={() => setOpen(true)}
-          aria-label="Open menu"
-          className="w-9 h-9 flex flex-col items-center justify-center gap-[5px] rounded-lg hover:bg-white/60"
-        >
-          <span className="block w-5 h-[1.5px] bg-[var(--color-ink-900)]" />
-          <span className="block w-5 h-[1.5px] bg-[var(--color-ink-900)]" />
-          <span className="block w-5 h-[1.5px] bg-[var(--color-ink-900)]" />
-        </button>
-        <span className="text-[14px] font-semibold tracking-tight truncate">{displayName}</span>
+      {/* Mobile top bar — floating pill: hamburger left, org name + role centered */}
+      <div className={`md:hidden no-print fixed ${topOffsetClass} inset-x-0 z-40 px-3 pt-3`}>
+        <div className="relative sidebar-chrome rounded-2xl shadow-[0_2px_14px_rgba(0,0,0,0.08)] border border-[var(--color-ink-100)]/70 h-16 flex items-center justify-center">
+          <button
+            onClick={() => setOpen(true)}
+            aria-label="Open menu"
+            className="absolute left-2.5 w-10 h-10 flex flex-col items-center justify-center gap-[5px] rounded-full hover:bg-white/60"
+          >
+            <span className="block w-5 h-[1.5px] bg-[var(--color-ink-900)]" />
+            <span className="block w-5 h-[1.5px] bg-[var(--color-ink-900)]" />
+            <span className="block w-5 h-[1.5px] bg-[var(--color-ink-900)]" />
+          </button>
+          <div className="flex flex-col items-center leading-tight max-w-[55vw]">
+            <span className="text-[14px] font-semibold tracking-tight truncate">{displayName}</span>
+            {roleLabel && <span className="text-[11px] text-[var(--color-ink-400)] mt-0.5 truncate">{roleLabel}</span>}
+          </div>
+        </div>
       </div>
 
       {/* Mobile drawer */}
