@@ -157,7 +157,8 @@ export function RecurringManager({
     setNotice(null);
     start(async () => {
       const res = await runDueRecurring();
-      setNotice(res.created > 0 ? `✓ Created ${res.created} document(s) from due templates.` : "Nothing due today.");
+      const behind = res.stillBehind.length > 0 ? ` "${res.stillBehind.join('", "')}" ${res.stillBehind.length === 1 ? "is" : "are"} still behind — run again to catch up further.` : "";
+      setNotice(res.created > 0 ? `✓ Created ${res.created} document(s) from due templates.${behind}` : "Nothing due today.");
       router.refresh();
     });
   }

@@ -353,7 +353,7 @@ export async function deleteRecurringTemplate(id: number) {
  * Called lazily from the dashboard and by /api/cron/recurring. Idempotent-ish:
  * nextRunDate only advances after a successful create, so failures retry.
  */
-export async function runDueRecurring(): Promise<{ created: number }> {
+export async function runDueRecurring(): Promise<{ created: number; stillBehind: string[] }> {
   return withOrg(async () => {
     const orgId = currentOrgId();
     const today = todayISO();
@@ -369,6 +369,7 @@ export async function runDueRecurring(): Promise<{ created: number }> {
       );
 
     let created = 0;
+    const stillBehind: string[] = [];
     for (const t of due) {
       const runs = dueRuns(t.nextRunDate, t.frequency as Frequency, today);
       let cursor = t.nextRunDate;
@@ -394,20 +395,27 @@ export async function runDueRecurring(): Promise<{ created: number }> {
           .set({ nextRunDate: cursor, lastRunAt: nowISO() })
           .where(eq(recurringTemplates.id, t.id));
       }
+      // dueRuns() caps catch-up per invocation so a template neglected for a long
+      // time can't flood the ledger in one go — if it's still behind after this
+      // run, surface that instead of letting it look silently caught up.
+      if (runs.length > 0 && cursor <= today) {
+        stillBehind.push(t.name);
+      }
     }
     if (created > 0) {
       await notifyOrg(
         orgId,
         ["admin", "sales", "accountant"],
         "Recurring Templates Ran",
-        `Generated ${created} new document(s) from recurring templates.`,
+        `Generated ${created} new document(s) from recurring templates.` +
+          (stillBehind.length > 0 ? ` ${stillBehind.length} template(s) are still behind and need another run.` : ""),
         "/sales/invoices"
       );
       revalidatePath("/");
       revalidatePath("/sales/invoices");
       revalidatePath("/purchases/bills");
     }
-    return { created };
+    return { created, stillBehind };
   });
 }
 
