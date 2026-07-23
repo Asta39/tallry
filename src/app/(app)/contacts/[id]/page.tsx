@@ -19,14 +19,14 @@ export const dynamic = "force-dynamic";
  */
 
 const TABS = [
-  { key: "overview", label: "Overview", icon: "◧" },
-  { key: "invoices", label: "Invoices", icon: "▦", docType: "invoice", newHref: "/sales/invoices/new" },
-  { key: "quotes", label: "Quotes", icon: "✎", docType: "quote", newHref: "/sales/quotes/new" },
-  { key: "credit_notes", label: "Credit notes", icon: "⊟", docType: "credit_note", newHref: "/sales/credit-notes/new" },
-  { key: "bills", label: "Bills", icon: "▧", docType: "bill", newHref: "/purchases/bills/new" },
-  { key: "deals", label: "Deals", icon: "▤" },
-  { key: "statement", label: "Statement", icon: "📄" },
-  { key: "notes", label: "Notes & activity", icon: "≡" },
+  { key: "overview", label: "Overview", icon: "🏠" },
+  { key: "invoices", label: "Invoices", icon: "🧾", docType: "invoice", newHref: "/sales/invoices/new" },
+  { key: "quotes", label: "Quotes", icon: "📝", docType: "quote", newHref: "/sales/quotes/new" },
+  { key: "credit_notes", label: "Credit notes", icon: "↩️", docType: "credit_note", newHref: "/sales/credit-notes/new" },
+  { key: "bills", label: "Bills", icon: "📄", docType: "bill", newHref: "/purchases/bills/new" },
+  { key: "deals", label: "Deals", icon: "🎯" },
+  { key: "statement", label: "Statement", icon: "📊" },
+  { key: "notes", label: "Notes & activity", icon: "🗒️" },
   { key: "portal", label: "Client Portal", icon: "🔐" },
 ] as const;
 
