@@ -14,6 +14,7 @@ const groups: {
     label: null,
     items: [
       { href: "/", label: "Home", icon: "◧", perm: "dashboard" },
+      { href: "/announcements", label: "Announcements", icon: "📣", perm: "announcements" },
       { href: "/time-tracking", label: "Time Tracking", icon: "⏱", perm: "dashboard" },
     ],
   },

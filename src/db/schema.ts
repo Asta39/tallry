@@ -393,6 +393,23 @@ export const events = pgTable("events", {
   createdAt: text("created_at").notNull(),
 });
 
+/**
+ * In-house team announcements posted by an admin within one org, readable by
+ * whichever roles have the "announcements" permission. Distinct from the
+ * platform-wide `announcements` table above (super-admin banner across every tenant).
+ */
+export const teamAnnouncements = pgTable("team_announcements", {
+  id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
+  title: text("title").notNull(),
+  body: text("body").notNull(),
+  pinned: boolean("pinned").notNull().default(false),
+  createdByName: text("created_by_name").notNull(),
+  createdAt: text("created_at").notNull(),
+}, (t) => ({
+  orgIdx: index("idx_team_announcements_org").on(t.orgId),
+}));
+
 export const notifications = pgTable("notifications", {
   id: serial("id").primaryKey(),
   orgId: integer("org_id").notNull().references(() => org.id),

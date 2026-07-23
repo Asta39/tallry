@@ -482,7 +482,7 @@ async function _issueClaimedDocument(doc: typeof documents.$inferSelect) {
       const o = await getOrg();
       if (o.requireBillApproval) {
         await db.update(documents).set({ status: "pending_approval", approvalNote: null }).where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, docId)));
-        await notifyOrg(currentOrgId(), ["admin", "accountant"], "Bill awaiting approval", `${doc.number} (${fmtKES(doc.totalCents)}) needs approval before it posts.`, "/purchases/bills");
+        await notifyOrg(currentOrgId(), ["admin", "accountant"], "Bill awaiting approval", `${doc.number} (${fmtKES(doc.totalCents)}) needs approval before it posts.`, `/purchases/bills/${docId}`);
         break;
       }
       await postBill(docId);
