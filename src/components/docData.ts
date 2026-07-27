@@ -66,6 +66,7 @@ export async function fetchInitialData(docId: number) {
       customColumnValue: l.customColumnValue ?? "",
       costCenterId: l.costCenterId,
       warehouseId: l.warehouseId,
+      addToItems: false,
     }))
   };
 }

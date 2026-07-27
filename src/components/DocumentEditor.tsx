@@ -4,7 +4,7 @@ import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { computeDocument, TAX_CLASSES, type TaxClass } from "@/lib/tax";
 import { fmtKES, parseKES, todayISO } from "@/lib/money";
-import { saveDocument, issueDocument, type DocLineInput } from "@/lib/actions";
+import { saveDocument, issueDocument, createItemFromLine, type DocLineInput } from "@/lib/actions";
 import { SearchableSelect } from "@/components/SearchableSelect";
 
 type Option = { id: number; label: string };
@@ -28,6 +28,7 @@ interface EditorLine {
   customColumnValue: string;
   costCenterId: number | null;
   warehouseId: number | null;
+  addToItems: boolean;
 }
 
 const emptyLine = (): EditorLine => ({
@@ -41,6 +42,7 @@ const emptyLine = (): EditorLine => ({
   customColumnValue: "",
   costCenterId: null,
   warehouseId: null,
+  addToItems: false,
 });
 
 export interface EditorInitialData {
@@ -164,6 +166,31 @@ export function DocumentEditor({
     if (isExpense && !paidFrom) return setError("Choose the account you paid from.");
     startTransition(async () => {
       try {
+        const finalLines: DocLineInput[] = [];
+        for (const l of lines) {
+          if (!(l.description || l.itemId || parseKES(l.price) > 0)) continue;
+          let itemId = l.itemId;
+          const priceCents = Number.isNaN(parseKES(l.price)) ? 0 : parseKES(l.price);
+          if (l.addToItems && !itemId && l.description.trim()) {
+            itemId = await createItemFromLine({
+              name: l.description.trim(),
+              purchaseCostCents: priceCents,
+              taxClass: l.taxClass,
+            });
+          }
+          finalLines.push({
+            itemId,
+            description: l.description || "Item",
+            qty: Number(l.qty) || 1,
+            unitPriceCents: priceCents,
+            discountPct: Number(l.discountPct) || 0,
+            taxClass: l.taxClass,
+            accountId: l.accountId,
+            customColumnValue: l.customColumnValue || undefined,
+            costCenterId: l.costCenterId,
+            warehouseId: l.warehouseId,
+          });
+        }
         const id = await saveDocument({
           id: initialData?.id,
           type,
@@ -177,7 +204,7 @@ export function DocumentEditor({
           assignedMemberIds: assignedMemberIds.length > 0 ? assignedMemberIds : undefined,
           isTemplate: initialData?.isTemplate,
           saveAsTemplate,
-          lines: parsedLines,
+          lines: finalLines,
         });
         
         const isAlreadyIssued = initialData?.id && initialData?.status && initialData.status !== "draft";
@@ -334,6 +361,17 @@ export function DocumentEditor({
                       value={l.description}
                       onChange={(e) => update(i, { description: e.target.value })}
                     />
+                    {(type === "bill" || type === "purchase_order") && !l.itemId && l.description.trim() && (
+                      <label className="flex items-center gap-1 mt-1 pl-2 text-[11px] text-[var(--color-ink-500)] cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={l.addToItems}
+                          onChange={(e) => update(i, { addToItems: e.target.checked })}
+                          className="accent-[var(--color-accent-500)]"
+                        />
+                        Add &quot;{l.description.trim()}&quot; to Items list
+                      </label>
+                    )}
                   </td>
                   <td className="px-1 py-2">
                     <input
@@ -479,6 +517,7 @@ export function DocumentEditor({
                       customColumnValue: "",
                       costCenterId: null,
                       warehouseId: null,
+                      addToItems: false,
                     }];
                   });
                 }

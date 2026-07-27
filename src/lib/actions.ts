@@ -192,6 +192,7 @@ async function _saveItem(data: {
     .from(accounts)
     .where(and(eq(accounts.orgId, currentOrgId()), eq(accounts.code, SYS.SALES)))
     .limit(1);
+  let itemId = data.id;
   if (data.id) {
     await db
       .update(items)
@@ -225,6 +226,7 @@ async function _saveItem(data: {
         salesAccountId: salesAcc?.id,
       })
       .returning();
+    itemId = created.id;
     // Opening stock: FIFO lot + journal (DR Inventory, CR Opening Balance)
     if (data.trackInventory && (data.openingQty ?? 0) > 0) {
       const qty = data.openingQty!;
@@ -246,6 +248,7 @@ async function _saveItem(data: {
     }
   }
   revalidatePath("/items");
+  return itemId!;
 }
 
 async function _adjustStock(itemId: number, qtyDelta: number, unitCostCents: number, reason: string) {
@@ -873,6 +876,32 @@ export async function moveDealStage(dealId: number, stage: string) {
 }
 export async function saveItem(data: Parameters<typeof _saveItem>[0]) {
   return withOrg(() => _saveItem(data));
+}
+
+/**
+ * Creates a new item on the fly from a bill/PO line for a product not yet in
+ * the Items list, then notifies admins/accountants it was added.
+ */
+export async function createItemFromLine(data: {
+  name: string;
+  purchaseCostCents: number;
+  taxClass: string;
+}) {
+  return withOrg(async () => {
+    const orgId = currentOrgId();
+    const id = await _saveItem({
+      kind: "goods",
+      name: data.name,
+      unit: "unit",
+      salePriceCents: 0,
+      purchaseCostCents: data.purchaseCostCents,
+      taxClass: data.taxClass,
+      trackInventory: true,
+      reorderLevel: 0,
+    });
+    await notifyOrg(orgId, ["admin", "accountant"], "New item added", `"${data.name}" was added to Items from a purchase.`, "/items");
+    return id;
+  });
 }
 export async function adjustStock(itemId: number, qtyDelta: number, unitCostCents: number, reason: string) {
   return withOrg(() => _adjustStock(itemId, qtyDelta, unitCostCents, reason));
