@@ -144,9 +144,9 @@ function makeStyles(brand: string) {
   return StyleSheet.create({
     page: { paddingTop: 42, paddingLeft: 42, paddingRight: 42, paddingBottom: 140, fontSize: 9.5, fontFamily: "Helvetica", color: "#1d1d1f" },
     headerRow: { flexDirection: "row", justifyContent: "space-between" },
-    logo: { maxWidth: 220, maxHeight: 90, objectFit: "contain", objectPosition: "left", marginBottom: 12 },
-    orgName: { fontSize: 10.5, fontFamily: "Helvetica-Bold" },
-    muted: { color: "#6e6e73" },
+    logo: { maxWidth: 130, maxHeight: 52, objectFit: "contain", objectPosition: "left", marginBottom: 12 },
+    orgName: { fontSize: 10.5, fontFamily: "Helvetica-Bold", marginBottom: 3 },
+    muted: { color: "#6e6e73", marginTop: 2 },
     docTitle: { fontSize: 19, fontFamily: "Helvetica-Bold", color: brand, textAlign: "right" },
     metaRight: { textAlign: "right", marginTop: 4, lineHeight: 1.5 },
     billTo: { marginTop: 26 },
@@ -155,7 +155,7 @@ function makeStyles(brand: string) {
       color: "#6e6e73",
       textTransform: "uppercase",
       letterSpacing: 0.8,
-      marginBottom: 3,
+      marginBottom: 4,
     },
     bold: { fontFamily: "Helvetica-Bold" },
     table: { marginTop: 22 },
@@ -198,15 +198,15 @@ function makeStyles(brand: string) {
       lineHeight: 1.4,
     },
     docFooterHeading: {
-      fontSize: 8,
+      fontSize: 9.5,
       fontFamily: "Helvetica-Bold",
       textTransform: "uppercase",
       letterSpacing: 0.6,
-      marginBottom: 3,
+      marginBottom: 4,
     },
     docFooterBody: {
-      fontSize: 8,
-      fontFamily: "Helvetica",
+      fontSize: 9.5,
+      fontFamily: "Helvetica-Bold",
       lineHeight: 1.4,
     },
     footer: {
@@ -270,32 +270,32 @@ export function DocumentPdf({
               {org.phone ? <Text style={s.muted}>{org.phone}</Text> : null}
               {org.email ? <Text style={s.muted}>{org.email}</Text> : null}
               {org.kraPin ? (
-                <Text style={{ marginTop: 3 }}>
+                <Text style={{ marginTop: 6 }}>
                   KRA PIN: <Text style={s.bold}>{org.kraPin}</Text>
                 </Text>
               ) : null}
             </View>
             <View style={{ alignItems: "flex-end" }}>
               <Text style={s.docTitle}>{titles[doc.type] ?? doc.type.toUpperCase()}</Text>
-              <Text style={{ fontSize: 10, fontFamily: "Helvetica-Bold", textAlign: "right", marginTop: 2 }}># {doc.number}</Text>
-              <StatusBadgeText doc={doc} style={{ textAlign: "right" }} />
+              <Text style={{ fontSize: 10, fontFamily: "Helvetica-Bold", textAlign: "right", marginTop: 4 }}># {doc.number}</Text>
+              <StatusBadgeText doc={doc} style={{ textAlign: "right", marginTop: 3 }} />
 
-              <View style={{ alignItems: "flex-end", marginTop: 12 }}>
-                <Text style={[s.sectionLabel, { textAlign: "right", marginBottom: 1 }]}>{billToLabel(doc.type)}</Text>
+              <View style={{ alignItems: "flex-end", marginTop: 18 }}>
+                <Text style={[s.sectionLabel, { textAlign: "right", marginBottom: 3 }]}>{billToLabel(doc.type)}</Text>
                 <Text style={s.bold}>{contact?.displayName ?? "Walk-in customer"}</Text>
                 {contact?.address ? <Text style={[s.muted, { textAlign: "right" }]}>{contact.address}</Text> : null}
                 {contact?.city ? <Text style={[s.muted, { textAlign: "right" }]}>{contact.city}</Text> : null}
                 {contact?.kraPin ? (
-                  <Text style={{ textAlign: "right" }}>
+                  <Text style={{ textAlign: "right", marginTop: 3 }}>
                     Buyer PIN: <Text style={s.bold}>{contact.kraPin}</Text>
                   </Text>
                 ) : null}
               </View>
 
-              <View style={{ alignItems: "flex-end", marginTop: 10 }}>
+              <View style={{ alignItems: "flex-end", marginTop: 16, lineHeight: 1.5 }}>
                 <Text style={{ textAlign: "right" }}>{dateLabels[doc.type] || "Date"}: {doc.date}</Text>
-                {doc.dueDate ? <Text style={{ textAlign: "right" }}>Due Date: {doc.dueDate}</Text> : null}
-                <CreatedByLine doc={doc} style={{ textAlign: "right" }} />
+                {doc.dueDate ? <Text style={{ textAlign: "right", marginTop: 2 }}>Due Date: {doc.dueDate}</Text> : null}
+                <CreatedByLine doc={doc} style={{ textAlign: "right", marginTop: 2 }} />
               </View>
             </View>
           </View>
