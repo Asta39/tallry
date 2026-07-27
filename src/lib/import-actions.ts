@@ -16,6 +16,9 @@ import { withOrg, currentOrgId } from "./org";
 import { nowISO, todayISO } from "./money";
 import { saveDocument, type DocLineInput } from "./actions";
 import type { TaxClass } from "./tax";
+import { addLot } from "./inventory";
+import { postEntry, acct } from "./posting";
+import { SYS } from "./coa";
 
 /**
  * Bulk CSV imports. Row shapes match the template CSVs served by
@@ -79,6 +82,7 @@ export interface ItemRow {
   taxClass: string;
   trackInventory: boolean;
   reorderLevel: number;
+  openingQty?: number;
 }
 
 export async function importItems(rows: ItemRow[]): Promise<{ created?: number; skipped?: number; error?: string }> {
@@ -91,18 +95,41 @@ export async function importItems(rows: ItemRow[]): Promise<{ created?: number; 
     for (const r of rows) {
       const name = (r.name || "").trim();
       if (!name || known.has(name.toLowerCase())) { skipped++; continue; }
-      await db.insert(items).values({
+      const purchaseCostCents = Math.max(0, Math.round(r.purchaseCostCents));
+      const [row] = await db.insert(items).values({
         orgId,
         kind: r.kind === "goods" ? "goods" : "service",
         name,
         sku: r.sku || null,
         unit: r.unit || "unit",
         salePriceCents: Math.max(0, Math.round(r.salePriceCents)),
-        purchaseCostCents: Math.max(0, Math.round(r.purchaseCostCents)),
+        purchaseCostCents,
         taxClass: VALID_TAX.includes(r.taxClass) ? r.taxClass : "B16",
         trackInventory: !!r.trackInventory,
-        reorderLevel: Number(r.reorderLevel) || 0,
-      });
+        reorderLevel: Math.max(0, Number(r.reorderLevel) || 0),
+      }).returning();
+
+      // Opening stock — without this, bulk-imported tracked items silently start
+      // at zero stock/value with no ledger entry, same as manual item creation
+      // already does for a single item.
+      const openingQty = Math.max(0, Number(r.openingQty) || 0);
+      if (r.trackInventory && openingQty > 0) {
+        await addLot({ itemId: row.id, date: todayISO(), qty: openingQty, unitCostCents: purchaseCostCents, sourceType: "opening" });
+        const value = Math.round(openingQty * purchaseCostCents);
+        if (value > 0) {
+          await postEntry({
+            date: todayISO(),
+            memo: `Opening stock — ${name}`,
+            sourceType: "opening_stock",
+            sourceId: row.id,
+            lines: [
+              { accountId: await acct(SYS.INVENTORY), debitCents: value },
+              { accountId: await acct(SYS.OPENING_BALANCE), creditCents: value },
+            ],
+          });
+        }
+      }
+
       known.add(name.toLowerCase());
       created++;
     }

@@ -58,6 +58,12 @@ export async function archiveWarehouseAction(id: number, archived: boolean) {
     const [w] = await db.select().from(warehouses).where(and(eq(warehouses.orgId, orgId), eq(warehouses.id, id))).limit(1);
     if (!w) throw new Error("Warehouse not found");
     if (w.isDefault) throw new Error("Can't archive the default warehouse — set another one as default first");
+    if (archived) {
+      const stock = await itemsInWarehouse(id);
+      if (stock.length > 0) {
+        throw new Error(`Can't archive — ${stock.length} item(s) still have stock here. Transfer it out first.`);
+      }
+    }
     await db.update(warehouses).set({ archived }).where(eq(warehouses.id, id));
     revalidatePath("/items/warehouses");
     return { success: true };

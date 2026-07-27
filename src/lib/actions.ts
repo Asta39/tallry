@@ -31,7 +31,7 @@ import {
   voidDocument,
   acct,
 } from "./posting";
-import { addLot, consumeFifo } from "./inventory";
+import { addLot, consumeFifo, stockOnHand } from "./inventory";
 import { SYS } from "./coa";
 import { nowISO, todayISO, fmtKES } from "./money";
 import { getTaxDevice } from "./etims";
@@ -153,6 +153,40 @@ async function _saveItem(data: {
   openingQty?: number;
   openingUnitCostCents?: number;
 }) {
+  const orgId = currentOrgId();
+
+  // Defense-in-depth: the UI constrains these, but the action itself shouldn't
+  // trust client input — a negative price/cost would post reversed debit/credit
+  // amounts to the ledger, and an invalid tax class would silently fall through
+  // TAX_CLASSES lookups elsewhere.
+  data.salePriceCents = Math.max(0, Math.round(data.salePriceCents));
+  data.purchaseCostCents = Math.max(0, Math.round(data.purchaseCostCents));
+  data.reorderLevel = Math.max(0, data.reorderLevel);
+  if (!(data.taxClass in TAX_CLASSES)) data.taxClass = "B16";
+
+  // SKU uniqueness (per org) — a duplicate SKU corrupts SKU-based lookups/reports.
+  const sku = data.sku?.trim() || null;
+  data.sku = sku ?? undefined;
+  if (sku) {
+    const dupeConds = [eq(items.orgId, orgId), eq(items.sku, sku)];
+    if (data.id) dupeConds.push(ne(items.id, data.id));
+    const [dupe] = await db.select({ id: items.id }).from(items).where(and(...dupeConds)).limit(1);
+    if (dupe) throw new Error(`SKU "${sku}" is already used by another item`);
+  }
+
+  if (data.id) {
+    const [existing] = await db.select().from(items).where(and(eq(items.orgId, orgId), eq(items.id, data.id))).limit(1);
+    if (existing && existing.trackInventory !== data.trackInventory) {
+      const onHand = await stockOnHand(data.id);
+      if (existing.trackInventory && !data.trackInventory && onHand !== 0) {
+        throw new Error(`Can't stop tracking inventory while ${onHand} units are still on hand — adjust stock to zero first`);
+      }
+      if (!existing.trackInventory && data.trackInventory) {
+        throw new Error("Turning on inventory tracking for an existing item needs an opening-stock adjustment afterward — use Stock Adjust to record what's on hand");
+      }
+    }
+  }
+
   const [salesAcc] = await db
     .select()
     .from(accounts)

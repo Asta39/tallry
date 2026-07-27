@@ -42,32 +42,44 @@ export async function addLot(params: {
  * Consume `qty` from oldest lots first, within one warehouse. Returns the
  * FIFO cost consumed in cents. If stock runs out, the shortfall is costed at
  * the last known lot cost (or 0), mirroring Zoho's negative-stock behavior.
+ *
+ * Runs inside a transaction with row-level locks (`SELECT ... FOR UPDATE`) and
+ * an atomic SQL decrement, so two concurrent sales of the same item/warehouse
+ * can't both read the same remainingQty and both "consume" it — without this,
+ * two simultaneous sales from a 5-unit lot could both succeed and take it to
+ * -1 instead of one of them correctly falling through to the next lot (or
+ * tolerated negative-stock shortfall).
  */
 export async function consumeFifo(itemId: number, qty: number, warehouseId?: number): Promise<number> {
   const wid = warehouseId ?? (await defaultWarehouseId());
-  let remaining = qty;
-  let cogs = 0;
-  let lastCost = 0;
+  const orgId = currentOrgId();
 
-  const lots = await db
-    .select()
-    .from(stockLots)
-    .where(and(eq(stockLots.orgId, currentOrgId()), eq(stockLots.itemId, itemId), eq(stockLots.warehouseId, wid), gt(stockLots.remainingQty, 0)))
-    .orderBy(asc(stockLots.date), asc(stockLots.id));
+  return db.transaction(async (tx) => {
+    let remaining = qty;
+    let cogs = 0;
+    let lastCost = 0;
 
-  for (const lot of lots) {
-    if (remaining <= 0) break;
-    const take = Math.min(lot.remainingQty, remaining);
-    cogs += Math.round(take * lot.unitCostCents);
-    lastCost = lot.unitCostCents;
-    remaining -= take;
-    await db
-      .update(stockLots)
-      .set({ remainingQty: lot.remainingQty - take })
-      .where(and(eq(stockLots.orgId, currentOrgId()), eq(stockLots.id, lot.id)));
-  }
-  if (remaining > 0) cogs += Math.round(remaining * lastCost);
-  return cogs;
+    const lots = await tx
+      .select()
+      .from(stockLots)
+      .where(and(eq(stockLots.orgId, orgId), eq(stockLots.itemId, itemId), eq(stockLots.warehouseId, wid), gt(stockLots.remainingQty, 0)))
+      .orderBy(asc(stockLots.date), asc(stockLots.id))
+      .for("update");
+
+    for (const lot of lots) {
+      if (remaining <= 0) break;
+      const take = Math.min(lot.remainingQty, remaining);
+      cogs += Math.round(take * lot.unitCostCents);
+      lastCost = lot.unitCostCents;
+      remaining -= take;
+      await tx
+        .update(stockLots)
+        .set({ remainingQty: sql`${stockLots.remainingQty} - ${take}` })
+        .where(and(eq(stockLots.orgId, orgId), eq(stockLots.id, lot.id)));
+    }
+    if (remaining > 0) cogs += Math.round(remaining * lastCost);
+    return cogs;
+  });
 }
 
 export async function stockOnHand(itemId: number, warehouseId?: number): Promise<number> {

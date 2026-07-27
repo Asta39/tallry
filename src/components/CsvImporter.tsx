@@ -75,7 +75,8 @@ export function CsvImporter({ entity, label }: { entity: Entity; label: string }
       } else if (entity === "items") {
         const iType = idx("type", "kind"), iName = idx("name"), iSku = idx("sku"), iUnit = idx("unit"),
           iSell = idx("selling_price", "sale_price", "price"), iBuy = idx("buying_cost", "purchase_cost", "cost"),
-          iVat = idx("vat_class", "tax_class"), iTrack = idx("track_stock", "track_inventory"), iReorder = idx("reorder_level");
+          iVat = idx("vat_class", "tax_class"), iTrack = idx("track_stock", "track_inventory"), iReorder = idx("reorder_level"),
+          iOpening = idx("opening_qty", "opening_stock");
         if (iName < 0 || iSell < 0) throw new Error('Missing "name" / "selling_price" columns — download the template.');
         const rows: ItemRow[] = body.map((r) => ({
           kind: r[iType] ?? "service",
@@ -86,6 +87,7 @@ export function CsvImporter({ entity, label }: { entity: Entity; label: string }
           taxClass: r[iVat] || "B16",
           trackInventory: yes(r[iTrack] ?? ""),
           reorderLevel: Number(r[iReorder]) || 0,
+          openingQty: Number(r[iOpening]) || 0,
         })).filter((r) => r.name);
         setPreview({ count: rows.length, sample: rows.slice(0, 5).map((r) => r.name), rows });
       } else {
