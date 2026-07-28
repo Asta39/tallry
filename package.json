@@ -8,7 +8,8 @@
     "start": "next start",
     "db:seed": "tsx src/db/seed.ts",
     "test": "tsx --test src/lib/__tests__/*.test.ts",
-    "db:push": "tsx src/db/push.ts"
+    "db:push": "tsx src/db/push.ts",
+    "whatsapp": "tsx scripts/whatsapp-runner.ts"
   },
   "dependencies": {
     "@lottiefiles/react-lottie-player": "^3.6.0",
@@ -18,6 +19,7 @@
     "@sentry/nextjs": "^10.65.0",
     "@supabase/ssr": "^0.12.0",
     "@supabase/supabase-js": "^2.110.0",
+    "@whiskeysockets/baileys": "^7.0.0-rc13",
     "drizzle-orm": "^0.43.1",
     "jose": "^6.2.3",
     "next": "^15.3.3",

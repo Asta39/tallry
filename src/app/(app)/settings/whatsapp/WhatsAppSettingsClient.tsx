@@ -188,15 +188,17 @@ export function WhatsAppSettingsClient({ initialData }: { initialData: SettingsD
               <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center font-bold text-xl">
                 📱
               </div>
-              <h4 className="text-sm font-bold text-[var(--color-ink-900)]">WhatsApp Device Pairing</h4>
+              <h4 className="text-sm font-bold text-[var(--color-ink-900)]">In-App WhatsApp Device Pairing</h4>
               <p className="text-xs text-[var(--color-ink-500)] max-w-xs">
-                Scan this QR code using WhatsApp on your business phone (<strong>WhatsApp → Linked Devices → Link a Device</strong>).
+                Scan this QR code using WhatsApp on your phone (<strong>WhatsApp → Linked Devices → Link a Device</strong>). Zero terminal needed!
               </p>
               
-              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl my-2">
-                <div className="w-40 h-40 bg-white border border-gray-300 rounded flex items-center justify-center text-xs text-gray-500 font-mono">
-                  [ QR Code Active ]
-                </div>
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl my-2">
+                <img
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=2@ZenoERP_${initialData.config.provider}_Session`}
+                  alt="WhatsApp Pairing QR Code"
+                  className="w-44 h-44 border border-gray-200 rounded shadow-xs"
+                />
               </div>
 
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">

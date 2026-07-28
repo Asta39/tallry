@@ -110,6 +110,15 @@ export async function saveWhatsAppRuleAction(eventType: string, targetType: stri
   });
 }
 
+export async function generateWhatsAppQrAction() {
+  return withOrg(async () => {
+    const qrcode = await import("qrcode");
+    const sampleAuthPayload = `2@ZenoERP_${Date.now()}_${Math.random().toString(36).slice(2, 10)},1,0`;
+    const dataUrl = await qrcode.toDataURL(sampleAuthPayload, { width: 260, margin: 2 });
+    return { qrDataUrl: dataUrl };
+  });
+}
+
 export async function sendTestWhatsAppAction(recipient: string, text: string) {
   return withOrg(async () => {
     const orgId = currentOrgId();
