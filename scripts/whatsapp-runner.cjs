@@ -1,18 +1,9 @@
 const makeWASocket = require("@whiskeysockets/baileys").default;
-const { useMultiFileAuthState, DisconnectReason, Browsers } = require("@whiskeysockets/baileys");
+const { useMultiFileAuthState, fetchLatestBaileysVersion } = require("@whiskeysockets/baileys");
 const qrcodeTerminal = require("qrcode-terminal");
+const pino = require("pino");
 const path = require("path");
 const fs = require("fs");
-
-const silentLogger = {
-  level: "silent",
-  trace: () => {},
-  debug: () => {},
-  info: () => {},
-  warn: () => {},
-  error: () => {},
-  child: () => silentLogger,
-};
 
 process.stdin.resume();
 
@@ -20,21 +11,18 @@ async function main() {
   console.log("\n🚀 Initializing Zeno ERP WhatsApp Gateway (Baileys)...");
 
   const sessionDir = path.join(process.cwd(), "data", "whatsapp-session");
-  
-  // Wipe stale session directory if present
-  if (fs.existsSync(sessionDir)) {
-    try { fs.rmSync(sessionDir, { recursive: true, force: true }); } catch (e) {}
-  }
-  fs.mkdirSync(sessionDir, { recursive: true });
-
   const { state, saveCreds } = await useMultiFileAuthState(sessionDir);
 
+  const { version } = await fetchLatestBaileysVersion();
+  console.log(`📡 Connected using WhatsApp Web v${version.join(".")}`);
+
   const sock = makeWASocket({
+    version,
     auth: state,
-    logger: silentLogger,
-    browser: Browsers.ubuntu("Desktop"),
-    connectTimeoutMs: 60000,
-    defaultQueryTimeoutMs: 60000,
+    logger: pino({ level: "error" }),
+    browser: ["Ubuntu", "Chrome", "20.0.04"],
+    syncFullHistory: false,
+    markOnlineOnConnect: false,
   });
 
   sock.ev.on("creds.update", saveCreds);
@@ -55,10 +43,7 @@ async function main() {
       console.log("========================================================\n");
     } else if (connection === "close") {
       const statusCode = lastDisconnect?.error?.output?.statusCode;
-      if (statusCode === DisconnectReason.loggedOut) {
-        console.log("🔒 Session logged out. Clearing session files...");
-        try { fs.rmSync(sessionDir, { recursive: true, force: true }); } catch (e) {}
-      } else if (statusCode && statusCode !== 405 && statusCode !== 428 && statusCode !== 408) {
+      if (statusCode && statusCode !== 405) {
         console.log(`🔄 Connection closed (${statusCode}). Reconnecting in 5s...`);
         setTimeout(main, 5000);
       }
