@@ -43,6 +43,7 @@ function Tip({ active, payload, label, money }: any) {
 
 const axisTick = { fontSize: 11, fill: "var(--color-ink-500)" };
 const compact = (v: number) => (Math.abs(v) >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(v));
+const truncate = (s: string) => (s.length > 18 ? `${s.slice(0, 17)}…` : s);
 
 /**
  * Small analytics chart for a report page. `money` scales/labels values as KES
@@ -61,6 +62,11 @@ export function ReportChart({
   money?: boolean;
   height?: number;
 }) {
+  // Long category names (item/customer names) collide when drawn under vertical
+  // bars, so those charts lie on their side and get one label per row instead.
+  const sideways = kind === "bar" && data.some((d) => d.name.length > 12);
+  if (sideways) height = Math.max(height, 44 * data.length + 40);
+
   return (
     <div className="card p-5 no-print">
       <h3 className="font-semibold text-[14px] mb-4">{title}</h3>
@@ -98,6 +104,27 @@ export function ReportChart({
                   dot={{ r: 3, strokeWidth: 2, fill: "white" }}
                 />
               </LineChart>
+            ) : sideways ? (
+              <BarChart data={data} layout="vertical" margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="var(--color-ink-200)" />
+                <XAxis type="number" axisLine={false} tickLine={false} tick={axisTick} tickFormatter={compact} />
+                <YAxis
+                  type="category"
+                  dataKey="name"
+                  axisLine={false}
+                  tickLine={false}
+                  width={130}
+                  interval={0}
+                  tick={{ ...axisTick, fill: "var(--color-ink-700)" }}
+                  tickFormatter={truncate}
+                />
+                <Tooltip content={<Tip money={money} />} cursor={{ fill: "var(--color-ink-50)" }} />
+                <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={18}>
+                  {data.map((_, i) => (
+                    <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                  ))}
+                </Bar>
+              </BarChart>
             ) : (
               <BarChart data={data} margin={{ top: 8, right: 10, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-ink-200)" />
