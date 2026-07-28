@@ -1,5 +1,5 @@
 const makeWASocket = require("@whiskeysockets/baileys").default;
-const { useMultiFileAuthState } = require("@whiskeysockets/baileys");
+const { useMultiFileAuthState, DisconnectReason, Browsers } = require("@whiskeysockets/baileys");
 const qrcodeTerminal = require("qrcode-terminal");
 const path = require("path");
 const fs = require("fs");
@@ -14,26 +14,33 @@ const silentLogger = {
   child: () => silentLogger,
 };
 
+process.stdin.resume();
+
 async function main() {
   console.log("\n🚀 Initializing Zeno ERP WhatsApp Gateway (Baileys)...");
 
   const sessionDir = path.join(process.cwd(), "data", "whatsapp-session");
-  if (!fs.existsSync(sessionDir)) {
-    fs.mkdirSync(sessionDir, { recursive: true });
+  
+  // Wipe stale session directory if present
+  if (fs.existsSync(sessionDir)) {
+    try { fs.rmSync(sessionDir, { recursive: true, force: true }); } catch (e) {}
   }
+  fs.mkdirSync(sessionDir, { recursive: true });
 
   const { state, saveCreds } = await useMultiFileAuthState(sessionDir);
 
   const sock = makeWASocket({
     auth: state,
     logger: silentLogger,
-    browser: ["Zeno ERP", "Chrome", "1.0.0"],
+    browser: Browsers.ubuntu("Desktop"),
+    connectTimeoutMs: 60000,
+    defaultQueryTimeoutMs: 60000,
   });
 
   sock.ev.on("creds.update", saveCreds);
 
   sock.ev.on("connection.update", (update) => {
-    const { connection, qr } = update;
+    const { connection, lastDisconnect, qr } = update;
 
     if (qr) {
       console.log("\n========================================================");
@@ -46,6 +53,15 @@ async function main() {
       console.log("\n========================================================");
       console.log("✅ WHATSAPP CONNECTED SUCCESSFULLY TO ZENO ERP!");
       console.log("========================================================\n");
+    } else if (connection === "close") {
+      const statusCode = lastDisconnect?.error?.output?.statusCode;
+      if (statusCode === DisconnectReason.loggedOut) {
+        console.log("🔒 Session logged out. Clearing session files...");
+        try { fs.rmSync(sessionDir, { recursive: true, force: true }); } catch (e) {}
+      } else if (statusCode && statusCode !== 405 && statusCode !== 428 && statusCode !== 408) {
+        console.log(`🔄 Connection closed (${statusCode}). Reconnecting in 5s...`);
+        setTimeout(main, 5000);
+      }
     }
   });
 
