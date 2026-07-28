@@ -3,6 +3,17 @@ const { useMultiFileAuthState, DisconnectReason } = require("@whiskeysockets/bai
 const qrcode = require("qrcode");
 const path = require("path");
 
+// Silent logger to suppress Baileys debug JSON log output
+const silentLogger = {
+  level: "silent",
+  trace: () => {},
+  debug: () => {},
+  info: () => {},
+  warn: () => {},
+  error: () => {},
+  child: () => silentLogger,
+};
+
 /**
  * Zeno ERP Live Baileys WhatsApp Gateway Runner.
  * Connects your WhatsApp business phone number directly to Zeno ERP via WebSockets.
@@ -16,6 +27,7 @@ async function startWhatsAppGateway() {
 
   const sock = makeWASocket({
     auth: state,
+    logger: silentLogger,
     printQRInTerminal: false,
     browser: ["Zeno ERP", "Chrome", "1.0.0"],
   });
@@ -29,15 +41,19 @@ async function startWhatsAppGateway() {
       console.log("\n========================================================");
       console.log("📲 SCAN QR CODE BELOW WITH WHATSAPP (Linked Devices):");
       console.log("========================================================\n");
-      const qrTerminal = await qrcode.toString(qr, { type: "terminal", small: true });
-      console.log(qrTerminal);
+      try {
+        const qrTerminal = await qrcode.toString(qr, { type: "terminal", small: true });
+        console.log(qrTerminal);
+      } catch (e) {
+        console.log("QR Raw:", qr);
+      }
     }
 
     if (connection === "close") {
-      const shouldReconnect = (lastDisconnect?.error)?.output?.statusCode !== DisconnectReason.loggedOut;
-      console.log("Connection closed, reconnecting: ", shouldReconnect);
+      const statusCode = (lastDisconnect?.error)?.output?.statusCode;
+      const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
       if (shouldReconnect) {
-        startWhatsAppGateway();
+        setTimeout(startWhatsAppGateway, 3000);
       }
     } else if (connection === "open") {
       console.log("\n========================================================");
