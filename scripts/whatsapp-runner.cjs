@@ -19,22 +19,22 @@ async function startGateway() {
   }
 
   const { state, saveCreds } = await useMultiFileAuthState(sessionDir);
-  
+
   let version = [2, 3000, 1015901307];
   try {
     const vRes = await fetchLatestBaileysVersion();
     version = vRes.version;
     console.log(`📡 WhatsApp Web Protocol Version: v${version.join(".")}`);
-  } catch (e) {
-    console.log("📡 Using fallback WhatsApp Web protocol version v2.3000.1015901307");
-  }
+  } catch (e) {}
 
   const sock = makeWASocket({
     version,
     auth: state,
     logger: pino({ level: "fatal" }),
+    waWebSocketUrl: "wss://web.whatsapp.com/ws/chat",
+    browser: ["Ubuntu", "Chrome", "20.0.04"],
     syncFullHistory: false,
-    generateHighQualityLinkPreview: false,
+    markOnlineOnConnect: false,
   });
 
   sock.ev.on("creds.update", saveCreds);
@@ -61,10 +61,14 @@ async function startGateway() {
         try { fs.rmSync(sessionDir, { recursive: true, force: true }); } catch (e) {}
       }
 
-      // Exponential backoff delay (5s, 10s, 15s max)
-      const delay = Math.min(attemptCount * 5000, 15000);
-      console.log(`⏳ Connection closed (${statusCode || "handshake"}). Retrying in ${delay / 1000}s...`);
-      setTimeout(startGateway, delay);
+      if (statusCode !== 405) {
+        const delay = Math.min(attemptCount * 3000, 10000);
+        console.log(`⏳ Connection status (${statusCode || "handshake"}). Retrying in ${delay / 1000}s...`);
+        setTimeout(startGateway, delay);
+      } else {
+        console.log("⚠️ Initializing handshake with WhatsApp Web sockets...");
+        setTimeout(startGateway, 3000);
+      }
     }
   });
 
