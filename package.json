@@ -9,7 +9,7 @@
     "db:seed": "tsx src/db/seed.ts",
     "test": "tsx --test src/lib/__tests__/*.test.ts",
     "db:push": "tsx src/db/push.ts",
-    "whatsapp": "tsx scripts/whatsapp-runner.ts"
+    "whatsapp": "node scripts/whatsapp-runner.cjs"
   },
   "dependencies": {
     "@lottiefiles/react-lottie-player": "^3.6.0",
