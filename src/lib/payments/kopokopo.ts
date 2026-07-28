@@ -3,7 +3,10 @@ import { PaymentGateway, GatewayOrgConfig, appBaseUrl } from "./gateway";
 import { decryptConfig } from "./crypto";
 
 const SANDBOX_BASE = "https://sandbox.kopokopo.com";
-const PROD_BASE = "https://app.kopokopo.com";
+// api.kopokopo.com, NOT app.kopokopo.com — the latter is the merchant dashboard.
+// It serves /oauth/token (so tokens appear to work) but answers every /api/v1
+// request with a bodyless 403 text/html, which reads like an auth failure.
+const PROD_BASE = "https://api.kopokopo.com";
 
 // Kopo Kopo documents User-Agent as a required header, and their edge rejects
 // requests without one with a bodyless 403. Node's fetch sends no User-Agent by
