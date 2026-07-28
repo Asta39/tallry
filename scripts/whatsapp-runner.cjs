@@ -11,18 +11,21 @@ async function main() {
   console.log("\n🚀 Initializing Zeno ERP WhatsApp Gateway (Baileys)...");
 
   const sessionDir = path.join(process.cwd(), "data", "whatsapp-session");
-  const { state, saveCreds } = await useMultiFileAuthState(sessionDir);
+  if (!fs.existsSync(sessionDir)) {
+    fs.mkdirSync(sessionDir, { recursive: true });
+  }
 
+  const { state, saveCreds } = await useMultiFileAuthState(sessionDir);
   const { version } = await fetchLatestBaileysVersion();
-  console.log(`📡 Connected using WhatsApp Web v${version.join(".")}`);
+  console.log(`📡 WhatsApp Web Protocol: v${version.join(".")}`);
+  console.log("⏳ Establishing secure connection to WhatsApp servers...");
 
   const sock = makeWASocket({
     version,
     auth: state,
     logger: pino({ level: "error" }),
-    browser: ["Ubuntu", "Chrome", "20.0.04"],
+    printQRInTerminal: false,
     syncFullHistory: false,
-    markOnlineOnConnect: false,
   });
 
   sock.ev.on("creds.update", saveCreds);
@@ -42,11 +45,8 @@ async function main() {
       console.log("✅ WHATSAPP CONNECTED SUCCESSFULLY TO ZENO ERP!");
       console.log("========================================================\n");
     } else if (connection === "close") {
-      const statusCode = lastDisconnect?.error?.output?.statusCode;
-      if (statusCode && statusCode !== 405) {
-        console.log(`🔄 Connection closed (${statusCode}). Reconnecting in 5s...`);
-        setTimeout(main, 5000);
-      }
+      console.log("🔄 Connection closed. Reconnecting...");
+      setTimeout(main, 4000);
     }
   });
 
