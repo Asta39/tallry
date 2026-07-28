@@ -111,6 +111,8 @@ export function DocumentEditor({
   const [saveAsTemplate, setSaveAsTemplate] = useState(false);
   const [lines, setLines] = useState<EditorLine[]>(initialData?.lines ?? [emptyLine()]);
 
+  const itemOptions = useMemo(() => items.map((it) => ({ id: it.id, label: it.name })), [items]);
+
   const parsedLines: DocLineInput[] = useMemo(
     () =>
       lines
@@ -342,18 +344,14 @@ export function DocumentEditor({
                 <tr key={i} className="hairline-t align-top">
                   <td className="px-3 py-2">
                     {items.length > 0 && (
-                      <select
-                        className={cellCls + " text-[var(--color-ink-400)] mb-1"}
+                      <SearchableSelect
+                        className="mb-1"
+                        inputClassName={cellCls + " border-[var(--color-ink-200)]"}
+                        options={itemOptions}
                         value={l.itemId ?? ""}
-                        onChange={(e) => e.target.value && pickItem(i, Number(e.target.value))}
-                      >
-                        <option value="">— pick an item —</option>
-                        {items.map((it) => (
-                          <option key={it.id} value={it.id}>
-                            {it.name}
-                          </option>
-                        ))}
-                      </select>
+                        onChange={(id) => (id === "" ? update(i, { itemId: null }) : pickItem(i, id))}
+                        placeholder="Search items…"
+                      />
                     )}
                     <input
                       className={cellCls}
@@ -491,12 +489,14 @@ export function DocumentEditor({
             + Add custom line
           </button>
           {items.length > 0 && (
-            <select
-              className="text-[13px] border border-[var(--color-ink-200)] rounded px-2 py-1 outline-none focus:border-[var(--color-accent-500)]"
+            <SearchableSelect
+              className="w-56"
+              inputClassName="w-full text-[13px] border border-[var(--color-ink-200)] rounded px-2 py-1.5 outline-none focus:border-[var(--color-accent-500)] bg-white"
+              options={itemOptions}
               value=""
-              onChange={(e) => {
-                if (!e.target.value) return;
-                const id = Number(e.target.value);
+              placeholder="Add from inventory…"
+              onChange={(id) => {
+                if (id === "") return;
                 const item = items.find(i => i.id === id);
                 if (item) {
                   const priceCents = isSale ? item.salePriceCents : item.purchaseCostCents;
@@ -522,12 +522,7 @@ export function DocumentEditor({
                   });
                 }
               }}
-            >
-              <option value="">Add from inventory...</option>
-              {items.map(item => (
-                <option key={item.id} value={item.id}>{item.name}</option>
-              ))}
-            </select>
+            />
           )}
         </div>
       </div>

@@ -17,12 +17,15 @@ export function SearchableSelect({
   onChange,
   placeholder = "Search…",
   className = "",
+  inputClassName,
 }: {
   options: SearchableOption[];
   value: number | "";
   onChange: (id: number | "") => void;
   placeholder?: string;
   className?: string;
+  /** Overrides the input styling — used for the compact document line cells. */
+  inputClassName?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -56,7 +59,10 @@ export function SearchableSelect({
   return (
     <div ref={rootRef} className={`relative ${className}`}>
       <input
-        className="w-full h-10 px-3 rounded-lg border border-[var(--color-ink-200)] focus:border-[var(--color-brand-500)] outline-none text-[13px] bg-white"
+        className={
+          inputClassName ??
+          "w-full h-10 px-3 rounded-lg border border-[var(--color-ink-200)] focus:border-[var(--color-brand-500)] outline-none text-[13px] bg-white"
+        }
         value={open ? query : selected?.label ?? ""}
         placeholder={selected ? selected.label : placeholder}
         onFocus={() => { setOpen(true); setQuery(""); }}
