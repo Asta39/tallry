@@ -141,10 +141,21 @@ export async function postPayrollRunAction(runId: number, formData: FormData) {
       throw new Error("Missing account mappings");
     }
 
-    const [run] = await db.select().from(payrollRuns).where(and(eq(payrollRuns.id, runId), eq(payrollRuns.orgId, o.id)));
-    if (!run) throw new Error("Not found");
-    if (run.status === "posted") throw new Error("Already posted");
+    // Atomic claim: flip draft -> posting in one statement so two concurrent
+    // posts can't both get past the status check and double-post the journal.
+    // A read-then-check leaves that window open.
+    const [run] = await db
+      .update(payrollRuns)
+      .set({ status: "posting" })
+      .where(and(eq(payrollRuns.id, runId), eq(payrollRuns.orgId, o.id), eq(payrollRuns.status, "draft")))
+      .returning();
+    if (!run) {
+      const [existing] = await db.select().from(payrollRuns).where(and(eq(payrollRuns.id, runId), eq(payrollRuns.orgId, o.id)));
+      if (!existing) throw new Error("Not found");
+      throw new Error(existing.status === "posted" ? "Already posted" : "This run is already being posted");
+    }
 
+    try {
     const lines = await db.select().from(payrollRunLineItems).where(eq(payrollRunLineItems.payrollRunId, runId));
 
     let totalGross = 0;
@@ -226,6 +237,16 @@ export async function postPayrollRunAction(runId: number, formData: FormData) {
 
     revalidatePath(`/payroll/runs/${run.id}`);
     revalidatePath("/payroll/runs");
+    } catch (err) {
+      // Release the claim so the run can be retried. Only safe while it's still
+      // "posting" — once the transaction below has flipped it to "posted" the
+      // journal entry and loan balances are committed and must not be undone.
+      await db
+        .update(payrollRuns)
+        .set({ status: "draft" })
+        .where(and(eq(payrollRuns.id, runId), eq(payrollRuns.status, "posting")));
+      throw err;
+    }
   });
 }
 
@@ -236,6 +257,7 @@ export async function deletePayrollRunAction(runId: number) {
   const [run] = await db.select().from(payrollRuns).where(and(eq(payrollRuns.id, runId), eq(payrollRuns.orgId, o.id)));
   if (!run) throw new Error("Not found");
   if (run.status === "posted") throw new Error("Cannot delete a posted run");
+  if (run.status === "posting") throw new Error("This run is currently being posted — try again in a moment");
 
   await db.delete(payrollRunLineItems).where(eq(payrollRunLineItems.payrollRunId, runId));
   await db.delete(loanInstallments).where(eq(loanInstallments.payrollRunId, runId));
