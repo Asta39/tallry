@@ -138,15 +138,16 @@ export function getKopoKopoGateway(orgConfig: GatewayOrgConfig): PaymentGateway 
       const recipientRes = await fetch(`${baseUrl}/api/v1/pay_recipients`, {
         method: "POST",
         headers: authHeaders(token),
-        // Mobile-wallet recipients use camelCase keys (unlike the snake_case
-        // subscriber block on incoming_payments) — snake_case is silently
-        // dropped and the request fails validation.
+        // snake_case, matching the rest of the REST API. The camelCase shown in
+        // Kopo Kopo's docs is their SDK's input format — the SDKs convert it
+        // before sending. Posting camelCase directly makes the API see no phone
+        // number at all and reject with "Phone number can't be blank".
         body: JSON.stringify({
           type: "mobile_wallet",
           pay_recipient: {
-            firstName: "Vendor",
-            lastName: input.accountRef || "Payout",
-            phoneNumber: normalizePhone(input.destination),
+            first_name: "Vendor",
+            last_name: input.accountRef || "Payout",
+            phone_number: normalizePhone(input.destination),
             network: "Safaricom",
           },
         }),
