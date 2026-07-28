@@ -7,8 +7,11 @@ const fs = require("fs");
 
 process.stdin.resume();
 
-async function main() {
-  console.log("\n🚀 Initializing Zeno ERP WhatsApp Gateway (Baileys)...");
+let attemptCount = 0;
+
+async function startGateway() {
+  attemptCount++;
+  console.log(`\n🚀 Initializing Zeno ERP WhatsApp Gateway (Attempt #${attemptCount})...`);
 
   const sessionDir = path.join(process.cwd(), "data", "whatsapp-session");
   if (!fs.existsSync(sessionDir)) {
@@ -16,16 +19,22 @@ async function main() {
   }
 
   const { state, saveCreds } = await useMultiFileAuthState(sessionDir);
-  const { version } = await fetchLatestBaileysVersion();
-  console.log(`📡 WhatsApp Web Protocol: v${version.join(".")}`);
-  console.log("⏳ Establishing secure connection to WhatsApp servers...");
+  
+  let version = [2, 3000, 1015901307];
+  try {
+    const vRes = await fetchLatestBaileysVersion();
+    version = vRes.version;
+    console.log(`📡 WhatsApp Web Protocol Version: v${version.join(".")}`);
+  } catch (e) {
+    console.log("📡 Using fallback WhatsApp Web protocol version v2.3000.1015901307");
+  }
 
   const sock = makeWASocket({
     version,
     auth: state,
-    logger: pino({ level: "error" }),
-    printQRInTerminal: false,
+    logger: pino({ level: "fatal" }),
     syncFullHistory: false,
+    generateHighQualityLinkPreview: false,
   });
 
   sock.ev.on("creds.update", saveCreds);
@@ -41,12 +50,21 @@ async function main() {
     }
 
     if (connection === "open") {
+      attemptCount = 0;
       console.log("\n========================================================");
       console.log("✅ WHATSAPP CONNECTED SUCCESSFULLY TO ZENO ERP!");
       console.log("========================================================\n");
     } else if (connection === "close") {
-      console.log("🔄 Connection closed. Reconnecting...");
-      setTimeout(main, 4000);
+      const statusCode = lastDisconnect?.error?.output?.statusCode;
+      if (statusCode === 401 || statusCode === 403) {
+        console.log("🧹 Clearing invalid credentials...");
+        try { fs.rmSync(sessionDir, { recursive: true, force: true }); } catch (e) {}
+      }
+
+      // Exponential backoff delay (5s, 10s, 15s max)
+      const delay = Math.min(attemptCount * 5000, 15000);
+      console.log(`⏳ Connection closed (${statusCode || "handshake"}). Retrying in ${delay / 1000}s...`);
+      setTimeout(startGateway, delay);
     }
   });
 
@@ -68,4 +86,4 @@ async function main() {
   });
 }
 
-main().catch(console.error);
+startGateway().catch(console.error);
