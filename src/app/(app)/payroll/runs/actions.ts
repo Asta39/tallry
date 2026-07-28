@@ -2,7 +2,7 @@
 
 import { requirePerm } from "@/lib/guard";
 import { getOrg, withOrg } from "@/lib/org";
-import { db, employees, payrollRuns, payrollRunLineItems, leaveRecords, payrollAdjustments, loanLedger, loanInstallments, statutoryRules, accounts } from "@/db";
+import { db, employees, payrollRuns, payrollRunLineItems, leaveRecords, payrollAdjustments, loanLedger, loanInstallments, statutoryRules, accounts, journalEntries } from "@/db";
 import { and, eq } from "drizzle-orm";
 import { runPayrollEngine, RuleDef } from "@/lib/payroll";
 import { postEntry } from "@/lib/posting";
@@ -266,4 +266,62 @@ export async function deletePayrollRunAction(runId: number) {
 
   revalidatePath("/payroll/runs");
   redirect("/payroll/runs");
+}
+
+/**
+ * Recovers a run stuck in "posting".
+ *
+ * postPayrollRunAction releases its claim on a thrown error, but not if the
+ * process itself dies (deploy, OOM, timeout) between claiming the run and
+ * committing. That leaves a run no UI path can act on: the post form and the
+ * delete button both require "draft".
+ *
+ * Which way to recover depends on whether the journal entry made it. The
+ * status/loan transaction commits together, so a run still sitting in
+ * "posting" never applied its loan balances — completing it here can't
+ * double-apply them, and resetting a run whose entry does exist would
+ * double-post the ledger on retry, which is why the entry is looked up rather
+ * than assumed.
+ */
+export async function recoverStuckPayrollRunAction(runId: number) {
+  return withOrg(async () => {
+    await requirePerm("accountant");
+    const o = await getOrg();
+
+    const [run] = await db.select().from(payrollRuns).where(and(eq(payrollRuns.id, runId), eq(payrollRuns.orgId, o.id)));
+    if (!run) throw new Error("Not found");
+    if (run.status !== "posting") throw new Error("This run isn't stuck — nothing to recover");
+
+    const [entry] = await db
+      .select({ id: journalEntries.id })
+      .from(journalEntries)
+      .where(and(eq(journalEntries.orgId, o.id), eq(journalEntries.sourceType, "payroll"), eq(journalEntries.sourceId, runId)))
+      .limit(1);
+
+    if (!entry) {
+      await db.update(payrollRuns).set({ status: "draft" }).where(eq(payrollRuns.id, runId));
+      revalidatePath(`/payroll/runs/${runId}`);
+      return { recovered: "reset_to_draft" as const };
+    }
+
+    // The entry landed — finish what the interrupted post started.
+    await db.transaction(async (tx) => {
+      await tx.update(payrollRuns).set({ status: "posted", journalEntryId: entry.id }).where(eq(payrollRuns.id, runId));
+      const installments = await tx.select().from(loanInstallments).where(eq(loanInstallments.payrollRunId, runId));
+      for (const inst of installments) {
+        const [loan] = await tx.select().from(loanLedger).where(eq(loanLedger.id, inst.loanId));
+        if (loan) {
+          const newBalance = Math.max(0, loan.balanceCents - inst.amountCents);
+          await tx.update(loanLedger).set({
+            balanceCents: newBalance,
+            status: newBalance === 0 ? "paid" : "active",
+          }).where(eq(loanLedger.id, loan.id));
+        }
+      }
+    });
+
+    revalidatePath(`/payroll/runs/${runId}`);
+    revalidatePath("/payroll/runs");
+    return { recovered: "completed_post" as const };
+  });
 }

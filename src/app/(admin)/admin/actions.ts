@@ -16,7 +16,7 @@ export async function stopImpersonating() {
   const orgId = cookieStore.get("impersonated_org_id")?.value;
   cookieStore.delete("impersonated_org_id");
   await logAdminAction({ actorEmail: user.email!, action: "impersonate_stop", targetType: "org", targetId: orgId });
-  redirect("/admin");
+  return { success: true };
 }
 
 export async function impersonateOrg(orgId: number) {
@@ -27,7 +27,7 @@ export async function impersonateOrg(orgId: number) {
   cookieStore.set("impersonated_org_id", String(orgId), { path: "/", maxAge: 60 * 60 });
   await logAdminAction({ actorEmail: user.email!, action: "impersonate_start", targetType: "org", targetId: orgId });
 
-  redirect("/");
+  return { success: true };
 }
 
 export async function addSuperAdminAction(formData: FormData) {

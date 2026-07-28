@@ -7,6 +7,7 @@ import { fmtKES } from "@/lib/money";
 import { notFound } from "next/navigation";
 import { PostRunForm } from "./PostRunForm";
 import { DeleteRunButton } from "./DeleteRunButton";
+import { RecoverRunButton } from "./RecoverRunButton";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
@@ -74,7 +75,9 @@ export default async function PayrollRunDetailsPage(props: { params: Promise<{ i
         title={`Payroll Run: ${run.month}`} 
         subtitle="Review payslips and post to the ledger"
         action={
-          run.status === "draft" && (
+          run.status === "posting" ? (
+            <RecoverRunButton runId={run.id} />
+          ) : run.status === "draft" ? (
               <div className="flex items-center gap-3">
                 <DeleteRunButton runId={run.id} />
                 <PostRunForm 
@@ -83,7 +86,7 @@ export default async function PayrollRunDetailsPage(props: { params: Promise<{ i
                   liabilityAccounts={liabilityAccounts}
                 />
               </div>
-          )
+          ) : null
         }
       />
 

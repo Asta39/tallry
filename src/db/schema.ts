@@ -524,7 +524,7 @@ export const payrollRuns = pgTable("payroll_runs", {
   id: serial("id").primaryKey(),
   orgId: integer("org_id").notNull().references(() => org.id),
   month: text("month").notNull(), // e.g. "2024-05"
-  status: text("status").notNull().default("draft"), // draft | posted
+  status: text("status").notNull().default("draft"), // draft | posting | posted
   journalEntryId: integer("journal_entry_id"), // once posted
   createdAt: text("created_at").notNull(),
 });
@@ -902,7 +902,7 @@ export const paymentRuns = pgTable("payment_runs", {
   date: text("date").notNull(),
   bankAccountId: integer("bank_account_id").notNull(),
   method: text("method").notNull().default("bank"), // mpesa | bank | cash | card | cheque
-  status: text("status").notNull().default("draft"), // draft | posted
+  status: text("status").notNull().default("draft"), // draft | posting | posted
   totalCents: money("total_cents").notNull().default(0),
   createdAt: text("created_at").notNull(),
   postedAt: text("posted_at"),
