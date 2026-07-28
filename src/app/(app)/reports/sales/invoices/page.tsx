@@ -1,16 +1,40 @@
 import Link from "next/link";
 import { PageHeader } from "@/components/ui";
-import { invoicesReport } from "@/lib/reports";
+import { invoicesReport, reportStaffNames } from "@/lib/reports";
 import { withOrg } from "@/lib/org";
 import { PdfLinks } from "@/components/reportShared";
+import { ReportFilters } from "@/components/ReportFilters";
+import { ReportChart } from "@/components/ReportCharts";
+import { resolvePeriod } from "@/lib/report-period";
 
-export default async function InvoicesReportPage() {
-  const today = new Date().toISOString().slice(0, 10);
-  const currentMonth = today.slice(0, 7);
-  const fromDate = `${currentMonth}-01`;
-  const toDate = today;
+export default async function InvoicesReportPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ period?: string; from?: string; to?: string; staff?: string }>;
+}) {
+  const sp = await searchParams;
+  const { preset, from: fromDate, to: toDate } = resolvePeriod(sp);
+  const staffName = sp.staff || undefined;
 
-  const invoices = await withOrg(() => invoicesReport(fromDate, toDate));
+  const [invoices, staff] = await Promise.all([
+    withOrg(() => invoicesReport(fromDate, toDate, staffName)),
+    withOrg(() => reportStaffNames()),
+  ]);
+
+  const byDay = new Map<string, number>();
+  const byStatus = new Map<string, number>();
+  for (const inv of invoices) {
+    byDay.set(inv.date, (byDay.get(inv.date) ?? 0) + inv.totalCents / 100);
+    byStatus.set(inv.status, (byStatus.get(inv.status) ?? 0) + inv.totalCents / 100);
+  }
+  const trend = [...byDay.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([name, value]) => ({ name, value }));
+  const statusMix = [...byStatus.entries()].map(([k, value]) => ({
+    name: k.charAt(0).toUpperCase() + k.slice(1),
+    value,
+  }));
+
+  const invoicedCents = invoices.reduce((s, i) => s + i.totalCents, 0);
+  const outstandingCents = invoices.reduce((s, i) => s + i.balanceCents, 0);
 
   return (
     <div className="pb-10 pt-2">
@@ -22,32 +46,17 @@ export default async function InvoicesReportPage() {
 
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
         <PageHeader title="Invoices Report" subtitle="Detailed breakdown of all generated invoices" />
-        
+
         <div className="flex items-center gap-3">
           <PdfLinks report="invoices" from={fromDate} to={toDate} />
         </div>
       </div>
 
-      <div className="card p-5 mb-6 bg-[var(--color-ink-50)] border-dashed">
-        <div className="flex flex-col md:flex-row gap-4 items-end">
-          <div className="flex-1">
-            <label className="block text-xs font-semibold text-[var(--color-ink-600)] mb-1">Period</label>
-            <select 
-              className="w-full md:w-64 bg-white border border-[var(--color-ink-200)] text-[var(--color-ink-900)] text-sm rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/20 focus:border-[var(--color-accent)]"
-              defaultValue="this_month"
-            >
-              <option value="this_month">This Month</option>
-              <option value="last_month">Last Month</option>
-              <option value="this_quarter">This Quarter</option>
-              <option value="this_year">This Year</option>
-              <option value="custom">Custom Date Range...</option>
-            </select>
-          </div>
-          
-          <button className="btn-primary px-5 py-2 text-sm whitespace-nowrap">
-            Update Report
-          </button>
-        </div>
+      <ReportFilters preset={preset} from={fromDate} to={toDate} staff={staff} staffName={staffName} />
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        <ReportChart title="Invoiced per day" kind="line" data={trend} />
+        <ReportChart title="Invoiced by status" kind="pie" data={statusMix} />
       </div>
 
       <div className="card overflow-hidden">
@@ -58,6 +67,7 @@ export default async function InvoicesReportPage() {
                 <th className="px-5 py-3 font-semibold">Date</th>
                 <th className="px-5 py-3 font-semibold">Invoice #</th>
                 <th className="px-5 py-3 font-semibold">Customer</th>
+                <th className="px-5 py-3 font-semibold">Created by</th>
                 <th className="px-5 py-3 font-semibold">Status</th>
                 <th className="px-5 py-3 font-semibold text-right">Amount</th>
                 <th className="px-5 py-3 font-semibold text-right">Balance</th>
@@ -70,9 +80,10 @@ export default async function InvoicesReportPage() {
                     <td className="px-5 py-3 text-[var(--color-ink-600)]">{inv.date}</td>
                     <td className="px-5 py-3 font-medium text-[var(--color-ink-900)]">{inv.number}</td>
                     <td className="px-5 py-3 text-[var(--color-ink-800)]">{inv.customerName}</td>
+                    <td className="px-5 py-3 text-[var(--color-ink-600)]">{inv.createdByName ?? "—"}</td>
                     <td className="px-5 py-3">
                       <span className={`px-2 py-1 rounded text-xs font-medium ${
-                        inv.status === 'paid' ? 'bg-green-100 text-green-700' : 
+                        inv.status === 'paid' ? 'bg-green-100 text-green-700' :
                         inv.status === 'open' ? 'bg-blue-100 text-blue-700' :
                         inv.status === 'partial' ? 'bg-orange-100 text-orange-700' :
                         'bg-gray-100 text-gray-700'
@@ -86,12 +97,21 @@ export default async function InvoicesReportPage() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={6} className="px-5 py-12 text-center text-[var(--color-ink-500)]">
+                  <td colSpan={7} className="px-5 py-12 text-center text-[var(--color-ink-500)]">
                     No invoices found for this period.
                   </td>
                 </tr>
               )}
             </tbody>
+            {invoices.length > 0 && (
+              <tfoot>
+                <tr className="bg-[var(--color-ink-50)] border-t border-[var(--color-ink-200)] font-semibold">
+                  <td className="px-5 py-3" colSpan={5}>{invoices.length} invoice(s)</td>
+                  <td className="px-5 py-3 text-right tabular-nums">Ksh {(invoicedCents / 100).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                  <td className="px-5 py-3 text-right tabular-nums">Ksh {(outstandingCents / 100).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                </tr>
+              </tfoot>
+            )}
           </table>
         </div>
       </div>

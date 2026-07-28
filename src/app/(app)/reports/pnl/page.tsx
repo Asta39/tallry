@@ -4,6 +4,7 @@ import { profitAndLoss } from "@/lib/reports";
 import { fmtKES } from "@/lib/money";
 import { PageHeader, TableCard, Th, Td } from "@/components/ui";
 import { PeriodPicker, periodFromSearch, CsvLink, PdfLinks } from "@/components/reportShared";
+import { ReportChart } from "@/components/ReportCharts";
 
 export const dynamic = "force-dynamic";
 
@@ -44,6 +45,29 @@ export default async function PnlPage({
           <PdfLinks report="pnl" from={from} to={to} />
         </div>
       } />
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        <ReportChart
+          title="Income vs cost vs expenses"
+          kind="bar"
+          data={[
+            { name: "Income", value: pl.totalIncome / 100 },
+            { name: "COGS", value: pl.totalCogs / 100 },
+            { name: "Expenses", value: pl.totalExpenses / 100 },
+            { name: "Net profit", value: pl.netProfit / 100 },
+          ]}
+        />
+        <ReportChart
+          title="Expense breakdown"
+          kind="pie"
+          data={pl.expenses
+            .filter((e) => e.balanceCents > 0)
+            .sort((a, b) => b.balanceCents - a.balanceCents)
+            .slice(0, 8)
+            .map((e) => ({ name: e.name, value: e.balanceCents / 100 }))}
+        />
+      </div>
+
       <TableCard>
         <thead className="hairline-b">
           <tr><Th>Account</Th><Th right>Amount</Th></tr>

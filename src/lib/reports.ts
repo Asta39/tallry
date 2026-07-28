@@ -1,4 +1,4 @@
-import { db, accounts, journalEntries, journalLines, documents, documentLines, payments, contacts, items, documentAssignments } from "@/db";
+import { db, accounts, journalEntries, journalLines, documents, documentLines, payments, contacts, items, documentAssignments, members } from "@/db";
 import { currentOrgId } from "@/lib/org";
 import { and, eq, gte, lte, inArray, sql, exists } from "drizzle-orm";
 
@@ -489,7 +489,15 @@ export async function salesDashboardStats(today: string, period: "this_month" | 
 /**
  * Detailed Invoices Report
  */
-export async function invoicesReport(fromDate: string, toDate: string) {
+export async function invoicesReport(fromDate: string, toDate: string, staffName?: string) {
+  const conds = [
+    eq(documents.orgId, currentOrgId()),
+    eq(documents.type, "invoice"),
+    gte(documents.date, fromDate),
+    lte(documents.date, toDate),
+  ];
+  if (staffName) conds.push(eq(documents.createdByName, staffName));
+
   const rows = await db
     .select({
       id: documents.id,
@@ -501,17 +509,11 @@ export async function invoicesReport(fromDate: string, toDate: string) {
       creditedCents: documents.creditedCents,
       contactId: documents.contactId,
       customerName: contacts.displayName,
+      createdByName: documents.createdByName,
     })
     .from(documents)
     .innerJoin(contacts, eq(documents.contactId, contacts.id))
-    .where(
-      and(
-        eq(documents.orgId, currentOrgId()),
-        eq(documents.type, "invoice"),
-        gte(documents.date, fromDate),
-        lte(documents.date, toDate)
-      )
-    )
+    .where(and(...conds))
     .orderBy(sql`${documents.date} desc`, sql`${documents.number} desc`);
 
   return rows.map(r => ({
@@ -523,7 +525,18 @@ export async function invoicesReport(fromDate: string, toDate: string) {
     paidCents: Number(r.paidCents),
     balanceCents: Number(r.totalCents) - Number(r.paidCents) - Number(r.creditedCents),
     customerName: r.customerName,
+    createdByName: r.createdByName,
   }));
+}
+
+/** Active staff names for report filter dropdowns. */
+export async function reportStaffNames() {
+  const rows = await db
+    .select({ name: members.name })
+    .from(members)
+    .where(and(eq(members.orgId, currentOrgId()), eq(members.active, true)))
+    .orderBy(members.name);
+  return rows.map((r) => r.name).filter((n): n is string => !!n);
 }
 
 /**

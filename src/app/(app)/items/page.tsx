@@ -7,6 +7,7 @@ import { stockOnHand, stockValueCents } from "@/lib/inventory";
 import { PageHeader, PrimaryLink, EmptyState } from "@/components/ui";
 import { CsvImporter } from "@/components/CsvImporter";
 import { ItemsTable } from "@/components/ItemsTable";
+import { ReportChart } from "@/components/ReportCharts";
 
 export const dynamic = "force-dynamic";
 
@@ -47,7 +48,30 @@ export default async function ItemsPage() {
         }
         />
       ) : (
-        <ItemsTable rows={rows} stock={stock} />
+        <>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            <ReportChart
+              title="Stock value by item"
+              kind="bar"
+              data={rows
+                .filter((it) => it.trackInventory && (stock[it.id]?.value ?? 0) > 0)
+                .sort((a, b) => (stock[b.id]?.value ?? 0) - (stock[a.id]?.value ?? 0))
+                .slice(0, 8)
+                .map((it) => ({ name: it.name, value: (stock[it.id]?.value ?? 0) / 100 }))}
+            />
+            <ReportChart
+              title="Units on hand"
+              kind="bar"
+              money={false}
+              data={rows
+                .filter((it) => it.trackInventory && (stock[it.id]?.qty ?? 0) > 0)
+                .sort((a, b) => (stock[b.id]?.qty ?? 0) - (stock[a.id]?.qty ?? 0))
+                .slice(0, 8)
+                .map((it) => ({ name: it.name, value: stock[it.id]?.qty ?? 0 }))}
+            />
+          </div>
+          <ItemsTable rows={rows} stock={stock} />
+        </>
       )}
     </>
   );

@@ -4,14 +4,30 @@ import { estimatesReport } from "@/lib/reports";
 import { withOrg } from "@/lib/org";
 import { fmtKESCompact } from "@/lib/money";
 import { PdfLinks } from "@/components/reportShared";
+import { ReportFilters } from "@/components/ReportFilters";
+import { ReportChart } from "@/components/ReportCharts";
+import { resolvePeriod } from "@/lib/report-period";
 
-export default async function EstimatesReportPage() {
-  const today = new Date().toISOString().slice(0, 10);
-  const currentMonth = today.slice(0, 7);
-  const fromDate = `${currentMonth}-01`;
-  const toDate = today;
+export default async function EstimatesReportPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ period?: string; from?: string; to?: string }>;
+}) {
+  const sp = await searchParams;
+  const { preset, from: fromDate, to: toDate } = resolvePeriod(sp);
 
   const estimates = await withOrg(() => estimatesReport(fromDate, toDate));
+
+  const byStatus = new Map<string, number>();
+  for (const e of estimates) byStatus.set(e.status, (byStatus.get(e.status) ?? 0) + e.totalCents / 100);
+  const statusMix = [...byStatus.entries()].map(([k, value]) => ({
+    name: k.charAt(0).toUpperCase() + k.slice(1),
+    value,
+  }));
+  const topEstimates = [...estimates]
+    .sort((a, b) => b.totalCents - a.totalCents)
+    .slice(0, 8)
+    .map((e) => ({ name: e.number, value: e.totalCents / 100 }));
 
   return (
     <div className="pb-10 pt-2">
@@ -29,27 +45,13 @@ export default async function EstimatesReportPage() {
         </div>
       </div>
 
-      <div className="card p-5 mb-6 bg-[var(--color-ink-50)] border-dashed">
-        <div className="flex flex-col md:flex-row gap-4 items-end">
-          <div className="flex-1">
-            <label className="block text-xs font-semibold text-[var(--color-ink-600)] mb-1">Period</label>
-            <select 
-              className="w-full md:w-64 bg-white border border-[var(--color-ink-200)] text-[var(--color-ink-900)] text-sm rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/20 focus:border-[var(--color-accent)]"
-              defaultValue="this_month"
-            >
-              <option value="this_month">This Month</option>
-              <option value="last_month">Last Month</option>
-              <option value="this_quarter">This Quarter</option>
-              <option value="this_year">This Year</option>
-              <option value="custom">Custom Date Range...</option>
-            </select>
-          </div>
-          
-          <button className="btn-primary px-5 py-2 text-sm whitespace-nowrap">
-            Update Report
-          </button>
-        </div>
+      <ReportFilters preset={preset} from={fromDate} to={toDate} />
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        <ReportChart title="Estimate value by status" kind="pie" data={statusMix} />
+        <ReportChart title="Largest estimates" kind="bar" data={topEstimates} />
       </div>
+
 
       <div className="card overflow-hidden">
         <div className="overflow-x-auto">

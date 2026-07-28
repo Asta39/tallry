@@ -4,14 +4,28 @@ import { customersReport } from "@/lib/reports";
 import { withOrg } from "@/lib/org";
 import { fmtKESCompact } from "@/lib/money";
 import { PdfLinks } from "@/components/reportShared";
+import { ReportFilters } from "@/components/ReportFilters";
+import { ReportChart } from "@/components/ReportCharts";
+import { resolvePeriod } from "@/lib/report-period";
 
-export default async function CustomersReportPage() {
-  const today = new Date().toISOString().slice(0, 10);
-  const currentMonth = today.slice(0, 7);
-  const fromDate = `${currentMonth}-01`;
-  const toDate = today;
+export default async function CustomersReportPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ period?: string; from?: string; to?: string }>;
+}) {
+  const sp = await searchParams;
+  const { preset, from: fromDate, to: toDate } = resolvePeriod(sp);
 
   const customers = await withOrg(() => customersReport(fromDate, toDate));
+
+  const topCustomers = [...customers]
+    .sort((a, b) => b.totalSalesCents - a.totalSalesCents)
+    .slice(0, 8)
+    .map((c) => ({ name: c.customerName || "—", value: c.totalSalesCents / 100 }));
+  const receivedVsDue = [
+    { name: "Received", value: customers.reduce((s, c) => s + c.paidCents, 0) / 100 },
+    { name: "Balance due", value: customers.reduce((s, c) => s + c.balanceCents, 0) / 100 },
+  ].filter((d) => d.value > 0);
 
   return (
     <div className="pb-10 pt-2">
@@ -29,27 +43,13 @@ export default async function CustomersReportPage() {
         </div>
       </div>
 
-      <div className="card p-5 mb-6 bg-[var(--color-ink-50)] border-dashed">
-        <div className="flex flex-col md:flex-row gap-4 items-end">
-          <div className="flex-1">
-            <label className="block text-xs font-semibold text-[var(--color-ink-600)] mb-1">Period</label>
-            <select 
-              className="w-full md:w-64 bg-white border border-[var(--color-ink-200)] text-[var(--color-ink-900)] text-sm rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]/20 focus:border-[var(--color-accent)]"
-              defaultValue="this_month"
-            >
-              <option value="this_month">This Month</option>
-              <option value="last_month">Last Month</option>
-              <option value="this_quarter">This Quarter</option>
-              <option value="this_year">This Year</option>
-              <option value="custom">Custom Date Range...</option>
-            </select>
-          </div>
-          
-          <button className="btn-primary px-5 py-2 text-sm whitespace-nowrap">
-            Update Report
-          </button>
-        </div>
+      <ReportFilters preset={preset} from={fromDate} to={toDate} />
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        <ReportChart title="Top customers by sales" kind="bar" data={topCustomers} />
+        <ReportChart title="Received vs balance due" kind="pie" data={receivedVsDue} />
       </div>
+
 
       <div className="card overflow-hidden">
         <div className="overflow-x-auto">
