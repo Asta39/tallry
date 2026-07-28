@@ -11,6 +11,8 @@ next-env.d.ts
 
 # Local analysis scratch — committed by accident once, never intentional
 .DS_Store
-agent/venv/
+agent/venv*/
 *.log
 simulation_report.md
+report.log
+agent_progress.log

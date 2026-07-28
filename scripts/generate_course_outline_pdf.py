@@ -37,7 +37,7 @@ class NumberedCanvas(canvas.Canvas):
         self.setFillColor(colors.HexColor("#4A5568"))
 
         # Running Header
-        self.drawString(54, letter[1] - 36, "BIASHARA ERP — COMPLETE SYSTEM REFERENCE & COURSE OUTLINE")
+        self.drawString(54, letter[1] - 36, "ZENO ERP — COMPLETE SYSTEM REFERENCE & COURSE OUTLINE")
         self.setStrokeColor(colors.HexColor("#E2E8F0"))
         self.setLineWidth(0.75)
         self.line(54, letter[1] - 42, letter[0] - 54, letter[1] - 42)
@@ -45,7 +45,7 @@ class NumberedCanvas(canvas.Canvas):
         # Running Footer
         self.setFont("Helvetica", 8)
         self.setFillColor(colors.HexColor("#718096"))
-        self.drawString(54, 36, "Confidential & Proprietary — Biashara Enterprise ERP Documentation")
+        self.drawString(54, 36, "Confidential & Proprietary — Zeno Enterprise ERP Documentation")
         page_str = f"Page {self._pageNumber} of {page_count}"
         self.drawRightString(letter[0] - 54, 36, page_str)
         self.setStrokeColor(colors.HexColor("#E2E8F0"))
@@ -53,7 +53,7 @@ class NumberedCanvas(canvas.Canvas):
 
         self.restoreState()
 
-def build_pdf(filename="Biashara_ERP_Complete_Course_Outline_and_System_Documentation.pdf"):
+def build_pdf(filename="Zeno_ERP_Complete_Course_Outline_and_System_Documentation.pdf"):
     pdf_path = os.path.abspath(filename)
     doc = SimpleDocTemplate(
         pdf_path,
@@ -178,15 +178,15 @@ def build_pdf(filename="Biashara_ERP_Complete_Course_Outline_and_System_Document
     # COVER PAGE
     # -------------------------------------------------------------------------
     story.append(Spacer(1, 40))
-    story.append(Paragraph("BIASHARA ERP SYSTEM", ParagraphStyle('Badge', fontName='Helvetica-Bold', fontSize=10, textColor=SECONDARY, leading=12, spaceAfter=8)))
+    story.append(Paragraph("ZENO ERP SYSTEM", ParagraphStyle('Badge', fontName='Helvetica-Bold', fontSize=10, textColor=SECONDARY, leading=12, spaceAfter=8)))
     story.append(Paragraph("Comprehensive Course Outline & System Reference Manual", title_style))
-    story.append(Paragraph("An end-to-end screen-by-screen guide, module architectural reference, and operational standard operating procedure (SOP) for Biashara Enterprise ERP.", subtitle_style))
+    story.append(Paragraph("An end-to-end screen-by-screen guide, module architectural reference, and operational standard operating procedure (SOP) for Zeno Enterprise ERP.", subtitle_style))
     
     story.append(HRFlowable(width="100%", thickness=2, color=PRIMARY, spaceBefore=5, spaceAfter=20))
 
     # Metadata Box
     meta_data = [
-        [Paragraph("<b>Target Audience:</b>", table_cell_bold), Paragraph("Business Owners, Financial Controllers, Accountants, Operations Managers & Systems Administrators", table_cell_style)],
+        [Paragraph("<b>Target Audience:</b>", table_cell_bold), Paragraph("Business Owners, Financial Controllers, Accountants, Sales Managers, Operations Teams & Systems Administrators", table_cell_style)],
         [Paragraph("<b>Regional Compliance:</b>", table_cell_bold), Paragraph("Kenya & East Africa (Kenyan Shillings KES, KRA VAT 16%, SHIF/NHIF, PAYE, Housing Levy, NSSF)", table_cell_style)],
         [Paragraph("<b>System Coverage:</b>", table_cell_bold), Paragraph("10 Core Modules | 65+ Dedicated Screens & Routes | Full Accounting & CRM Lifecycle", table_cell_style)],
         [Paragraph("<b>Document Version:</b>", table_cell_bold), Paragraph("Version 2.4 (Production Release)", table_cell_style)],
@@ -206,7 +206,7 @@ def build_pdf(filename="Biashara_ERP_Complete_Course_Outline_and_System_Document
     # Course Overview Callout
     overview_text = (
         "<b>Executive Summary & Curriculum Goal:</b><br/>"
-        "Biashara ERP is a modern, enterprise-grade cloud ERP platform built specifically for fast-growing businesses. "
+        "Zeno ERP is a modern, enterprise-grade cloud ERP platform built specifically for fast-growing businesses. "
         "This curriculum provides an exhaustive walkthrough of every single screen, module, workflow, and financial control "
         "embedded in the application. Learners and system operators will gain complete mastery over sales pipelines, multi-warehouse "
         "inventory, quote-to-cash operations, procure-to-pay automation, statutory Kenyan payroll, double-entry general ledger, "

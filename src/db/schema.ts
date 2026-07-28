@@ -945,3 +945,16 @@ export const budgetLines = pgTable("budget_lines", {
   orgBudgetIdx: index("idx_budget_lines_budget").on(t.orgId, t.budgetId),
   budgetAccountMonthUnique: uniqueIndex("idx_budget_lines_unique").on(t.budgetId, t.accountId, t.month),
 }));
+
+/** Outbound webhook subscriptions configured per organization. */
+export const webhookSubscriptions = pgTable("webhook_subscriptions", {
+  id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
+  url: text("url").notNull(),
+  secret: text("secret").notNull(), // HMAC-SHA256 signing secret
+  events: text("events").notNull(), // JSON array string e.g. ["invoice.created", "payment.received"]
+  active: boolean("active").notNull().default(true),
+  createdAt: text("created_at").notNull(),
+}, (t) => ({
+  orgIdx: index("idx_webhook_subscriptions_org").on(t.orgId),
+}));
