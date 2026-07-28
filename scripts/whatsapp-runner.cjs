@@ -1,5 +1,5 @@
 const makeWASocket = require("@whiskeysockets/baileys").default;
-const { useMultiFileAuthState, DisconnectReason } = require("@whiskeysockets/baileys");
+const { useMultiFileAuthState } = require("@whiskeysockets/baileys");
 const qrcodeTerminal = require("qrcode-terminal");
 const path = require("path");
 const fs = require("fs");
@@ -14,7 +14,7 @@ const silentLogger = {
   child: () => silentLogger,
 };
 
-async function startWhatsAppGateway() {
+async function main() {
   console.log("\n🚀 Initializing Zeno ERP WhatsApp Gateway (Baileys)...");
 
   const sessionDir = path.join(process.cwd(), "data", "whatsapp-session");
@@ -33,7 +33,7 @@ async function startWhatsAppGateway() {
   sock.ev.on("creds.update", saveCreds);
 
   sock.ev.on("connection.update", (update) => {
-    const { connection, lastDisconnect, qr } = update;
+    const { connection, qr } = update;
 
     if (qr) {
       console.log("\n========================================================");
@@ -46,16 +46,6 @@ async function startWhatsAppGateway() {
       console.log("\n========================================================");
       console.log("✅ WHATSAPP CONNECTED SUCCESSFULLY TO ZENO ERP!");
       console.log("========================================================\n");
-    } else if (connection === "close") {
-      const statusCode = lastDisconnect?.error?.output?.statusCode;
-      const loggedOut = statusCode === DisconnectReason.loggedOut;
-      if (loggedOut) {
-        console.log("🔒 WhatsApp session logged out. Clearing session files...");
-        try { fs.rmSync(sessionDir, { recursive: true, force: true }); } catch (e) {}
-      } else {
-        console.log("🔄 Reconnecting WhatsApp Gateway...");
-        setTimeout(startWhatsAppGateway, 3000);
-      }
     }
   });
 
@@ -77,4 +67,4 @@ async function startWhatsAppGateway() {
   });
 }
 
-startWhatsAppGateway().catch(console.error);
+main().catch(console.error);
