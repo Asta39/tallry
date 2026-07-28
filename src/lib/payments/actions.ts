@@ -99,7 +99,7 @@ export async function payOutAction(documentId: number, destination: string, dest
     }
 
     const [payee] = doc.contactId
-      ? await db.select({ name: contacts.displayName }).from(contacts).where(and(eq(contacts.id, doc.contactId), eq(contacts.orgId, o.id)))
+      ? await db.select({ name: contacts.displayName, email: contacts.email }).from(contacts).where(and(eq(contacts.id, doc.contactId), eq(contacts.orgId, o.id)))
       : [];
 
     const result = await gateway.payOut({
@@ -109,6 +109,7 @@ export async function payOutAction(documentId: number, destination: string, dest
       amountCents,
       accountRef: doc.number,
       payeeName: payee?.name || undefined,
+      payeeEmail: payee?.email || undefined,
       reason: `Payout for ${doc.type} ${doc.number}`
     });
 

@@ -151,24 +151,38 @@ export function getKopoKopoGateway(orgConfig: GatewayOrgConfig): PaymentGateway 
       const payee = splitPayeeName(input.payeeName);
 
       // 1. Create (or re-create) a mobile-wallet recipient
+      // snake_case, matching the rest of the REST API. The camelCase shown in
+      // Kopo Kopo's docs is their SDK's input format — the SDKs convert it
+      // before sending. Posting camelCase directly makes the API see no phone
+      // number at all and reject with "Phone number can't be blank".
+      const recipientPayload = {
+        type: "mobile_wallet",
+        pay_recipient: {
+          first_name: payee.first,
+          last_name: payee.last,
+          phone_number: normalizePhone(input.destination),
+          network: "Safaricom",
+          // Optional per the field spec, but present in every Kopo Kopo example.
+          ...(input.payeeEmail ? { email: input.payeeEmail } : {}),
+        },
+      };
+
       const recipientRes = await fetch(`${baseUrl}/api/v1/pay_recipients`, {
         method: "POST",
         headers: authHeaders(token),
-        // snake_case, matching the rest of the REST API. The camelCase shown in
-        // Kopo Kopo's docs is their SDK's input format — the SDKs convert it
-        // before sending. Posting camelCase directly makes the API see no phone
-        // number at all and reject with "Phone number can't be blank".
-        body: JSON.stringify({
-          type: "mobile_wallet",
-          pay_recipient: {
-            first_name: payee.first,
-            last_name: payee.last,
-            phone_number: normalizePhone(input.destination),
-            network: "Safaricom",
-          },
-        }),
+        body: JSON.stringify(recipientPayload),
       });
-      if (!recipientRes.ok) throw await describeFailure(recipientRes, "Kopo Kopo recipient creation failed");
+      if (!recipientRes.ok) {
+        // "Pay recipient could not be created" names no field, so the payload we
+        // actually sent has to travel with the error or it's unfalsifiable.
+        console.error("Kopo Kopo pay_recipients rejected", {
+          url: `${baseUrl}/api/v1/pay_recipients`,
+          status: recipientRes.status,
+          payload: recipientPayload,
+        });
+        const err = await describeFailure(recipientRes, "Kopo Kopo recipient creation failed");
+        throw new Error(`${err.message} — sent: ${JSON.stringify(recipientPayload.pay_recipient)}`);
+      }
       const recipientLocation = recipientRes.headers.get("Location");
       if (!recipientLocation) throw new Error("Kopo Kopo recipient creation returned no Location header");
       const recipientRef = resourceIdFromLocation(recipientLocation);
