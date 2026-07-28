@@ -18,7 +18,9 @@ import {
   paymentsReport,
   creditNotesReport,
   estimatesReport,
-  customersReport
+  customersReport,
+  vat3Prefill,
+  type Vat3Row
 } from "@/lib/reports";
 
 export const dynamic = "force-dynamic";
@@ -172,6 +174,50 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         rows.push({ id: "p-ex", cells: ["Exempt", fmtKES(v.purchases.A_EXEMPT.net), fmtKES(v.purchases.A_EXEMPT.tax)] });
 
         rows.push({ id: "net", cells: ["Net VAT Due", "", fmtKES(v.netVatDue)], isHeader: true, isBold: true });
+
+      } else if (type === "vat3") {
+        title = "iTax VAT3 Prefill";
+        subtitle = `From ${from} to ${to}`;
+        columns = [
+          { header: "PIN", align: "left", widthPct: 20 },
+          { header: "Name", align: "left", widthPct: 28 },
+          { header: "Class", align: "left", widthPct: 12 },
+          { header: "Net", align: "right", widthPct: 13 },
+          { header: "VAT", align: "right", widthPct: 13 },
+          { header: "Gross", align: "right", widthPct: 14 },
+        ];
+        const v3 = await vat3Prefill(from, to);
+        const section = (key: string, heading: string, list: Vat3Row[], fallbackName: string) => {
+          rows.push({ id: `${key}-h`, cells: [heading], isHeader: true });
+          if (list.length === 0) {
+            rows.push({ id: `${key}-none`, cells: ["No data for this period."], isIndent: true });
+            return;
+          }
+          list.forEach((r, i) =>
+            rows.push({
+              id: `${key}-${i}`,
+              cells: [
+                r.kraPin || "UNREGISTERED",
+                r.contactName || fallbackName,
+                r.taxClass,
+                fmtKES(r.netCents),
+                fmtKES(r.taxCents),
+                fmtKES(r.grossCents),
+              ],
+            })
+          );
+          const t = list.reduce(
+            (a, r) => ({ net: a.net + r.netCents, tax: a.tax + r.taxCents, gross: a.gross + r.grossCents }),
+            { net: 0, tax: 0, gross: 0 }
+          );
+          rows.push({
+            id: `${key}-t`,
+            cells: ["Total", "", "", fmtKES(t.net), fmtKES(t.tax), fmtKES(t.gross)],
+            isBold: true,
+          });
+        };
+        section("out", "Output VAT (Sales)", v3.output, "Cash Sale");
+        section("in", "Input VAT (Purchases)", v3.input, "Cash Expense");
 
       } else if (type === "general-ledger" && accountId) {
         title = "General Ledger";

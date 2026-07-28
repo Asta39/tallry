@@ -529,6 +529,63 @@ export async function invoicesReport(fromDate: string, toDate: string, staffName
   }));
 }
 
+export interface Vat3Row {
+  kraPin: string | null;
+  contactName: string | null;
+  taxClass: string;
+  netCents: number;
+  taxCents: number;
+  grossCents: number;
+}
+
+/**
+ * iTax VAT3 prefill — output/input VAT broken down per counterparty PIN and
+ * tax class, which is the shape KRA's return upload wants.
+ *
+ * Same posted-only rule as vatReturn(): a document that hasn't hit the ledger
+ * (draft, pending_approval) has no VAT to declare or claim yet.
+ */
+export async function vat3Prefill(fromDate: string, toDate: string) {
+  const POSTED = ["open", "paid", "partial"];
+
+  const query = (types: string[]) =>
+    db
+      .select({
+        taxClass: documentLines.taxClass,
+        kraPin: contacts.kraPin,
+        contactName: contacts.displayName,
+        totalGross: sql<number>`sum(${documentLines.grossCents})`,
+        totalTax: sql<number>`sum(${documentLines.taxCents})`,
+        totalNet: sql<number>`sum(${documentLines.netCents})`,
+      })
+      .from(documentLines)
+      .innerJoin(documents, eq(documentLines.documentId, documents.id))
+      .leftJoin(contacts, eq(documents.contactId, contacts.id))
+      .where(
+        and(
+          eq(documents.orgId, currentOrgId()),
+          inArray(documents.type, types),
+          inArray(documents.status, POSTED),
+          gte(documents.date, fromDate),
+          lte(documents.date, toDate)
+        )
+      )
+      .groupBy(documentLines.taxClass, contacts.kraPin, contacts.displayName);
+
+  const shape = (rows: Awaited<ReturnType<typeof query>>): Vat3Row[] =>
+    rows.map((r) => ({
+      kraPin: r.kraPin,
+      contactName: r.contactName,
+      taxClass: r.taxClass,
+      netCents: Number(r.totalNet) || 0,
+      taxCents: Number(r.totalTax) || 0,
+      grossCents: Number(r.totalGross) || 0,
+    }));
+
+  const [output, input] = await Promise.all([query(["invoice"]), query(["bill", "expense"])]);
+  return { output: shape(output), input: shape(input) };
+}
+
 /** Active staff names for report filter dropdowns. */
 export async function reportStaffNames() {
   const rows = await db
