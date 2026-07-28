@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { renderToBuffer } from "@react-pdf/renderer";
 import QRCode from "qrcode";
 import React from "react";
-import { db, documents, documentLines, contacts } from "@/db";
+import { db, documents, documentLines, contacts, items } from "@/db";
 import { and, eq } from "drizzle-orm";
 import { getOrg } from "@/lib/org";
 import { DocumentPdf } from "@/lib/pdf/DocumentPdf";
@@ -34,10 +34,13 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     return new Response("PDF not supported for this document type", { status: 400 });
   }
 
-  const lines = await db
-    .select()
+  // Left join: lines typed freehand have no itemId and must still render.
+  const lineRows = await db
+    .select({ line: documentLines, itemName: items.name })
     .from(documentLines)
+    .leftJoin(items, eq(documentLines.itemId, items.id))
     .where(and(eq(documentLines.orgId, o.id), eq(documentLines.documentId, doc.id)));
+  const lines = lineRows.map((r) => ({ ...r.line, itemName: r.itemName }));
   const contact = doc.contactId
     ? (
         await db
@@ -85,6 +88,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
       },
       contact,
       lines: lines.map((l) => ({
+        itemName: l.itemName,
         description: l.description,
         qty: l.qty,
         unitPriceCents: l.unitPriceCents,

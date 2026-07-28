@@ -28,6 +28,8 @@ export interface PdfOrg {
 }
 
 export interface PdfLine {
+  /** Catalog item name, when the line came from one. */
+  itemName?: string | null;
   description: string;
   qty: number;
   unitPriceCents: number;
@@ -136,6 +138,28 @@ const billToLabels: Record<string, string> = {
   expense: "Expense for",
 };
 
+/**
+ * Item name on top, description beneath it.
+ *
+ * Picking a catalog item seeds the description with the item's name, which the
+ * user then usually replaces with the specifics ("1.2 by 2.1m") — so printing
+ * the description alone loses what was actually sold. When the two are still
+ * identical, or the line was typed freehand with no item behind it, only one
+ * line is printed so nothing reads as duplicated.
+ */
+function DescCell({ line, s }: { line: PdfLine; s: ReturnType<typeof makeStyles> }) {
+  const name = line.itemName?.trim();
+  const desc = line.description?.trim();
+  const showBoth = !!name && !!desc && name.toLowerCase() !== desc.toLowerCase();
+
+  return (
+    <View style={s.cDesc}>
+      <Text style={showBoth ? s.itemName : undefined}>{name || desc}</Text>
+      {showBoth && <Text style={s.itemDesc}>{desc}</Text>}
+    </View>
+  );
+}
+
 function billToLabel(type: string): string {
   return billToLabels[type] || "Bill To";
 }
@@ -171,6 +195,8 @@ function makeStyles(brand: string) {
     tr: { flexDirection: "row", borderBottomWidth: 0.5, borderBottomColor: "#e8e8ed", paddingVertical: 5.5, paddingHorizontal: 4 },
     cDesc: { width: "40%", paddingRight: 6 },
     cDescShrunk: { width: "25%", paddingRight: 6 },
+    itemName: { fontFamily: "Helvetica-Bold" },
+    itemDesc: { color: "#6e6e73", fontSize: 8.5, marginTop: 1.5 },
     cCustom: { width: "15%", paddingRight: 6 },
     cQty: { width: "10%", textAlign: "right" },
     cPrice: { width: "17%", textAlign: "right" },
@@ -509,7 +535,7 @@ export function DocumentPdf({
                 for (const l of catLines) {
                   elements.push(
                     <View style={s.tr} key={`line-${cat}-${l.description}-${l.qty}-${elements.length}`} wrap={false}>
-                      <Text style={s.cDesc}>{l.description}</Text>
+                      <DescCell line={l} s={s} />
                       <Text style={s.cQty}>{l.qty}</Text>
                       <Text style={s.cPrice}>{fmtKES(l.unitPriceCents)}</Text>
                       <Text style={s.cVat}>
@@ -525,7 +551,7 @@ export function DocumentPdf({
 
             return lines.map((l, i) => (
               <View style={s.tr} key={i} wrap={false}>
-                <Text style={s.cDesc}>{l.description}</Text>
+                <DescCell line={l} s={s} />
                 <Text style={s.cQty}>{l.qty}</Text>
                 <Text style={s.cPrice}>{fmtKES(l.unitPriceCents)}</Text>
                 <Text style={s.cVat}>
