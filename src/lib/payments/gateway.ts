@@ -30,6 +30,8 @@ export interface PaymentGateway {
     accountNumber?: string;
     amountCents: number;
     accountRef?: string;
+    /** Who's being paid — some providers validate this as a person's name. */
+    payeeName?: string;
     reason: string;
   }): Promise<{ providerRef: string }>;
   /** Verify + normalize an inbound webhook/callback into a common shape.

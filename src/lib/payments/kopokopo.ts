@@ -18,6 +18,21 @@ function resourceIdFromLocation(location: string): string {
   return segments[segments.length - 1] || location;
 }
 
+/**
+ * Kopo Kopo validates recipient names as person names, so anything carrying
+ * digits or punctuation (a bill number, say) is rejected outright with a bare
+ * "Pay recipient could not be created".
+ */
+function splitPayeeName(raw?: string): { first: string; last: string } {
+  const cleaned = (raw || "")
+    .replace(/[^\p{L}\s'-]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!cleaned) return { first: "Vendor", last: "Payee" };
+  const parts = cleaned.split(" ");
+  return { first: parts[0], last: parts.slice(1).join(" ") || parts[0] };
+}
+
 /** Kopo Kopo wants E.164 (+2547XXXXXXXX); users type 07XX / 7XX / 2547XX. */
 function normalizePhone(raw: string): string {
   const digits = (raw || "").replace(/[^\d]/g, "");
@@ -133,6 +148,7 @@ export function getKopoKopoGateway(orgConfig: GatewayOrgConfig): PaymentGateway 
         throw new Error("Only phone (mobile wallet) payouts are supported for Kopo Kopo currently");
       }
       const token = await getAccessToken();
+      const payee = splitPayeeName(input.payeeName);
 
       // 1. Create (or re-create) a mobile-wallet recipient
       const recipientRes = await fetch(`${baseUrl}/api/v1/pay_recipients`, {
@@ -145,8 +161,8 @@ export function getKopoKopoGateway(orgConfig: GatewayOrgConfig): PaymentGateway 
         body: JSON.stringify({
           type: "mobile_wallet",
           pay_recipient: {
-            first_name: "Vendor",
-            last_name: input.accountRef || "Payout",
+            first_name: payee.first,
+            last_name: payee.last,
             phone_number: normalizePhone(input.destination),
             network: "Safaricom",
           },

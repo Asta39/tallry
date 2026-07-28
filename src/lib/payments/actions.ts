@@ -98,12 +98,17 @@ export async function payOutAction(documentId: number, destination: string, dest
       return { error: "Enter the account number for the receiving paybill" };
     }
 
+    const [payee] = doc.contactId
+      ? await db.select({ name: contacts.displayName }).from(contacts).where(and(eq(contacts.id, doc.contactId), eq(contacts.orgId, o.id)))
+      : [];
+
     const result = await gateway.payOut({
       destination,
       destinationType,
       accountNumber: accountNumber?.trim() || undefined,
       amountCents,
       accountRef: doc.number,
+      payeeName: payee?.name || undefined,
       reason: `Payout for ${doc.type} ${doc.number}`
     });
 
