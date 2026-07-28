@@ -5,9 +5,45 @@ import { decryptConfig } from "./crypto";
 const SANDBOX_BASE = "https://sandbox.kopokopo.com";
 const PROD_BASE = "https://app.kopokopo.com";
 
+// Kopo Kopo documents User-Agent as a required header, and their edge rejects
+// requests without one with a bodyless 403. Node's fetch sends no User-Agent by
+// default, so it has to be set explicitly on every call.
+const USER_AGENT = "Zeno/1.0 (+https://zeno.co.ke)";
+
 function resourceIdFromLocation(location: string): string {
   const segments = new URL(location).pathname.split("/").filter(Boolean);
   return segments[segments.length - 1] || location;
+}
+
+/** Kopo Kopo wants E.164 (+2547XXXXXXXX); users type 07XX / 7XX / 2547XX. */
+function normalizePhone(raw: string): string {
+  const digits = (raw || "").replace(/[^\d]/g, "");
+  if (digits.startsWith("254")) return `+${digits}`;
+  if (digits.startsWith("0")) return `+254${digits.slice(1)}`;
+  if (digits.length === 9) return `+254${digits}`;
+  return raw.startsWith("+") ? raw : `+${digits}`;
+}
+
+/**
+ * Kopo Kopo returns failures with an empty body more often than not — a bodyless
+ * 403 from their WAF looks identical to a real authorization failure. Surfacing
+ * the status, content-type and any body fragment is the difference between a
+ * diagnosable error and a dead end.
+ */
+async function describeFailure(res: Response, what: string): Promise<Error> {
+  let body = "";
+  try {
+    body = (await res.text()).trim();
+  } catch {
+    /* body already consumed or unreadable */
+  }
+  const ctype = res.headers.get("content-type") ?? "none";
+  const detail = body ? body.slice(0, 400) : `empty response (content-type: ${ctype})`;
+  const hint =
+    res.status === 403 && !body
+      ? " — a bodyless 403 usually means the request was blocked at the edge (User-Agent/IP) or this app isn't enabled for payouts in the Kopo Kopo dashboard."
+      : "";
+  return new Error(`${what} (HTTP ${res.status}): ${detail}${hint}`);
 }
 
 export function getKopoKopoGateway(orgConfig: GatewayOrgConfig): PaymentGateway {
@@ -23,14 +59,24 @@ export function getKopoKopoGateway(orgConfig: GatewayOrgConfig): PaymentGateway 
 
     const res = await fetch(`${baseUrl}/oauth/token`, {
       method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "User-Agent": USER_AGENT,
+      },
       body: params.toString(),
     });
 
-    if (!res.ok) throw new Error("Failed to get Kopo Kopo token");
+    if (!res.ok) throw await describeFailure(res, "Kopo Kopo token request failed");
     const data = await res.json();
     return data.access_token;
   }
+
+  const authHeaders = (token: string) => ({
+    Authorization: `Bearer ${token}`,
+    "Content-Type": "application/json",
+    Accept: "application/json",
+    "User-Agent": USER_AGENT,
+  });
 
   return {
     id: "kopokopo",
@@ -42,18 +88,14 @@ export function getKopoKopoGateway(orgConfig: GatewayOrgConfig): PaymentGateway 
       // Initiate STK Push via Kopo Kopo
       const res = await fetch(`${baseUrl}/api/v1/incoming_payments`, {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
+        headers: authHeaders(token),
         body: JSON.stringify({
           payment_channel: "M-PESA STK Push",
           till_number: config.tillNumber,
           subscriber: {
             first_name: firstName,
             last_name: rest.join(" ") || firstName,
-            phone_number: input.phone,
+            phone_number: normalizePhone(input.phone),
             ...(input.payerEmail ? { email: input.payerEmail } : {}),
           },
           amount: {
@@ -71,10 +113,7 @@ export function getKopoKopoGateway(orgConfig: GatewayOrgConfig): PaymentGateway 
         }),
       });
 
-      if (!res.ok) {
-        const err = await res.text();
-        throw new Error(`Kopo Kopo STK push failed (HTTP ${res.status}): ${err || "empty response"}`);
-      }
+      if (!res.ok) throw await describeFailure(res, "Kopo Kopo STK push failed");
 
       // Kopo Kopo returns 201 Created with a Location header pointing to the
       // resource; its last path segment is the resource id echoed back as
@@ -95,25 +134,21 @@ export function getKopoKopoGateway(orgConfig: GatewayOrgConfig): PaymentGateway 
       // 1. Create (or re-create) a mobile-wallet recipient
       const recipientRes = await fetch(`${baseUrl}/api/v1/pay_recipients`, {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
+        headers: authHeaders(token),
+        // Mobile-wallet recipients use camelCase keys (unlike the snake_case
+        // subscriber block on incoming_payments) — snake_case is silently
+        // dropped and the request fails validation.
         body: JSON.stringify({
           type: "mobile_wallet",
           pay_recipient: {
-            first_name: "Vendor",
-            last_name: input.accountRef || "Payout",
-            phone_number: input.destination,
+            firstName: "Vendor",
+            lastName: input.accountRef || "Payout",
+            phoneNumber: normalizePhone(input.destination),
             network: "Safaricom",
           },
         }),
       });
-      if (!recipientRes.ok) {
-        const err = await recipientRes.text();
-        throw new Error(`Kopo Kopo recipient creation failed (HTTP ${recipientRes.status}): ${err || "empty response"}`);
-      }
+      if (!recipientRes.ok) throw await describeFailure(recipientRes, "Kopo Kopo recipient creation failed");
       const recipientLocation = recipientRes.headers.get("Location");
       if (!recipientLocation) throw new Error("Kopo Kopo recipient creation returned no Location header");
       const recipientRef = resourceIdFromLocation(recipientLocation);
@@ -121,11 +156,7 @@ export function getKopoKopoGateway(orgConfig: GatewayOrgConfig): PaymentGateway 
       // 2. Initiate the payment to that recipient
       const payRes = await fetch(`${baseUrl}/api/v1/payments`, {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
+        headers: authHeaders(token),
         body: JSON.stringify({
           destination_type: "mobile_wallet",
           destination_reference: recipientRef,
@@ -143,10 +174,7 @@ export function getKopoKopoGateway(orgConfig: GatewayOrgConfig): PaymentGateway 
           },
         }),
       });
-      if (!payRes.ok) {
-        const err = await payRes.text();
-        throw new Error(`Kopo Kopo payout failed (HTTP ${payRes.status}): ${err || "empty response"}`);
-      }
+      if (!payRes.ok) throw await describeFailure(payRes, "Kopo Kopo payout failed");
       const payLocation = payRes.headers.get("Location");
       if (!payLocation) throw new Error("Kopo Kopo payout returned no Location header");
       return { providerRef: resourceIdFromLocation(payLocation) };
