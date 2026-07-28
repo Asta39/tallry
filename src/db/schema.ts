@@ -632,6 +632,25 @@ export const paymentGateways = pgTable("payment_gateways", {
   orgGatewayIdx: index("idx_payment_gateways_org").on(t.orgId, t.gatewayId),
 }));
 
+/**
+ * Provider-side payout recipients, cached by destination.
+ *
+ * Kopo Kopo rejects creating a recipient that already exists for a phone
+ * number — with a generic "Pay recipient could not be created" — and offers no
+ * endpoint to look one up. So the reference has to be remembered on first
+ * creation, or that destination becomes permanently unpayable.
+ */
+export const payoutRecipients = pgTable("payout_recipients", {
+  id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
+  gatewayId: text("gateway_id").notNull(),
+  destination: text("destination").notNull(), // normalized phone/till
+  providerRef: text("provider_ref").notNull(),
+  createdAt: text("created_at").notNull(),
+}, (t) => ({
+  lookupIdx: uniqueIndex("idx_payout_recipients_lookup").on(t.orgId, t.gatewayId, t.destination),
+}));
+
 export const paymentEvents = pgTable("payment_events", {
   id: serial("id").primaryKey(),
   orgId: integer("org_id").notNull().references(() => org.id),

@@ -1,6 +1,9 @@
 import crypto from "crypto";
 import { PaymentGateway, GatewayOrgConfig, appBaseUrl } from "./gateway";
 import { decryptConfig } from "./crypto";
+import { db, payoutRecipients } from "@/db";
+import { and, eq } from "drizzle-orm";
+import { nowISO } from "@/lib/money";
 
 const SANDBOX_BASE = "https://sandbox.kopokopo.com";
 // api.kopokopo.com, NOT app.kopokopo.com — the latter is the merchant dashboard.
@@ -149,43 +152,82 @@ export function getKopoKopoGateway(orgConfig: GatewayOrgConfig): PaymentGateway 
       }
       const token = await getAccessToken();
       const payee = splitPayeeName(input.payeeName);
+      const phone = normalizePhone(input.destination);
+      const orgId = orgConfig.orgId;
+      if (!orgId) throw new Error("Kopo Kopo payout requires an org-scoped gateway config");
 
-      // 1. Create (or re-create) a mobile-wallet recipient
-      // snake_case, matching the rest of the REST API. The camelCase shown in
-      // Kopo Kopo's docs is their SDK's input format — the SDKs convert it
-      // before sending. Posting camelCase directly makes the API see no phone
-      // number at all and reject with "Phone number can't be blank".
-      const recipientPayload = {
-        type: "mobile_wallet",
-        pay_recipient: {
-          first_name: payee.first,
-          last_name: payee.last,
-          phone_number: normalizePhone(input.destination),
-          network: "Safaricom",
-          // Optional per the field spec, but present in every Kopo Kopo example.
-          ...(input.payeeEmail ? { email: input.payeeEmail } : {}),
-        },
-      };
+      // 1. Resolve the mobile-wallet recipient.
+      //
+      // Kopo Kopo allows exactly one recipient per phone number and refuses a
+      // second with a generic "Pay recipient could not be created" — and there
+      // is no endpoint to look an existing one up. So the reference from the
+      // first successful creation is cached here; without it, a destination can
+      // only ever be paid once.
+      const [cached] = await db
+        .select({ providerRef: payoutRecipients.providerRef })
+        .from(payoutRecipients)
+        .where(
+          and(
+            eq(payoutRecipients.orgId, orgId),
+            eq(payoutRecipients.gatewayId, "kopokopo"),
+            eq(payoutRecipients.destination, phone)
+          )
+        )
+        .limit(1);
 
-      const recipientRes = await fetch(`${baseUrl}/api/v1/pay_recipients`, {
-        method: "POST",
-        headers: authHeaders(token),
-        body: JSON.stringify(recipientPayload),
-      });
-      if (!recipientRes.ok) {
-        // "Pay recipient could not be created" names no field, so the payload we
-        // actually sent has to travel with the error or it's unfalsifiable.
-        console.error("Kopo Kopo pay_recipients rejected", {
-          url: `${baseUrl}/api/v1/pay_recipients`,
-          status: recipientRes.status,
-          payload: recipientPayload,
+      let recipientRef = cached?.providerRef;
+
+      if (!recipientRef) {
+        // snake_case, matching the rest of the REST API. The camelCase shown in
+        // Kopo Kopo's docs is their SDK's input format — the SDKs convert it
+        // before sending. Posting camelCase directly makes the API see no phone
+        // number at all and reject with "Phone number can't be blank".
+        const recipientPayload = {
+          type: "mobile_wallet",
+          pay_recipient: {
+            first_name: payee.first,
+            last_name: payee.last,
+            phone_number: phone,
+            network: "Safaricom",
+            // Optional per the field spec, but in every Kopo Kopo example.
+            ...(input.payeeEmail ? { email: input.payeeEmail } : {}),
+          },
+        };
+
+        const recipientRes = await fetch(`${baseUrl}/api/v1/pay_recipients`, {
+          method: "POST",
+          headers: authHeaders(token),
+          body: JSON.stringify(recipientPayload),
         });
-        const err = await describeFailure(recipientRes, "Kopo Kopo recipient creation failed");
-        throw new Error(`${err.message} — sent: ${JSON.stringify(recipientPayload.pay_recipient)}`);
+
+        if (!recipientRes.ok) {
+          console.error("Kopo Kopo pay_recipients rejected", {
+            status: recipientRes.status,
+            payload: recipientPayload,
+          });
+          const err = await describeFailure(recipientRes, "Kopo Kopo recipient creation failed");
+          const dupeHint =
+            recipientRes.status === 400
+              ? ` — ${phone} is most likely already registered as a pay recipient on this Kopo Kopo account from an earlier attempt. Kopo Kopo rejects duplicates and offers no way to look the existing one up, so ask them for the pay recipient id for this number.`
+              : "";
+          throw new Error(`${err.message}${dupeHint}`);
+        }
+
+        const recipientLocation = recipientRes.headers.get("Location");
+        if (!recipientLocation) throw new Error("Kopo Kopo recipient creation returned no Location header");
+        recipientRef = resourceIdFromLocation(recipientLocation);
+
+        await db
+          .insert(payoutRecipients)
+          .values({
+            orgId,
+            gatewayId: "kopokopo",
+            destination: phone,
+            providerRef: recipientRef,
+            createdAt: nowISO(),
+          })
+          .onConflictDoNothing();
       }
-      const recipientLocation = recipientRes.headers.get("Location");
-      if (!recipientLocation) throw new Error("Kopo Kopo recipient creation returned no Location header");
-      const recipientRef = resourceIdFromLocation(recipientLocation);
 
       // 2. Initiate the payment to that recipient
       const payRes = await fetch(`${baseUrl}/api/v1/payments`, {
