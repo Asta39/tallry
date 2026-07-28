@@ -1,4 +1,4 @@
-import { db, documents, documentLines, contacts, payments, bankAccounts, paymentGateways } from "@/db";
+import { db, documents, documentLines, contacts, payments, bankAccounts, paymentGateways, items } from "@/db";
 import { and, eq } from "drizzle-orm";
 import { getOrg } from "@/lib/org";
 import { getAccess } from "@/lib/access";
@@ -7,6 +7,7 @@ import { fmtKES, todayISO } from "@/lib/money";
 import { TAX_CLASSES, type TaxClass } from "@/lib/tax";
 import { PageHeader, StatusPill, Th, Td } from "@/components/ui";
 import { DocActions } from "@/components/DocActions";
+import { LineDescription } from "@/components/LineDescription";
 import { ETIMS_ENABLED } from "@/lib/features";
 
 const typeLabels: Record<string, string> = {
@@ -33,7 +34,13 @@ export async function DocDetail({ id, printHref }: { id: number; printHref?: str
   const orgId = org.id;
   const [doc] = await db.select().from(documents).where(and(eq(documents.orgId, orgId), eq(documents.id, id))).limit(1);
   if (!doc) notFound();
-  const lines = await db.select().from(documentLines).where(and(eq(documentLines.orgId, orgId), eq(documentLines.documentId, id)));
+  // Left join: lines typed freehand have no itemId and must still render.
+  const lineRows = await db
+    .select({ line: documentLines, itemName: items.name })
+    .from(documentLines)
+    .leftJoin(items, eq(documentLines.itemId, items.id))
+    .where(and(eq(documentLines.orgId, orgId), eq(documentLines.documentId, id)));
+  const lines = lineRows.map((r) => ({ ...r.line, itemName: r.itemName }));
   const contact = doc.contactId
     ? (await db.select().from(contacts).where(and(eq(contacts.orgId, orgId), eq(contacts.id, doc.contactId))).limit(1))[0]
     : null;
@@ -117,7 +124,7 @@ export async function DocDetail({ id, printHref }: { id: number; printHref?: str
                   for (const l of catLines) {
                     elements.push(
                       <tr key={l.id} className="hairline-t">
-                        <Td>{l.description}</Td>
+                        <Td><LineDescription itemName={l.itemName} description={l.description} /></Td>
                         <Td right>{l.qty}</Td>
                         <Td right>{fmtKES(l.unitPriceCents)}</Td>
                         <Td className="text-[var(--color-ink-400)]">
@@ -134,7 +141,7 @@ export async function DocDetail({ id, printHref }: { id: number; printHref?: str
 
               return lines.map((l) => (
                 <tr key={l.id} className="hairline-t">
-                  <Td>{l.description}</Td>
+                  <Td><LineDescription itemName={l.itemName} description={l.description} /></Td>
                   <Td right>{l.qty}</Td>
                   <Td right>{fmtKES(l.unitPriceCents)}</Td>
                   <Td className="text-[var(--color-ink-400)]">

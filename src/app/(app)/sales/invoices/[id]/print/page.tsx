@@ -1,12 +1,13 @@
 import { getOrg } from "@/lib/org";
 import { requirePerm } from "@/lib/guard";
-import { db, documents, documentLines, contacts, org } from "@/db";
+import { db, documents, documentLines, contacts, org, items } from "@/db";
 import { eq, and } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import QRCode from "qrcode";
 import { fmtKES } from "@/lib/money";
 import { TAX_CLASSES, type TaxClass } from "@/lib/tax";
 import { ETIMS_ENABLED } from "@/lib/features";
+import { LineDescription } from "@/components/LineDescription";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +17,13 @@ export default async function PrintInvoice({ params }: { params: Promise<{ id: s
   const { id } = await params;
   const [doc] = await db.select().from(documents).where(and(eq(documents.orgId, o.id), eq(documents.id, Number(id)))).limit(1);
   if (!doc || doc.type !== "invoice") notFound();
-  const lines = await db.select().from(documentLines).where(eq(documentLines.documentId, doc.id));
+  // Left join: lines typed freehand have no itemId and must still render.
+  const lineRows = await db
+    .select({ line: documentLines, itemName: items.name })
+    .from(documentLines)
+    .leftJoin(items, eq(documentLines.itemId, items.id))
+    .where(eq(documentLines.documentId, doc.id));
+  const lines = lineRows.map((r) => ({ ...r.line, itemName: r.itemName }));
   const customer = doc.contactId
     ? (await db.select().from(contacts).where(and(eq(contacts.orgId, o.id), eq(contacts.id, doc.contactId))).limit(1))[0]
     : null;
@@ -78,7 +85,7 @@ export default async function PrintInvoice({ params }: { params: Promise<{ id: s
           <tbody>
             {lines.map((l) => (
               <tr key={l.id} className="border-b border-gray-200">
-                <td className="py-2 pr-2">{l.description}</td>
+                <td className="py-2 pr-2"><LineDescription itemName={l.itemName} description={l.description} /></td>
                 <td className="py-2 px-2 text-right">{l.qty}</td>
                 <td className="py-2 px-2 text-right">{fmtKES(l.unitPriceCents)}</td>
                 <td className="py-2 px-2 text-center">
