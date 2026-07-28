@@ -147,12 +147,16 @@ async function applyInbound(orgId: number, gatewayId: GatewayId, inbound: Inboun
   }
 
   // 3. Amount check for reconciled STK pushes — never trust the callback blindly.
-  //    Because M-Pesa only accepts integers, we requested Math.ceil(pending / 100) * 100.
-  //    If the inbound amount perfectly matches either the exact pending amount OR the rounded M-Pesa amount, allow it.
+  //    M-Pesa only moves whole shillings, so an invoice with cents is pushed as
+  //    Math.ceil(pending / 100) * 100 and comes back rounded. That applies to
+  //    Kopo Kopo too, since it rides on M-Pesa and rounds identically — scoping
+  //    this escape to Daraja alone left every Kopo Kopo payment on an invoice
+  //    with cents stuck in amount_mismatch, never marked paid.
   if (pendingAmountCents !== null) {
     const isExactMatch = pendingAmountCents === inbound.amountCents;
-    const isRoundedMatch = gatewayId === "mpesa_daraja" && inbound.amountCents === (Math.ceil(pendingAmountCents / 100) * 100);
-    
+    const isRoundedMatch = inbound.amountCents === Math.ceil(pendingAmountCents / 100) * 100;
+
+
     if (!isExactMatch && !isRoundedMatch) {
       await db.update(paymentEvents)
         .set({ status: "amount_mismatch", amountCents: inbound.amountCents })

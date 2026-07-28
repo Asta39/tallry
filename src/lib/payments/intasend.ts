@@ -25,17 +25,7 @@ function authHeaders(): Record<string, string> {
   };
 }
 
-/** Normalize a Kenyan phone number to 254XXXXXXXXX. Throws on garbage. */
-export function normalizeKenyanPhone(input: string): string {
-  const digits = input.replace(/[^\d]/g, "");
-  let msisdn = digits;
-  if (digits.startsWith("0")) msisdn = "254" + digits.slice(1);
-  else if (digits.startsWith("7") || digits.startsWith("1")) msisdn = "254" + digits;
-  if (!/^254(7|1)\d{8}$/.test(msisdn)) {
-    throw new Error("Enter a valid Safaricom number, e.g. 0712 345 678");
-  }
-  return msisdn;
-}
+export { normalizeKenyanPhone } from "./phone";
 
 export interface StkPushResult {
   invoiceId: string;

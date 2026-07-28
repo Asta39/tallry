@@ -1,5 +1,15 @@
 import { PaymentGateway, GatewayOrgConfig, appBaseUrl } from "./gateway";
 import { decryptConfig } from "./crypto";
+import { normalizeKenyanPhone } from "./phone";
+
+/**
+ * Daraja validates AccountReference/TransactionDesc as alphanumeric and rejects
+ * the payload (USSD_103) on punctuation — document numbers like "INV-0001"
+ * would fail, so strip anything else before truncating.
+ */
+function safeRef(raw: string, max: number): string {
+  return (raw || "").replace(/[^A-Za-z0-9]/g, "").slice(0, max) || "PAYMENT";
+}
 
 const SANDBOX_BASE = "https://sandbox.safaricom.co.ke";
 const PROD_BASE = "https://api.safaricom.co.ke";
@@ -26,6 +36,9 @@ export function getMpesaDarajaGateway(orgConfig: GatewayOrgConfig): PaymentGatew
     id: "mpesa_daraja",
 
     async requestPayment(input) {
+      // Daraja needs a bare 2547XXXXXXXX MSISDN — it rejects 07…, +254… and
+      // anything with spaces.
+      const msisdn = normalizeKenyanPhone(input.phone);
       const token = await getAccessToken();
       const timestamp = new Date().toISOString().replace(/[^0-9]/g, "").slice(0, 14);
       const password = Buffer.from(`${shortcode}${passkey}${timestamp}`).toString("base64");
@@ -45,11 +58,11 @@ export function getMpesaDarajaGateway(orgConfig: GatewayOrgConfig): PaymentGatew
           Timestamp: timestamp,
           TransactionType: "CustomerPayBillOnline", // or CustomerBuyGoodsOnline
           Amount: Math.ceil(input.amountCents / 100),
-          PartyA: input.phone.replace("+", ""),
+          PartyA: msisdn,
           PartyB: shortcode,
-          PhoneNumber: input.phone.replace("+", ""),
+          PhoneNumber: msisdn,
           CallBackURL: `${appBaseUrl()}/api/payments/webhook/mpesa_daraja?orgId=${orgConfig.orgId}${cbToken}`,
-          AccountReference: input.accountRef.slice(0, 12),
+          AccountReference: safeRef(input.accountRef, 12),
           TransactionDesc: input.description.slice(0, 13),
         }),
       });
@@ -99,7 +112,7 @@ export function getMpesaDarajaGateway(orgConfig: GatewayOrgConfig): PaymentGatew
             ...common,
             InitiatorName: config.initiatorName,
             CommandID: "BusinessPayment",
-            PartyB: input.destination.replace("+", ""),
+            PartyB: normalizeKenyanPhone(input.destination),
             Occasion: (input.accountRef || "").slice(0, 100),
           }
         : {
@@ -107,9 +120,10 @@ export function getMpesaDarajaGateway(orgConfig: GatewayOrgConfig): PaymentGatew
             Initiator: config.initiatorName,
             CommandID: input.destinationType === "paybill" ? "BusinessPayBill" : "BusinessBuyGoods",
             SenderIdentifierType: "4",
-            RecieverIdentifierType: "4", // Daraja's own spelling
+            // Daraja's own spelling. 4 = shortcode/paybill, 2 = till (buy goods).
+            RecieverIdentifierType: input.destinationType === "paybill" ? "4" : "2",
             PartyB: input.destination.replace(/\D/g, ""),
-            AccountReference: (input.accountNumber || input.accountRef || "").slice(0, 13),
+            AccountReference: safeRef(input.accountNumber || input.accountRef || "", 13),
           };
 
       const res = await fetch(`${baseUrl}${endpoint}`, {

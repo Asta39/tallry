@@ -150,6 +150,12 @@ export function getKopoKopoGateway(orgConfig: GatewayOrgConfig): PaymentGateway 
       if (input.destinationType !== "phone") {
         throw new Error("Only phone (mobile wallet) payouts are supported for Kopo Kopo currently");
       }
+      // Silently flooring here would underpay the vendor by up to 0.99 with no
+      // trace. The payout action already blocks fractional amounts; this is the
+      // backstop for any other caller.
+      if (input.amountCents % 100 !== 0) {
+        throw new Error("Kopo Kopo payouts must be a whole shilling amount");
+      }
       const token = await getAccessToken();
       const payee = splitPayeeName(input.payeeName);
       const phone = normalizePhone(input.destination);
@@ -246,7 +252,7 @@ export function getKopoKopoGateway(orgConfig: GatewayOrgConfig): PaymentGateway 
           destination_reference: recipientRef,
           amount: {
             currency: "KES",
-            value: Math.floor(input.amountCents / 100),
+            value: input.amountCents / 100,
           },
           description: input.reason.slice(0, 255),
           metadata: {
