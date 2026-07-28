@@ -2,9 +2,10 @@ import { createHmac, randomUUID } from "crypto";
 import { db, webhookSubscriptions } from "@/db";
 import { eq, and } from "drizzle-orm";
 import { ZenoEventType, ZenoEventPayload } from "./types";
+import { dispatchWhatsAppNotification } from "@/lib/whatsapp/dispatcher";
 
 /**
- * Emit a business event to all registered outbound webhooks for an organization.
+ * Emit a business event to all registered outbound webhooks and WhatsApp automation.
  * Operates asynchronously in the background so it never blocks the primary request lifecycle.
  */
 export function emitZenoEvent<T = Record<string, any>>(
@@ -15,6 +16,11 @@ export function emitZenoEvent<T = Record<string, any>>(
   // Execute async background dispatch
   dispatchAsync(eventType, orgId, data).catch((err) => {
     console.error(`[Zeno EventBus Error] Unhandled error dispatching '${eventType}' for org ${orgId}:`, err);
+  });
+
+  // Execute async WhatsApp notification dispatch
+  dispatchWhatsAppNotification(eventType, orgId, data as any).catch((err) => {
+    console.error(`[Zeno WhatsApp Dispatcher Error] Unhandled error for '${eventType}' org ${orgId}:`, err);
   });
 }
 

@@ -85,6 +85,7 @@ export const contacts = pgTable("contacts", {
   city: text("city"),
   notes: text("notes"),
   isWithholdingAgent: boolean("is_withholding_agent").notNull().default(false),
+  whatsappConsent: boolean("whatsapp_consent").notNull().default(true),
   archived: boolean("archived").notNull().default(false),
   createdAt: text("created_at").notNull(),
 }, (t) => ({
@@ -957,4 +958,70 @@ export const webhookSubscriptions = pgTable("webhook_subscriptions", {
   createdAt: text("created_at").notNull(),
 }, (t) => ({
   orgIdx: index("idx_webhook_subscriptions_org").on(t.orgId),
+}));
+
+/** WhatsApp provider configuration per organization. */
+export const whatsappConfigs = pgTable("whatsapp_configs", {
+  id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
+  provider: text("provider").notNull().default("baileys"), // baileys | meta_cloud | ultramsg | twilio
+  apiKey: text("api_key"),
+  apiSecret: text("api_secret"),
+  phoneNumberId: text("phone_number_id"),
+  sessionState: text("session_state"), // QR code base64 or session payload
+  paused: boolean("paused").notNull().default(false),
+  updatedAt: text("updated_at").notNull(),
+}, (t) => ({
+  orgUnique: uniqueIndex("idx_whatsapp_configs_org").on(t.orgId),
+}));
+
+/** Customizable WhatsApp message templates per organization. */
+export const whatsappTemplates = pgTable("whatsapp_templates", {
+  id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
+  name: text("name").notNull(),
+  key: text("key").notNull(), // invoice_created | payment_received | quote_accepted | bill_approval | invoice_overdue | stock_low
+  templateText: text("template_text").notNull(),
+  active: boolean("active").notNull().default(true),
+}, (t) => ({
+  orgKeyIdx: index("idx_whatsapp_templates_org_key").on(t.orgId, t.key),
+}));
+
+/** Registered company WhatsApp group chats per organization. */
+export const whatsappGroups = pgTable("whatsapp_groups", {
+  id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
+  groupId: text("group_id").notNull(), // e.g. "12036302394@g.us"
+  name: text("name").notNull(),
+  description: text("description"),
+}, (t) => ({
+  orgGroupIdx: index("idx_whatsapp_groups_org").on(t.orgId, t.groupId),
+}));
+
+/** Event-to-recipient notification routing rules per organization. */
+export const whatsappRules = pgTable("whatsapp_rules", {
+  id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
+  eventType: text("event_type").notNull(), // invoice.created | payment.received | quote.accepted | bill.approval_required | invoice.overdue | stock.low
+  targetType: text("target_type").notNull(), // customer | company_group | tagged_staff
+  groupId: text("group_id"), // target WhatsApp group ID if company_group or tagged_staff
+  templateId: integer("template_id"),
+  active: boolean("active").notNull().default(true),
+}, (t) => ({
+  orgEventIdx: index("idx_whatsapp_rules_org_event").on(t.orgId, t.eventType),
+}));
+
+/** Audit log of dispatched WhatsApp messages and delivery statuses. */
+export const whatsappLogs = pgTable("whatsapp_logs", {
+  id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
+  recipient: text("recipient").notNull(), // phone number or group ID
+  targetType: text("target_type").notNull(), // customer | group | staff
+  messageType: text("message_type").notNull(), // text | template | document
+  content: text("content").notNull(),
+  status: text("status").notNull().default("queued"), // queued | sent | delivered | read | failed
+  errorDetail: text("error_detail"),
+  sentAt: text("sent_at").notNull(),
+}, (t) => ({
+  orgSentIdx: index("idx_whatsapp_logs_org_sent").on(t.orgId, t.sentAt),
 }));
