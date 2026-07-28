@@ -1,5 +1,5 @@
 const makeWASocket = require("@whiskeysockets/baileys").default;
-const { useMultiFileAuthState, fetchLatestBaileysVersion } = require("@whiskeysockets/baileys");
+const { useMultiFileAuthState } = require("@whiskeysockets/baileys");
 const qrcodeTerminal = require("qrcode-terminal");
 const pino = require("pino");
 const path = require("path");
@@ -7,11 +7,8 @@ const fs = require("fs");
 
 process.stdin.resume();
 
-let attemptCount = 0;
-
-async function startGateway() {
-  attemptCount++;
-  console.log(`\n🚀 Initializing Zeno ERP WhatsApp Gateway (Attempt #${attemptCount})...`);
+async function main() {
+  console.log("\n🚀 Initializing Zeno ERP WhatsApp Gateway (Baileys)...");
 
   const sessionDir = path.join(process.cwd(), "data", "whatsapp-session");
   if (!fs.existsSync(sessionDir)) {
@@ -20,21 +17,10 @@ async function startGateway() {
 
   const { state, saveCreds } = await useMultiFileAuthState(sessionDir);
 
-  let version = [2, 3000, 1015901307];
-  try {
-    const vRes = await fetchLatestBaileysVersion();
-    version = vRes.version;
-    console.log(`📡 WhatsApp Web Protocol Version: v${version.join(".")}`);
-  } catch (e) {}
-
   const sock = makeWASocket({
-    version,
     auth: state,
-    logger: pino({ level: "fatal" }),
-    waWebSocketUrl: "wss://web.whatsapp.com/ws/chat",
-    browser: ["Ubuntu", "Chrome", "20.0.04"],
-    syncFullHistory: false,
-    markOnlineOnConnect: false,
+    logger: pino({ level: "silent" }),
+    browser: ["Zeno ERP", "Chrome", "1.0.0"],
   });
 
   sock.ev.on("creds.update", saveCreds);
@@ -50,24 +36,17 @@ async function startGateway() {
     }
 
     if (connection === "open") {
-      attemptCount = 0;
       console.log("\n========================================================");
       console.log("✅ WHATSAPP CONNECTED SUCCESSFULLY TO ZENO ERP!");
       console.log("========================================================\n");
     } else if (connection === "close") {
       const statusCode = lastDisconnect?.error?.output?.statusCode;
+      // Do NOT restart on status 405 (initial QR handshake frame) or status 515 (stream restart)
       if (statusCode === 401 || statusCode === 403) {
         console.log("🧹 Clearing invalid credentials...");
         try { fs.rmSync(sessionDir, { recursive: true, force: true }); } catch (e) {}
-      }
-
-      if (statusCode !== 405) {
-        const delay = Math.min(attemptCount * 3000, 10000);
-        console.log(`⏳ Connection status (${statusCode || "handshake"}). Retrying in ${delay / 1000}s...`);
-        setTimeout(startGateway, delay);
-      } else {
-        console.log("⚠️ Initializing handshake with WhatsApp Web sockets...");
-        setTimeout(startGateway, 3000);
+        console.log("Restarting gateway...");
+        setTimeout(main, 2000);
       }
     }
   });
@@ -90,4 +69,4 @@ async function startGateway() {
   });
 }
 
-startGateway().catch(console.error);
+main().catch(console.error);
