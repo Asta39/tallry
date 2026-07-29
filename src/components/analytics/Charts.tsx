@@ -1,10 +1,17 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import {
   AreaChart, Area, BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from "recharts";
 import { fmtKES } from "@/lib/money";
+
+function useMounted() {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+  return mounted;
+}
 
 const tooltipStyle = {
   borderRadius: "8px",
@@ -28,6 +35,9 @@ export function TrendAreaChart({
   height?: number;
   money?: boolean;
 }) {
+  const mounted = useMounted();
+  if (!mounted) return <div style={{ height }} className="w-full bg-[var(--color-ink-50)]/40 rounded-lg animate-pulse" />;
+
   return (
     <div style={{ height }} className="w-full">
       <ResponsiveContainer width="100%" height="100%">
@@ -79,6 +89,9 @@ export function TrendLineChart({
   height?: number;
   suffix?: string;
 }) {
+  const mounted = useMounted();
+  if (!mounted) return <div style={{ height }} className="w-full bg-[var(--color-ink-50)]/40 rounded-lg animate-pulse" />;
+
   return (
     <div style={{ height }} className="w-full">
       <ResponsiveContainer width="100%" height="100%">
@@ -109,7 +122,10 @@ export function RankBarChart({
   height?: number;
   money?: boolean;
 }) {
+  const mounted = useMounted();
   const h = height ?? Math.max(160, data.length * 36);
+  if (!mounted) return <div style={{ height: h }} className="w-full bg-[var(--color-ink-50)]/40 rounded-lg animate-pulse" />;
+
   const maxChars = Math.max(0, ...data.map((d) => (d.name || "").length));
   const yAxisWidth = Math.min(180, Math.max(110, maxChars * 7));
 
@@ -154,6 +170,9 @@ export function CategoryBarChart({
   height?: number;
   money?: boolean;
 }) {
+  const mounted = useMounted();
+  if (!mounted) return <div style={{ height }} className="w-full bg-[var(--color-ink-50)]/40 rounded-lg animate-pulse" />;
+
   return (
     <div style={{ height }} className="w-full">
       <ResponsiveContainer width="100%" height="100%">
@@ -179,6 +198,9 @@ export function StackedBarChart({
   series: { key: string; label: string; color: string }[];
   height?: number;
 }) {
+  const mounted = useMounted();
+  if (!mounted) return <div style={{ height }} className="w-full bg-[var(--color-ink-50)]/40 rounded-lg animate-pulse" />;
+
   return (
     <div style={{ height }} className="w-full">
       <ResponsiveContainer width="100%" height="100%">
@@ -201,18 +223,24 @@ const DONUT_COLORS = ["var(--color-brand, #0f766e)", "#5eead4", "#99f6e4", "#a7f
 
 /** Breakdown donut with centered total (expense categories). */
 export function BreakdownDonut({ data }: { data: { name: string; amountCents: number }[] }) {
+  const mounted = useMounted();
   const total = data.reduce((s, d) => s + d.amountCents, 0);
+
   return (
     <div className="flex items-center gap-5 flex-wrap sm:flex-nowrap">
       <div className="relative h-40 w-40 shrink-0 mx-auto sm:mx-0">
-        <ResponsiveContainer width="100%" height="100%">
-          <PieChart>
-            <Pie data={data} dataKey="amountCents" nameKey="name" innerRadius={50} outerRadius={72} paddingAngle={2} strokeWidth={0}>
-              {data.map((d, i) => <Cell key={d.name} fill={DONUT_COLORS[i % DONUT_COLORS.length]} />)}
-            </Pie>
-            <Tooltip contentStyle={tooltipStyle} formatter={(v: any, name: any) => [fmtKES(Number(v)), name]} />
-          </PieChart>
-        </ResponsiveContainer>
+        {mounted ? (
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie data={data} dataKey="amountCents" nameKey="name" innerRadius={50} outerRadius={72} paddingAngle={2} strokeWidth={0}>
+                {data.map((d, i) => <Cell key={d.name} fill={DONUT_COLORS[i % DONUT_COLORS.length]} />)}
+              </Pie>
+              <Tooltip contentStyle={tooltipStyle} formatter={(v: any, name: any) => [fmtKES(Number(v)), name]} />
+            </PieChart>
+          </ResponsiveContainer>
+        ) : (
+          <div className="h-40 w-40 rounded-full bg-[var(--color-ink-50)]/40 animate-pulse" />
+        )}
         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
           <div className="text-[15px] font-semibold tnum leading-none">{fmtKES(total).replace(".00", "")}</div>
           <div className="text-[10px] text-[var(--color-ink-400)] mt-1">total</div>

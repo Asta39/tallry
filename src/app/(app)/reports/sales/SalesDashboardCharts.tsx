@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import {
   LineChart,
   Line,
@@ -20,6 +21,9 @@ const COLORS = ["#0284c7", "#0ea5e9", "#38bdf8", "#7dd3fc", "#e0f2fe", "#bae6fd"
 const ALT_COLORS = ["#10b981", "#34d399", "#6ee7b7", "#a7f3d0"];
 
 export function SalesDashboardCharts({ stats }: { stats: any }) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+
   // Format income trend data
   const incomeTrendData = stats.incomeTrend.map((t: any) => ({
     name: t.label,
@@ -51,6 +55,18 @@ export function SalesDashboardCharts({ stats }: { stats: any }) {
     }
     return null;
   };
+
+  if (!mounted) {
+    return (
+      <div className="space-y-6">
+        <div className="card p-5 h-72 bg-[var(--color-ink-50)]/40 rounded-lg animate-pulse" />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="card p-5 h-64 bg-[var(--color-ink-50)]/40 rounded-lg animate-pulse" />
+          <div className="card p-5 h-64 bg-[var(--color-ink-50)]/40 rounded-lg animate-pulse" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>

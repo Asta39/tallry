@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import {
   BarChart,
   Bar,
@@ -62,10 +63,22 @@ export function ReportChart({
   money?: boolean;
   height?: number;
 }) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+
   // Long category names (item/customer names) collide when drawn under vertical
   // bars, so those charts lie on their side and get one label per row instead.
   const sideways = kind === "bar" && data.some((d) => d.name.length > 12);
   if (sideways) height = Math.max(height, 44 * data.length + 40);
+
+  if (!mounted) {
+    return (
+      <div className="card p-5 no-print">
+        <h3 className="font-semibold text-[14px] mb-4">{title}</h3>
+        <div style={{ height }} className="w-full bg-[var(--color-ink-50)]/40 rounded-lg animate-pulse" />
+      </div>
+    );
+  }
 
   return (
     <div className="card p-5 no-print">

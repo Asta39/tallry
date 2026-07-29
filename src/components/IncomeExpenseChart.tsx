@@ -1,15 +1,23 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { fmtKES } from "@/lib/money";
 
 export function IncomeExpenseChart({ data }: { data: { month: string; label: string; incomeCents: number; expenseCents: number }[] }) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+
   // Convert cents to standard units for the chart
   const formattedData = data.map((d) => ({
     ...d,
     Income: d.incomeCents / 100,
     Expense: d.expenseCents / 100,
   }));
+
+  if (!mounted) {
+    return <div className="h-64 w-full bg-[var(--color-ink-50)]/40 rounded-lg animate-pulse" />;
+  }
 
   return (
     <div className="h-64 w-full">

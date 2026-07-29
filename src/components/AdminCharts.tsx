@@ -1,7 +1,14 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area } from "recharts";
 import { fmtKES } from "@/lib/money";
+
+function useMounted() {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+  return mounted;
+}
 
 const tooltipStyle = {
   borderRadius: "8px",
@@ -15,6 +22,9 @@ const axisTick = { fontSize: 11.5, fill: "#86868b" };
 
 /** Monthly org signups — brand-teal area with subtle gradient. */
 export function SignupsChart({ data }: { data: { label: string; signups: number }[] }) {
+  const mounted = useMounted();
+  if (!mounted) return <div className="h-56 w-full bg-[var(--color-ink-50)]/40 rounded-lg animate-pulse" />;
+
   return (
     <div className="h-56 w-full">
       <ResponsiveContainer width="100%" height="100%">
@@ -44,20 +54,26 @@ const PLAN_COLORS: Record<string, string> = {
 
 /** Plan mix donut with centered total. */
 export function PlanDonut({ data }: { data: { plan: string; label: string; count: number }[] }) {
+  const mounted = useMounted();
   const total = data.reduce((s, d) => s + d.count, 0);
+
   return (
     <div className="flex items-center gap-5">
       <div className="relative h-44 w-44 shrink-0">
-        <ResponsiveContainer width="100%" height="100%">
-          <PieChart>
-            <Pie data={data} dataKey="count" nameKey="label" innerRadius={56} outerRadius={80} paddingAngle={2} strokeWidth={0}>
-              {data.map((d) => (
-                <Cell key={d.plan} fill={PLAN_COLORS[d.plan] || "#e8e8ed"} />
-              ))}
-            </Pie>
-            <Tooltip contentStyle={tooltipStyle} formatter={(v: any, name: any) => [`${v} org${v === 1 ? "" : "s"}`, name]} />
-          </PieChart>
-        </ResponsiveContainer>
+        {mounted ? (
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie data={data} dataKey="count" nameKey="label" innerRadius={56} outerRadius={80} paddingAngle={2} strokeWidth={0}>
+                {data.map((d) => (
+                  <Cell key={d.plan} fill={PLAN_COLORS[d.plan] || "#e8e8ed"} />
+                ))}
+              </Pie>
+              <Tooltip contentStyle={tooltipStyle} formatter={(v: any, name: any) => [`${v} org${v === 1 ? "" : "s"}`, name]} />
+            </PieChart>
+          </ResponsiveContainer>
+        ) : (
+          <div className="h-44 w-44 rounded-full bg-[var(--color-ink-50)]/40 animate-pulse" />
+        )}
         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
           <div className="text-[22px] font-semibold tnum leading-none">{total}</div>
           <div className="text-[10.5px] text-[var(--color-ink-400)] mt-1">orgs</div>
@@ -79,7 +95,11 @@ export function PlanDonut({ data }: { data: { plan: string; label: string; count
 
 /** Monthly M-Pesa volume bars; failed events shown as a thin red series. */
 export function MpesaVolumeChart({ data }: { data: { label: string; volumeCents: number; failed: number }[] }) {
+  const mounted = useMounted();
   const formatted = data.map((d) => ({ ...d, Volume: d.volumeCents / 100 }));
+
+  if (!mounted) return <div className="h-56 w-full bg-[var(--color-ink-50)]/40 rounded-lg animate-pulse" />;
+
   return (
     <div className="h-56 w-full">
       <ResponsiveContainer width="100%" height="100%">
