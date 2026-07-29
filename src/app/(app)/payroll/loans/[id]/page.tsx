@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { db, employees, loanLedger, loanInstallments, payrollRuns } from "@/db";
 import { and, eq, asc } from "drizzle-orm";
 import { getOrg } from "@/lib/org";

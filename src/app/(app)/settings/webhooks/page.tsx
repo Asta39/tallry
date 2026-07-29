@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { getWebhookSubscriptions } from "./actions";
 import { WebhooksClient } from "./WebhooksClient";
 

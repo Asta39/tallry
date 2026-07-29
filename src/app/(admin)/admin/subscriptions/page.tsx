@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { db, subscriptions, org } from "@/db";
 import { eq, desc } from "drizzle-orm";
 import { fmtKES } from "@/lib/money";

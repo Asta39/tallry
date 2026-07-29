@@ -4,6 +4,8 @@ import { salesDashboardStats } from "@/lib/reports";
 import { SalesDashboardCharts } from "./SalesDashboardCharts";
 import { withOrg } from "@/lib/org";
 
+export const dynamic = "force-dynamic";
+
 const reportCards = [
   { href: "/reports/sales/invoices", title: "Invoices Report", desc: "Detailed view of all generated invoices.", icon: "📄" },
   { href: "/reports/sales/items", title: "Items Report", desc: "Sales grouped by items/services sold.", icon: "📦" },

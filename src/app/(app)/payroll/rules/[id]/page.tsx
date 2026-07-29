@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { db, statutoryRules } from "@/db";
 import { and, eq } from "drizzle-orm";
 import { getOrg } from "@/lib/org";

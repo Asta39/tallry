@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { db, org, subscriptions } from "@/db";
 import { eq } from "drizzle-orm";
 import Link from "next/link";

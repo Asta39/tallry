@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { getWhatsAppSettingsData } from "./actions";
 import { WhatsAppSettingsClient } from "./WhatsAppSettingsClient";
 

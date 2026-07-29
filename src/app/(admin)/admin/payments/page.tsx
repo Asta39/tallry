@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { db, paymentEvents, org } from "@/db";
 import { desc, eq } from "drizzle-orm";
 import { fmtKES } from "@/lib/money";
