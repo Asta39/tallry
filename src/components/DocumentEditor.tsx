@@ -57,6 +57,7 @@ export interface EditorInitialData {
   assignedMemberIds: number[];
   customerContactId?: number | "";
   relatedInvoiceId?: number | "";
+  isBillable?: boolean;
   isTemplate?: boolean;
   status?: string;
   lines: EditorLine[];
@@ -119,6 +120,7 @@ export function DocumentEditor({
   // Cost attribution — which customer this spend was for, and the invoice it
   // was rebilled on. Money-out documents only.
   const isSpend = type === "expense" || type === "bill";
+  const [isBillable, setIsBillable] = useState<boolean>(initialData?.isBillable ?? false);
   const [customerContactId, setCustomerContactId] = useState<number | "">(initialData?.customerContactId ?? "");
   const [relatedInvoiceId, setRelatedInvoiceId] = useState<number | "">(initialData?.relatedInvoiceId ?? "");
   const [customerInvoices, setCustomerInvoices] = useState<{ id: number; number: string; date: string; totalCents: number; status: string }[]>([]);
@@ -240,6 +242,7 @@ export function DocumentEditor({
           paidFromBankAccountId: paidFrom === "" ? null : paidFrom,
           customerContactId: isSpend && customerContactId !== "" ? Number(customerContactId) : null,
           relatedInvoiceId: isSpend && relatedInvoiceId !== "" ? Number(relatedInvoiceId) : null,
+          isBillable: isSpend ? isBillable : false,
           assignedMemberIds: assignedMemberIds.length > 0 ? assignedMemberIds : undefined,
           isTemplate: initialData?.isTemplate,
           saveAsTemplate,
@@ -326,45 +329,72 @@ export function DocumentEditor({
           <span className="text-[12.5px] text-[var(--color-ink-600)]">Prices include VAT</span>
         </label>
         {isSpend && (
-          <label className="block col-span-2">
-            <span className="text-[12px] font-medium text-[var(--color-ink-600)]">
-              Billable to customer <span className="text-[var(--color-ink-400)] font-normal">(optional)</span>
-            </span>
-            <SearchableSelect
-              className="mt-1"
-              options={customers ?? contacts}
-              value={customerContactId}
-              onChange={setCustomerContactId}
-              placeholder="Search customers…"
-            />
-            <span className="text-[10px] text-[var(--color-ink-400)] block mt-1">
-              Tracks what this cost was spent on, for customer profitability.
-            </span>
-          </label>
-        )}
-        {isSpend && customerContactId !== "" && (
-          <label className="block col-span-2">
-            <span className="text-[12px] font-medium text-[var(--color-ink-600)]">
-              Rebilled on invoice <span className="text-[var(--color-ink-400)] font-normal">(optional)</span>
-            </span>
-            <select
-              className={inputCls + " mt-1"}
-              value={relatedInvoiceId}
-              onChange={(e) => setRelatedInvoiceId(e.target.value ? Number(e.target.value) : "")}
-            >
-              <option value="">Not rebilled</option>
-              {customerInvoices.map((inv) => (
-                <option key={inv.id} value={inv.id}>
-                  {inv.number} · {inv.date} · {fmtKES(inv.totalCents)}
-                </option>
-              ))}
-            </select>
-            {customerInvoices.length === 0 && (
-              <span className="text-[10px] text-[var(--color-ink-400)] block mt-1">
-                This customer has no invoices yet.
-              </span>
+          <div className="col-span-2 card p-3.5 bg-[var(--color-ink-50)] border border-[var(--color-ink-200)] rounded-xl space-y-3">
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={isBillable}
+                onChange={(e) => {
+                  const checked = e.target.checked;
+                  setIsBillable(checked);
+                  if (!checked) {
+                    setCustomerContactId("");
+                    setRelatedInvoiceId("");
+                  }
+                }}
+                className="h-4 w-4 rounded accent-[var(--color-accent-600)]"
+              />
+              <div>
+                <span className="text-[13px] font-semibold text-[var(--color-ink-800)] block">
+                  Billable Expense
+                </span>
+                <span className="text-[11px] text-[var(--color-ink-500)] block">
+                  Rebill this expense to a customer and combine it onto their invoice PDF.
+                </span>
+              </div>
+            </label>
+
+            {(isBillable || customerContactId !== "") && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 hairline-t">
+                <label className="block">
+                  <span className="text-[12px] font-medium text-[var(--color-ink-700)]">
+                    Billable Customer <span className="text-[var(--color-ink-400)] font-normal">(required)</span>
+                  </span>
+                  <SearchableSelect
+                    className="mt-1"
+                    options={customers ?? contacts}
+                    value={customerContactId}
+                    onChange={setCustomerContactId}
+                    placeholder="Search customer to bill…"
+                  />
+                </label>
+                {customerContactId !== "" && (
+                  <label className="block">
+                    <span className="text-[12px] font-medium text-[var(--color-ink-700)]">
+                      Combine with Invoice <span className="text-[var(--color-ink-400)] font-normal">(optional)</span>
+                    </span>
+                    <select
+                      className={inputCls + " mt-1"}
+                      value={relatedInvoiceId}
+                      onChange={(e) => setRelatedInvoiceId(e.target.value ? Number(e.target.value) : "")}
+                    >
+                      <option value="">Link to invoice later</option>
+                      {customerInvoices.map((inv) => (
+                        <option key={inv.id} value={inv.id}>
+                          {inv.number} · {inv.date} · {fmtKES(inv.totalCents)}
+                        </option>
+                      ))}
+                    </select>
+                    {customerInvoices.length === 0 && (
+                      <span className="text-[10px] text-[var(--color-ink-400)] block mt-1">
+                        No open invoices for this customer yet.
+                      </span>
+                    )}
+                  </label>
+                )}
+              </div>
             )}
-          </label>
+          </div>
         )}
         {members && members.length > 0 && (
           <label className="block col-span-2">

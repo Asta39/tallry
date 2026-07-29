@@ -7,6 +7,7 @@ import { and, eq } from "drizzle-orm";
 import { getOrg } from "@/lib/org";
 import { DocumentPdf } from "@/lib/pdf/DocumentPdf";
 import { ETIMS_ENABLED } from "@/lib/features";
+import { getInvoiceWithBillableExpenses } from "@/lib/actions";
 
 export const dynamic = "force-dynamic";
 
@@ -24,23 +25,12 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     return new Response("Sign in required", { status: 401 });
   }
 
-  const [doc] = await db
-    .select()
-    .from(documents)
-    .where(and(eq(documents.orgId, o.id), eq(documents.id, Number(id))))
-    .limit(1);
-  if (!doc) return new Response("Not found", { status: 404 });
+  const result = await getInvoiceWithBillableExpenses(Number(id), o.id);
+  if (!result) return new Response("Not found", { status: 404 });
+  const { doc, lines } = result;
   if (!["invoice", "quote", "credit_note", "expense", "bill", "purchase_order"].includes(doc.type)) {
     return new Response("PDF not supported for this document type", { status: 400 });
   }
-
-  // Left join: lines typed freehand have no itemId and must still render.
-  const lineRows = await db
-    .select({ line: documentLines, itemName: items.name })
-    .from(documentLines)
-    .leftJoin(items, eq(documentLines.itemId, items.id))
-    .where(and(eq(documentLines.orgId, o.id), eq(documentLines.documentId, doc.id)));
-  const lines = lineRows.map((r) => ({ ...r.line, itemName: r.itemName }));
   const contact = doc.contactId
     ? (
         await db

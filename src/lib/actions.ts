@@ -181,6 +181,98 @@ async function _moveDealStage(dealId: number, stage: string) {
   revalidatePath("/pipeline");
 }
 
+/* ---------------- Invoice & Billable Expenses Combination ---------------- */
+
+export async function getInvoiceWithBillableExpenses(docId: number, orgId: number) {
+  const [doc] = await db
+    .select()
+    .from(documents)
+    .where(and(eq(documents.orgId, orgId), eq(documents.id, docId)))
+    .limit(1);
+
+  if (!doc) return null;
+
+  const lineRows = await db
+    .select({ line: documentLines, itemName: items.name })
+    .from(documentLines)
+    .leftJoin(items, eq(documentLines.itemId, items.id))
+    .where(and(eq(documentLines.orgId, orgId), eq(documentLines.documentId, docId)));
+
+  const baseLines = lineRows.map((r) => ({ ...r.line, itemName: r.itemName }));
+
+  if (doc.type !== "invoice") {
+    return { doc, lines: baseLines };
+  }
+
+  // Find linked expenses/bills for this invoice
+  const linkedExpenses = await db
+    .select()
+    .from(documents)
+    .where(
+      and(
+        eq(documents.orgId, orgId),
+        eq(documents.relatedInvoiceId, docId),
+        eq(documents.isBillable, true)
+      )
+    );
+
+  if (linkedExpenses.length === 0) {
+    return { doc, lines: baseLines };
+  }
+
+  // Get line descriptions for linked expenses
+  const expenseIds = linkedExpenses.map((e) => e.id);
+  const expenseLines = await db
+    .select({ line: documentLines })
+    .from(documentLines)
+    .where(and(eq(documentLines.orgId, orgId), inArray(documentLines.documentId, expenseIds)));
+
+  const expLinesMap = new Map<number, string[]>();
+  for (const el of expenseLines) {
+    const arr = expLinesMap.get(el.line.documentId) || [];
+    if (el.line.description) arr.push(el.line.description);
+    expLinesMap.set(el.line.documentId, arr);
+  }
+
+  let additionalSubtotalCents = 0;
+  const billableLines = linkedExpenses.map((exp) => {
+    const lineDescs = expLinesMap.get(exp.id) || [];
+    const expDetail = lineDescs.join("; ") || exp.notes || "Out-of-pocket expense";
+    const fullDesc = `Billable Expense (${exp.number}): ${expDetail}`;
+    additionalSubtotalCents += exp.totalCents;
+
+    return {
+      id: -exp.id,
+      orgId,
+      documentId: docId,
+      itemId: null,
+      itemName: "Billable Expense",
+      description: fullDesc,
+      qty: 1,
+      unitPriceCents: exp.totalCents,
+      discountPct: 0,
+      taxClass: "D_NONVAT",
+      taxRateBp: 0,
+      netCents: exp.totalCents,
+      taxCents: 0,
+      grossCents: exp.totalCents,
+      customColumnValue: null,
+      billedQty: 0,
+    };
+  });
+
+  const combinedDoc = {
+    ...doc,
+    subtotalCents: doc.subtotalCents + additionalSubtotalCents,
+    totalCents: doc.totalCents + additionalSubtotalCents,
+  };
+
+  return {
+    doc: combinedDoc,
+    lines: [...baseLines, ...billableLines],
+  };
+}
+
 /* ---------------- Items ---------------- */
 
 async function _saveItem(data: {
@@ -361,6 +453,7 @@ async function _saveDocument(data: {
   customerContactId?: number | null;
   /** Invoice this cost was rebilled on. Must belong to customerContactId. */
   relatedInvoiceId?: number | null;
+  isBillable?: boolean;
   assignedMemberIds?: number[];
   isTemplate?: boolean;
   saveAsTemplate?: boolean;
@@ -373,6 +466,7 @@ async function _saveDocument(data: {
   if (data.type !== "expense" && data.type !== "bill") {
     data.customerContactId = null;
     data.relatedInvoiceId = null;
+    data.isBillable = false;
   }
   if (data.relatedInvoiceId && !data.customerContactId) {
     throw new Error("Pick the customer before linking an invoice");
@@ -409,11 +503,6 @@ async function _saveDocument(data: {
     if (existing.type === "quote") {
       if (existing.status !== "draft" && existing.status !== "open") throw new Error("Only draft or open quotes can be edited");
     } else if (existing.type === "invoice") {
-      // Once issued, postInvoice() has already written AR/Sales/VAT to the ledger for the
-      // original amounts. Editing line items here only rewrote the document's own totals —
-      // the journal entry was never reversed/reposted — so an edited invoice would silently
-      // diverge from its own GL entry (e.g. edit total below paidCents flips status to "paid"
-      // while the ledger still carries the original AR balance). Void and reissue instead.
       if (existing.status !== "draft") throw new Error("Issued invoices can't be edited — void and reissue instead");
     } else {
       if (existing.status !== "draft") throw new Error("Only drafts can be edited");
@@ -434,6 +523,7 @@ async function _saveDocument(data: {
         paidFromBankAccountId: data.paidFromBankAccountId,
         customerContactId: data.customerContactId ?? null,
         relatedInvoiceId: data.relatedInvoiceId ?? null,
+        isBillable: data.isBillable ?? false,
       })
       .where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, data.id)));
     await db.delete(documentLines).where(eq(documentLines.documentId, data.id));
@@ -460,6 +550,7 @@ async function _saveDocument(data: {
         paidFromBankAccountId: data.paidFromBankAccountId,
         customerContactId: data.customerContactId ?? null,
         relatedInvoiceId: data.relatedInvoiceId ?? null,
+        isBillable: data.isBillable ?? false,
         createdByName: data.createdByName,
         createdByRole: data.createdByRole,
         createdAt: nowISO(),

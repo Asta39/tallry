@@ -263,6 +263,7 @@ export const documents = pgTable("documents", {
    */
   customerContactId: integer("customer_contact_id"),
   relatedInvoiceId: integer("related_invoice_id"),
+  isBillable: boolean("is_billable").notNull().default(false),
   // set when a bill approval is rejected, shown back to the submitter
   approvalNote: text("approval_note"),
   // Snapshot of who created the document — survives staff renames/removal, shown on the PDF as "Sales Agent".

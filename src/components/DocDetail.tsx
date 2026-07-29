@@ -30,18 +30,14 @@ const roleLabels: Record<string, string> = {
   staff: "Staff",
 };
 
+import { getInvoiceWithBillableExpenses } from "@/lib/actions";
+
 export async function DocDetail({ id, printHref }: { id: number; printHref?: string }) {
   const org = await getOrg();
   const orgId = org.id;
-  const [doc] = await db.select().from(documents).where(and(eq(documents.orgId, orgId), eq(documents.id, id))).limit(1);
-  if (!doc) notFound();
-  // Left join: lines typed freehand have no itemId and must still render.
-  const lineRows = await db
-    .select({ line: documentLines, itemName: items.name })
-    .from(documentLines)
-    .leftJoin(items, eq(documentLines.itemId, items.id))
-    .where(and(eq(documentLines.orgId, orgId), eq(documentLines.documentId, id)));
-  const lines = lineRows.map((r) => ({ ...r.line, itemName: r.itemName }));
+  const result = await getInvoiceWithBillableExpenses(id, orgId);
+  if (!result) notFound();
+  const { doc, lines } = result;
   const contact = doc.contactId
     ? (await db.select().from(contacts).where(and(eq(contacts.orgId, orgId), eq(contacts.id, doc.contactId))).limit(1))[0]
     : null;
