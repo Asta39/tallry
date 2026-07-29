@@ -1,7 +1,9 @@
 import {
   db, documents, documentLines, contacts, items, stockLots,
   expenseClaims, employees, payrollRuns, payrollRunLineItems, timeShifts, deals,
+  accounts, bankTransactions, journalEntries, journalLines,
 } from "@/db";
+import { SYS } from "./coa";
 import { currentOrgId } from "@/lib/org";
 import { and, eq, gte, lte, inArray, sql, desc } from "drizzle-orm";
 import { accountBalances, profitAndLoss, cashFlowStatement, vatReturn, aging } from "./reports";
@@ -402,22 +404,94 @@ export async function vatPositionTrend(months = 12) {
   return range.map((m, i) => ({ label: m.label, netVatDueCents: series[i].netVatDue, outputVat: series[i].outputVat, inputVat: series[i].inputVat }));
 }
 
-/* ---------------- 26. Books health ---------------- */
+/* ---------------- 26. Withholding Tax (WHT) position trend ---------------- */
+export async function whtPositionTrend(months = 12) {
+  const range = monthKeys(months);
+  const orgId = currentOrgId();
+
+  const [whtAccount] = await db
+    .select({ id: accounts.id })
+    .from(accounts)
+    .where(and(eq(accounts.orgId, orgId), eq(accounts.code, SYS.WHT_RECEIVABLE)))
+    .limit(1);
+
+  if (!whtAccount) {
+    return range.map((m) => ({ label: m.label, whtClaimableCents: 0 }));
+  }
+
+  const lines = await db
+    .select({
+      date: journalEntries.date,
+      debitCents: journalLines.debitCents,
+    })
+    .from(journalLines)
+    .innerJoin(journalEntries, eq(journalLines.entryId, journalEntries.id))
+    .where(
+      and(
+        eq(journalLines.orgId, orgId),
+        eq(journalLines.accountId, whtAccount.id),
+        gte(journalEntries.date, range[0].from),
+        lte(journalEntries.date, range[range.length - 1].to)
+      )
+    );
+
+  const byMonth = new Map<string, number>();
+  for (const l of lines) {
+    const key = l.date.slice(0, 7);
+    byMonth.set(key, (byMonth.get(key) || 0) + Number(l.debitCents));
+  }
+
+  return range.map((m) => ({
+    label: m.label,
+    whtClaimableCents: byMonth.get(m.key) || 0,
+  }));
+}
+
+/* ---------------- 27. Books health & Accounting Audit ---------------- */
 export async function booksHealth(orgLockDate: string | null) {
+  const orgId = currentOrgId();
   const today = new Date().toISOString().slice(0, 10);
-  const balances = await accountBalances({ to: today });
+
+  const [balances, uncategorizedCount, pendingBillsCount, openCreditsCount, entriesCount, lastReconRow] = await Promise.all([
+    accountBalances({ to: today }),
+    db.select({ count: sql<number>`count(*)` })
+      .from(bankTransactions)
+      .where(and(eq(bankTransactions.orgId, orgId), eq(bankTransactions.status, "uncategorized")))
+      .then((r) => Number(r[0]?.count || 0)),
+    db.select({ count: sql<number>`count(*)` })
+      .from(documents)
+      .where(and(eq(documents.orgId, orgId), eq(documents.type, "bill"), eq(documents.status, "pending_approval")))
+      .then((r) => Number(r[0]?.count || 0)),
+    db.select({ count: sql<number>`count(*)` })
+      .from(documents)
+      .where(and(eq(documents.orgId, orgId), eq(documents.type, "credit_note"), sql`${documents.status} IN ('open', 'partial')`))
+      .then((r) => Number(r[0]?.count || 0)),
+    db.select({ count: sql<number>`count(*)`, totalCents: sql<number>`coalesce(sum(abs(${journalLines.debitCents})), 0)` })
+      .from(journalLines)
+      .where(eq(journalLines.orgId, orgId))
+      .then((r) => ({ count: Number(r[0]?.count || 0), totalCents: Number(r[0]?.totalCents || 0) })),
+    db.execute<{ completed_at: string }>(sql`
+      select completed_at from bank_reconciliations
+      where org_id = ${orgId} and status = 'completed'
+      order by completed_at desc limit 1
+    `).then((r: any) => (r.rows ?? r)[0]?.completed_at ?? null),
+  ]);
+
   const totalDr = balances.reduce((s, b) => s + b.debitCents, 0);
   const totalCr = balances.reduce((s, b) => s + b.creditCents, 0);
-  const [lastRecon] = await db.execute<{ completed_at: string }>(sql`
-    select completed_at from bank_reconciliations
-    where org_id = ${currentOrgId()} and status = 'completed'
-    order by completed_at desc limit 1
-  `).then((r: any) => r.rows ?? r);
+  const varianceCents = Math.abs(totalDr - totalCr);
+
   return {
-    balanced: totalDr === totalCr,
+    balanced: varianceCents === 0,
     totalDr,
     totalCr,
-    lastReconciliationDate: lastRecon?.completed_at?.slice(0, 10) || null,
+    varianceCents,
+    uncategorizedCount,
+    pendingBillsCount,
+    openCreditsCount,
+    entriesCount: entriesCount.count,
+    totalLedgerVolumeCents: entriesCount.totalCents,
     lockDate: orgLockDate,
+    lastReconciliationDate: lastReconRow,
   };
 }

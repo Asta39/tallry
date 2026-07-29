@@ -65,7 +65,7 @@ export default async function AnalyticsPage() {
     stockValue, movers, dead,
     payrollTrend, hires, hours,
     pipeline, newVsRet,
-    vatTrend, health,
+    vatTrend, whtTrend, health,
   ] = await withOrg(() =>
     Promise.all([
       A.revenueTrend(12),
@@ -91,6 +91,7 @@ export default async function AnalyticsPage() {
       has("standard") ? A.pipelineByStage() : Promise.resolve(null),
       has("standard") ? A.newVsReturningCustomers(12) : Promise.resolve(null),
       A.vatPositionTrend(12),
+      A.whtPositionTrend(12),
       A.booksHealth(o.lockDate),
     ])
   );
@@ -334,22 +335,67 @@ export default async function AnalyticsPage() {
           </div>
         </div>
 
-        {/* Compliance */}
+        {/* Compliance & Books Health */}
         <div className="space-y-4">
           <Section title="Compliance & Books Health" />
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <Card title="VAT position" subtitle="Net VAT due, monthly">
               <TrendAreaChart data={vatTrend.map((v) => ({ label: v.label, vat: v.netVatDueCents }))} series={[{ key: "vat", label: "Net VAT due", color: brand }]} />
             </Card>
-            <Card title="Books health">
-              <div className="grid grid-cols-2 gap-3">
-                <Tile label="Ledger balanced" value={health.balanced ? "Yes" : "No"} tone={health.balanced ? "good" : "bad"} />
-                <Tile label="Books locked through" value={health.lockDate || "Not locked"} />
-                <Tile label="Last reconciliation" value={health.lastReconciliationDate || "Never"} tone={health.lastReconciliationDate ? undefined : "warn"} />
-                <Tile label="Total ledger entries" value={fmtKES(health.totalDr)} />
-              </div>
+            <Card title="Withholding Tax position" subtitle="WHT claimable deducted by customers">
+              <TrendAreaChart data={whtTrend.map((w) => ({ label: w.label, wht: w.whtClaimableCents }))} series={[{ key: "wht", label: "WHT Receivable", color: "#0284c7" }]} />
             </Card>
           </div>
+
+          <Card title="Books health & Accounting Audit" subtitle="General ledger integrity and compliance diagnostics">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+              <Tile
+                label="Ledger balanced"
+                value={health.balanced ? "Yes" : "No"}
+                tone={health.balanced ? "good" : "bad"}
+                sub={health.balanced ? "Zero debit/credit variance" : `Variance: ${fmtKES(health.varianceCents)}`}
+              />
+              <Tile
+                label="Uncategorized bank txns"
+                value={String(health.uncategorizedCount)}
+                tone={health.uncategorizedCount > 0 ? "warn" : "good"}
+                sub={health.uncategorizedCount > 0 ? "Reconciliation required" : "All transactions matched"}
+              />
+              <Tile
+                label="Pending bill approvals"
+                value={String(health.pendingBillsCount)}
+                tone={health.pendingBillsCount > 0 ? "warn" : undefined}
+                sub="Unposted vendor bills"
+              />
+              <Tile
+                label="Open credit notes"
+                value={String(health.openCreditsCount)}
+                sub="Unapplied customer credits"
+              />
+              <Tile
+                label="Books locked through"
+                value={health.lockDate || "Not locked"}
+                sub={health.lockDate ? "Prior period sealed" : "Editable historical entries"}
+              />
+              <Tile
+                label="Last reconciliation"
+                value={health.lastReconciliationDate || "Never"}
+                tone={health.lastReconciliationDate ? undefined : "warn"}
+                sub="Bank statement match"
+              />
+              <Tile
+                label="Total ledger entries"
+                value={String(health.entriesCount)}
+                sub={`Volume: ${fmtKES(health.totalLedgerVolumeCents)}`}
+              />
+              <Tile
+                label="Trial Balance Status"
+                value={health.balanced ? "Passed" : "Audit Flag"}
+                tone={health.balanced ? "good" : "bad"}
+                sub="Automated system check"
+              />
+            </div>
+          </Card>
         </div>
       </div>
     </>

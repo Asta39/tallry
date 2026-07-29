@@ -109,15 +109,32 @@ export function RankBarChart({
   height?: number;
   money?: boolean;
 }) {
-  const h = height ?? Math.max(140, data.length * 34);
+  const h = height ?? Math.max(160, data.length * 36);
+  const maxChars = Math.max(0, ...data.map((d) => (d.name || "").length));
+  const yAxisWidth = Math.min(180, Math.max(110, maxChars * 7));
+
   return (
     <div style={{ height: h }} className="w-full">
       <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={data} layout="vertical" margin={{ top: 4, right: 24, left: 4, bottom: 0 }}>
+        <BarChart data={data} layout="vertical" margin={{ top: 4, right: 28, left: 4, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e8e8ed" />
           <XAxis type="number" axisLine={false} tickLine={false} tick={axisTick} tickFormatter={money ? kesTick : undefined} />
-          <YAxis type="category" dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "#515154" }} width={120} />
-          <Tooltip contentStyle={tooltipStyle} formatter={(v: any) => [money ? fmtKES(Number(v)) : v, ""]} />
+          <YAxis
+            type="category"
+            dataKey="name"
+            axisLine={false}
+            tickLine={false}
+            tick={{ fontSize: 11.5, fill: "#515154" }}
+            width={yAxisWidth}
+            tickFormatter={(t) => (t && t.length > 22 ? t.slice(0, 20) + "…" : t)}
+          />
+          <Tooltip
+            contentStyle={tooltipStyle}
+            formatter={(v: any, name: any, item: any) => [
+              money ? fmtKES(Number(v)) : v,
+              item?.payload?.name || "",
+            ]}
+          />
           <Bar dataKey="value" fill={color} radius={[0, 4, 4, 0]} maxBarSize={18} />
         </BarChart>
       </ResponsiveContainer>
