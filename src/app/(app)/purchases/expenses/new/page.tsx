@@ -16,6 +16,7 @@ export default async function NewExpensePage() {
         customDocumentColumnName={opts.customDocumentColumnName}
         members={opts.members}
         contacts={opts.contacts}
+        customers={opts.customers}
         items={[]}
         costCenters={opts.costCenters}
         warehouses={opts.warehouses}

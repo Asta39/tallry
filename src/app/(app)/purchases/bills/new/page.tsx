@@ -22,6 +22,7 @@ export default async function NewBillPage({
         customDocumentColumnName={opts.customDocumentColumnName}
         members={opts.members}
         contacts={opts.contacts}
+        customers={opts.customers}
         items={opts.items}
         costCenters={opts.costCenters}
         warehouses={opts.warehouses}

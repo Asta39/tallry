@@ -8,6 +8,13 @@ export async function editorOptions(side: "sale" | "purchase") {
   const orgId = org.id;
   const wantedKinds = side === "sale" ? ["customer", "both"] : ["vendor", "both"];
   const contactRows = await db.select().from(contacts).where(and(eq(contacts.orgId, orgId), inArray(contacts.kind, wantedKinds)));
+  // Expenses and bills can be tagged to the customer the cost was incurred for,
+  // which is a different list from the vendor being paid — on a purchase
+  // document `contactRows` holds vendors, so customers are loaded separately.
+  const customerRows =
+    side === "purchase"
+      ? await db.select().from(contacts).where(and(eq(contacts.orgId, orgId), inArray(contacts.kind, ["customer", "both"])))
+      : contactRows;
   const itemRows = await db.select().from(items).where(and(eq(items.orgId, orgId), eq(items.archived, false)));
   const expenseRows = await db.select().from(accounts).where(and(eq(accounts.orgId, orgId), eq(accounts.type, "expense")));
   const bankRows = await db.select().from(bankAccounts).where(and(eq(bankAccounts.orgId, orgId), eq(bankAccounts.archived, false)));
@@ -19,6 +26,7 @@ export async function editorOptions(side: "sale" | "purchase") {
     customDocumentColumnName: org.customDocumentColumnName,
     members: memberRows.map((m) => ({ id: m.id, label: m.name || m.email })),
     contacts: contactRows.map((c) => ({ id: c.id, label: c.displayName })),
+    customers: customerRows.map((c) => ({ id: c.id, label: c.displayName })),
     items: itemRows.map((i) => ({
       id: i.id,
       name: i.name,

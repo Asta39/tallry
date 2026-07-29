@@ -65,6 +65,7 @@ export interface EditorInitialData {
 export function DocumentEditor({
   type,
   contacts,
+  customers,
   items,
   expenseAccounts,
   bankAccounts,
@@ -79,6 +80,10 @@ export function DocumentEditor({
 }: {
   type: "invoice" | "quote" | "credit_note" | "bill" | "expense" | "purchase_order";
   contacts: Option[];
+  /** Customers available for cost attribution on expenses/bills. Falls back to
+   *  `contacts`, which is correct for sales documents but is the vendor list on
+   *  purchases. */
+  customers?: Option[];
   items: ItemOption[];
   expenseAccounts?: Option[];
   bankAccounts?: Option[];
@@ -327,7 +332,7 @@ export function DocumentEditor({
             </span>
             <SearchableSelect
               className="mt-1"
-              options={contacts}
+              options={customers ?? contacts}
               value={customerContactId}
               onChange={setCustomerContactId}
               placeholder="Search customers…"
