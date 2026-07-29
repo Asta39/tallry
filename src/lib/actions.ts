@@ -39,7 +39,6 @@ import { nowISO, todayISO, fmtKES } from "./money";
 import { getTaxDevice } from "./etims";
 import { ETIMS_ENABLED } from "./features";
 import { getUser } from "./supabase/server";
-import { emitZenoEvent } from "@/lib/events/bus";
 
 /** revalidatePath, but safe when called outside a Next request (scripts, tests). */
 function revalidatePath(path: string, type?: "page" | "layout") {
@@ -686,7 +685,6 @@ async function _issueClaimedDocument(doc: typeof documents.$inferSelect) {
           .where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, docId)));
       }
       await postInvoice(docId);
-      emitZenoEvent("invoice.created", currentOrgId(), { invoiceId: docId, number: doc.number, totalCents: doc.totalCents, date: doc.date });
       break;
     }
     case "credit_note":
@@ -700,7 +698,6 @@ async function _issueClaimedDocument(doc: typeof documents.$inferSelect) {
         break;
       }
       await postBill(docId);
-      emitZenoEvent("bill.created", currentOrgId(), { billId: docId, number: doc.number, totalCents: doc.totalCents, date: doc.date });
       break;
     }
     case "expense":
@@ -708,7 +705,6 @@ async function _issueClaimedDocument(doc: typeof documents.$inferSelect) {
       break;
     case "quote":
       await db.update(documents).set({ status: "open" }).where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, docId)));
-      emitZenoEvent("quote.created", currentOrgId(), { quoteId: docId, number: doc.number, totalCents: doc.totalCents });
       break;
     case "purchase_order":
       await db.update(documents).set({ status: "open" }).where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, docId)));
@@ -727,7 +723,6 @@ async function _voidDoc(docId: number) {
 async function _markQuote(docId: number, status: "accepted" | "declined") {
   await db.update(documents).set({ status }).where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, docId)));
   if (status === "accepted") {
-    emitZenoEvent("quote.accepted", currentOrgId(), { quoteId: docId });
   }
   revalidatePath("/sales");
 }
@@ -822,13 +817,6 @@ async function _recordPayment(data: {
     })
     .returning();
   await postPayment(p.id);
-  emitZenoEvent("payment.received", currentOrgId(), {
-    paymentId: p.id,
-    documentId: data.documentId,
-    amountCents: data.amountCents,
-    method: data.method,
-    reference: data.reference,
-  });
   revalidatePath("/sales");
   revalidatePath("/purchases");
   revalidatePath("/");

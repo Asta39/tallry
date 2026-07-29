@@ -94,26 +94,6 @@ export default async function SettingsPage() {
           <p className="text-[12.5px] text-[var(--color-ink-600)] mt-1">Write and publish articles for your clients to read in their dedicated Client Portal.</p>
         </Link>
       </div>
-
-      <div className="card px-6 py-5 max-w-2xl mt-5 space-y-1.5 hover:bg-[var(--color-ink-50)] transition-colors cursor-pointer border-l-4 border-l-[var(--color-accent-600)]">
-        <Link href="/settings/webhooks" className="block w-full">
-          <div className="font-semibold text-[var(--color-ink-900)] flex items-center justify-between">
-            <span>Webhooks & Workflow Automation</span>
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-[var(--color-accent-50)] text-[var(--color-accent-600)] uppercase">New</span>
-          </div>
-          <p className="text-[12.5px] text-[var(--color-ink-600)] mt-1">Broadcast live Zeno ERP events to n8n, Zapier, Slack, or custom endpoints with HMAC signatures.</p>
-        </Link>
-      </div>
-
-      <div className="card px-6 py-5 max-w-2xl mt-5 space-y-1.5 hover:bg-[var(--color-ink-50)] transition-colors cursor-pointer border-l-4 border-l-emerald-600">
-        <Link href="/settings/whatsapp" className="block w-full">
-          <div className="font-semibold text-[var(--color-ink-900)] flex items-center justify-between">
-            <span>WhatsApp Automation & Staff Alerts</span>
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 uppercase">New</span>
-          </div>
-          <p className="text-[12.5px] text-[var(--color-ink-600)] mt-1">Multi-tenant WhatsApp: send invoices, M-Pesa receipts, overdue debt collection, group alerts, and staff @mentions.</p>
-        </Link>
-      </div>
     </>
   );
 }
