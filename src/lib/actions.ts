@@ -17,8 +17,9 @@ import {
   documentAssignments,
   notifications,
   customerGroups,
+  contactGroupMemberships,
 } from "@/db";
-import { eq, and, ne, desc, isNull, sql } from "drizzle-orm";
+import { eq, and, ne, desc, isNull, sql, inArray } from "drizzle-orm";
 import { currentOrgId, withOrg, seedOrgDefaults } from "@/lib/org";
 import { revalidatePath as nextRevalidatePath } from "next/cache";
 import { computeDocument, type TaxClass, TAX_CLASSES } from "./tax";
@@ -97,21 +98,21 @@ async function _saveContact(data: {
   city?: string;
   notes?: string;
   isWithholdingAgent?: boolean;
-  groupId?: number | null;
+  /** One or more customer groups. Required (>=1) for customers; ignored for vendors. */
+  groupIds?: number[];
 }) {
   const orgId = currentOrgId();
   const isCustomer = data.kind === "customer" || data.kind === "both";
 
-  // Groups apply to customers only; a vendor-only contact never carries one.
-  let groupId = isCustomer ? data.groupId ?? null : null;
+  // Groups apply to customers only; a vendor-only contact never carries any.
+  let groupIds = isCustomer ? [...new Set((data.groupIds ?? []).filter(Boolean))] : [];
   if (isCustomer) {
-    if (!groupId) throw new Error("Pick a customer group");
-    const [g] = await db
+    if (groupIds.length === 0) throw new Error("Pick at least one customer group");
+    const valid = await db
       .select({ id: customerGroups.id })
       .from(customerGroups)
-      .where(and(eq(customerGroups.orgId, orgId), eq(customerGroups.id, groupId)))
-      .limit(1);
-    if (!g) throw new Error("That customer group no longer exists");
+      .where(and(eq(customerGroups.orgId, orgId), inArray(customerGroups.id, groupIds)));
+    if (valid.length !== groupIds.length) throw new Error("One of the chosen groups no longer exists");
   }
 
   const values = {
@@ -125,14 +126,25 @@ async function _saveContact(data: {
     city: data.city,
     notes: data.notes,
     isWithholdingAgent: data.isWithholdingAgent,
-    groupId,
+    // Keep the legacy single-group column pointed at the first group for any
+    // old read path; the membership table below is the source of truth.
+    groupId: groupIds[0] ?? null,
   };
 
+  let contactId = data.id;
   if (data.id) {
     await db.update(contacts).set(values).where(and(eq(contacts.orgId, orgId), eq(contacts.id, data.id)));
   } else {
-    await db.insert(contacts).values({ orgId, ...values, createdAt: nowISO() });
+    const [created] = await db.insert(contacts).values({ orgId, ...values, createdAt: nowISO() }).returning();
+    contactId = created.id;
   }
+
+  // Replace memberships wholesale — simplest correct way to reconcile add/remove.
+  await db.delete(contactGroupMemberships).where(and(eq(contactGroupMemberships.orgId, orgId), eq(contactGroupMemberships.contactId, contactId!)));
+  if (groupIds.length > 0) {
+    await db.insert(contactGroupMemberships).values(groupIds.map((gid) => ({ orgId, contactId: contactId!, groupId: gid })));
+  }
+
   revalidatePath("/contacts");
   if (data.id) revalidatePath(`/contacts/${data.id}`);
 }

@@ -16,10 +16,17 @@ export async function createEmployeeAction(formData: FormData) {
   const kraPin = formData.get("kraPin") as string;
   const nssfNumber = formData.get("nssfNumber") as string;
   const shifNumber = formData.get("shifNumber") as string;
-  const basicSalaryCents = Math.round(parseFloat(formData.get("basicSalary") as string) * 100);
+  const basicSalary = parseFloat(formData.get("basicSalary") as string);
+  const basicSalaryCents = Math.round(basicSalary * 100);
 
-  if (!name || basicSalaryCents < 0) {
-    throw new Error("Missing or invalid required fields");
+  if (!name?.trim()) {
+    throw new Error("Employee name is required");
+  }
+  // parseFloat("") is NaN, and NaN < 0 is false — without this check a blank
+  // salary sails past the guard and Postgres rejects "NaN" for a bigint,
+  // crashing the whole page with a 500.
+  if (!Number.isFinite(basicSalary) || basicSalaryCents < 0) {
+    throw new Error("Enter a valid basic salary");
   }
   // KRA PIN is required for PAYE remittance filing on iTax — without it payroll can run
   // but the org won't be able to file correctly for this employee.

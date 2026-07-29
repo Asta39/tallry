@@ -1,6 +1,6 @@
 "use server";
 
-import { db, customerGroups, contacts } from "@/db";
+import { db, customerGroups, contacts, contactGroupMemberships } from "@/db";
 import { eq, and, ne, sql } from "drizzle-orm";
 import { withOrg, currentOrgId } from "@/lib/org";
 import { requirePerm } from "@/lib/guard";
@@ -28,13 +28,26 @@ export async function listCustomerGroupsWithCounts() {
     const orgId = currentOrgId();
     const groups = await db.select().from(customerGroups).where(eq(customerGroups.orgId, orgId)).orderBy(customerGroups.name);
     const counts = await db
-      .select({ groupId: contacts.groupId, n: sql<number>`count(*)` })
-      .from(contacts)
-      .where(and(eq(contacts.orgId, orgId), eq(contacts.archived, false)))
-      .groupBy(contacts.groupId);
+      .select({ groupId: contactGroupMemberships.groupId, n: sql<number>`count(*)` })
+      .from(contactGroupMemberships)
+      .innerJoin(contacts, eq(contactGroupMemberships.contactId, contacts.id))
+      .where(and(eq(contactGroupMemberships.orgId, orgId), eq(contacts.archived, false)))
+      .groupBy(contactGroupMemberships.groupId);
     const byId = new Map(counts.map((c) => [c.groupId, Number(c.n)]));
     return groups.map((g) => ({ ...g, memberCount: byId.get(g.id) ?? 0 }));
   });
+}
+
+/** The groups one contact belongs to. */
+export async function getContactGroups(contactId: number) {
+  return withOrg(() =>
+    db
+      .select({ id: customerGroups.id, name: customerGroups.name })
+      .from(contactGroupMemberships)
+      .innerJoin(customerGroups, eq(contactGroupMemberships.groupId, customerGroups.id))
+      .where(and(eq(contactGroupMemberships.orgId, currentOrgId()), eq(contactGroupMemberships.contactId, contactId)))
+      .orderBy(customerGroups.name)
+  );
 }
 
 export async function createCustomerGroupAction(name: string) {
@@ -80,7 +93,8 @@ export async function deleteCustomerGroupAction(id: number) {
     await requireAdmin();
     const orgId = currentOrgId();
     // Detach members rather than block — deleting a segment shouldn't strand
-    // its customers; they fall back to "Ungrouped".
+    // its customers; they simply lose this membership.
+    await db.delete(contactGroupMemberships).where(and(eq(contactGroupMemberships.orgId, orgId), eq(contactGroupMemberships.groupId, id)));
     await db.update(contacts).set({ groupId: null }).where(and(eq(contacts.orgId, orgId), eq(contacts.groupId, id)));
     await db.delete(customerGroups).where(and(eq(customerGroups.orgId, orgId), eq(customerGroups.id, id)));
     revalidatePath("/contacts/groups");

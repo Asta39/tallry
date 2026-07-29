@@ -19,7 +19,7 @@ export interface ContactFormInitial {
   city?: string | null;
   notes?: string | null;
   isWithholdingAgent?: boolean;
-  groupId?: number | null;
+  groupIds?: number[];
 }
 
 const input =
@@ -32,14 +32,18 @@ export function ContactForm({ initial, groups }: { initial?: ContactFormInitial;
   const [error, setError] = useState<string | null>(null);
 
   const [kind, setKind] = useState(initial?.kind ?? "customer");
-  const [groupId, setGroupId] = useState<number | "">(initial?.groupId ?? "");
+  const [groupIds, setGroupIds] = useState<number[]>(initial?.groupIds ?? []);
 
   const isCustomer = kind === "customer" || kind === "both";
 
+  function toggleGroup(id: number) {
+    setGroupIds((cur) => (cur.includes(id) ? cur.filter((g) => g !== id) : [...cur, id]));
+  }
+
   function submit(formData: FormData) {
     setError(null);
-    if (isCustomer && !groupId) {
-      setError(groups.length === 0 ? "Create a customer group first — an admin can add one under Customer Groups." : "Pick a customer group.");
+    if (isCustomer && groupIds.length === 0) {
+      setError(groups.length === 0 ? "Create a customer group first — an admin can add one under Customer Groups." : "Pick at least one customer group.");
       return;
     }
     start(async () => {
@@ -56,7 +60,7 @@ export function ContactForm({ initial, groups }: { initial?: ContactFormInitial;
           city: String(formData.get("city") || "") || undefined,
           notes: String(formData.get("notes") || "") || undefined,
           isWithholdingAgent: formData.get("isWithholdingAgent") === "on",
-          groupId: isCustomer ? Number(groupId) : null,
+          groupIds: isCustomer ? groupIds : [],
         });
         router.push(initial?.id ? `/contacts/${initial.id}` : "/contacts");
         router.refresh();
@@ -82,21 +86,36 @@ export function ContactForm({ initial, groups }: { initial?: ContactFormInitial;
       </label>
 
       {isCustomer && (
-        <label className="block col-span-2">
-          <span className={labelCls}>Customer group *</span>
-          <select
-            value={groupId}
-            onChange={(e) => setGroupId(e.target.value ? Number(e.target.value) : "")}
-            className={input}
-            disabled={groups.length === 0}
-          >
-            <option value="">{groups.length === 0 ? "No groups yet — an admin must create one" : "Choose a group…"}</option>
-            {groups.map((g) => (
-              <option key={g.id} value={g.id}>{g.name}</option>
-            ))}
-          </select>
-          <span className="text-[11px] text-[var(--color-ink-400)] block mt-1">Used to slice customer reports by segment.</span>
-        </label>
+        <div className="block col-span-2">
+          <span className={labelCls}>Customer groups * <span className="font-normal text-[var(--color-ink-400)]">(pick one or more)</span></span>
+          {groups.length === 0 ? (
+            <div className="mt-1 text-[12.5px] text-[var(--color-ink-500)]">
+              No groups yet — an admin must create one under Customer Groups first.
+            </div>
+          ) : (
+            <div className="mt-1 flex flex-wrap gap-2">
+              {groups.map((g) => {
+                const on = groupIds.includes(g.id);
+                return (
+                  <button
+                    type="button"
+                    key={g.id}
+                    onClick={() => toggleGroup(g.id)}
+                    className={`rounded-full border px-3 py-1.5 text-[12.5px] transition-colors ${
+                      on
+                        ? "bg-[var(--color-accent-500)] border-[var(--color-accent-500)] text-white"
+                        : "bg-white border-[var(--color-ink-200)] text-[var(--color-ink-700)] hover:bg-[var(--color-ink-50)]"
+                    }`}
+                  >
+                    {on ? "✓ " : ""}
+                    {g.name}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          <span className="text-[11px] text-[var(--color-ink-400)] block mt-1">Used to slice customer reports by segment. A customer can belong to several.</span>
+        </div>
       )}
 
       <label className="block">

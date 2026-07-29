@@ -106,6 +106,21 @@ export const customerGroups = pgTable("customer_groups", {
   orgNameUnique: uniqueIndex("idx_customer_groups_org_name").on(t.orgId, t.name),
 }));
 
+/**
+ * Customer ↔ group membership. A customer can belong to several groups (e.g.
+ * Wholesale + NGO), so this is a join table rather than a column on contacts.
+ * contacts.groupId is retained for back-compat but memberships are the truth.
+ */
+export const contactGroupMemberships = pgTable("contact_group_memberships", {
+  id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
+  contactId: integer("contact_id").notNull(),
+  groupId: integer("group_id").notNull(),
+}, (t) => ({
+  pairUnique: uniqueIndex("idx_contact_group_unique").on(t.contactId, t.groupId),
+  groupIdx: index("idx_contact_group_by_group").on(t.orgId, t.groupId),
+}));
+
 export const activities = pgTable("activities", {
   id: serial("id").primaryKey(),
   orgId: integer("org_id").notNull().references(() => org.id),

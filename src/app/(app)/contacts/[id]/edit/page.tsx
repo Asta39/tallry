@@ -3,7 +3,7 @@ import { getOrg } from "@/lib/org";
 import { db, contacts } from "@/db";
 import { and, eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
-import { listCustomerGroups } from "@/lib/customer-groups";
+import { listCustomerGroups, getContactGroups } from "@/lib/customer-groups";
 import { PageHeader } from "@/components/ui";
 import { ContactForm } from "@/components/ContactForm";
 
@@ -16,7 +16,7 @@ export default async function EditContactPage({ params }: { params: Promise<{ id
   const [c] = await db.select().from(contacts).where(and(eq(contacts.orgId, o.id), eq(contacts.id, Number(id)))).limit(1);
   if (!c) notFound();
 
-  const groups = await listCustomerGroups();
+  const [groups, memberships] = await Promise.all([listCustomerGroups(), getContactGroups(c.id)]);
 
   return (
     <>
@@ -35,7 +35,7 @@ export default async function EditContactPage({ params }: { params: Promise<{ id
           city: c.city,
           notes: c.notes,
           isWithholdingAgent: c.isWithholdingAgent,
-          groupId: c.groupId,
+          groupIds: memberships.map((m) => m.id),
         }}
       />
     </>

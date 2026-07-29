@@ -1,4 +1,4 @@
-import { db, accounts, journalEntries, journalLines, documents, documentLines, payments, contacts, items, documentAssignments, members } from "@/db";
+import { db, accounts, journalEntries, journalLines, documents, documentLines, payments, contacts, items, documentAssignments, members, contactGroupMemberships } from "@/db";
 import { currentOrgId } from "@/lib/org";
 import { and, eq, gte, lte, inArray, sql, exists, isNull } from "drizzle-orm";
 
@@ -744,14 +744,23 @@ export async function estimatesReport(fromDate: string, toDate: string) {
  * Customers Sales Report
  */
 export async function customersReport(fromDate: string, toDate: string, groupId?: number | null) {
+  const orgId = currentOrgId();
   const conds = [
-    eq(documents.orgId, currentOrgId()),
+    eq(documents.orgId, orgId),
     eq(documents.type, "invoice"),
     inArray(documents.status, ["open", "partial", "paid"]),
     gte(documents.date, fromDate),
     lte(documents.date, toDate),
   ];
-  if (groupId) conds.push(eq(contacts.groupId, groupId));
+  if (groupId) {
+    const members = await db
+      .select({ id: contactGroupMemberships.contactId })
+      .from(contactGroupMemberships)
+      .where(and(eq(contactGroupMemberships.orgId, orgId), eq(contactGroupMemberships.groupId, groupId)));
+    const ids = members.map((m) => m.id);
+    if (ids.length === 0) return [];
+    conds.push(inArray(documents.contactId, ids));
+  }
 
   const rows = await db
     .select({
@@ -1224,9 +1233,9 @@ export async function customerMarginRanking(fromDate: string, toDate: string, gr
   let groupMemberIds: number[] | null = null;
   if (groupId) {
     const members = await db
-      .select({ id: contacts.id })
-      .from(contacts)
-      .where(and(eq(contacts.orgId, orgId), eq(contacts.groupId, groupId)));
+      .select({ id: contactGroupMemberships.contactId })
+      .from(contactGroupMemberships)
+      .where(and(eq(contactGroupMemberships.orgId, orgId), eq(contactGroupMemberships.groupId, groupId)));
     groupMemberIds = members.map((m) => m.id);
     if (groupMemberIds.length === 0) {
       return { rows: [], untaggedCostCents: 0, totalRevenueCents: 0, totalCostCents: 0, totalMarginCents: 0 };
