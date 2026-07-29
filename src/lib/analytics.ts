@@ -168,10 +168,14 @@ export async function topVendors(limit = 10) {
 export async function expenseClaimsStats() {
   const rows = await db.select().from(expenseClaims).where(eq(expenseClaims.orgId, currentOrgId()));
   const byStatus = { pending: 0, approved: 0, rejected: 0, paid: 0 };
+  let totalCents = 0;
+  let paidCents = 0;
   let approvalDaysSum = 0;
   let approvalCount = 0;
   for (const c of rows) {
     if (c.status in byStatus) byStatus[c.status as keyof typeof byStatus]++;
+    totalCents += c.amountCents || 0;
+    if (c.status === "paid") paidCents += c.amountCents || 0;
     if (c.reviewedAt) {
       approvalDaysSum += (new Date(c.reviewedAt).getTime() - new Date(c.createdAt).getTime()) / 86400000;
       approvalCount++;
@@ -180,6 +184,8 @@ export async function expenseClaimsStats() {
   return {
     byStatus,
     total: rows.length,
+    totalCents,
+    paidCents,
     avgApprovalDays: approvalCount > 0 ? Math.round((approvalDaysSum / approvalCount) * 10) / 10 : null,
   };
 }

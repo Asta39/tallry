@@ -158,9 +158,16 @@ export function ChartOfAccountsClient({ accounts, balances: balancesObj }: { acc
         <tr className={`hairline-t ${a.archived ? "opacity-50" : ""}`}>
           <td className="px-4 py-2.5 text-[13px] tnum text-[var(--color-ink-400)] whitespace-nowrap">{a.code}</td>
           <td className="px-3 py-2.5 text-[13px]" style={{ paddingLeft: `${12 + depth * 20}px` }}>
-            <Link href={`/accountant/ledger/${a.id}`} className="font-medium hover:text-[var(--color-accent-600)]">{a.name}</Link>
-            {a.isSystem && <span className="ml-2 text-[10px] uppercase tracking-wide text-[var(--color-ink-400)]">system</span>}
-            {a.archived && <span className="ml-2 text-[10px] uppercase tracking-wide text-[var(--color-bad)]">archived</span>}
+            <div>
+              <Link href={`/accountant/ledger/${a.id}`} className="font-medium hover:text-[var(--color-accent-600)]">{a.name}</Link>
+              {a.isSystem && <span className="ml-2 text-[10px] uppercase tracking-wide text-[var(--color-ink-400)]">system</span>}
+              {a.archived && <span className="ml-2 text-[10px] uppercase tracking-wide text-[var(--color-bad)]">archived</span>}
+            </div>
+            {a.description && (
+              <div className="text-[11.5px] text-[var(--color-ink-400)] font-normal mt-0.5 max-w-xl">
+                {a.description}
+              </div>
+            )}
           </td>
           <td className="px-3 py-2.5 text-[13px] text-right tnum">{fmtKES(balances.get(a.id) ?? 0)}</td>
           <td className="px-4 py-2.5 text-right whitespace-nowrap">

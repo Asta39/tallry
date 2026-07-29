@@ -214,15 +214,15 @@ export default async function AnalyticsPage() {
                   <div className="grid grid-cols-2 gap-3">
                     <Tile label="Pending" value={String(claimsStats.byStatus.pending)} tone={claimsStats.byStatus.pending > 0 ? "warn" : undefined} />
                     <Tile label="Approved" value={String(claimsStats.byStatus.approved)} tone="good" />
-                    <Tile label="Rejected" value={String(claimsStats.byStatus.rejected)} />
-                    <Tile label="Avg. approval time" value={claimsStats.avgApprovalDays != null ? `${claimsStats.avgApprovalDays}d` : "—"} />
+                    <Tile label="Paid & Settled" value={String(claimsStats.byStatus.paid)} tone="good" sub={fmtKES(claimsStats.paidCents)} />
+                    <Tile label="Total Claims Value" value={fmtKES(claimsStats.totalCents)} sub={`${claimsStats.total} total claim(s)`} />
                   </div>
                 ) : (
                   <div className="grid grid-cols-2 gap-3">
                     <Tile label="Pending" value="3" />
                     <Tile label="Approved" value="12" />
-                    <Tile label="Rejected" value="1" />
-                    <Tile label="Avg. approval time" value="1.4d" />
+                    <Tile label="Paid & Settled" value="10" sub="KES 45,000" />
+                    <Tile label="Total Claims Value" value="KES 65,000" sub="25 total claims" />
                   </div>
                 )}
               </Card>

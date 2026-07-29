@@ -112,6 +112,7 @@ export async function seedOrgDefaults(orgId: number) {
         name: a.name,
         type: a.type,
         subtype: a.subtype,
+        description: a.description,
         isSystem: a.system ?? false,
       }))
     )
@@ -123,4 +124,27 @@ export async function seedOrgDefaults(orgId: number) {
     { orgId, name: "M-Pesa Till", kind: "mpesa", accountId: byCode.get("1010")! },
     { orgId, name: "Petty Cash", kind: "cash", accountId: byCode.get("1020")! },
   ]);
+}
+
+/** Ensure existing organizations also have descriptions and expanded seed accounts. */
+export async function ensureExpandedChartOfAccounts(orgId: number) {
+  const existing = await db.select().from(accounts).where(eq(accounts.orgId, orgId));
+  const existingCodes = new Map(existing.map((a) => [a.code, a]));
+
+  for (const s of SEED_ACCOUNTS) {
+    const acct = existingCodes.get(s.code);
+    if (!acct) {
+      await db.insert(accounts).values({
+        orgId,
+        code: s.code,
+        name: s.name,
+        type: s.type,
+        subtype: s.subtype,
+        description: s.description,
+        isSystem: s.system ?? false,
+      });
+    } else if (!acct.description && s.description) {
+      await db.update(accounts).set({ description: s.description }).where(eq(accounts.id, acct.id));
+    }
+  }
 }

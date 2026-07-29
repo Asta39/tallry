@@ -9,10 +9,14 @@ import { revalidatePath } from "next/cache";
 const VALID_TYPES = ["asset", "liability", "equity", "income", "expense"] as const;
 type AccountType = (typeof VALID_TYPES)[number];
 
+import { ensureExpandedChartOfAccounts } from "@/lib/org";
+
 export async function listAccountsForCoa() {
-  return withOrg(() =>
-    db.select().from(accounts).where(eq(accounts.orgId, currentOrgId())).orderBy(accounts.code)
-  );
+  return withOrg(async () => {
+    const orgId = currentOrgId();
+    await ensureExpandedChartOfAccounts(orgId);
+    return db.select().from(accounts).where(eq(accounts.orgId, orgId)).orderBy(accounts.code);
+  });
 }
 
 export async function createAccountAction(data: {
