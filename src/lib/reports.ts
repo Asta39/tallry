@@ -1198,3 +1198,111 @@ export async function vendorSpend(
       })),
   };
 }
+
+export interface CustomerMarginRow {
+  contactId: number;
+  customerName: string;
+  netRevenueCents: number;
+  taggedCostCents: number;
+  grossMarginCents: number;
+  marginPct: number | null;
+}
+
+/**
+ * Every customer ranked by margin, for "which clients are actually worth it".
+ *
+ * Aggregated in two grouped queries rather than calling customerProfitability
+ * per contact, which would be an N+1 across the whole contact book.
+ */
+export async function customerMarginRanking(fromDate: string, toDate: string) {
+  const orgId = currentOrgId();
+  const POSTED = ["open", "paid", "partial", "closed"];
+
+  // Credit notes subtract, so sign the sum by type in SQL.
+  const revenueRows = await db
+    .select({
+      contactId: documents.contactId,
+      customerName: contacts.displayName,
+      net: sql<number>`coalesce(sum(case when ${documents.type} = 'credit_note' then -${documents.totalCents} else ${documents.totalCents} end), 0)`,
+    })
+    .from(documents)
+    .innerJoin(contacts, eq(documents.contactId, contacts.id))
+    .where(
+      and(
+        eq(documents.orgId, orgId),
+        inArray(documents.type, ["invoice", "credit_note"]),
+        eq(documents.isTemplate, false),
+        inArray(documents.status, POSTED),
+        gte(documents.date, fromDate),
+        lte(documents.date, toDate)
+      )
+    )
+    .groupBy(documents.contactId, contacts.displayName);
+
+  const costRows = await db
+    .select({
+      contactId: documents.customerContactId,
+      cost: sql<number>`coalesce(sum(${documents.totalCents}), 0)`,
+    })
+    .from(documents)
+    .where(
+      and(
+        eq(documents.orgId, orgId),
+        inArray(documents.type, ["bill", "expense"]),
+        inArray(documents.status, POSTED),
+        gte(documents.date, fromDate),
+        lte(documents.date, toDate)
+      )
+    )
+    .groupBy(documents.customerContactId);
+
+  const costByCustomer = new Map<number, number>();
+  let untaggedCostCents = 0;
+  for (const r of costRows) {
+    if (r.contactId == null) untaggedCostCents += Number(r.cost);
+    else costByCustomer.set(r.contactId, Number(r.cost));
+  }
+
+  const rows: CustomerMarginRow[] = revenueRows.map((r) => {
+    const netRevenueCents = Number(r.net);
+    const taggedCostCents = costByCustomer.get(r.contactId!) ?? 0;
+    const grossMarginCents = netRevenueCents - taggedCostCents;
+    return {
+      contactId: r.contactId!,
+      customerName: r.customerName,
+      netRevenueCents,
+      taggedCostCents,
+      grossMarginCents,
+      marginPct: netRevenueCents > 0 ? grossMarginCents / netRevenueCents : null,
+    };
+  });
+
+  // A customer can carry tagged costs in a period with no revenue — a loss that
+  // would otherwise vanish from the ranking entirely.
+  for (const [contactId, cost] of costByCustomer) {
+    if (rows.some((r) => r.contactId === contactId)) continue;
+    const [c] = await db
+      .select({ name: contacts.displayName })
+      .from(contacts)
+      .where(and(eq(contacts.orgId, orgId), eq(contacts.id, contactId)))
+      .limit(1);
+    rows.push({
+      contactId,
+      customerName: c?.name ?? "Unknown",
+      netRevenueCents: 0,
+      taggedCostCents: cost,
+      grossMarginCents: -cost,
+      marginPct: null,
+    });
+  }
+
+  rows.sort((a, b) => b.grossMarginCents - a.grossMarginCents);
+
+  return {
+    rows,
+    untaggedCostCents,
+    totalRevenueCents: rows.reduce((s, r) => s + r.netRevenueCents, 0),
+    totalCostCents: rows.reduce((s, r) => s + r.taggedCostCents, 0),
+    totalMarginCents: rows.reduce((s, r) => s + r.grossMarginCents, 0),
+  };
+}

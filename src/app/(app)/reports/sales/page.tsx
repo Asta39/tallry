@@ -11,6 +11,7 @@ const reportCards = [
   { href: "/reports/sales/credit-notes", title: "Credit Notes Report", desc: "History of credit notes issued.", icon: "📉" },
   { href: "/reports/sales/estimates", title: "Estimates Report", desc: "Summary of estimates and quotes.", icon: "📝" },
   { href: "/reports/sales/customers", title: "Customers Report", desc: "Sales performance grouped by customer.", icon: "👥" },
+  { href: "/reports/sales/profitability", title: "Customer Profitability", desc: "Revenue less tagged costs, ranked by margin.", icon: "📈" },
 ];
 
 export default async function SalesDashboard() {
