@@ -55,6 +55,8 @@ export async function fetchInitialData(docId: number) {
     billNumber: ["bill", "expense"].includes(doc.type) ? doc.number : "",
     paidFrom: doc.paidFromBankAccountId ?? "",
     assignedMemberIds: assignments.map(a => a.memberId),
+    customerContactId: doc.customerContactId ?? "",
+    relatedInvoiceId: doc.relatedInvoiceId ?? "",
     lines: lines.map(l => ({
       itemId: l.itemId,
       description: l.description,

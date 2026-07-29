@@ -313,6 +313,10 @@ async function _saveDocument(data: {
   notes?: string;
   billNumber?: string; // vendor's own number for bills
   paidFromBankAccountId?: number | null;
+  /** Expense/bill cost attribution — the customer the cost was incurred for. */
+  customerContactId?: number | null;
+  /** Invoice this cost was rebilled on. Must belong to customerContactId. */
+  relatedInvoiceId?: number | null;
   assignedMemberIds?: number[];
   isTemplate?: boolean;
   saveAsTemplate?: boolean;
@@ -320,6 +324,29 @@ async function _saveDocument(data: {
   createdByRole?: string;
   lines: DocLineInput[];
 }): Promise<number> {
+  // Cost attribution only applies to money going out. Silently drop it on sales
+  // documents so a stale client payload can't write a nonsensical link.
+  if (data.type !== "expense" && data.type !== "bill") {
+    data.customerContactId = null;
+    data.relatedInvoiceId = null;
+  }
+  if (data.relatedInvoiceId && !data.customerContactId) {
+    throw new Error("Pick the customer before linking an invoice");
+  }
+  if (data.relatedInvoiceId) {
+    // Never trust the client's pairing — verify the invoice is ours, is an
+    // invoice, and actually belongs to the customer being tagged.
+    const [inv] = await db
+      .select({ id: documents.id, contactId: documents.contactId, type: documents.type })
+      .from(documents)
+      .where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, data.relatedInvoiceId)))
+      .limit(1);
+    if (!inv || inv.type !== "invoice") throw new Error("Linked invoice not found");
+    if (inv.contactId !== data.customerContactId) {
+      throw new Error("That invoice belongs to a different customer");
+    }
+  }
+
   const totals = computeDocument(
     data.lines.map((l) => ({
       qty: l.qty,
@@ -361,6 +388,8 @@ async function _saveDocument(data: {
         totalCents: totals.totalCents,
         isTemplate: data.isTemplate || false,
         paidFromBankAccountId: data.paidFromBankAccountId,
+        customerContactId: data.customerContactId ?? null,
+        relatedInvoiceId: data.relatedInvoiceId ?? null,
       })
       .where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, data.id)));
     await db.delete(documentLines).where(eq(documentLines.documentId, data.id));
@@ -385,6 +414,8 @@ async function _saveDocument(data: {
         taxCents: totals.taxCents,
         totalCents: totals.totalCents,
         paidFromBankAccountId: data.paidFromBankAccountId,
+        customerContactId: data.customerContactId ?? null,
+        relatedInvoiceId: data.relatedInvoiceId ?? null,
         createdByName: data.createdByName,
         createdByRole: data.createdByRole,
         createdAt: nowISO(),
@@ -1263,3 +1294,35 @@ export async function saveArticleAction(id: number | null, title: string, conten
   });
 }
 
+
+/**
+ * Invoices belonging to one customer, for the "rebilled on" picker on
+ * expenses and bills. Loaded on demand rather than shipping every invoice in
+ * the org to the client.
+ */
+export async function listCustomerInvoices(contactId: number) {
+  return withOrg(async () => {
+    if (!contactId) return [];
+    const rows = await db
+      .select({
+        id: documents.id,
+        number: documents.number,
+        date: documents.date,
+        totalCents: documents.totalCents,
+        status: documents.status,
+      })
+      .from(documents)
+      .where(
+        and(
+          eq(documents.orgId, currentOrgId()),
+          eq(documents.contactId, contactId),
+          eq(documents.type, "invoice"),
+          eq(documents.isTemplate, false),
+          ne(documents.status, "void")
+        )
+      )
+      .orderBy(desc(documents.date))
+      .limit(200);
+    return rows;
+  });
+}

@@ -226,6 +226,14 @@ export const documents = pgTable("documents", {
   qrUrl: text("qr_url"),
   // expense-specific: paid-from bank account
   paidFromBankAccountId: integer("paid_from_bank_account_id"),
+  /**
+   * Cost attribution for expenses/bills: which customer the cost was incurred
+   * for, and the invoice it was rebilled on (if any). Distinct from contactId,
+   * which is the vendor you paid — this is the customer you spent it for, so
+   * job/customer profitability can be reported.
+   */
+  customerContactId: integer("customer_contact_id"),
+  relatedInvoiceId: integer("related_invoice_id"),
   // set when a bill approval is rejected, shown back to the submitter
   approvalNote: text("approval_note"),
   // Snapshot of who created the document — survives staff renames/removal, shown on the PDF as "Sales Agent".

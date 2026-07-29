@@ -1,10 +1,10 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { computeDocument, TAX_CLASSES, type TaxClass } from "@/lib/tax";
 import { fmtKES, parseKES, todayISO } from "@/lib/money";
-import { saveDocument, issueDocument, createItemFromLine, type DocLineInput } from "@/lib/actions";
+import { saveDocument, issueDocument, createItemFromLine, listCustomerInvoices, type DocLineInput } from "@/lib/actions";
 import { SearchableSelect } from "@/components/SearchableSelect";
 
 type Option = { id: number; label: string };
@@ -55,6 +55,8 @@ export interface EditorInitialData {
   billNumber: string;
   paidFrom: number | "";
   assignedMemberIds: number[];
+  customerContactId?: number | "";
+  relatedInvoiceId?: number | "";
   isTemplate?: boolean;
   status?: string;
   lines: EditorLine[];
@@ -109,7 +111,35 @@ export function DocumentEditor({
   const [paidFrom, setPaidFrom] = useState<number | "">(initialData?.paidFrom ?? "");
   const [assignedMemberIds, setAssignedMemberIds] = useState<number[]>(initialData?.assignedMemberIds ?? []);
   const [saveAsTemplate, setSaveAsTemplate] = useState(false);
+  // Cost attribution — which customer this spend was for, and the invoice it
+  // was rebilled on. Money-out documents only.
+  const isSpend = type === "expense" || type === "bill";
+  const [customerContactId, setCustomerContactId] = useState<number | "">(initialData?.customerContactId ?? "");
+  const [relatedInvoiceId, setRelatedInvoiceId] = useState<number | "">(initialData?.relatedInvoiceId ?? "");
+  const [customerInvoices, setCustomerInvoices] = useState<{ id: number; number: string; date: string; totalCents: number; status: string }[]>([]);
   const [lines, setLines] = useState<EditorLine[]>(initialData?.lines ?? [emptyLine()]);
+
+  // Reload the invoice list whenever the tagged customer changes. Any invoice
+  // already selected belongs to the previous customer, so it's cleared unless
+  // it survives in the new list.
+  useEffect(() => {
+    if (!isSpend || !customerContactId) {
+      setCustomerInvoices([]);
+      setRelatedInvoiceId("");
+      return;
+    }
+    let cancelled = false;
+    listCustomerInvoices(Number(customerContactId))
+      .then((rows) => {
+        if (cancelled) return;
+        setCustomerInvoices(rows);
+        setRelatedInvoiceId((cur) => (cur && rows.some((r) => r.id === cur) ? cur : ""));
+      })
+      .catch(() => {
+        if (!cancelled) setCustomerInvoices([]);
+      });
+    return () => { cancelled = true; };
+  }, [customerContactId, isSpend]);
 
   const itemOptions = useMemo(() => items.map((it) => ({ id: it.id, label: it.name })), [items]);
 
@@ -203,6 +233,8 @@ export function DocumentEditor({
           notes: notes || undefined,
           billNumber: billNumber || undefined,
           paidFromBankAccountId: paidFrom === "" ? null : paidFrom,
+          customerContactId: isSpend && customerContactId !== "" ? Number(customerContactId) : null,
+          relatedInvoiceId: isSpend && relatedInvoiceId !== "" ? Number(relatedInvoiceId) : null,
           assignedMemberIds: assignedMemberIds.length > 0 ? assignedMemberIds : undefined,
           isTemplate: initialData?.isTemplate,
           saveAsTemplate,
@@ -288,6 +320,47 @@ export function DocumentEditor({
           />
           <span className="text-[12.5px] text-[var(--color-ink-600)]">Prices include VAT</span>
         </label>
+        {isSpend && (
+          <label className="block col-span-2">
+            <span className="text-[12px] font-medium text-[var(--color-ink-600)]">
+              Billable to customer <span className="text-[var(--color-ink-400)] font-normal">(optional)</span>
+            </span>
+            <SearchableSelect
+              className="mt-1"
+              options={contacts}
+              value={customerContactId}
+              onChange={setCustomerContactId}
+              placeholder="Search customers…"
+            />
+            <span className="text-[10px] text-[var(--color-ink-400)] block mt-1">
+              Tracks what this cost was spent on, for customer profitability.
+            </span>
+          </label>
+        )}
+        {isSpend && customerContactId !== "" && (
+          <label className="block col-span-2">
+            <span className="text-[12px] font-medium text-[var(--color-ink-600)]">
+              Rebilled on invoice <span className="text-[var(--color-ink-400)] font-normal">(optional)</span>
+            </span>
+            <select
+              className={inputCls + " mt-1"}
+              value={relatedInvoiceId}
+              onChange={(e) => setRelatedInvoiceId(e.target.value ? Number(e.target.value) : "")}
+            >
+              <option value="">Not rebilled</option>
+              {customerInvoices.map((inv) => (
+                <option key={inv.id} value={inv.id}>
+                  {inv.number} · {inv.date} · {fmtKES(inv.totalCents)}
+                </option>
+              ))}
+            </select>
+            {customerInvoices.length === 0 && (
+              <span className="text-[10px] text-[var(--color-ink-400)] block mt-1">
+                This customer has no invoices yet.
+              </span>
+            )}
+          </label>
+        )}
         {members && members.length > 0 && (
           <label className="block col-span-2">
             <span className="text-[12px] font-medium text-[var(--color-ink-600)]">Assigned Staff</span>

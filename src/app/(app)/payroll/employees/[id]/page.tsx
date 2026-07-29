@@ -72,10 +72,17 @@ export default async function EmployeeDetailPage(props: { params: Promise<{ id: 
             <div className="flex justify-between">
               <dt className="text-[var(--color-ink-500)]">Status</dt>
               <dd>
-                {employee.isActive ? 
-                  <span className="badge badge-success badge-sm">Active</span> : 
-                  <span className="badge badge-error badge-sm">Suspended</span>
-                }
+                {employee.isActive ? (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                    Active
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                    Suspended
+                  </span>
+                )}
               </dd>
             </div>
             <div className="flex justify-between">

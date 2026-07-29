@@ -16,9 +16,14 @@ export function ToggleEmployeeStatusButton({ employeeId, isActive }: { employeeI
           });
         }
       }}
-      className={`badge badge-sm cursor-pointer transition-opacity hover:opacity-80 disabled:opacity-50 ${isActive ? 'badge-success badge-outline' : 'badge-neutral'}`}
+      className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border transition-all cursor-pointer disabled:opacity-50 ${
+        isActive
+          ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
+          : "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100"
+      }`}
     >
-      {pending ? "Saving..." : isActive ? "Active — click to suspend" : "Suspended — click to activate"}
+      <span className={`w-1.5 h-1.5 rounded-full ${isActive ? "bg-emerald-500" : "bg-amber-500"}`} />
+      {pending ? "Saving..." : isActive ? "Active" : "Suspended"}
     </button>
   );
 }

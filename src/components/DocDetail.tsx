@@ -3,6 +3,7 @@ import { and, eq } from "drizzle-orm";
 import { getOrg } from "@/lib/org";
 import { getAccess } from "@/lib/access";
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { fmtKES, todayISO } from "@/lib/money";
 import { TAX_CLASSES, type TaxClass } from "@/lib/tax";
 import { PageHeader, StatusPill, Th, Td } from "@/components/ui";
@@ -44,6 +45,23 @@ export async function DocDetail({ id, printHref }: { id: number; printHref?: str
   const contact = doc.contactId
     ? (await db.select().from(contacts).where(and(eq(contacts.orgId, orgId), eq(contacts.id, doc.contactId))).limit(1))[0]
     : null;
+  // Cost attribution on expenses/bills — who the spend was for, and the
+  // invoice it was rebilled on.
+  const [taggedCustomer] = doc.customerContactId
+    ? await db.select().from(contacts).where(and(eq(contacts.orgId, orgId), eq(contacts.id, doc.customerContactId))).limit(1)
+    : [];
+  const [rebilledOn] = doc.relatedInvoiceId
+    ? await db.select().from(documents).where(and(eq(documents.orgId, orgId), eq(documents.id, doc.relatedInvoiceId))).limit(1)
+    : [];
+
+  // Costs tagged to this invoice, shown on the invoice so margin is visible.
+  const taggedCosts = doc.type === "invoice"
+    ? await db
+        .select({ id: documents.id, type: documents.type, number: documents.number, date: documents.date, totalCents: documents.totalCents })
+        .from(documents)
+        .where(and(eq(documents.orgId, orgId), eq(documents.relatedInvoiceId, id)))
+    : [];
+
   const pays = await db.select().from(payments).where(and(eq(payments.orgId, orgId), eq(payments.documentId, id)));
   const banks = await db.select().from(bankAccounts).where(eq(bankAccounts.orgId, orgId));
   const gateways = await db.select().from(paymentGateways).where(and(eq(paymentGateways.orgId, orgId), eq(paymentGateways.enabled, true)));
@@ -68,6 +86,57 @@ export async function DocDetail({ id, printHref }: { id: number; printHref?: str
           />
         }
       />
+
+      {taggedCosts.length > 0 && (
+        <div className="card p-4 mb-4">
+          <div className="text-[12px] font-semibold text-[var(--color-ink-600)] mb-2">
+            Costs rebilled on this invoice
+          </div>
+          <div className="space-y-1 text-[13px]">
+            {taggedCosts.map((c) => (
+              <div key={c.id} className="flex justify-between gap-4">
+                <Link
+                  href={`/purchases/${c.type === "bill" ? "bills" : "expenses"}/${c.id}`}
+                  className="hover:underline"
+                >
+                  {c.number} <span className="text-[var(--color-ink-400)]">· {c.date}</span>
+                </Link>
+                <span className="tnum">{fmtKES(c.totalCents)}</span>
+              </div>
+            ))}
+          </div>
+          <div className="hairline-t mt-2 pt-2 flex justify-between text-[13px] font-semibold">
+            <span>Margin on this invoice</span>
+            <span className="tnum">
+              {fmtKES(doc.totalCents - taggedCosts.reduce((s, c) => s + c.totalCents, 0))}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {(taggedCustomer || rebilledOn) && (
+        <div className="card p-4 mb-4 text-[13px] flex flex-wrap gap-x-8 gap-y-2">
+          {taggedCustomer && (
+            <div>
+              <span className="text-[var(--color-ink-500)]">Billable to </span>
+              <Link href={`/contacts/${taggedCustomer.id}`} className="font-medium hover:underline">
+                {taggedCustomer.displayName}
+              </Link>
+            </div>
+          )}
+          {rebilledOn && (
+            <div>
+              <span className="text-[var(--color-ink-500)]">Rebilled on </span>
+              <Link href={`/sales/invoices/${rebilledOn.id}`} className="font-medium hover:underline">
+                {rebilledOn.number}
+              </Link>
+              {rebilledOn.status === "void" && (
+                <span className="text-[var(--color-bad)] ml-1">(voided)</span>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       <DocActions
         doc={{
