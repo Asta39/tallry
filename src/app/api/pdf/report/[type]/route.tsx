@@ -20,7 +20,8 @@ import {
   estimatesReport,
   customersReport,
   vat3Prefill,
-  type Vat3Row
+  type Vat3Row,
+  withholdingTaxReport
 } from "@/lib/reports";
 
 export const dynamic = "force-dynamic";
@@ -218,6 +219,45 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         };
         section("out", "Output VAT (Sales)", v3.output, "Cash Sale");
         section("in", "Input VAT (Purchases)", v3.input, "Cash Expense");
+
+      } else if (type === "wht") {
+        title = "Withholding Tax Report";
+        subtitle = `From ${from} to ${to}`;
+        columns = [
+          { header: "Date", align: "left", widthPct: 10 },
+          { header: "Payment #", align: "left", widthPct: 13 },
+          { header: "Invoice #", align: "left", widthPct: 13 },
+          { header: "Customer", align: "left", widthPct: 21 },
+          { header: "PIN", align: "left", widthPct: 13 },
+          { header: "Gross", align: "right", widthPct: 10 },
+          { header: "WHT", align: "right", widthPct: 10 },
+          { header: "Net", align: "right", widthPct: 10 },
+        ];
+        const wht = await withholdingTaxReport(from, to);
+        if (wht.rows.length === 0) {
+          rows.push({ id: "none", cells: ["No withholding tax recorded for this period."], isIndent: true });
+        } else {
+          wht.rows.forEach((r, i) =>
+            rows.push({
+              id: `wht-${i}`,
+              cells: [
+                r.date,
+                r.paymentNumber,
+                r.documentNumber ?? "—",
+                r.contactName ?? "—",
+                r.kraPin ?? "UNREGISTERED",
+                fmtKES(r.grossCents),
+                fmtKES(r.whtCents),
+                fmtKES(r.netCents),
+              ],
+            })
+          );
+          rows.push({
+            id: "wht-total",
+            cells: ["Total", "", "", "", "", fmtKES(wht.totalGrossCents), fmtKES(wht.totalWhtCents), fmtKES(wht.totalNetCents)],
+            isBold: true,
+          });
+        }
 
       } else if (type === "general-ledger" && accountId) {
         title = "General Ledger";

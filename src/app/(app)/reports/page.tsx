@@ -36,6 +36,7 @@ const reports = [
       { href: "/reports/general-ledger", title: "General Ledger", body: "Detailed transaction history for specific accounts." },
       { href: "/reports/trial-balance", title: "Trial Balance", body: "Every account's debits and credits — for your accountant." },
       { href: "/reports/vat", title: "VAT Return (VAT 3) prep", body: "Output VAT vs input VAT for the period." },
+      { href: "/reports/wht", title: "Withholding Tax Report", body: "Tax withheld by customers, with date filters and CSV/PDF export." },
     ],
   },
 ];

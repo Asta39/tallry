@@ -1,6 +1,8 @@
 import { db, accounts, journalEntries, journalLines, documents, documentLines, payments, contacts, items, documentAssignments, members, contactGroupMemberships } from "@/db";
 import { currentOrgId } from "@/lib/org";
 import { and, eq, gte, lte, inArray, sql, exists, isNull } from "drizzle-orm";
+import { acct } from "./posting";
+import { SYS } from "./coa";
 
 /**
  * Reporting queries — all derived from the ledger (journal lines), never from
@@ -273,6 +275,119 @@ export async function dashboardStats(today: string) {
     incomeThisMonthCents: pl.totalIncome,
     expensesThisMonthCents: pl.totalCogs + pl.totalExpenses,
     netVatDueCents: vat.netVatDue,
+  };
+}
+
+export interface WithholdingTaxRow {
+  date: string;
+  paymentNumber: string;
+  documentNumber: string | null;
+  contactName: string | null;
+  kraPin: string | null;
+  grossCents: number;
+  whtCents: number;
+  netCents: number;
+  reference: string | null;
+}
+
+/**
+ * Withholding tax withheld by customers when paying invoices (a prepaid tax
+ * asset — KRA lets it offset corporate income tax due). Rows are derived from
+ * postings to the WHT Receivable account (1310), not from payments.whtCents
+ * directly: a payment row can carry a whtCents value that was never posted
+ * (outgoing/vendor payments accept the same form field but postPayment()
+ * currently has no ledger treatment for it — see note below), so reading the
+ * ledger is what keeps this report's totals reconcilable with the books
+ * rather than merely mirroring user input.
+ *
+ * NOTE: there is currently no symmetric "WHT payable" account for tax withheld
+ * FROM vendors when we pay them — only the receivable side (customers
+ * withholding from us) is wired end-to-end, so that's what this report covers.
+ */
+export async function withholdingTaxReport(fromDate: string, toDate: string): Promise<{
+  rows: WithholdingTaxRow[];
+  totalGrossCents: number;
+  totalWhtCents: number;
+  totalNetCents: number;
+}> {
+  const orgId = currentOrgId();
+  const whtAccountId = await acct(SYS.WHT_RECEIVABLE);
+
+  const lines = await db
+    .select({
+      date: journalEntries.date,
+      sourceId: journalEntries.sourceId,
+      whtDebit: journalLines.debitCents,
+    })
+    .from(journalLines)
+    .innerJoin(journalEntries, eq(journalLines.entryId, journalEntries.id))
+    .where(
+      and(
+        eq(journalLines.orgId, orgId),
+        eq(journalLines.accountId, whtAccountId),
+        eq(journalEntries.sourceType, "customer_payment"),
+        gte(journalEntries.date, fromDate),
+        lte(journalEntries.date, toDate)
+      )
+    );
+
+  if (lines.length === 0) {
+    return { rows: [], totalGrossCents: 0, totalWhtCents: 0, totalNetCents: 0 };
+  }
+
+  const paymentIds = lines.map((l) => l.sourceId).filter((id): id is number => id != null);
+  const paymentRows = paymentIds.length
+    ? await db
+        .select({
+          id: payments.id,
+          number: payments.number,
+          documentId: payments.documentId,
+          contactId: payments.contactId,
+          reference: payments.reference,
+          amountCents: payments.amountCents,
+        })
+        .from(payments)
+        .where(and(eq(payments.orgId, orgId), inArray(payments.id, paymentIds)))
+    : [];
+  const paymentById = new Map(paymentRows.map((p) => [p.id, p]));
+
+  const docIds = [...new Set(paymentRows.map((p) => p.documentId).filter((id): id is number => id != null))];
+  const docRows = docIds.length
+    ? await db.select({ id: documents.id, number: documents.number }).from(documents).where(and(eq(documents.orgId, orgId), inArray(documents.id, docIds)))
+    : [];
+  const docById = new Map(docRows.map((d) => [d.id, d.number]));
+
+  const contactIds = [...new Set(paymentRows.map((p) => p.contactId).filter((id): id is number => id != null))];
+  const contactRows = contactIds.length
+    ? await db.select({ id: contacts.id, name: contacts.displayName, kraPin: contacts.kraPin }).from(contacts).where(and(eq(contacts.orgId, orgId), inArray(contacts.id, contactIds)))
+    : [];
+  const contactById = new Map(contactRows.map((c) => [c.id, c]));
+
+  const rows: WithholdingTaxRow[] = lines
+    .filter((l) => l.sourceId != null && paymentById.has(l.sourceId))
+    .map((l) => {
+      const p = paymentById.get(l.sourceId!)!;
+      const contact = p.contactId != null ? contactById.get(p.contactId) : undefined;
+      const whtCents = Number(l.whtDebit);
+      return {
+        date: l.date,
+        paymentNumber: p.number,
+        documentNumber: p.documentId != null ? docById.get(p.documentId) ?? null : null,
+        contactName: contact?.name ?? null,
+        kraPin: contact?.kraPin ?? null,
+        grossCents: Number(p.amountCents),
+        whtCents,
+        netCents: Number(p.amountCents) - whtCents,
+        reference: p.reference,
+      };
+    })
+    .sort((a, b) => b.date.localeCompare(a.date));
+
+  return {
+    rows,
+    totalGrossCents: rows.reduce((s, r) => s + r.grossCents, 0),
+    totalWhtCents: rows.reduce((s, r) => s + r.whtCents, 0),
+    totalNetCents: rows.reduce((s, r) => s + r.netCents, 0),
   };
 }
 

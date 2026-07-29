@@ -1,8 +1,9 @@
 import { withOrg } from "@/lib/org";
 import { NextRequest } from "next/server";
-import { accountBalances, profitAndLoss, vatReturn } from "@/lib/reports";
+import { accountBalances, profitAndLoss, vatReturn, withholdingTaxReport } from "@/lib/reports";
 import { db, documents, contacts } from "@/db";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
+import { currentOrgId } from "@/lib/org";
 
 function csv(rows: (string | number)[][]): string {
   return rows
@@ -40,10 +41,23 @@ export async function GET(req: NextRequest) {
     for (const [cls, x] of Object.entries(v.sales)) rows.push(["Sales", cls, money(x.net), money(x.tax)]);
     for (const [cls, x] of Object.entries(v.purchases)) rows.push(["Purchases", cls, money(x.net), money(x.tax)]);
     rows.push(["", "Net VAT due", "", money(v.netVatDue)]);
+  } else if (report === "wht") {
+    const w = await withOrg(() => withholdingTaxReport(from, to));
+    rows = [["Date", "Payment #", "Invoice #", "Customer", "KRA PIN", "Gross", "WHT", "Net"]];
+    for (const r of w.rows) {
+      rows.push([r.date, r.paymentNumber, r.documentNumber ?? "", r.contactName ?? "", r.kraPin ?? "", money(r.grossCents), money(r.whtCents), money(r.netCents)]);
+    }
+    rows.push(["", "", "", "", "Total", money(w.totalGrossCents), money(w.totalWhtCents), money(w.totalNetCents)]);
   } else if (report === "invoices") {
     rows = [["Number", "Date", "Due", "Customer", "Status", "Subtotal", "VAT", "Total", "Paid"]];
-    const docs = await db.select().from(documents).where(eq(documents.type, "invoice"));
-    const cs = await db.select().from(contacts);
+    // Org-scoped — this previously queried across all tenants with no org filter.
+    const { docs, cs } = await withOrg(async () => {
+      const orgId = currentOrgId();
+      return {
+        docs: await db.select().from(documents).where(and(eq(documents.type, "invoice"), eq(documents.orgId, orgId))),
+        cs: await db.select().from(contacts).where(eq(contacts.orgId, orgId)),
+      };
+    });
     for (const d of docs) {
       rows.push([
         d.number,

@@ -201,9 +201,19 @@ export function DocActions({
         )}
         {/* Void is not offered on invoices — an issued invoice is a fiscal
             document; reverse it with a credit note, or write it off from the
-            Aging report. Other types (quotes, bills, expenses, POs, credit
-            notes) still use Void as their reversal path. */}
-        {doc.type !== "invoice" && doc.status !== "void" && doc.status !== "draft" && doc.status !== "pending_approval" && (
+            Aging report. It's also not offered on an accepted quote — once a
+            customer has accepted, the quote is a settled record (the only
+            further action is converting it to an invoice above); voiding it
+            would erase that decision rather than reverse a mistake. A
+            converted quote has already produced its invoice, so voiding the
+            quote at that point does nothing useful either — the invoice is
+            the real document now. Other quote states (draft, open, declined)
+            and other document types still use Void as their reversal path. */}
+        {doc.type !== "invoice" &&
+          !(isQuote && (doc.status === "accepted" || doc.status === "converted")) &&
+          doc.status !== "void" &&
+          doc.status !== "draft" &&
+          doc.status !== "pending_approval" && (
           <button className={danger} disabled={pending} onClick={() => run(() => voidDoc(doc.id))}>
             Void
           </button>

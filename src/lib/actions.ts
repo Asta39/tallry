@@ -732,15 +732,19 @@ async function _markQuote(docId: number, status: "accepted" | "declined") {
   revalidatePath("/sales");
 }
 
-/** Convert an accepted quote into a draft invoice. */
+/** Convert an open or accepted quote into a draft invoice. */
 async function _convertQuoteToInvoice(quoteId: number): Promise<number> {
   const orgId = currentOrgId();
   // Atomic claim: a double-click (or a second explicit call) on an
   // already-converted quote must not create a second, independent invoice.
+  // Both "open" and "accepted" are convertible — this previously excluded
+  // "accepted" instead of requiring it, so an accepted quote (the normal,
+  // expected case) could never actually be converted; it always failed with
+  // "already converted" even on the very first attempt.
   const [quote] = await db
     .update(documents)
     .set({ status: "converting" })
-    .where(and(eq(documents.orgId, orgId), eq(documents.id, quoteId), eq(documents.type, "quote"), ne(documents.status, "accepted")))
+    .where(and(eq(documents.orgId, orgId), eq(documents.id, quoteId), eq(documents.type, "quote"), inArray(documents.status, ["open", "accepted"])))
     .returning();
   if (!quote) throw new Error("This quote was already converted to an invoice");
   const lines = await db.select().from(documentLines).where(eq(documentLines.documentId, quoteId));
@@ -748,7 +752,9 @@ async function _convertQuoteToInvoice(quoteId: number): Promise<number> {
   try {
     invoiceId = await _convertQuoteToInvoiceInner(quote, lines);
   } catch (e) {
-    await db.update(documents).set({ status: "open" }).where(and(eq(documents.orgId, orgId), eq(documents.id, quoteId), eq(documents.status, "converting")));
+    // Restore whatever status it actually held (open or accepted) rather than
+    // hardcoding "open", which would silently discard an acceptance on failure.
+    await db.update(documents).set({ status: quote.status }).where(and(eq(documents.orgId, orgId), eq(documents.id, quoteId), eq(documents.status, "converting")));
     throw e;
   }
   return invoiceId;
@@ -777,7 +783,11 @@ async function _convertQuoteToInvoiceInner(quote: typeof documents.$inferSelect,
     .update(documents)
     .set({ sourceDocId: quote.id, status: "draft" })
     .where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, invoiceId)));
-  await db.update(documents).set({ status: "accepted" }).where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, quote.id)));
+  // Terminal state — NOT "accepted". Resting a converted quote back at
+  // "accepted" put it back in the set the atomic claim above treats as
+  // convertible, so a second click (or a retried request) could claim it
+  // again and generate a second, independent invoice from the same quote.
+  await db.update(documents).set({ status: "converted" }).where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, quote.id)));
   return invoiceId;
 }
 
