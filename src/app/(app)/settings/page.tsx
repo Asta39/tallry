@@ -46,6 +46,8 @@ export default async function SettingsPage() {
           dataSegregation: o.dataSegregation,
           requireBillApproval: o.requireBillApproval,
           timeTrackingEnabled: o.timeTrackingEnabled,
+          nextInvoiceNo: o.nextInvoiceNo,
+          nextQuoteNo: o.nextQuoteNo,
           userId: o.userId,
         }}
       />

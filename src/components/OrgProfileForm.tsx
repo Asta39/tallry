@@ -25,6 +25,8 @@ interface OrgData {
   dataSegregation: boolean;
   requireBillApproval: boolean;
   timeTrackingEnabled: boolean;
+  nextInvoiceNo?: number | null;
+  nextQuoteNo?: number | null;
   userId?: string | null;
 }
 
@@ -41,6 +43,8 @@ export function OrgProfileForm({ initial }: { initial: OrgData }) {
   const [address, setAddress] = useState(initial.address || "");
   const [vatRegistered, setVatRegistered] = useState(initial.vatRegistered);
   const [invoicePrefix, setInvoicePrefix] = useState(initial.invoicePrefix || "INV-");
+  const [nextInvoiceNo, setNextInvoiceNo] = useState(initial.nextInvoiceNo ?? 1);
+  const [nextQuoteNo, setNextQuoteNo] = useState(initial.nextQuoteNo ?? 1);
   const [invoiceTemplate, setInvoiceTemplate] = useState(initial.invoiceTemplate || "default");
   const [quoteTemplate, setQuoteTemplate] = useState(initial.quoteTemplate || "default");
   const [brandColor, setBrandColor] = useState(initial.brandColor || "#0f766e");
@@ -122,6 +126,8 @@ export function OrgProfileForm({ initial }: { initial: OrgData }) {
           dataSegregation,
           requireBillApproval,
           timeTrackingEnabled,
+          nextInvoiceNo: Number(nextInvoiceNo) || 1,
+          nextQuoteNo: Number(nextQuoteNo) || 1,
         });
         setSaved(true);
         router.refresh();
@@ -329,17 +335,44 @@ export function OrgProfileForm({ initial }: { initial: OrgData }) {
             </div>
           </div>
         </label>
-        <label className="block max-w-[200px]">
-          <span className={labelCls}>Invoice prefix</span>
-          <input
-            type="text"
-            value={invoicePrefix}
-            onChange={(e) => setInvoicePrefix(e.target.value)}
-            className={inputCls}
-            placeholder="INV-"
-            maxLength={8}
-          />
-        </label>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <label className="block">
+            <span className={labelCls}>Invoice prefix</span>
+            <input
+              type="text"
+              value={invoicePrefix}
+              onChange={(e) => setInvoicePrefix(e.target.value)}
+              className={inputCls}
+              placeholder="INV-"
+              maxLength={8}
+            />
+          </label>
+          <label className="block">
+            <span className={labelCls}>Next Invoice Number</span>
+            <input
+              type="number"
+              min={1}
+              value={nextInvoiceNo}
+              onChange={(e) => setNextInvoiceNo(Math.max(1, parseInt(e.target.value) || 1))}
+              className={inputCls}
+              placeholder="1001"
+            />
+          </label>
+          <label className="block">
+            <span className={labelCls}>Next Quote Number</span>
+            <input
+              type="number"
+              min={1}
+              value={nextQuoteNo}
+              onChange={(e) => setNextQuoteNo(Math.max(1, parseInt(e.target.value) || 1))}
+              className={inputCls}
+              placeholder="1001"
+            />
+          </label>
+        </div>
+        <div className="text-[11.5px] text-[var(--color-ink-400)] mt-2">
+          Set custom sequence starting numbers if your business doesn&apos;t want to start from 1 (e.g. start at 1001 for legacy system migration).
+        </div>
       </div>
 
       {/* Document customizations */}

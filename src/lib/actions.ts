@@ -808,6 +808,8 @@ export async function saveOrgProfile(data: {
   dataSegregation?: boolean;
   requireBillApproval?: boolean;
   timeTrackingEnabled?: boolean;
+  nextInvoiceNo?: number;
+  nextQuoteNo?: number;
 }) {
   const user = await getUser();
   if (!user) throw new Error("Not authenticated");
@@ -839,6 +841,8 @@ export async function saveOrgProfile(data: {
         ...(data.dataSegregation !== undefined ? { dataSegregation: data.dataSegregation } : {}),
         ...(data.requireBillApproval !== undefined ? { requireBillApproval: data.requireBillApproval } : {}),
         ...(data.timeTrackingEnabled !== undefined ? { timeTrackingEnabled: data.timeTrackingEnabled } : {}),
+        ...(data.nextInvoiceNo !== undefined ? { nextInvoiceNo: data.nextInvoiceNo } : {}),
+        ...(data.nextQuoteNo !== undefined ? { nextQuoteNo: data.nextQuoteNo } : {}),
       })
       .where(eq(org.id, access.orgId));
   } else {
@@ -863,6 +867,8 @@ export async function saveOrgProfile(data: {
         ...(data.termsText !== undefined ? { termsText: data.termsText } : {}),
         ...(data.dataSegregation !== undefined ? { dataSegregation: data.dataSegregation } : {}),
         ...(data.requireBillApproval !== undefined ? { requireBillApproval: data.requireBillApproval } : {}),
+        ...(data.nextInvoiceNo !== undefined ? { nextInvoiceNo: data.nextInvoiceNo } : {}),
+        ...(data.nextQuoteNo !== undefined ? { nextQuoteNo: data.nextQuoteNo } : {}),
         ...(data.timeTrackingEnabled !== undefined ? { timeTrackingEnabled: data.timeTrackingEnabled } : {}),
       })
       .returning();
