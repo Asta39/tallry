@@ -19,10 +19,10 @@ const templates: Record<string, string[][]> = {
     ["goods", "Maize Flour 2kg", "MF-2KG", "pc", "210.00", "180.00", "C0", "yes", "50", "100"],
   ],
   invoices: [
-    ["invoice_ref", "customer_name", "date", "due_date", "description", "qty", "unit_price", "discount_pct", "vat_class"],
-    ["INV-A", "Acme Distributors Ltd", "2026-07-01", "2026-07-31", "Consulting (hourly)", "8", "5000.00", "0", "B16"],
-    ["INV-A", "Acme Distributors Ltd", "2026-07-01", "2026-07-31", "Branded T-Shirt", "20", "1200.00", "5", "B16"],
-    ["INV-B", "Jengo Hardware", "2026-07-02", "", "Delivery service", "1", "3500.00", "0", "B16"],
+  ["invoice_ref", "customer_name", "date", "due_date", "description", "qty", "unit_price", "discount_pct", "vat_class"],
+  ["INV-A", "Acme Distributors Ltd", "2026-07-01", "2026-07-31", "Consulting (hourly)", "8", "5000.00", "0", "B16"],
+  ["INV-A", "Acme Distributors Ltd", "2026-07-01", "2026-07-31", "Branded T-Shirt", "20", "1200.00", "5", "B16"],
+  ["INV-B", "Jengo Hardware", "2026-07-02", "", "Delivery service", "1", "3500.00", "0", "B16"],
   ],
 };
 

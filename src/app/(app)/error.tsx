@@ -21,10 +21,17 @@ export default function Error({
         </svg>
       </div>
       <h2 className="text-lg font-semibold text-[var(--color-ink-800)]">Something went wrong</h2>
-      <p className="text-xs text-[var(--color-ink-500)] max-w-sm mt-1 mb-6">
-        An unexpected error occurred while loading this page. Please try refreshing or reloading.
-      </p>
-      <div className="flex items-center gap-3">
+      <div className="my-3 p-3 bg-red-50 border border-red-200 rounded-lg text-left max-w-lg w-full overflow-auto">
+        <p className="text-xs font-mono font-semibold text-red-800 break-words">
+          {error?.message || error?.name || "Server Component Render Error"}
+        </p>
+        {error?.digest && (
+          <p className="text-[11px] font-mono text-red-600 mt-1">
+            Digest: {error.digest}
+          </p>
+        )}
+      </div>
+      <div className="flex items-center gap-3 mt-3">
         <button
           onClick={() => reset()}
           className="px-4 py-2 rounded-lg bg-[var(--color-accent-500)] hover:bg-[var(--color-accent-600)] text-white text-xs font-medium transition-colors"
