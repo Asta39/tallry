@@ -16,6 +16,7 @@ import {
   accounts,
   documentAssignments,
   notifications,
+  customerGroups,
 } from "@/db";
 import { eq, and, ne, desc, isNull, sql } from "drizzle-orm";
 import { currentOrgId, withOrg, seedOrgDefaults } from "@/lib/org";
@@ -96,13 +97,44 @@ async function _saveContact(data: {
   city?: string;
   notes?: string;
   isWithholdingAgent?: boolean;
+  groupId?: number | null;
 }) {
+  const orgId = currentOrgId();
+  const isCustomer = data.kind === "customer" || data.kind === "both";
+
+  // Groups apply to customers only; a vendor-only contact never carries one.
+  let groupId = isCustomer ? data.groupId ?? null : null;
+  if (isCustomer) {
+    if (!groupId) throw new Error("Pick a customer group");
+    const [g] = await db
+      .select({ id: customerGroups.id })
+      .from(customerGroups)
+      .where(and(eq(customerGroups.orgId, orgId), eq(customerGroups.id, groupId)))
+      .limit(1);
+    if (!g) throw new Error("That customer group no longer exists");
+  }
+
+  const values = {
+    kind: data.kind,
+    displayName: data.displayName,
+    companyName: data.companyName,
+    email: data.email,
+    phone: data.phone,
+    kraPin: data.kraPin,
+    address: data.address,
+    city: data.city,
+    notes: data.notes,
+    isWithholdingAgent: data.isWithholdingAgent,
+    groupId,
+  };
+
   if (data.id) {
-    await db.update(contacts).set({ ...data, id: undefined }).where(and(eq(contacts.orgId, currentOrgId()), eq(contacts.id, data.id)));
+    await db.update(contacts).set(values).where(and(eq(contacts.orgId, orgId), eq(contacts.id, data.id)));
   } else {
-    await db.insert(contacts).values({ orgId: currentOrgId(), ...data, createdAt: nowISO() });
+    await db.insert(contacts).values({ orgId, ...values, createdAt: nowISO() });
   }
   revalidatePath("/contacts");
+  if (data.id) revalidatePath(`/contacts/${data.id}`);
 }
 
 async function _addActivity(contactId: number, kind: string, content: string) {

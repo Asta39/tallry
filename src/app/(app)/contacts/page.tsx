@@ -35,6 +35,12 @@ export default async function ContactsPage() {
         subtitle="Everyone you do business with, in one place"
         action={
           <div className="flex items-start gap-2">
+            <Link
+              href="/contacts/groups"
+              className="rounded-lg border border-[var(--color-ink-200)] bg-white hover:bg-[var(--color-ink-50)] text-[13px] font-medium px-4 py-2 h-9 inline-flex items-center"
+            >
+              Groups
+            </Link>
             <CsvImporter entity="contacts" label="Bulk import contacts" />
             <PrimaryLink href="/contacts/new">+ New contact</PrimaryLink>
           </div>
@@ -46,6 +52,12 @@ export default async function ContactsPage() {
           body="Add your customers and suppliers. Capture their KRA PIN so your invoices support their input-VAT claims."
           action={
           <div className="flex items-start gap-2">
+            <Link
+              href="/contacts/groups"
+              className="rounded-lg border border-[var(--color-ink-200)] bg-white hover:bg-[var(--color-ink-50)] text-[13px] font-medium px-4 py-2 h-9 inline-flex items-center"
+            >
+              Groups
+            </Link>
             <CsvImporter entity="contacts" label="Bulk import contacts" />
             <PrimaryLink href="/contacts/new">+ New contact</PrimaryLink>
           </div>

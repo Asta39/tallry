@@ -6,17 +6,20 @@ import { fmtKES } from "@/lib/money";
 import { ReportFilters } from "@/components/ReportFilters";
 import { ReportChart } from "@/components/ReportCharts";
 import { resolvePeriod } from "@/lib/report-period";
+import { listCustomerGroups } from "@/lib/customer-groups";
 
 export const dynamic = "force-dynamic";
 
 export default async function CustomerProfitabilityReportPage({
   searchParams,
 }: {
-  searchParams: Promise<{ period?: string; from?: string; to?: string }>;
+  searchParams: Promise<{ period?: string; from?: string; to?: string; group?: string }>;
 }) {
   const sp = await searchParams;
   const { preset, from, to } = resolvePeriod(sp);
-  const data = await withOrg(() => customerMarginRanking(from, to));
+  const groups = await listCustomerGroups();
+  const groupId = sp.group && groups.some((g) => g.id === Number(sp.group)) ? Number(sp.group) : "";
+  const data = await withOrg(() => customerMarginRanking(from, to, groupId || null));
 
   const topMargin = data.rows
     .filter((r) => r.grossMarginCents > 0)
@@ -38,7 +41,13 @@ export default async function CustomerProfitabilityReportPage({
         subtitle="Revenue less the costs tagged to each customer"
       />
 
-      <ReportFilters preset={preset} from={from} to={to} />
+      <ReportFilters
+        preset={preset}
+        from={from}
+        to={to}
+        groups={groups.map((g) => ({ id: g.id, name: g.name }))}
+        groupId={groupId}
+      />
 
       {/* The ranking is only as complete as the tagging — say so before the numbers. */}
       {data.untaggedCostCents > 0 && (

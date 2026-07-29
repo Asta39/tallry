@@ -86,10 +86,24 @@ export const contacts = pgTable("contacts", {
   notes: text("notes"),
   isWithholdingAgent: boolean("is_withholding_agent").notNull().default(false),
   whatsappConsent: boolean("whatsapp_consent").notNull().default(true),
+  /** Admin-defined customer segment. Required for new customers via the form;
+   *  nullable so legacy/imported contacts stay valid as "Ungrouped". */
+  groupId: integer("group_id"),
   archived: boolean("archived").notNull().default(false),
   createdAt: text("created_at").notNull(),
 }, (t) => ({
   orgKindIdx: index("idx_contacts_org").on(t.orgId, t.kind),
+  groupIdx: index("idx_contacts_group").on(t.orgId, t.groupId),
+}));
+
+/** Admin-created customer segments — tag customers to slice reports by segment. */
+export const customerGroups = pgTable("customer_groups", {
+  id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
+  name: text("name").notNull(),
+  createdAt: text("created_at").notNull(),
+}, (t) => ({
+  orgNameUnique: uniqueIndex("idx_customer_groups_org_name").on(t.orgId, t.name),
 }));
 
 export const activities = pgTable("activities", {

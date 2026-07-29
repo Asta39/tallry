@@ -14,6 +14,8 @@ export function ReportFilters({
   to,
   staff,
   staffName,
+  groups,
+  groupId,
 }: {
   preset: PeriodPreset;
   from: string;
@@ -21,6 +23,9 @@ export function ReportFilters({
   /** When provided, renders a "Staff member" filter. */
   staff?: string[];
   staffName?: string;
+  /** When provided, renders a "Customer group" filter. */
+  groups?: { id: number; name: string }[];
+  groupId?: number | "";
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -29,6 +34,7 @@ export function ReportFilters({
   const [f, setF] = useState(from);
   const [t, setT] = useState(to);
   const [who, setWho] = useState(staffName ?? "");
+  const [grp, setGrp] = useState<number | "">(groupId ?? "");
 
   function apply() {
     // Start from the current query so params this component doesn't own —
@@ -44,6 +50,8 @@ export function ReportFilters({
     }
     if (who) params.set("staff", who);
     else params.delete("staff");
+    if (grp) params.set("group", String(grp));
+    else params.delete("group");
     router.push(`${pathname}?${params.toString()}`);
   }
 
@@ -85,6 +93,20 @@ export function ReportFilters({
               {staff.map((s) => (
                 <option key={s} value={s}>
                   {s}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {groups && (
+          <div className="md:w-56">
+            <label className="block text-xs font-semibold text-[var(--color-ink-600)] mb-1">Customer group</label>
+            <select className={fieldCls} value={grp} onChange={(e) => setGrp(e.target.value ? Number(e.target.value) : "")}>
+              <option value="">All groups</option>
+              {groups.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.name}
                 </option>
               ))}
             </select>

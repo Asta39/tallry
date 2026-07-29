@@ -3,7 +3,7 @@ import { requirePerm } from "@/lib/guard";
 import { getOrg } from "@/lib/org";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { db, contacts, documents, activities, deals, payments, portalUsers } from "@/db";
+import { db, contacts, documents, activities, deals, payments, portalUsers, customerGroups } from "@/db";
 import { fmtKES, todayISO } from "@/lib/money";
 import { addActivity } from "@/lib/actions";
 import { PageHeader, StatusPill, StatCard, TableCard, Th, Td, PrimaryLink } from "@/components/ui";
@@ -106,6 +106,10 @@ export default async function ContactDetail({
     redirect(`/contacts/${cid}?tab=notes`);
   }
 
+  const [group] = c.groupId
+    ? await db.select().from(customerGroups).where(and(eq(customerGroups.orgId, o.id), eq(customerGroups.id, c.groupId))).limit(1)
+    : [];
+
   const activeTabDef = TABS.find((t) => t.key === tab);
   const today = todayISO();
 
@@ -152,7 +156,15 @@ export default async function ContactDetail({
     <>
       <PageHeader
         title={c.displayName}
-        subtitle={[c.kind, c.city, c.kraPin && `PIN ${c.kraPin}`, c.phone].filter(Boolean).join(" · ")}
+        subtitle={[c.kind, group?.name, c.city, c.kraPin && `PIN ${c.kraPin}`, c.phone].filter(Boolean).join(" · ")}
+        action={
+          <Link
+            href={`/contacts/${cid}/edit`}
+            className="rounded-lg border border-[var(--color-ink-200)] bg-white hover:bg-[var(--color-ink-50)] text-[13px] font-medium px-4 py-2 h-9 inline-flex items-center"
+          >
+            Edit
+          </Link>
+        }
       />
 
       <div className="flex flex-col md:flex-row gap-5 items-start">

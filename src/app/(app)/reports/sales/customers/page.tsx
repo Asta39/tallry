@@ -7,16 +7,19 @@ import { PdfLinks } from "@/components/reportShared";
 import { ReportFilters } from "@/components/ReportFilters";
 import { ReportChart } from "@/components/ReportCharts";
 import { resolvePeriod } from "@/lib/report-period";
+import { listCustomerGroups } from "@/lib/customer-groups";
 
 export default async function CustomersReportPage({
   searchParams,
 }: {
-  searchParams: Promise<{ period?: string; from?: string; to?: string }>;
+  searchParams: Promise<{ period?: string; from?: string; to?: string; group?: string }>;
 }) {
   const sp = await searchParams;
   const { preset, from: fromDate, to: toDate } = resolvePeriod(sp);
+  const groups = await listCustomerGroups();
+  const groupId = sp.group && groups.some((g) => g.id === Number(sp.group)) ? Number(sp.group) : "";
 
-  const customers = await withOrg(() => customersReport(fromDate, toDate));
+  const customers = await withOrg(() => customersReport(fromDate, toDate, groupId || null));
 
   const topCustomers = [...customers]
     .sort((a, b) => b.totalSalesCents - a.totalSalesCents)
@@ -43,7 +46,13 @@ export default async function CustomersReportPage({
         </div>
       </div>
 
-      <ReportFilters preset={preset} from={fromDate} to={toDate} />
+      <ReportFilters
+        preset={preset}
+        from={fromDate}
+        to={toDate}
+        groups={groups.map((g) => ({ id: g.id, name: g.name }))}
+        groupId={groupId}
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         <ReportChart title="Top customers by sales" kind="bar" data={topCustomers} />

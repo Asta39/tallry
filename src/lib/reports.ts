@@ -743,7 +743,16 @@ export async function estimatesReport(fromDate: string, toDate: string) {
 /**
  * Customers Sales Report
  */
-export async function customersReport(fromDate: string, toDate: string) {
+export async function customersReport(fromDate: string, toDate: string, groupId?: number | null) {
+  const conds = [
+    eq(documents.orgId, currentOrgId()),
+    eq(documents.type, "invoice"),
+    inArray(documents.status, ["open", "partial", "paid"]),
+    gte(documents.date, fromDate),
+    lte(documents.date, toDate),
+  ];
+  if (groupId) conds.push(eq(contacts.groupId, groupId));
+
   const rows = await db
     .select({
       contactId: documents.contactId,
@@ -754,15 +763,7 @@ export async function customersReport(fromDate: string, toDate: string) {
     })
     .from(documents)
     .innerJoin(contacts, eq(documents.contactId, contacts.id))
-    .where(
-      and(
-        eq(documents.orgId, currentOrgId()),
-        eq(documents.type, "invoice"),
-        inArray(documents.status, ["open", "partial", "paid"]),
-        gte(documents.date, fromDate),
-        lte(documents.date, toDate)
-      )
-    )
+    .where(and(...conds))
     .groupBy(documents.contactId, contacts.displayName)
     .orderBy(sql`sum(${documents.totalCents}) desc`);
 
@@ -1214,11 +1215,35 @@ export interface CustomerMarginRow {
  * Aggregated in two grouped queries rather than calling customerProfitability
  * per contact, which would be an N+1 across the whole contact book.
  */
-export async function customerMarginRanking(fromDate: string, toDate: string) {
+export async function customerMarginRanking(fromDate: string, toDate: string, groupId?: number | null) {
   const orgId = currentOrgId();
   const POSTED = ["open", "paid", "partial", "closed"];
 
+  // When a group is filtered, restrict to the customers in it — used to scope
+  // both revenue and the cost attribution, so the two sides stay consistent.
+  let groupMemberIds: number[] | null = null;
+  if (groupId) {
+    const members = await db
+      .select({ id: contacts.id })
+      .from(contacts)
+      .where(and(eq(contacts.orgId, orgId), eq(contacts.groupId, groupId)));
+    groupMemberIds = members.map((m) => m.id);
+    if (groupMemberIds.length === 0) {
+      return { rows: [], untaggedCostCents: 0, totalRevenueCents: 0, totalCostCents: 0, totalMarginCents: 0 };
+    }
+  }
+
   // Credit notes subtract, so sign the sum by type in SQL.
+  const revConds = [
+    eq(documents.orgId, orgId),
+    inArray(documents.type, ["invoice", "credit_note"]),
+    eq(documents.isTemplate, false),
+    inArray(documents.status, POSTED),
+    gte(documents.date, fromDate),
+    lte(documents.date, toDate),
+  ];
+  if (groupMemberIds) revConds.push(inArray(documents.contactId, groupMemberIds));
+
   const revenueRows = await db
     .select({
       contactId: documents.contactId,
@@ -1227,17 +1252,19 @@ export async function customerMarginRanking(fromDate: string, toDate: string) {
     })
     .from(documents)
     .innerJoin(contacts, eq(documents.contactId, contacts.id))
-    .where(
-      and(
-        eq(documents.orgId, orgId),
-        inArray(documents.type, ["invoice", "credit_note"]),
-        eq(documents.isTemplate, false),
-        inArray(documents.status, POSTED),
-        gte(documents.date, fromDate),
-        lte(documents.date, toDate)
-      )
-    )
+    .where(and(...revConds))
     .groupBy(documents.contactId, contacts.displayName);
+
+  const costConds = [
+    eq(documents.orgId, orgId),
+    inArray(documents.type, ["bill", "expense"]),
+    inArray(documents.status, POSTED),
+    gte(documents.date, fromDate),
+    lte(documents.date, toDate),
+  ];
+  // A group filter scopes costs to that group's customers, and untagged costs
+  // (no customer) fall outside any group, so they're excluded from a group view.
+  if (groupMemberIds) costConds.push(inArray(documents.customerContactId, groupMemberIds));
 
   const costRows = await db
     .select({
@@ -1245,15 +1272,7 @@ export async function customerMarginRanking(fromDate: string, toDate: string) {
       cost: sql<number>`coalesce(sum(${documents.totalCents}), 0)`,
     })
     .from(documents)
-    .where(
-      and(
-        eq(documents.orgId, orgId),
-        inArray(documents.type, ["bill", "expense"]),
-        inArray(documents.status, POSTED),
-        gte(documents.date, fromDate),
-        lte(documents.date, toDate)
-      )
-    )
+    .where(and(...costConds))
     .groupBy(documents.customerContactId);
 
   const costByCustomer = new Map<number, number>();
