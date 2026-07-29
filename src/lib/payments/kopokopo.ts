@@ -207,24 +207,27 @@ export function getKopoKopoGateway(orgConfig: GatewayOrgConfig): PaymentGateway 
         });
 
         if (!recipientRes.ok) {
+          const body = await recipientRes.text();
           console.error("Kopo Kopo pay_recipients rejected", {
             status: recipientRes.status,
+            body,
             payload: recipientPayload,
           });
-          const err = await describeFailure(recipientRes, "Kopo Kopo recipient creation failed");
-          // Kopo Kopo returns this same generic message for every rejection, so
-          // it can't be narrowed further from here. Known triggers, verified
-          // against their live API: the number is already registered as a
-          // recipient (duplicates are refused, with no endpoint to look the
-          // existing one up), or their own M-Pesa validation refuses the
-          // number — which happens for every real number on an account whose
-          // disbursement product isn't fully activated. Payload shape, phone
-          // format, network, email and name have all been ruled out.
-          const hint =
-            recipientRes.status === 400
-              ? ` — Kopo Kopo gives no detail here. Either ${phone} is already a pay recipient on this account, or their disbursement product isn't fully activated for it. Confirm with Kopo Kopo support.`
-              : "";
-          throw new Error(`${err.message}${hint}`);
+
+          // "Recipient already exists for this company" means the number is
+          // registered on the Kopo Kopo account but predates this cache — and
+          // there is still no endpoint to look an existing recipient up
+          // (GET /pay_recipients 404s), so it can't be recovered automatically.
+          if (/already exists/i.test(body)) {
+            throw new Error(
+              `${phone} is already registered as a pay recipient on this Kopo Kopo account, but Zeno has no record of its id. ` +
+                `Kopo Kopo offers no endpoint to look one up — ask their support for the pay recipient id for this number so it can be stored.`
+            );
+          }
+
+          throw new Error(
+            `Kopo Kopo recipient creation failed (HTTP ${recipientRes.status}): ${body || "empty response"}`
+          );
         }
 
         const recipientLocation = recipientRes.headers.get("Location");
