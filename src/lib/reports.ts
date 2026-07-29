@@ -1,6 +1,6 @@
 import { db, accounts, journalEntries, journalLines, documents, documentLines, payments, contacts, items, documentAssignments, members } from "@/db";
 import { currentOrgId } from "@/lib/org";
-import { and, eq, gte, lte, inArray, sql, exists } from "drizzle-orm";
+import { and, eq, gte, lte, inArray, sql, exists, isNull } from "drizzle-orm";
 
 /**
  * Reporting queries — all derived from the ledger (journal lines), never from
@@ -858,4 +858,343 @@ export async function costCenterPnL(from: string, to: string) {
       netCents: agg.income - agg.expense,
     }))
     .sort((a, b) => b.netCents - a.netCents);
+}
+
+export interface CustomerProfitability {
+  invoicedCents: number;
+  creditedCents: number;
+  netRevenueCents: number;
+  taggedCostCents: number;
+  grossMarginCents: number;
+  marginPct: number | null;
+  /** Costs tagged to this customer but not linked to any invoice. */
+  unlinkedCostCents: number;
+  /** Org-wide costs with no customer tag at all in this period — the blind spot. */
+  untaggedCostCents: number;
+  avgDaysToPay: number | null;
+  onTimeRate: number | null;
+  perInvoice: {
+    id: number;
+    number: string;
+    date: string;
+    status: string;
+    revenueCents: number;
+    costCents: number;
+    marginCents: number;
+  }[];
+}
+
+/**
+ * Profit on one customer: revenue actually billed, less the costs tagged to
+ * them via documents.customerContactId.
+ *
+ * Margin is only ever as honest as the tagging, so untaggedCostCents reports
+ * what the number can't see — a customer with no tagged costs looks perfectly
+ * profitable otherwise.
+ */
+export async function customerProfitability(
+  contactId: number,
+  fromDate: string,
+  toDate: string
+): Promise<CustomerProfitability> {
+  const orgId = currentOrgId();
+  const POSTED = ["open", "paid", "partial", "closed"];
+
+  const sales = await db
+    .select({
+      id: documents.id,
+      type: documents.type,
+      number: documents.number,
+      date: documents.date,
+      status: documents.status,
+      totalCents: documents.totalCents,
+      paidCents: documents.paidCents,
+      dueDate: documents.dueDate,
+    })
+    .from(documents)
+    .where(
+      and(
+        eq(documents.orgId, orgId),
+        eq(documents.contactId, contactId),
+        inArray(documents.type, ["invoice", "credit_note"]),
+        eq(documents.isTemplate, false),
+        inArray(documents.status, POSTED),
+        gte(documents.date, fromDate),
+        lte(documents.date, toDate)
+      )
+    );
+
+  const invoices = sales.filter((d) => d.type === "invoice");
+  const invoicedCents = invoices.reduce((s, d) => s + Number(d.totalCents), 0);
+  const creditedCents = sales
+    .filter((d) => d.type === "credit_note")
+    .reduce((s, d) => s + Number(d.totalCents), 0);
+
+  // Costs tagged to this customer, whether or not they name an invoice.
+  const costs = await db
+    .select({
+      id: documents.id,
+      totalCents: documents.totalCents,
+      relatedInvoiceId: documents.relatedInvoiceId,
+    })
+    .from(documents)
+    .where(
+      and(
+        eq(documents.orgId, orgId),
+        eq(documents.customerContactId, contactId),
+        inArray(documents.type, ["bill", "expense"]),
+        inArray(documents.status, POSTED),
+        gte(documents.date, fromDate),
+        lte(documents.date, toDate)
+      )
+    );
+
+  const taggedCostCents = costs.reduce((s, d) => s + Number(d.totalCents), 0);
+  const unlinkedCostCents = costs
+    .filter((d) => !d.relatedInvoiceId)
+    .reduce((s, d) => s + Number(d.totalCents), 0);
+
+  const [untagged] = await db
+    .select({ total: sql<number>`coalesce(sum(${documents.totalCents}), 0)` })
+    .from(documents)
+    .where(
+      and(
+        eq(documents.orgId, orgId),
+        isNull(documents.customerContactId),
+        inArray(documents.type, ["bill", "expense"]),
+        inArray(documents.status, POSTED),
+        gte(documents.date, fromDate),
+        lte(documents.date, toDate)
+      )
+    );
+
+  const netRevenueCents = invoicedCents - creditedCents;
+  const grossMarginCents = netRevenueCents - taggedCostCents;
+
+  // Payment behaviour, from the settling payment on each fully-paid invoice.
+  const paidInvoices = invoices.filter((d) => d.status === "paid");
+  let avgDaysToPay: number | null = null;
+  let onTimeRate: number | null = null;
+  if (paidInvoices.length > 0) {
+    const rows = await db
+      .select({ documentId: payments.documentId, date: payments.date })
+      .from(payments)
+      .where(
+        and(
+          eq(payments.orgId, orgId),
+          inArray(payments.documentId, paidInvoices.map((d) => d.id))
+        )
+      );
+    const settledOn = new Map<number, string>();
+    for (const p of rows) {
+      const cur = settledOn.get(p.documentId!);
+      if (!cur || p.date > cur) settledOn.set(p.documentId!, p.date); // last payment settles it
+    }
+    const days: number[] = [];
+    let onTime = 0;
+    let dueCount = 0;
+    for (const inv of paidInvoices) {
+      const settled = settledOn.get(inv.id);
+      if (!settled) continue;
+      const d = Math.round((Date.parse(settled) - Date.parse(inv.date)) / 86400000);
+      days.push(Math.max(0, d)); // a payment dated before issue is data entry, not a negative wait
+      if (inv.dueDate) {
+        dueCount++;
+        if (settled <= inv.dueDate) onTime++;
+      }
+    }
+    if (days.length) avgDaysToPay = Math.round(days.reduce((a, b) => a + b, 0) / days.length);
+    if (dueCount) onTimeRate = onTime / dueCount;
+  }
+
+  const costByInvoice = new Map<number, number>();
+  for (const c of costs) {
+    if (!c.relatedInvoiceId) continue;
+    costByInvoice.set(c.relatedInvoiceId, (costByInvoice.get(c.relatedInvoiceId) ?? 0) + Number(c.totalCents));
+  }
+
+  const perInvoice = invoices
+    .map((inv) => {
+      const costCents = costByInvoice.get(inv.id) ?? 0;
+      return {
+        id: inv.id,
+        number: inv.number,
+        date: inv.date,
+        status: inv.status,
+        revenueCents: Number(inv.totalCents),
+        costCents,
+        marginCents: Number(inv.totalCents) - costCents,
+      };
+    })
+    .sort((a, b) => b.date.localeCompare(a.date));
+
+  return {
+    invoicedCents,
+    creditedCents,
+    netRevenueCents,
+    taggedCostCents,
+    grossMarginCents,
+    marginPct: netRevenueCents > 0 ? grossMarginCents / netRevenueCents : null,
+    unlinkedCostCents,
+    untaggedCostCents: Number(untagged?.total ?? 0),
+    avgDaysToPay,
+    onTimeRate,
+    perInvoice,
+  };
+}
+
+export interface VendorSpend {
+  totalSpendCents: number;
+  billCount: number;
+  expenseCount: number;
+  outstandingCents: number;
+  /** This vendor's share of all vendor spend in the period. */
+  sharePct: number | null;
+  avgDaysToPay: number | null;
+  byAccount: { accountId: number | null; name: string; amountCents: number }[];
+  byMonth: { month: string; amountCents: number }[];
+  recent: {
+    id: number;
+    type: string;
+    number: string;
+    date: string;
+    status: string;
+    totalCents: number;
+    balanceCents: number;
+  }[];
+}
+
+/** What one vendor costs: spend over time, by expense account, and how fast they get paid. */
+export async function vendorSpend(
+  contactId: number,
+  fromDate: string,
+  toDate: string
+): Promise<VendorSpend> {
+  const orgId = currentOrgId();
+  const POSTED = ["open", "paid", "partial", "closed"];
+
+  const docs = await db
+    .select({
+      id: documents.id,
+      type: documents.type,
+      number: documents.number,
+      date: documents.date,
+      status: documents.status,
+      totalCents: documents.totalCents,
+      paidCents: documents.paidCents,
+    })
+    .from(documents)
+    .where(
+      and(
+        eq(documents.orgId, orgId),
+        eq(documents.contactId, contactId),
+        inArray(documents.type, ["bill", "expense"]),
+        eq(documents.isTemplate, false),
+        inArray(documents.status, POSTED),
+        gte(documents.date, fromDate),
+        lte(documents.date, toDate)
+      )
+    );
+
+  const totalSpendCents = docs.reduce((s, d) => s + Number(d.totalCents), 0);
+  const outstandingCents = docs.reduce(
+    (s, d) => s + Math.max(0, Number(d.totalCents) - Number(d.paidCents)),
+    0
+  );
+
+  const [allVendors] = await db
+    .select({ total: sql<number>`coalesce(sum(${documents.totalCents}), 0)` })
+    .from(documents)
+    .where(
+      and(
+        eq(documents.orgId, orgId),
+        inArray(documents.type, ["bill", "expense"]),
+        eq(documents.isTemplate, false),
+        inArray(documents.status, POSTED),
+        gte(documents.date, fromDate),
+        lte(documents.date, toDate)
+      )
+    );
+  const allSpend = Number(allVendors?.total ?? 0);
+
+  // Spend split by the expense account each line was categorised to.
+  const accountRows = docs.length
+    ? await db
+        .select({
+          accountId: documentLines.accountId,
+          name: accounts.name,
+          amount: sql<number>`coalesce(sum(${documentLines.netCents}), 0)`,
+        })
+        .from(documentLines)
+        .leftJoin(accounts, eq(documentLines.accountId, accounts.id))
+        .where(
+          and(
+            eq(documentLines.orgId, orgId),
+            inArray(documentLines.documentId, docs.map((d) => d.id))
+          )
+        )
+        .groupBy(documentLines.accountId, accounts.name)
+    : [];
+
+  const byAccount = accountRows
+    .map((r) => ({
+      accountId: r.accountId,
+      name: r.name ?? "Uncategorised",
+      amountCents: Number(r.amount),
+    }))
+    .sort((a, b) => b.amountCents - a.amountCents);
+
+  const monthMap = new Map<string, number>();
+  for (const d of docs) {
+    const m = d.date.slice(0, 7);
+    monthMap.set(m, (monthMap.get(m) ?? 0) + Number(d.totalCents));
+  }
+  const byMonth = [...monthMap.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([month, amountCents]) => ({ month, amountCents }));
+
+  // How long we take to settle this vendor, from the final payment on paid docs.
+  const paid = docs.filter((d) => d.status === "paid");
+  let avgDaysToPay: number | null = null;
+  if (paid.length) {
+    const rows = await db
+      .select({ documentId: payments.documentId, date: payments.date })
+      .from(payments)
+      .where(and(eq(payments.orgId, orgId), inArray(payments.documentId, paid.map((d) => d.id))));
+    const settledOn = new Map<number, string>();
+    for (const p of rows) {
+      const cur = settledOn.get(p.documentId!);
+      if (!cur || p.date > cur) settledOn.set(p.documentId!, p.date);
+    }
+    const days: number[] = [];
+    for (const d of paid) {
+      const settled = settledOn.get(d.id);
+      if (!settled) continue;
+      days.push(Math.max(0, Math.round((Date.parse(settled) - Date.parse(d.date)) / 86400000)));
+    }
+    if (days.length) avgDaysToPay = Math.round(days.reduce((a, b) => a + b, 0) / days.length);
+  }
+
+  return {
+    totalSpendCents,
+    billCount: docs.filter((d) => d.type === "bill").length,
+    expenseCount: docs.filter((d) => d.type === "expense").length,
+    outstandingCents,
+    sharePct: allSpend > 0 ? totalSpendCents / allSpend : null,
+    avgDaysToPay,
+    byAccount,
+    byMonth,
+    recent: docs
+      .sort((a, b) => b.date.localeCompare(a.date))
+      .slice(0, 20)
+      .map((d) => ({
+        id: d.id,
+        type: d.type,
+        number: d.number,
+        date: d.date,
+        status: d.status,
+        totalCents: Number(d.totalCents),
+        balanceCents: Math.max(0, Number(d.totalCents) - Number(d.paidCents)),
+      })),
+  };
 }

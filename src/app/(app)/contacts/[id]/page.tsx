@@ -8,6 +8,11 @@ import { fmtKES, todayISO } from "@/lib/money";
 import { addActivity } from "@/lib/actions";
 import { PageHeader, StatusPill, StatCard, TableCard, Th, Td, PrimaryLink } from "@/components/ui";
 import { StatementTab } from "@/components/StatementTab";
+import { CustomerProfitabilityReport, VendorSpendReport } from "@/components/ContactReports";
+import { customerProfitability, vendorSpend } from "@/lib/reports";
+import { withOrg } from "@/lib/org";
+import { resolvePeriod } from "@/lib/report-period";
+import { ReportFilters } from "@/components/ReportFilters";
 import { ClientPortalTab } from "@/components/ClientPortalTab";
 
 export const dynamic = "force-dynamic";
@@ -25,6 +30,8 @@ const TABS = [
   { key: "credit_notes", label: "Credit notes", icon: "↩️", docType: "credit_note", newHref: "/sales/credit-notes/new" },
   { key: "bills", label: "Bills", icon: "📄", docType: "bill", newHref: "/purchases/bills/new" },
   { key: "deals", label: "Deals", icon: "🎯" },
+  { key: "profitability", label: "Profitability", icon: "📈" },
+  { key: "spend", label: "Spend", icon: "📉" },
   { key: "statement", label: "Statement", icon: "📊" },
   { key: "notes", label: "Notes & activity", icon: "🗒️" },
   { key: "portal", label: "Client Portal", icon: "🔐" },
@@ -47,12 +54,13 @@ export default async function ContactDetail({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ tab?: string; period?: string; from?: string; to?: string }>;
 }) {
   await requirePerm("contacts");
   const o = await getOrg();
   const { id } = await params;
-  const { tab: tabParam } = await searchParams;
+  const sp = await searchParams;
+  const { tab: tabParam } = sp;
   const cid = Number(id);
   const [c] = await db.select().from(contacts).where(and(eq(contacts.orgId, o.id), eq(contacts.id, cid))).limit(1);
   if (!c) notFound();
@@ -60,11 +68,12 @@ export default async function ContactDetail({
   const isVendor = c.kind === "vendor" || c.kind === "both";
   const isCustomer = c.kind === "customer" || c.kind === "both";
   const visibleTabs = TABS.filter((t) => {
-    if (["invoices", "quotes", "credit_notes", "portal"].includes(t.key)) return isCustomer;
-    if (t.key === "bills") return isVendor;
+    if (["invoices", "quotes", "credit_notes", "portal", "profitability"].includes(t.key)) return isCustomer;
+    if (["bills", "spend"].includes(t.key)) return isVendor;
     return true;
   });
   const tab = visibleTabs.some((t) => t.key === tabParam) ? tabParam! : "overview";
+  const period = resolvePeriod(sp);
 
   const allDocs = await db
     .select()
@@ -237,6 +246,26 @@ export default async function ContactDetail({
                   </tbody>
                 </TableCard>
               )}
+            </>
+          )}
+
+          {tab === "profitability" && (
+            <>
+              <ReportFilters preset={period.preset} from={period.from} to={period.to} />
+              <CustomerProfitabilityReport
+                data={await withOrg(() => customerProfitability(cid, period.from, period.to))}
+                period={`${period.from} → ${period.to}`}
+              />
+            </>
+          )}
+
+          {tab === "spend" && (
+            <>
+              <ReportFilters preset={period.preset} from={period.from} to={period.to} />
+              <VendorSpendReport
+                data={await withOrg(() => vendorSpend(cid, period.from, period.to))}
+                period={`${period.from} → ${period.to}`}
+              />
             </>
           )}
 

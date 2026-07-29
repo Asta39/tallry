@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter, usePathname } from "next/navigation";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { PERIOD_OPTIONS, type PeriodPreset } from "@/lib/report-period";
 
 /**
@@ -24,18 +24,26 @@ export function ReportFilters({
 }) {
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [p, setP] = useState<PeriodPreset>(preset);
   const [f, setF] = useState(from);
   const [t, setT] = useState(to);
   const [who, setWho] = useState(staffName ?? "");
 
   function apply() {
-    const params = new URLSearchParams({ period: p });
+    // Start from the current query so params this component doesn't own —
+    // notably the contact page's ?tab= — survive a period change.
+    const params = new URLSearchParams(searchParams?.toString() ?? "");
+    params.set("period", p);
     if (p === "custom") {
       params.set("from", f);
       params.set("to", t);
+    } else {
+      params.delete("from");
+      params.delete("to");
     }
     if (who) params.set("staff", who);
+    else params.delete("staff");
     router.push(`${pathname}?${params.toString()}`);
   }
 
