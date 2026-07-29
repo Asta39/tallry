@@ -91,10 +91,10 @@ export function SalesDashboardCharts({ stats }: { stats: any }) {
                 <Line 
                   type="monotone" 
                   dataKey="Income" 
-                  stroke="var(--color-accent)" 
+                  stroke="var(--color-accent-500)" 
                   strokeWidth={3}
                   dot={{ r: 4, strokeWidth: 2, fill: "white" }}
-                  activeDot={{ r: 6, fill: "var(--color-accent)", stroke: "white", strokeWidth: 2 }}
+                  activeDot={{ r: 6, fill: "var(--color-accent-500)", stroke: "white", strokeWidth: 2 }}
                 />
               </LineChart>
             </ResponsiveContainer>

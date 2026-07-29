@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { requirePerm } from "@/lib/guard";
 import { PageHeader } from "@/components/ui";
-import { dashboardStats, monthlyIncomeExpense } from "@/lib/reports";
+import { dashboardStats, monthlyIncomeExpense, businessRatios } from "@/lib/reports";
 import { fmtKES, todayISO } from "@/lib/money";
 import { withOrg } from "@/lib/org";
 import { IncomeExpenseChart } from "@/components/IncomeExpenseChart";
@@ -44,16 +44,18 @@ export default async function ReportsPage() {
   await requirePerm("reports");
 
   const today = todayISO();
-  const stats = await withOrg(() => dashboardStats(today));
-  const incomeExpenseData = await withOrg(() => monthlyIncomeExpense(6));
+  const [stats, incomeExpenseData, ratios] = await Promise.all([
+    withOrg(() => dashboardStats(today)),
+    withOrg(() => monthlyIncomeExpense(6)),
+    withOrg(() => businessRatios(today)),
+  ]);
 
   const totalIncome = stats.incomeThisMonthCents;
   const netIncome = stats.incomeThisMonthCents - stats.expensesThisMonthCents;
-  
-  const currentAssets = stats.cashCents + stats.receivablesCents;
-  const currentLiabilities = stats.payablesCents; // Approximation
-  const currentRatio = currentLiabilities > 0 ? (currentAssets / currentLiabilities).toFixed(2) : "—";
   const profitMargin = totalIncome > 0 ? ((netIncome / totalIncome) * 100).toFixed(1) + "%" : "—";
+
+  const fmtRatio = (r: number | null) => (r === null ? "—" : r.toFixed(2));
+  const fmtPct = (r: number | null) => (r === null ? "—" : `${(r * 100).toFixed(1)}%`);
 
   return (
     <>
@@ -81,14 +83,19 @@ export default async function ReportsPage() {
             <div className="text-2xl font-bold text-[var(--color-ink-900)]">{fmtKES(stats.receivablesCents)}</div>
           </div>
 
+          <div className="card p-5 bg-gradient-to-br from-[var(--color-ink-50)] to-white">
+            <div className="text-[12.5px] font-semibold text-[var(--color-ink-500)] uppercase tracking-wider mb-1">Payables</div>
+            <div className="text-2xl font-bold text-[var(--color-ink-900)]">{fmtKES(stats.payablesCents)}</div>
+          </div>
+
           <div className="grid grid-cols-2 gap-3 mt-1">
-            <div className="card p-4">
-              <div className="text-[11.5px] text-[var(--color-ink-500)] uppercase">Current Ratio</div>
-              <div className="text-lg font-bold mt-1">{currentRatio}</div>
-            </div>
             <div className="card p-4">
               <div className="text-[11.5px] text-[var(--color-ink-500)] uppercase">Profit Margin</div>
               <div className="text-lg font-bold mt-1">{profitMargin}</div>
+            </div>
+            <div className="card p-4">
+              <div className="text-[11.5px] text-[var(--color-ink-500)] uppercase">Cash on hand</div>
+              <div className="text-lg font-bold mt-1">{fmtKES(stats.cashCents)}</div>
             </div>
           </div>
 
@@ -102,6 +109,72 @@ export default async function ReportsPage() {
         <div className="lg:col-span-2 card p-5">
           <h2 className="text-[14px] font-semibold mb-4">Income vs Expense (6 Months)</h2>
           <IncomeExpenseChart data={incomeExpenseData} />
+        </div>
+      </div>
+
+      {/* Business ratios — computed straight from the chart of accounts, not
+          approximated from the dashboard rollup. */}
+      <div className="mb-8">
+        <h2 className="text-[13px] font-semibold text-[var(--color-ink-600)] mb-3">
+          Business Ratios <span className="font-normal text-[var(--color-ink-400)]">as of {today}</span>
+        </h2>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          <div className="card p-4">
+            <div className="text-[11.5px] text-[var(--color-ink-500)] uppercase">Working Capital</div>
+            <div className={`text-lg font-bold mt-1 ${ratios.workingCapitalCents < 0 ? "text-[var(--color-bad)]" : ""}`}>
+              {fmtKES(ratios.workingCapitalCents)}
+            </div>
+          </div>
+          <div className="card p-4">
+            <div className="text-[11.5px] text-[var(--color-ink-500)] uppercase">Working Capital Ratio</div>
+            <div className="text-lg font-bold mt-1">{fmtRatio(ratios.workingCapitalRatio)}</div>
+            <div className="text-[10.5px] text-[var(--color-ink-400)] mt-0.5">current assets ÷ current liabilities</div>
+          </div>
+          <div className="card p-4">
+            <div className="text-[11.5px] text-[var(--color-ink-500)] uppercase">Debt Ratio</div>
+            <div className="text-lg font-bold mt-1">{fmtPct(ratios.debtRatio)}</div>
+            <div className="text-[10.5px] text-[var(--color-ink-400)] mt-0.5">total liabilities ÷ total assets</div>
+          </div>
+          <div className="card p-4">
+            <div className="text-[11.5px] text-[var(--color-ink-500)] uppercase">Assets-to-Equity</div>
+            <div className="text-lg font-bold mt-1">{fmtRatio(ratios.assetsToEquityRatio)}</div>
+            <div className="text-[10.5px] text-[var(--color-ink-400)] mt-0.5">total assets ÷ total equity</div>
+          </div>
+          <div className="card p-4">
+            <div className="text-[11.5px] text-[var(--color-ink-500)] uppercase">Debt-to-Equity</div>
+            <div className="text-lg font-bold mt-1">{fmtRatio(ratios.debtToEquityRatio)}</div>
+            <div className="text-[10.5px] text-[var(--color-ink-400)] mt-0.5">total liabilities ÷ total equity</div>
+          </div>
+          <div className="card p-4">
+            <div className="text-[11.5px] text-[var(--color-ink-500)] uppercase">Overdue Receivables</div>
+            <div className={`text-lg font-bold mt-1 ${stats.overdueReceivablesCents > 0 ? "text-[var(--color-bad)]" : ""}`}>
+              {fmtKES(stats.overdueReceivablesCents)}
+            </div>
+          </div>
+          <div className="card p-4">
+            <div className="text-[11.5px] text-[var(--color-ink-500)] uppercase">Current Assets</div>
+            <div className="text-lg font-bold mt-1">{fmtKES(ratios.currentAssetsCents)}</div>
+          </div>
+          <div className="card p-4">
+            <div className="text-[11.5px] text-[var(--color-ink-500)] uppercase">Current Liabilities</div>
+            <div className="text-lg font-bold mt-1">{fmtKES(ratios.currentLiabilitiesCents)}</div>
+          </div>
+          <div className="card p-4">
+            <div className="text-[11.5px] text-[var(--color-ink-500)] uppercase">Total Assets</div>
+            <div className="text-lg font-bold mt-1">{fmtKES(ratios.totalAssetsCents)}</div>
+          </div>
+          <div className="card p-4">
+            <div className="text-[11.5px] text-[var(--color-ink-500)] uppercase">Total Liabilities</div>
+            <div className="text-lg font-bold mt-1">{fmtKES(ratios.totalLiabilitiesCents)}</div>
+          </div>
+          <div className="card p-4">
+            <div className="text-[11.5px] text-[var(--color-ink-500)] uppercase">Total Equity</div>
+            <div className="text-lg font-bold mt-1">{fmtKES(ratios.totalEquityCents)}</div>
+          </div>
+          <div className="card p-4">
+            <div className="text-[11.5px] text-[var(--color-ink-500)] uppercase">Net VAT Due</div>
+            <div className="text-lg font-bold mt-1">{fmtKES(stats.netVatDueCents)}</div>
+          </div>
         </div>
       </div>
 

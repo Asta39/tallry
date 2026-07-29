@@ -100,6 +100,54 @@ export async function balanceSheet(asOf: string) {
   };
 }
 
+const CURRENT_ASSET_SUBTYPES = ["bank", "cash", "accounts_receivable", "stock", "other_current_asset"];
+const CURRENT_LIABILITY_SUBTYPES = ["accounts_payable", "current_liability"];
+
+/**
+ * Solvency/leverage ratios computed directly from the chart of accounts —
+ * every figure here is a real balance-sheet total, not an approximation.
+ *
+ * Current assets/liabilities are split by account subtype (bank/cash/AR/stock
+ * vs fixed_asset; accounts_payable/current_liability vs long_term_liability),
+ * matching the same subtype scheme cashFlowStatement already uses.
+ */
+export async function businessRatios(asOf: string) {
+  const bs = await balanceSheet(asOf);
+
+  const currentAssetsCents = bs.assets
+    .filter((a) => CURRENT_ASSET_SUBTYPES.includes(a.subtype))
+    .reduce((s, a) => s + a.balanceCents, 0);
+  const currentLiabilitiesCents = bs.liabilities
+    .filter((l) => CURRENT_LIABILITY_SUBTYPES.includes(l.subtype))
+    .reduce((s, l) => s + l.balanceCents, 0);
+
+  const totalAssetsCents = bs.totalAssets;
+  const totalLiabilitiesCents = bs.totalLiabilities;
+  const totalEquityCents = bs.totalEquity;
+
+  // Ratios are undefined (not zero) when their denominator is zero — a debt
+  // ratio of "0" would misleadingly read as "no debt" when it's actually
+  // "no assets recorded yet", e.g. a brand-new org with no activity.
+  const safeDiv = (n: number, d: number) => (d !== 0 ? n / d : null);
+
+  return {
+    currentAssetsCents,
+    currentLiabilitiesCents,
+    totalAssetsCents,
+    totalLiabilitiesCents,
+    totalEquityCents,
+    workingCapitalCents: currentAssetsCents - currentLiabilitiesCents,
+    // Working capital ratio (current ratio): current assets / current liabilities.
+    workingCapitalRatio: safeDiv(currentAssetsCents, currentLiabilitiesCents),
+    // Debt ratio: total liabilities / total assets — share of assets financed by debt.
+    debtRatio: safeDiv(totalLiabilitiesCents, totalAssetsCents),
+    // Assets-to-equity: total assets / total equity — how much of the asset base is owner-funded.
+    assetsToEquityRatio: safeDiv(totalAssetsCents, totalEquityCents),
+    // Debt-to-equity: total liabilities / total equity — leverage relative to owner capital.
+    debtToEquityRatio: safeDiv(totalLiabilitiesCents, totalEquityCents),
+  };
+}
+
 /**
  * Cash flow for a period. "Net Change in Cash (actual)" is derived directly from
  * bank/cash-account ledger movement — the ground truth, since it's just the sum of
