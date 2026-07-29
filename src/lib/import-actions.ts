@@ -1,6 +1,6 @@
 "use server";
 
-import { db, contacts, items } from "@/db";
+import { db, contacts, items, customerGroups, contactGroupMemberships } from "@/db";
 import { and, eq, inArray } from "drizzle-orm";
 import { revalidatePath as nextRevalidatePath } from "next/cache";
 
@@ -37,6 +37,7 @@ export interface ContactRow {
   kraPin?: string;
   address?: string;
   city?: string;
+  groups?: string;
 }
 
 export async function importContacts(rows: ContactRow[]): Promise<{ created?: number; skipped?: number; error?: string }> {
@@ -45,11 +46,37 @@ export async function importContacts(rows: ContactRow[]): Promise<{ created?: nu
     const orgId = currentOrgId();
     const existing = await db.select({ name: contacts.displayName }).from(contacts).where(eq(contacts.orgId, orgId));
     const known = new Set(existing.map((e) => e.name.toLowerCase().trim()));
+    
+    // Existing customer groups for fast lookup
+    const existingGroups = await db.select().from(customerGroups).where(eq(customerGroups.orgId, orgId));
+    const groupMap = new Map(existingGroups.map((g) => [g.name.toLowerCase().trim(), g.id]));
+
     let created = 0, skipped = 0;
     for (const r of rows) {
       const name = (r.displayName || "").trim();
       if (!name || known.has(name.toLowerCase())) { skipped++; continue; }
-      await db.insert(contacts).values({
+
+      // Process group names if provided (e.g. "Wholesale, Key Accounts")
+      const groupNames = (r.groups || "")
+        .split(/[,;]/)
+        .map((g) => g.trim())
+        .filter(Boolean);
+
+      const groupIds: number[] = [];
+      for (const gName of groupNames) {
+        let gId = groupMap.get(gName.toLowerCase());
+        if (!gId) {
+          const [inserted] = await db
+            .insert(customerGroups)
+            .values({ orgId, name: gName, createdAt: nowISO() })
+            .returning();
+          gId = inserted.id;
+          groupMap.set(gName.toLowerCase(), gId);
+        }
+        groupIds.push(gId);
+      }
+
+      const [c] = await db.insert(contacts).values({
         orgId,
         kind: ["customer", "vendor", "both"].includes(r.kind) ? r.kind : "customer",
         displayName: name,
@@ -59,8 +86,16 @@ export async function importContacts(rows: ContactRow[]): Promise<{ created?: nu
         kraPin: r.kraPin || null,
         address: r.address || null,
         city: r.city || null,
+        groupId: groupIds[0] ?? null,
         createdAt: nowISO(),
-      });
+      }).returning();
+
+      if (groupIds.length > 0) {
+        await db.insert(contactGroupMemberships).values(
+          groupIds.map((gId) => ({ orgId, contactId: c.id, groupId: gId }))
+        );
+      }
+
       known.add(name.toLowerCase());
       created++;
     }

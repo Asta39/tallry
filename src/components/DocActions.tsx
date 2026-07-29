@@ -12,7 +12,6 @@ import {
   approveBillAction,
   rejectBillAction,
 } from "@/lib/actions";
-import { writeOffInvoice } from "@/lib/phase-a-actions";
 import { convertPoToBill } from "@/lib/actions";
 import { requestPaymentAction, payOutAction } from "@/lib/payments/actions";
 import { fmtKES, parseKES, todayISO } from "@/lib/money";
@@ -180,18 +179,6 @@ export function DocActions({
             Create credit note
           </button>
         )}
-        {doc.type === "invoice" && ["open", "partial"].includes(doc.status) && (
-          <button
-            className={danger}
-            disabled={pending}
-            onClick={() => {
-              if (!confirm("Write off the unpaid balance as bad debt? This posts to the ledger and can't be undone here.")) return;
-              run(() => writeOffInvoice(doc.id));
-            }}
-          >
-            Write off
-          </button>
-        )}
         {doc.type === "purchase_order" && ["open", "partial"].includes(doc.status) && (
           <button className={secondary} disabled={pending} onClick={() => setShowConvertPo((v) => !v)}>
             Convert to bill →
@@ -212,7 +199,11 @@ export function DocActions({
             Print
           </a>
         )}
-        {doc.status !== "void" && doc.status !== "draft" && doc.status !== "pending_approval" && (
+        {/* Void is not offered on invoices — an issued invoice is a fiscal
+            document; reverse it with a credit note, or write it off from the
+            Aging report. Other types (quotes, bills, expenses, POs, credit
+            notes) still use Void as their reversal path. */}
+        {doc.type !== "invoice" && doc.status !== "void" && doc.status !== "draft" && doc.status !== "pending_approval" && (
           <button className={danger} disabled={pending} onClick={() => run(() => voidDoc(doc.id))}>
             Void
           </button>

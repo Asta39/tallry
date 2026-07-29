@@ -8,6 +8,7 @@ import { db, contacts } from "@/db";
 import { fmtKES, todayISO } from "@/lib/money";
 import { PageHeader, TableCard, Th, Td } from "@/components/ui";
 import { PdfLinks } from "@/components/reportShared";
+import { WriteOffButton } from "./WriteOffButton";
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +29,7 @@ export default async function AgingPage() {
   const allContacts = await db.select().from(contacts).where(eq(contacts.orgId, o.id));
   const cname = (id: number | null) => allContacts.find((c) => c.id === id)?.displayName ?? "—";
 
-  const Section = ({ title, data, href }: { title: string; data: typeof ar; href: (id: number) => string }) => (
+  const Section = ({ title, data, href, showWriteOff }: { title: string; data: typeof ar; href: (id: number) => string; showWriteOff?: boolean }) => (
     <div className="mb-8">
       <h2 className="text-[15px] font-semibold mb-3">{title}</h2>
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-4">
@@ -44,7 +45,14 @@ export default async function AgingPage() {
       {data.rows.length > 0 && (
         <TableCard>
           <thead className="hairline-b">
-            <tr><Th>Number</Th><Th>Contact</Th><Th>Due date</Th><Th right>Days late</Th><Th right>Balance</Th></tr>
+            <tr>
+              <Th>Number</Th>
+              <Th>Contact</Th>
+              <Th>Due date</Th>
+              <Th right>Days late</Th>
+              <Th right>Balance</Th>
+              {showWriteOff && <Th right>Action</Th>}
+            </tr>
           </thead>
           <tbody>
             {data.rows
@@ -60,6 +68,15 @@ export default async function AgingPage() {
                     {d.daysOverdue || "—"}
                   </Td>
                   <Td right className="font-medium">{fmtKES(d.balanceCents)}</Td>
+                  {showWriteOff && (
+                    <Td right>
+                      {d.daysOverdue > 0 ? (
+                        <WriteOffButton invoiceId={d.id} balanceLabel={fmtKES(d.balanceCents)} />
+                      ) : (
+                        <span className="text-[12px] text-[var(--color-ink-300)]">—</span>
+                      )}
+                    </Td>
+                  )}
                 </tr>
               ))}
           </tbody>
@@ -76,7 +93,7 @@ export default async function AgingPage() {
           <PdfLinks report="aging" asOf={today} />
         </div>
       </div>
-      <Section title={`Money owed to you — ${fmtKES(ar.total)}`} data={ar} href={(id) => `/sales/invoices/${id}`} />
+      <Section title={`Money owed to you — ${fmtKES(ar.total)}`} data={ar} href={(id) => `/sales/invoices/${id}`} showWriteOff={true} />
       <Section title={`Money you owe — ${fmtKES(ap.total)}`} data={ap} href={(id) => `/purchases/bills/${id}`} />
     </>
   );

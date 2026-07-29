@@ -63,13 +63,15 @@ export function CsvImporter({ entity, label }: { entity: Entity; label: string }
     try {
       if (entity === "contacts") {
         const iKind = idx("kind"), iName = idx("name", "display_name"), iCompany = idx("company", "company_name"),
-          iEmail = idx("email"), iPhone = idx("phone"), iPin = idx("kra_pin", "pin"), iAddr = idx("address"), iCity = idx("city");
+          iEmail = idx("email"), iPhone = idx("phone"), iPin = idx("kra_pin", "pin"), iAddr = idx("address"), iCity = idx("city"),
+          iGroups = idx("groups", "group", "customer_group", "customer_groups");
         if (iName < 0) throw new Error('Missing "name" column — download the template.');
         const rows: ContactRow[] = body.map((r) => ({
           kind: r[iKind] ?? "customer",
           displayName: r[iName] ?? "",
           companyName: r[iCompany], email: r[iEmail], phone: r[iPhone],
           kraPin: r[iPin], address: r[iAddr], city: r[iCity],
+          groups: r[iGroups],
         })).filter((r) => r.displayName);
         setPreview({ count: rows.length, sample: rows.slice(0, 5).map((r) => `${r.displayName} (${r.kind})`), rows });
       } else if (entity === "items") {

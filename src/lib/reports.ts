@@ -292,11 +292,16 @@ export async function monthlyIncomeExpense(months = 6): Promise<
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
     const label = d.toLocaleDateString("en-KE", { month: "short" });
+    // Net figures, NOT floored at zero. Flooring hid whole months: a large
+    // inventory write-up credits an expense account (found stock reducing
+    // COGS), which can push a month's net expense negative — clamping that to
+    // zero wiped the entire expense column. Income can likewise net negative in
+    // a heavy sales-return month. Show the truth.
     const income = rows.filter((r) => r.month === key && r.type === "income")
       .reduce((s, r) => s + Number(r.credit) - Number(r.debit), 0);
     const expense = rows.filter((r) => r.month === key && r.type === "expense")
       .reduce((s, r) => s + Number(r.debit) - Number(r.credit), 0);
-    out.push({ month: key, label, incomeCents: Math.max(0, income), expenseCents: Math.max(0, expense) });
+    out.push({ month: key, label, incomeCents: income, expenseCents: expense });
   }
   return out;
 }

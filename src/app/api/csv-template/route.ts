@@ -7,10 +7,10 @@ import { NextRequest } from "next/server";
 
 const templates: Record<string, string[][]> = {
   contacts: [
-    ["kind", "name", "company", "email", "phone", "kra_pin", "address", "city"],
-    ["customer", "Acme Distributors Ltd", "Acme Distributors Ltd", "accounts@acme.co.ke", "+254722000111", "P051111111A", "P.O. Box 100", "Nairobi"],
-    ["vendor", "Simba Suppliers", "", "sales@simba.co.ke", "+254733222333", "P052222222B", "", "Mombasa"],
-    ["both", "Jengo Hardware", "", "", "+254711444555", "", "", "Nakuru"],
+    ["kind", "name", "company", "email", "phone", "kra_pin", "address", "city", "groups"],
+    ["customer", "Acme Distributors Ltd", "Acme Distributors Ltd", "accounts@acme.co.ke", "+254722000111", "P051111111A", "P.O. Box 100", "Nairobi", "Wholesale, Key Accounts"],
+    ["vendor", "Simba Suppliers", "", "sales@simba.co.ke", "+254733222333", "P052222222B", "", "Mombasa", ""],
+    ["both", "Jengo Hardware", "", "", "+254711444555", "", "", "Nakuru", "Retail"],
   ],
   items: [
     ["type", "name", "sku", "unit", "selling_price", "buying_cost", "vat_class", "track_stock", "reorder_level", "opening_qty"],
@@ -27,7 +27,7 @@ const templates: Record<string, string[][]> = {
 };
 
 const notes: Record<string, string> = {
-  contacts: "# kind: customer | vendor | both. Name required; duplicates (same name) are skipped.",
+  contacts: "# kind: customer | vendor | both. Name required; duplicates (same name) are skipped. groups: comma-separated customer group names (e.g. Wholesale, Key Accounts).",
   items: "# type: service | goods. vat_class: B16 (16%) | C0 (zero-rated) | A_EXEMPT | D_NONVAT. track_stock: yes | no. Prices in KSh. opening_qty: starting stock on hand, valued at buying_cost (only used when track_stock is yes).",
   invoices: "# Rows with the same invoice_ref become ONE invoice (multi-line). Imported as DRAFTS — review and issue in the app. Dates YYYY-MM-DD. Prices in KSh before VAT.",
 };
