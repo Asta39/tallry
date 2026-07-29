@@ -1,14 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { getNotifications, markNotificationRead } from "@/lib/actions";
-import Link from "next/link";
+import { useEffect, useState, useRef } from "react";
+import { getNotifications, markNotificationRead, markAllNotificationsRead } from "@/lib/actions";
 import { useRouter } from "next/navigation";
 
 export function NotificationBell({ memberId, variant = "fixed" }: { memberId: number | null; variant?: "fixed" | "inline" }) {
   const router = useRouter();
   const [notifications, setNotifications] = useState<any[]>([]);
   const [open, setOpen] = useState(false);
+  const [markingAll, setMarkingAll] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     async function load() {
@@ -20,15 +21,46 @@ export function NotificationBell({ memberId, variant = "fixed" }: { memberId: nu
     return () => clearInterval(interval);
   }, [memberId]);
 
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent | TouchEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    if (open) {
+      document.addEventListener("mousedown", handleClickOutside);
+      document.addEventListener("touchstart", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("touchstart", handleClickOutside);
+    };
+  }, [open]);
+
   const unreadCount = notifications.filter((n) => !n.isRead).length;
+
+  const handleMarkAllRead = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (markingAll || unreadCount === 0) return;
+    setMarkingAll(true);
+    try {
+      await markAllNotificationsRead(memberId);
+      setNotifications((prev) => prev.map((p) => ({ ...p, isRead: true })));
+    } catch {
+      // ignore
+    } finally {
+      setMarkingAll(false);
+    }
+  };
 
   const wrapperClass = variant === "fixed" ? "fixed top-4 right-4 md:top-7 md:right-8 z-50" : "relative shrink-0";
 
   return (
-    <div className={wrapperClass}>
+    <div ref={containerRef} className={wrapperClass}>
       <button
         onClick={() => setOpen(!open)}
         className="relative p-2 rounded-full bg-white border border-[var(--color-ink-200)] shadow-sm hover:bg-[var(--color-ink-50)] transition-colors"
+        aria-label="Notifications"
       >
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
@@ -42,38 +74,52 @@ export function NotificationBell({ memberId, variant = "fixed" }: { memberId: nu
       </button>
 
       {open && (
-        <div className="absolute right-0 mt-2 w-80 max-w-[90vw] bg-white rounded-lg shadow-lg border border-[var(--color-ink-200)] overflow-hidden">
-          <div className="px-4 py-3 border-b border-[var(--color-ink-100)] bg-[var(--color-ink-50)] flex justify-between items-center">
-            <h3 className="text-sm font-semibold text-[var(--color-ink-600)]">Notifications</h3>
-          </div>
-          <div className="max-h-96 overflow-y-auto">
-            {notifications.length === 0 ? (
-              <div className="p-4 text-center text-sm text-[var(--color-ink-400)]">No notifications</div>
-            ) : (
-              notifications.map((n) => (
-                <div
-                  key={n.id}
-                  onClick={async () => {
-                    if (!n.isRead) {
-                      await markNotificationRead(n.id);
-                      setNotifications((prev) => prev.map((p) => (p.id === n.id ? { ...p, isRead: true } : p)));
-                    }
-                    setOpen(false);
-                    if (n.link) router.push(n.link);
-                  }}
-                  className={`p-4 border-b border-[var(--color-ink-100)] hover:bg-[var(--color-ink-50)] cursor-pointer transition-colors ${
-                    !n.isRead ? "bg-blue-50/30" : ""
-                  }`}
+        <>
+          {/* Backdrop for explicit outside tap dismissal */}
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+
+          <div className="absolute right-0 mt-2 w-80 max-w-[90vw] bg-white rounded-lg shadow-lg border border-[var(--color-ink-200)] overflow-hidden z-50">
+            <div className="px-4 py-3 border-b border-[var(--color-ink-100)] bg-[var(--color-ink-50)] flex justify-between items-center">
+              <h3 className="text-sm font-semibold text-[var(--color-ink-600)]">Notifications</h3>
+              {unreadCount > 0 && (
+                <button
+                  onClick={handleMarkAllRead}
+                  disabled={markingAll}
+                  className="text-xs font-medium text-[var(--color-accent-600)] hover:underline disabled:opacity-50"
                 >
-                  <h4 className={`text-sm ${!n.isRead ? "font-semibold text-[var(--color-ink-600)]" : "font-medium text-[var(--color-ink-500)]"}`}>
-                    {n.title}
-                  </h4>
-                  <p className="text-xs text-[var(--color-ink-400)] mt-1">{n.body}</p>
-                </div>
-              ))
-            )}
+                  {markingAll ? "Marking…" : "Mark all as read"}
+                </button>
+              )}
+            </div>
+            <div className="max-h-96 overflow-y-auto">
+              {notifications.length === 0 ? (
+                <div className="p-4 text-center text-sm text-[var(--color-ink-400)]">No notifications</div>
+              ) : (
+                notifications.map((n) => (
+                  <div
+                    key={n.id}
+                    onClick={async () => {
+                      if (!n.isRead) {
+                        await markNotificationRead(n.id);
+                        setNotifications((prev) => prev.map((p) => (p.id === n.id ? { ...p, isRead: true } : p)));
+                      }
+                      setOpen(false);
+                      if (n.link) router.push(n.link);
+                    }}
+                    className={`p-4 border-b border-[var(--color-ink-100)] hover:bg-[var(--color-ink-50)] cursor-pointer transition-colors ${
+                      !n.isRead ? "bg-blue-50/30" : ""
+                    }`}
+                  >
+                    <h4 className={`text-sm ${!n.isRead ? "font-semibold text-[var(--color-ink-600)]" : "font-medium text-[var(--color-ink-500)]"}`}>
+                      {n.title}
+                    </h4>
+                    <p className="text-xs text-[var(--color-ink-400)] mt-1">{n.body}</p>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
-        </div>
+        </>
       )}
     </div>
   );

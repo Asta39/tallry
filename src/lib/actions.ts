@@ -762,6 +762,22 @@ export async function markNotificationRead(id: number) {
   });
 }
 
+export async function markAllNotificationsRead(memberId: number | null) {
+  return withOrg(async () => {
+    await db
+      .update(notifications)
+      .set({ isRead: true })
+      .where(
+        and(
+          eq(notifications.orgId, currentOrgId()),
+          memberId ? eq(notifications.memberId, memberId) : isNull(notifications.memberId),
+          eq(notifications.isRead, false)
+        )
+      );
+    revalidatePath("/", "layout");
+  });
+}
+
 /* ---------------- Banking ---------------- */
 
 async function _addBankTransaction(data: {
