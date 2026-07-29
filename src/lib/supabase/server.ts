@@ -28,9 +28,14 @@ export async function createServerClient() {
 
 /** Returns the currently signed-in user, or null. */
 export async function getUser() {
-  const supabase = await createServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  return user;
+  try {
+    const supabase = await createServerClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    return user;
+  } catch (err) {
+    console.error("getUser error:", err);
+    return null;
+  }
 }

@@ -9,6 +9,15 @@ export default function GlobalError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  if (
+    error.message?.includes("NEXT_REDIRECT") ||
+    error.digest?.includes("NEXT_REDIRECT") ||
+    error.digest === "3567963413" ||
+    error.digest?.includes("3567963413")
+  ) {
+    throw error;
+  }
+
   useEffect(() => {
     console.error("Global Error Boundary caught:", error);
   }, [error]);

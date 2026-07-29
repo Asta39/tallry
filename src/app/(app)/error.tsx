@@ -9,6 +9,16 @@ export default function Error({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  // Rethrow Next.js internal redirect & notFound errors so navigation works
+  if (
+    error.message?.includes("NEXT_REDIRECT") ||
+    error.digest?.includes("NEXT_REDIRECT") ||
+    error.digest === "3567963413" ||
+    error.digest?.includes("3567963413")
+  ) {
+    throw error;
+  }
+
   useEffect(() => {
     console.error("App Error Boundary caught:", error);
   }, [error]);
