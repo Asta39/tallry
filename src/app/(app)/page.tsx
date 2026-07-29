@@ -18,222 +18,230 @@ export default async function Dashboard({
 }: {
   searchParams: Promise<{ year?: string }>;
 }) {
-  const o = await getOrg();
-  const today = todayISO();
-  const thisYear = today.slice(0, 4);
-  const { year: yearParam } = await searchParams;
-  const year = /^\d{4}$/.test(yearParam ?? "") ? yearParam! : thisYear;
+  return withOrg(async () => {
+    const o = await getOrg();
+    const today = todayISO();
+    const thisYear = today.slice(0, 4);
+    const { year: yearParam } = await searchParams;
+    const year = /^\d{4}$/.test(yearParam ?? "") ? yearParam! : thisYear;
 
-  const access = await getAccessCached();
-  const viewAll = access ? canViewAllData(access) : true;
-  // "Own metrics only": staff with the toggle ON see figures derived solely
-  // from documents assigned to them; toggled OFF they see company-wide data.
-  // Admin/owner always sees company-wide.
-  const ownOnly = !!access && !viewAll && access.perms.has("dashboard_metrics") && !!access.memberId;
+    const access = await getAccessCached();
+    const viewAll = access ? canViewAllData(access) : true;
+    const ownOnly = !!access && !viewAll && access.perms.has("dashboard_metrics") && !!access.memberId;
 
-  // All independent — fire in parallel
-  const [stats, memberStats, chartData, overview, activeShift, recentDocs, todoRows, eventRows, dueDocs, recurringRows] =
-    await Promise.all([
-      ownOnly ? Promise.resolve(null) : withOrg(() => dashboardStats(today)),
-      ownOnly ? withOrg(() => memberDashboardStats(access!.memberId!, today)) : Promise.resolve(null),
-      ownOnly ? Promise.resolve([]) : withOrg(() => monthlyIncomeExpense(6)),
-      withOrg(() => docStatusOverview(year, ownOnly ? access!.memberId! : undefined)),
-      o.timeTrackingEnabled ? getActiveShift() : Promise.resolve(null),
-      db
-        .select()
-        .from(documents)
-        .where(
-          and(
-            eq(documents.orgId, o.id), 
-            inArray(documents.type, ["invoice", "bill", "expense"]),
-            viewAll ? undefined : exists(
-              db.select().from(documentAssignments)
-              .where(and(
-                eq(documentAssignments.documentId, documents.id),
-                eq(documentAssignments.memberId, access!.memberId!)
-              ))
+    const recentDocsWhere = [
+      eq(documents.orgId, o.id),
+      inArray(documents.type, ["invoice", "bill", "expense"]),
+    ];
+    if (!viewAll && access?.memberId) {
+      recentDocsWhere.push(
+        exists(
+          db.select().from(documentAssignments).where(
+            and(
+              eq(documentAssignments.documentId, documents.id),
+              eq(documentAssignments.memberId, access.memberId)
             )
           )
         )
-        .orderBy(desc(documents.createdAt))
-        .limit(8),
-      db
-        .select()
-        .from(todos)
-        .where(eq(todos.orgId, o.id))
-        .orderBy(asc(todos.done), desc(todos.id))
-        .limit(30),
-      db.select().from(events).where(eq(events.orgId, o.id)),
-      // Due-date calendar entries: invoices/bills still owed, with a due date on file.
-      db
-        .select()
-        .from(documents)
-        .where(
-          and(
-            eq(documents.orgId, o.id),
-            inArray(documents.type, ["invoice", "bill"]),
-            inArray(documents.status, ["open", "partial"]),
-            isNotNull(documents.dueDate),
-            viewAll ? undefined : exists(
-              db.select().from(documentAssignments)
-              .where(and(
-                eq(documentAssignments.documentId, documents.id),
-                eq(documentAssignments.memberId, access!.memberId!)
-              ))
+      );
+    }
+
+    const dueDocsWhere = [
+      eq(documents.orgId, o.id),
+      inArray(documents.type, ["invoice", "bill"]),
+      inArray(documents.status, ["open", "partial"]),
+      isNotNull(documents.dueDate),
+    ];
+    if (!viewAll && access?.memberId) {
+      dueDocsWhere.push(
+        exists(
+          db.select().from(documentAssignments).where(
+            and(
+              eq(documentAssignments.documentId, documents.id),
+              eq(documentAssignments.memberId, access.memberId)
             )
           )
-        ),
-      // Recurring templates' next scheduled run.
-      viewAll
-        ? db.select().from(recurringTemplates).where(and(eq(recurringTemplates.orgId, o.id), eq(recurringTemplates.active, true)))
-        : Promise.resolve([]),
-    ]);
+        )
+      );
+    }
 
-  const years = [thisYear, String(Number(thisYear) - 1), String(Number(thisYear) - 2)];
+    // All independent — fire in parallel
+    const [stats, memberStats, chartData, overview, activeShift, recentDocs, todoRows, eventRows, dueDocs, recurringRows] =
+      await Promise.all([
+        ownOnly ? Promise.resolve(null) : dashboardStats(today),
+        ownOnly ? memberDashboardStats(access!.memberId!, today) : Promise.resolve(null),
+        ownOnly ? Promise.resolve([]) : monthlyIncomeExpense(6),
+        docStatusOverview(year, ownOnly ? access!.memberId! : undefined),
+        o.timeTrackingEnabled ? getActiveShift() : Promise.resolve(null),
+        db
+          .select()
+          .from(documents)
+          .where(and(...recentDocsWhere))
+          .orderBy(desc(documents.createdAt))
+          .limit(8),
+        db
+          .select()
+          .from(todos)
+          .where(eq(todos.orgId, o.id))
+          .orderBy(asc(todos.done), desc(todos.id))
+          .limit(30),
+        db.select().from(events).where(eq(events.orgId, o.id)),
+        db
+          .select()
+          .from(documents)
+          .where(and(...dueDocsWhere)),
+        // Recurring templates' next scheduled run.
+        viewAll
+          ? db.select().from(recurringTemplates).where(and(eq(recurringTemplates.orgId, o.id), eq(recurringTemplates.active, true)))
+          : Promise.resolve([]),
+      ]);
 
-  return (
-    <>
-      <PageHeader
-        title={`Good ${greeting()}, ${o?.name ?? "there"}`}
-        subtitle={new Date().toLocaleDateString("en-KE", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
-      />
+    const years = [thisYear, String(Number(thisYear) - 1), String(Number(thisYear) - 2)];
 
-      {o.timeTrackingEnabled && (
-        <TimeTrackingCard
-          initialShift={
-            activeShift
-              ? {
-                  id: activeShift.id,
-                  clockInAt: activeShift.clockInAt,
-                  clockOutAt: activeShift.clockOutAt,
-                  durationSeconds: activeShift.durationSeconds,
-                }
-              : null
-          }
+    return (
+      <>
+        <PageHeader
+          title={`Good ${greeting()}, ${o?.name ?? "there"}`}
+          subtitle={new Date().toLocaleDateString("en-KE", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
         />
-      )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {ownOnly && memberStats ? (
-          <>
-            <StatCard
-              label="Your outstanding invoices"
-              hint={memberStats.overdueReceivablesCents > 0
-                ? `${fmtKES(memberStats.overdueReceivablesCents)} overdue`
-                : "on documents assigned to you"}
-              cents={memberStats.receivablesCents}
-              tone={memberStats.overdueReceivablesCents > 0 ? "warn" : "neutral"}
-            />
-            <StatCard label="Overdue" hint="on your invoices" cents={memberStats.overdueReceivablesCents} tone={memberStats.overdueReceivablesCents > 0 ? "warn" : "good"} />
-            <StatCard label="Collected this year" hint="payments on your invoices" cents={memberStats.collectedThisYearCents} tone="good" />
-            <StatCard label="Your bills to pay" hint="assigned bills & expenses" cents={memberStats.payablesCents} />
-          </>
-        ) : stats ? (
-          <>
-            <StatCard label="Cash & M-Pesa" hint="across all money accounts" cents={stats.cashCents} />
-            <StatCard
-              label="Money you're owed"
-              hint={stats.overdueReceivablesCents > 0
-                ? `${fmtKES(stats.overdueReceivablesCents)} overdue`
-                : "accounts receivable"}
-              cents={stats.receivablesCents}
-              tone={stats.overdueReceivablesCents > 0 ? "warn" : "neutral"}
-            />
-            <StatCard label="Money you owe" hint="accounts payable" cents={stats.payablesCents} />
-            <StatCard
-              label="VAT due to KRA"
-              hint="this month so far"
-              cents={stats.netVatDueCents}
-              tone={stats.netVatDueCents > 0 ? "warn" : "good"}
-            />
-          </>
-        ) : null}
-      </div>
-
-      {/* Invoice & quote overview — yearly money breakdown is admin-only */}
-      <div className="mt-4">
-        <DocOverview data={overview} year={year} years={years} showBreakdown={viewAll} />
-      </div>
-
-      {/* Chart (company-wide, hidden in own-metrics view) + calendar */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 mt-4 items-stretch">
-        {!ownOnly && (
-          <div className="lg:col-span-3">
-            <IncomeExpenseChart data={chartData} />
-          </div>
+        {o.timeTrackingEnabled && (
+          <TimeTrackingCard
+            initialShift={
+              activeShift
+                ? {
+                    id: activeShift.id,
+                    clockInAt: activeShift.clockInAt,
+                    clockOutAt: activeShift.clockOutAt,
+                    durationSeconds: activeShift.durationSeconds,
+                  }
+                : null
+            }
+          />
         )}
-        <div className={ownOnly ? "lg:col-span-5" : "lg:col-span-2"}>
-          <CalendarWidget
-            events={[
-              ...eventRows.map((e) => ({ id: `evt-${e.id}`, title: e.title, date: e.date, color: "#515154", deletable: true, dbId: e.id })),
-              ...dueDocs.map((d) => ({
-                id: `doc-${d.id}`,
-                title: d.number,
-                date: d.dueDate!,
-                color: d.type === "invoice" ? "#2563eb" : "#b8860b",
-                href: d.type === "invoice" ? `/sales/invoices/${d.id}` : `/purchases/bills/${d.id}`,
-              })),
-              ...recurringRows.map((r) => ({
-                id: `rec-${r.id}`,
-                title: r.name,
-                date: r.nextRunDate,
-                color: "#1f8a4c",
-                href: "/recurring",
-              })),
-            ]}
-          />
-        </div>
-      </div>
 
-      {/* Todos + recent activity */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 mt-4 items-start">
-        <div className="lg:col-span-2">
-          <TodoWidget
-            todos={todoRows.map((t) => ({ id: t.id, title: t.title, done: t.done, dueDate: t.dueDate }))}
-          />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {ownOnly && memberStats ? (
+            <>
+              <StatCard
+                label="Your outstanding invoices"
+                hint={memberStats.overdueReceivablesCents > 0
+                  ? `${fmtKES(memberStats.overdueReceivablesCents)} overdue`
+                  : "on documents assigned to you"}
+                cents={memberStats.receivablesCents}
+                tone={memberStats.overdueReceivablesCents > 0 ? "warn" : "neutral"}
+              />
+              <StatCard label="Overdue" hint="on your invoices" cents={memberStats.overdueReceivablesCents} tone={memberStats.overdueReceivablesCents > 0 ? "warn" : "good"} />
+              <StatCard label="Collected this year" hint="payments on your invoices" cents={memberStats.collectedThisYearCents} tone="good" />
+              <StatCard label="Your bills to pay" hint="assigned bills & expenses" cents={memberStats.payablesCents} />
+            </>
+          ) : stats ? (
+            <>
+              <StatCard label="Cash & M-Pesa" hint="across all money accounts" cents={stats.cashCents} />
+              <StatCard
+                label="Money you're owed"
+                hint={stats.overdueReceivablesCents > 0
+                  ? `${fmtKES(stats.overdueReceivablesCents)} overdue`
+                  : "accounts receivable"}
+                cents={stats.receivablesCents}
+                tone={stats.overdueReceivablesCents > 0 ? "warn" : "neutral"}
+              />
+              <StatCard label="Money you owe" hint="accounts payable" cents={stats.payablesCents} />
+              <StatCard
+                label="VAT due to KRA"
+                hint="this month so far"
+                cents={stats.netVatDueCents}
+                tone={stats.netVatDueCents > 0 ? "warn" : "good"}
+              />
+            </>
+          ) : null}
         </div>
-        <div className="lg:col-span-3">
-          <h2 className="text-[15px] font-semibold mb-3">Recent activity</h2>
-          {recentDocs.length === 0 ? (
-            <div className="card px-6 py-10 text-center text-[13px] text-[var(--color-ink-400)]">
-              No transactions yet. Create your first{" "}
-              <Link href="/sales/invoices/new" className="text-[var(--color-accent-600)] font-medium">
-                invoice
-              </Link>{" "}
-              to get going.
+
+        {/* Invoice & quote overview — yearly money breakdown is admin-only */}
+        <div className="mt-4">
+          <DocOverview data={overview} year={year} years={years} showBreakdown={viewAll} />
+        </div>
+
+        {/* Chart (company-wide, hidden in own-metrics view) + calendar */}
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 mt-4 items-stretch">
+          {!ownOnly && (
+            <div className="lg:col-span-3">
+              <IncomeExpenseChart data={chartData} />
             </div>
-          ) : (
-            <TableCard>
-              <thead className="hairline-b">
-                <tr>
-                  <Th>Date</Th>
-                  <Th>Document</Th>
-                  <Th>Status</Th>
-                  <Th right>Amount</Th>
-                </tr>
-              </thead>
-              <tbody>
-                {recentDocs.map((d) => (
-                  <tr key={d.id} className="hairline-t">
-                    <Td className="text-[var(--color-ink-400)]">{d.date}</Td>
-                    <Td>
-                      <Link href={docHref(d.type, d.id)} className="font-medium hover:text-[var(--color-accent-600)]">
-                        {typeLabel(d.type)} {d.number}
-                      </Link>
-                    </Td>
-                    <Td>
-                      <StatusPill status={d.status} overdue={isOverdue(d.status, d.dueDate, today)} />
-                    </Td>
-                    <Td right>{fmtKES(d.totalCents)}</Td>
-                  </tr>
-                ))}
-              </tbody>
-            </TableCard>
           )}
+          <div className={ownOnly ? "lg:col-span-5" : "lg:col-span-2"}>
+            <CalendarWidget
+              events={[
+                ...eventRows.map((e) => ({ id: `evt-${e.id}`, title: e.title, date: e.date, color: "#515154", deletable: true, dbId: e.id })),
+                ...dueDocs.map((d) => ({
+                  id: `doc-${d.id}`,
+                  title: d.number,
+                  date: d.dueDate!,
+                  color: d.type === "invoice" ? "#2563eb" : "#b8860b",
+                  href: d.type === "invoice" ? `/sales/invoices/${d.id}` : `/purchases/bills/${d.id}`,
+                })),
+                ...recurringRows.map((r) => ({
+                  id: `rec-${r.id}`,
+                  title: r.name,
+                  date: r.nextRunDate,
+                  color: "#1f8a4c",
+                  href: "/recurring",
+                })),
+              ]}
+            />
+          </div>
         </div>
-      </div>
-    </>
-  );
+
+        {/* Todos + recent activity */}
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 mt-4 items-start">
+          <div className="lg:col-span-2">
+            <TodoWidget
+              todos={todoRows.map((t) => ({ id: t.id, title: t.title, done: t.done, dueDate: t.dueDate }))}
+            />
+          </div>
+          <div className="lg:col-span-3">
+            <h2 className="text-[15px] font-semibold mb-3">Recent activity</h2>
+            {recentDocs.length === 0 ? (
+              <div className="card px-6 py-10 text-center text-[13px] text-[var(--color-ink-400)]">
+                No transactions yet. Create your first{" "}
+                <Link href="/sales/invoices/new" className="text-[var(--color-accent-600)] font-medium">
+                  invoice
+                </Link>{" "}
+                to get going.
+              </div>
+            ) : (
+              <TableCard>
+                <thead className="hairline-b">
+                  <tr>
+                    <Th>Date</Th>
+                    <Th>Document</Th>
+                    <Th>Status</Th>
+                    <Th right>Amount</Th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {recentDocs.map((d) => (
+                    <tr key={d.id} className="hairline-t">
+                      <Td className="text-[var(--color-ink-400)]">{d.date}</Td>
+                      <Td>
+                        <Link href={docHref(d.type, d.id)} className="font-medium hover:text-[var(--color-accent-600)]">
+                          {typeLabel(d.type)} {d.number}
+                        </Link>
+                      </Td>
+                      <Td>
+                        <StatusPill status={d.status} overdue={isOverdue(d.status, d.dueDate, today)} />
+                      </Td>
+                      <Td right>{fmtKES(d.totalCents)}</Td>
+                    </tr>
+                  ))}
+                </tbody>
+              </TableCard>
+            )}
+          </div>
+        </div>
+      </>
+    );
+  });
 }
 
 function greeting() {
