@@ -13,8 +13,12 @@ export function NotificationBell({ memberId, variant = "fixed" }: { memberId: nu
 
   useEffect(() => {
     async function load() {
-      const data = await getNotifications(memberId);
-      setNotifications(data);
+      try {
+        const data = await getNotifications(memberId);
+        if (Array.isArray(data)) setNotifications(data);
+      } catch (err) {
+        // Silently catch polling errors on page transition / reload
+      }
     }
     load();
     const interval = setInterval(load, 30000); // poll every 30s
