@@ -440,6 +440,7 @@ export async function monthlyIncomeExpense(months = 6): Promise<
     .select({
       month: sql<string>`substr(${journalEntries.date}, 1, 7)`,
       type: accounts.type,
+      subtype: accounts.subtype,
       debit: sql<number>`coalesce(sum(${journalLines.debitCents}), 0)`,
       credit: sql<number>`coalesce(sum(${journalLines.creditCents}), 0)`,
     })
@@ -447,7 +448,7 @@ export async function monthlyIncomeExpense(months = 6): Promise<
     .innerJoin(journalEntries, eq(journalLines.entryId, journalEntries.id))
     .innerJoin(accounts, eq(journalLines.accountId, accounts.id))
     .where(and(eq(journalLines.orgId, currentOrgId()), inArray(accounts.type, ["income", "expense"])))
-    .groupBy(sql`substr(${journalEntries.date}, 1, 7)`, accounts.type);
+    .groupBy(sql`substr(${journalEntries.date}, 1, 7)`, accounts.type, accounts.subtype);
 
   const now = new Date();
   const out: { month: string; label: string; incomeCents: number; expenseCents: number }[] = [];
@@ -455,14 +456,17 @@ export async function monthlyIncomeExpense(months = 6): Promise<
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
     const label = d.toLocaleDateString("en-KE", { month: "short" });
-    // Net figures, NOT floored at zero. Flooring hid whole months: a large
-    // inventory write-up credits an expense account (found stock reducing
-    // COGS), which can push a month's net expense negative — clamping that to
-    // zero wiped the entire expense column. Income can likewise net negative in
-    // a heavy sales-return month. Show the truth.
     const income = rows.filter((r) => r.month === key && r.type === "income")
       .reduce((s, r) => s + Number(r.credit) - Number(r.debit), 0);
-    const expense = rows.filter((r) => r.month === key && r.type === "expense")
+    // Operating expenses only — cost_of_goods_sold (COGS + inventory
+    // write-offs/adjustments) is excluded here, same split profitAndLoss()
+    // already makes. Inventory swings (found/damaged stock) are volatile and
+    // can net-credit that subtype in a given month; folding it into this
+    // column made recording an ordinary operating expense look like it
+    // *reduced* the Expense total whenever a stock adjustment that month had
+    // pushed the combined figure negative. Operating expense accounts alone
+    // only ever move this column up when money is spent.
+    const expense = rows.filter((r) => r.month === key && r.type === "expense" && r.subtype !== "cost_of_goods_sold")
       .reduce((s, r) => s + Number(r.debit) - Number(r.credit), 0);
     out.push({ month: key, label, incomeCents: income, expenseCents: expense });
   }

@@ -16,7 +16,7 @@ export default async function IncomeExpensePage() {
   return (
     <>
       <div className="flex items-start justify-between">
-        <PageHeader title="Income vs Expense" subtitle="Monthly breakdown over the last 12 months" />
+        <PageHeader title="Income vs Expense" subtitle="Monthly breakdown over the last 12 months · Expense is operating costs only, excludes COGS/inventory adjustments (see Profit & Loss for those)" />
         <div className="mt-2 flex gap-2">
           <PdfLinks report="income-expense" />
         </div>
