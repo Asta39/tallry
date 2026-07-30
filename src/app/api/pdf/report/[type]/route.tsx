@@ -91,6 +91,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         
         rows.push({ id: "gp-t", cells: ["Gross Profit", fmtKES(pl.grossProfit)], isBold: true, isHeader: true });
 
+        if (pl.inventoryAdjustments.length > 0) {
+          rows.push({ id: "invadj-h", cells: ["Inventory Adjustments"], isHeader: true });
+          pl.inventoryAdjustments.forEach((b) => rows.push({ id: `invadj-${b.accountId}`, cells: [b.name, fmtKES(b.balanceCents)] }));
+          rows.push({ id: "invadj-t", cells: ["Total Inventory Adjustments", fmtKES(pl.totalInventoryAdjustments)], isBold: true });
+        }
+
         rows.push({ id: "exp-h", cells: ["Operating Expenses"], isHeader: true });
         pl.expenses.forEach((b) => rows.push({ id: `exp-${b.accountId}`, cells: [b.name, fmtKES(b.balanceCents)] }));
         rows.push({ id: "exp-t", cells: ["Total Expenses", fmtKES(pl.totalExpenses)], isBold: true });

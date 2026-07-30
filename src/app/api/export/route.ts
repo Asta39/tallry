@@ -32,6 +32,7 @@ export async function GET(req: NextRequest) {
     rows = [["Section", "Account", "Amount"]];
     pl.income.forEach((r) => rows.push(["Income", r.name, money(r.balanceCents)]));
     pl.cogs.forEach((r) => rows.push(["COGS", r.name, money(r.balanceCents)]));
+    pl.inventoryAdjustments.forEach((r) => rows.push(["Inventory Adjustments", r.name, money(r.balanceCents)]));
     pl.expenses.forEach((r) => rows.push(["Expenses", r.name, money(r.balanceCents)]));
     rows.push(["", "Gross profit", money(pl.grossProfit)]);
     rows.push(["", "Net profit", money(pl.netProfit)]);

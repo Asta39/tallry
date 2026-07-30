@@ -164,7 +164,7 @@ test("P&L internal consistency", async () => {
   await inOrg(async () => {
     const pl = await profitAndLoss("0000-01-01", TODAY);
     assert.equal(pl.grossProfit, pl.totalIncome - pl.totalCogs);
-    assert.equal(pl.netProfit, pl.totalIncome - pl.totalCogs - pl.totalExpenses);
+    assert.equal(pl.netProfit, pl.totalIncome - pl.totalCogs - pl.totalInventoryAdjustments - pl.totalExpenses);
     const sumIncome = pl.income.reduce((s, b) => s + b.balanceCents, 0);
     assert.equal(pl.totalIncome, sumIncome);
   });

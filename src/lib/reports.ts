@@ -65,19 +65,31 @@ export async function profitAndLoss(from: string, to: string) {
   const balances = await accountBalances({ from, to });
   const income = balances.filter((b) => b.type === "income");
   const cogs = balances.filter((b) => b.type === "expense" && b.subtype === "cost_of_goods_sold");
-  const expenses = balances.filter((b) => b.type === "expense" && b.subtype !== "cost_of_goods_sold");
+  // Inventory Adjustments gets its own bucket, split out of both COGS and
+  // operating expenses: a large found-stock adjustment nets as a credit (a
+  // gain) that can swing it deeply negative in a given period. Folded into
+  // COGS, that inflated gross profit and made genuine product cost look
+  // wrong; folded into expenses, it made a real operating expense entry look
+  // like it *reduced* the expense total whenever this account's swing
+  // dominated. Shown separately, both COGS and Expenses only ever move the
+  // way an accountant expects when recording an ordinary transaction.
+  const inventoryAdjustments = balances.filter((b) => b.type === "expense" && b.subtype === "inventory_adjustment");
+  const expenses = balances.filter((b) => b.type === "expense" && b.subtype !== "cost_of_goods_sold" && b.subtype !== "inventory_adjustment");
   const totalIncome = income.reduce((s, b) => s + b.balanceCents, 0);
   const totalCogs = cogs.reduce((s, b) => s + b.balanceCents, 0);
+  const totalInventoryAdjustments = inventoryAdjustments.reduce((s, b) => s + b.balanceCents, 0);
   const totalExpenses = expenses.reduce((s, b) => s + b.balanceCents, 0);
   return {
     income,
     cogs,
+    inventoryAdjustments,
     expenses,
     totalIncome,
     totalCogs,
     grossProfit: totalIncome - totalCogs,
+    totalInventoryAdjustments,
     totalExpenses,
-    netProfit: totalIncome - totalCogs - totalExpenses,
+    netProfit: totalIncome - totalCogs - totalInventoryAdjustments - totalExpenses,
   };
 }
 
@@ -273,7 +285,7 @@ export async function dashboardStats(today: string) {
     cashCents: cash.reduce((s, b) => s + b.balanceCents, 0),
     cashAccounts: cash,
     incomeThisMonthCents: pl.totalIncome,
-    expensesThisMonthCents: pl.totalCogs + pl.totalExpenses,
+    expensesThisMonthCents: pl.totalCogs + pl.totalInventoryAdjustments + pl.totalExpenses,
     netVatDueCents: vat.netVatDue,
   };
 }
@@ -458,15 +470,15 @@ export async function monthlyIncomeExpense(months = 6): Promise<
     const label = d.toLocaleDateString("en-KE", { month: "short" });
     const income = rows.filter((r) => r.month === key && r.type === "income")
       .reduce((s, r) => s + Number(r.credit) - Number(r.debit), 0);
-    // Operating expenses only — cost_of_goods_sold (COGS + inventory
-    // write-offs/adjustments) is excluded here, same split profitAndLoss()
-    // already makes. Inventory swings (found/damaged stock) are volatile and
-    // can net-credit that subtype in a given month; folding it into this
-    // column made recording an ordinary operating expense look like it
-    // *reduced* the Expense total whenever a stock adjustment that month had
-    // pushed the combined figure negative. Operating expense accounts alone
-    // only ever move this column up when money is spent.
-    const expense = rows.filter((r) => r.month === key && r.type === "expense" && r.subtype !== "cost_of_goods_sold")
+    // Operating expenses only — cost_of_goods_sold and inventory_adjustment
+    // are both excluded here, same split profitAndLoss() makes. Inventory
+    // swings (found/damaged stock) are volatile and can net-credit that
+    // subtype in a given month; folding it into this column made recording an
+    // ordinary operating expense look like it *reduced* the Expense total
+    // whenever a stock adjustment that month had pushed the combined figure
+    // negative. Operating expense accounts alone only ever move this column
+    // up when money is spent.
+    const expense = rows.filter((r) => r.month === key && r.type === "expense" && r.subtype !== "cost_of_goods_sold" && r.subtype !== "inventory_adjustment")
       .reduce((s, r) => s + Number(r.debit) - Number(r.credit), 0);
     out.push({ month: key, label, incomeCents: income, expenseCents: expense });
   }

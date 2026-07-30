@@ -608,3 +608,9 @@ CREATE TABLE IF NOT EXISTS org_audit_log (
 );
 CREATE INDEX IF NOT EXISTS idx_org_audit_org_created ON org_audit_log(org_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_org_audit_org_module ON org_audit_log(org_id, module);
+
+-- Inventory Adjustments (5100) split out of cost_of_goods_sold into its own
+-- subtype — a large found-stock adjustment nets as a credit that was
+-- distorting COGS/gross-profit and, when lumped into operating expenses,
+-- making a genuine expense entry look like it reduced the Expense total.
+UPDATE accounts SET subtype = 'inventory_adjustment' WHERE code = '5100' AND subtype = 'cost_of_goods_sold';

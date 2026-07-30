@@ -93,7 +93,7 @@ export async function getBudgetVsActual(budgetId: number) {
 
     const pl = await profitAndLoss(`${budget.fiscalYear}-01-01`, `${budget.fiscalYear}-12-31`);
     const actualByAccount = new Map<number, number>();
-    for (const b of [...pl.income, ...pl.cogs, ...pl.expenses]) actualByAccount.set(b.accountId, b.balanceCents);
+    for (const b of [...pl.income, ...pl.cogs, ...pl.inventoryAdjustments, ...pl.expenses]) actualByAccount.set(b.accountId, b.balanceCents);
 
     const accountIds = new Set([...budgetByAccount.keys(), ...actualByAccount.keys()]);
     const rows = Array.from(accountIds)

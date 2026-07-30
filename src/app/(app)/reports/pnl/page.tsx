@@ -53,6 +53,7 @@ export default async function PnlPage({
           data={[
             { name: "Income", value: pl.totalIncome / 100 },
             { name: "COGS", value: pl.totalCogs / 100 },
+            ...(pl.totalInventoryAdjustments !== 0 ? [{ name: "Inventory adj.", value: pl.totalInventoryAdjustments / 100 }] : []),
             { name: "Expenses", value: pl.totalExpenses / 100 },
             { name: "Net profit", value: pl.netProfit / 100 },
           ]}
@@ -79,6 +80,9 @@ export default async function PnlPage({
             <Td className="font-semibold">Gross profit</Td>
             <Td right className="font-semibold">{fmtKES(pl.grossProfit)}</Td>
           </tr>
+          {pl.inventoryAdjustments.length > 0 && (
+            <Section title="Inventory adjustments" rows={pl.inventoryAdjustments} total={pl.totalInventoryAdjustments} />
+          )}
           <Section title="Operating expenses" rows={pl.expenses} total={pl.totalExpenses} />
           <tr className="hairline-t bg-[var(--color-accent-50)]">
             <Td className="font-bold text-[14px]">Net profit</Td>

@@ -77,7 +77,7 @@ export const SEED_ACCOUNTS: AccountSeed[] = [
 
   // --- EXPENSES & COGS (5000 – 6999) ---
   { code: "5000", name: "Cost of Goods Sold (COGS)", type: "expense", subtype: "cost_of_goods_sold", description: "Direct purchase cost of inventory items sold to customers during the accounting period.", system: true },
-  { code: "5100", name: "Inventory Adjustments & Stock Variance", type: "expense", subtype: "cost_of_goods_sold", description: "Cost of inventory shrinkage, damage, expiration, or stock audit count adjustments.", system: true },
+  { code: "5100", name: "Inventory Adjustments & Stock Variance", type: "expense", subtype: "inventory_adjustment", description: "Cost of inventory shrinkage, damage, expiration, or stock audit count adjustments — reported separately from COGS since a large found-stock adjustment can swing this to a net credit (a gain), which would otherwise distort the Cost of Goods Sold figure.", system: true },
   { code: "6000", name: "Rent & Premises Lease", type: "expense", subtype: "expense", description: "Lease and rental payments for shopfronts, commercial offices, and warehouses." },
   { code: "6010", name: "Electricity, Water & Utilities", type: "expense", subtype: "expense", description: "KPLC power bills, municipal water, generator fuel, and waste management charges." },
   { code: "6020", name: "Internet, Phone & Airtime", type: "expense", subtype: "expense", description: "Safaricom/Airtel airtime, staff communication allowances, and office high-speed fiber internet." },
