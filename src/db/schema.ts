@@ -845,6 +845,20 @@ export const orgAuditLog = pgTable("org_audit_log", {
   orgModuleIdx: index("idx_org_audit_org_module").on(t.orgId, t.module),
 }));
 
+/** AI assistant chat — history scoped to the Nairobi calendar day; old days are kept (not deleted) but not surfaced by default. */
+export const aiMessages = pgTable("ai_messages", {
+  id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
+  memberId: integer("member_id"), // null when the actor is the org owner
+  role: text("role").notNull(), // user | assistant
+  content: text("content").notNull(),
+  toolCalls: text("tool_calls"), // JSON: [{tool, args, result | pendingAction}], null for plain text turns
+  nairobiDate: text("nairobi_date").notNull(), // YYYY-MM-DD in Africa/Nairobi — what "today" filtering keys on
+  createdAt: text("created_at").notNull(),
+}, (t) => ({
+  orgMemberDateIdx: index("idx_ai_messages_org_member_date").on(t.orgId, t.memberId, t.nairobiDate),
+}));
+
 /** Platform-wide announcements shown as a banner in every tenant's app. */
 export const announcements = pgTable("announcements", {
   id: serial("id").primaryKey(),

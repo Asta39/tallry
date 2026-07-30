@@ -614,3 +614,15 @@ CREATE INDEX IF NOT EXISTS idx_org_audit_org_module ON org_audit_log(org_id, mod
 -- distorting COGS/gross-profit and, when lumped into operating expenses,
 -- making a genuine expense entry look like it reduced the Expense total.
 UPDATE accounts SET subtype = 'inventory_adjustment' WHERE code = '5100' AND subtype = 'cost_of_goods_sold';
+
+CREATE TABLE IF NOT EXISTS ai_messages (
+  id SERIAL PRIMARY KEY,
+  org_id INTEGER NOT NULL REFERENCES org(id),
+  member_id INTEGER,
+  role TEXT NOT NULL,
+  content TEXT NOT NULL,
+  tool_calls TEXT,
+  nairobi_date TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_ai_messages_org_member_date ON ai_messages(org_id, member_id, nairobi_date);

@@ -7,7 +7,9 @@ import { NotificationBell } from "@/components/NotificationBell";
 import { GlobalSearch } from "@/components/GlobalSearch";
 import { InstallPrompt } from "@/components/InstallPrompt";
 import { ImpersonationBanner } from "@/components/ImpersonationBanner";
+import { AiAssistantPill } from "@/components/AiAssistantPill";
 import { getEntitlements } from "@/lib/billing-server";
+import { getDailyBrief } from "@/lib/ai/brief";
 import { db, announcements } from "@/db";
 import { eq, desc } from "drizzle-orm";
 import Link from "next/link";
@@ -40,7 +42,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (!access || !access.orgRow.name) redirect("/onboarding");
 
   const ents = await getEntitlements(access.orgRow.id);
-  const [announcement] = await db.select().from(announcements).where(eq(announcements.active, true)).orderBy(desc(announcements.createdAt)).limit(1);
+  const [announcement, brief] = await Promise.all([
+    db.select().from(announcements).where(eq(announcements.active, true)).orderBy(desc(announcements.createdAt)).limit(1).then((r) => r[0]),
+    getDailyBrief(access).catch(() => null),
+  ]);
 
   return (
     <>
@@ -95,6 +100,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </div>
         </main>
       </div>
+      <AiAssistantPill initialBriefCount={brief?.count ?? 0} />
     </>
   );
 }

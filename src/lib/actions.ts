@@ -1124,7 +1124,16 @@ export async function createItemFromLine(data: {
   });
 }
 export async function adjustStock(itemId: number, qtyDelta: number, unitCostCents: number, reason: string) {
-  return withOrg(() => _adjustStock(itemId, qtyDelta, unitCostCents, reason));
+  const result = await withOrg(() => _adjustStock(itemId, qtyDelta, unitCostCents, reason));
+  const [item] = await db.select({ name: items.name }).from(items).where(eq(items.id, itemId)).limit(1);
+  await logAudit({
+    action: "adjust",
+    module: "items",
+    recordId: itemId,
+    recordLabel: item?.name,
+    detail: `${qtyDelta > 0 ? "+" : ""}${qtyDelta} — ${reason}`,
+  });
+  return result;
 }
 export async function saveDocument(data: Parameters<typeof _saveDocument>[0]) {
   const access = await getAccess();

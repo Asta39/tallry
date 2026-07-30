@@ -12,6 +12,7 @@ export const PLANS = {
     recurring: false,
     payroll: false,
     reporting: "basic" as "basic" | "standard" | "advanced",
+    aiMessagesPerDay: 20,
   },
   standard: {
     name: "Standard",
@@ -26,6 +27,7 @@ export const PLANS = {
     recurring: true,
     payroll: false,
     reporting: "standard" as "basic" | "standard" | "advanced",
+    aiMessagesPerDay: 100,
   },
   business: {
     name: "Business",
@@ -40,6 +42,7 @@ export const PLANS = {
     recurring: true,
     payroll: true,
     reporting: "advanced" as "basic" | "standard" | "advanced",
+    aiMessagesPerDay: -1, // unlimited
   }
 } as const;
 
