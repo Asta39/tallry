@@ -1,9 +1,6 @@
 import crypto from "crypto";
 import { PaymentGateway, GatewayOrgConfig, appBaseUrl } from "./gateway";
 import { decryptConfig } from "./crypto";
-import { db, payoutRecipients } from "@/db";
-import { and, eq } from "drizzle-orm";
-import { nowISO } from "@/lib/money";
 
 const SANDBOX_BASE = "https://sandbox.kopokopo.com";
 // api.kopokopo.com, NOT app.kopokopo.com — the latter is the merchant dashboard.
@@ -19,21 +16,6 @@ const USER_AGENT = "Zeno/1.0 (+https://zeno.co.ke)";
 function resourceIdFromLocation(location: string): string {
   const segments = new URL(location).pathname.split("/").filter(Boolean);
   return segments[segments.length - 1] || location;
-}
-
-/**
- * Kopo Kopo validates recipient names as person names, so anything carrying
- * digits or punctuation (a bill number, say) is rejected outright with a bare
- * "Pay recipient could not be created".
- */
-function splitPayeeName(raw?: string): { first: string; last: string } {
-  const cleaned = (raw || "")
-    .replace(/[^\p{L}\s'-]/gu, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-  if (!cleaned) return { first: "Vendor", last: "Payee" };
-  const parts = cleaned.split(" ");
-  return { first: parts[0], last: parts.slice(1).join(" ") || parts[0] };
 }
 
 /** Kopo Kopo wants E.164 (+2547XXXXXXXX); users type 07XX / 7XX / 2547XX. */
@@ -147,130 +129,85 @@ export function getKopoKopoGateway(orgConfig: GatewayOrgConfig): PaymentGateway 
     },
 
     async payOut(input) {
-      if (input.destinationType !== "phone") {
-        throw new Error("Only phone (mobile wallet) payouts are supported for Kopo Kopo currently");
-      }
       // Silently flooring here would underpay the vendor by up to 0.99 with no
       // trace. The payout action already blocks fractional amounts; this is the
       // backstop for any other caller.
       if (input.amountCents % 100 !== 0) {
         throw new Error("Kopo Kopo payouts must be a whole shilling amount");
       }
+      // Confirmed against the live API: {"errors":["Transfer amount must be
+      // between KSh 10.00 and KSh 250,000.00"]}.
+      if (input.amountCents < 1000 || input.amountCents > 25000000) {
+        throw new Error("Kopo Kopo payouts must be between KSh 10.00 and KSh 250,000.00");
+      }
       const token = await getAccessToken();
-      const payee = splitPayeeName(input.payeeName);
-      const phone = normalizePhone(input.destination);
-      const orgId = orgConfig.orgId;
-      if (!orgId) throw new Error("Kopo Kopo payout requires an org-scoped gateway config");
+      const amount = input.amountCents / 100;
+      const description = input.reason.slice(0, 255);
+      const payeeName = (input.payeeName || "").trim() || undefined;
 
-      // 1. Resolve the mobile-wallet recipient.
-      //
-      // Kopo Kopo allows exactly one recipient per phone number and refuses a
-      // second with a generic "Pay recipient could not be created" — and there
-      // is no endpoint to look an existing one up. So the reference from the
-      // first successful creation is cached here; without it, a destination can
-      // only ever be paid once.
-      const [cached] = await db
-        .select({ providerRef: payoutRecipients.providerRef })
-        .from(payoutRecipients)
-        .where(
-          and(
-            eq(payoutRecipients.orgId, orgId),
-            eq(payoutRecipients.gatewayId, "kopokopo"),
-            eq(payoutRecipients.destination, phone)
-          )
-        )
-        .limit(1);
-
-      let recipientRef = cached?.providerRef;
-
-      if (!recipientRef) {
-        // snake_case, matching the rest of the REST API. The camelCase shown in
-        // Kopo Kopo's docs is their SDK's input format — the SDKs convert it
-        // before sending. Posting camelCase directly makes the API see no phone
-        // number at all and reject with "Phone number can't be blank".
-        const recipientPayload = {
+      // /api/v2/send_money replaces the old two-step pay_recipients + payments
+      // flow: it creates the recipient and sends the money in one call, and
+      // supports mobile wallets, tills, and paybills directly — no more
+      // "recipient already exists" dead end with no way to recover the id.
+      let destination: Record<string, unknown>;
+      if (input.destinationType === "phone") {
+        // Examples in Kopo Kopo's own docs use bare digits (no +) for this
+        // endpoint, unlike the old pay_recipients API.
+        const digits = input.destination.replace(/[^\d]/g, "");
+        const phone = digits.startsWith("254")
+          ? digits
+          : digits.startsWith("0")
+          ? `254${digits.slice(1)}`
+          : `254${digits}`;
+        destination = {
           type: "mobile_wallet",
-          pay_recipient: {
-            first_name: payee.first,
-            last_name: payee.last,
-            phone_number: phone,
-            network: "Safaricom",
-            // Optional per the field spec, but in every Kopo Kopo example.
-            ...(input.payeeEmail ? { email: input.payeeEmail } : {}),
-          },
+          phone_number: phone,
+          network: "Safaricom",
+          amount,
+          description,
+          ...(payeeName ? { nickname: payeeName } : {}),
         };
-
-        const recipientRes = await fetch(`${baseUrl}/api/v1/pay_recipients`, {
-          method: "POST",
-          headers: authHeaders(token),
-          body: JSON.stringify(recipientPayload),
-        });
-
-        if (!recipientRes.ok) {
-          const body = await recipientRes.text();
-          console.error("Kopo Kopo pay_recipients rejected", {
-            status: recipientRes.status,
-            body,
-            payload: recipientPayload,
-          });
-
-          // "Recipient already exists for this company" means the number is
-          // registered on the Kopo Kopo account but predates this cache — and
-          // there is still no endpoint to look an existing recipient up
-          // (GET /pay_recipients 404s), so it can't be recovered automatically.
-          if (/already exists/i.test(body)) {
-            throw new Error(
-              `${phone} is already registered as a pay recipient on this Kopo Kopo account, but Zeno has no record of its id. ` +
-                `Kopo Kopo offers no endpoint to look one up — ask their support for the pay recipient id for this number so it can be stored.`
-            );
-          }
-
-          throw new Error(
-            `Kopo Kopo recipient creation failed (HTTP ${recipientRes.status}): ${body || "empty response"}`
-          );
-        }
-
-        const recipientLocation = recipientRes.headers.get("Location");
-        if (!recipientLocation) throw new Error("Kopo Kopo recipient creation returned no Location header");
-        recipientRef = resourceIdFromLocation(recipientLocation);
-
-        await db
-          .insert(payoutRecipients)
-          .values({
-            orgId,
-            gatewayId: "kopokopo",
-            destination: phone,
-            providerRef: recipientRef,
-            createdAt: nowISO(),
-          })
-          .onConflictDoNothing();
+      } else if (input.destinationType === "till") {
+        destination = {
+          type: "till",
+          till_number: input.destination,
+          amount,
+          description,
+          ...(payeeName ? { nickname: payeeName } : {}),
+        };
+      } else {
+        if (!input.accountNumber) throw new Error("Paybill payouts require an account number");
+        destination = {
+          type: "paybill",
+          paybill_number: input.destination,
+          paybill_account_number: input.accountNumber,
+          amount,
+          description,
+          ...(payeeName ? { nickname: payeeName } : {}),
+        };
       }
 
-      // 2. Initiate the payment to that recipient
-      const payRes = await fetch(`${baseUrl}/api/v1/payments`, {
+      const res = await fetch(`${baseUrl}/api/v2/send_money`, {
         method: "POST",
         headers: authHeaders(token),
         body: JSON.stringify({
-          destination_type: "mobile_wallet",
-          destination_reference: recipientRef,
-          amount: {
-            currency: "KES",
-            value: input.amountCents / 100,
-          },
-          description: input.reason.slice(0, 255),
+          destinations: [destination],
+          ...(config.tillNumber ? { source_identifier: config.tillNumber } : {}),
+          currency: "KES",
           metadata: {
-            accountRef: input.accountRef,
-            orgId: orgConfig.orgId,
+            accountRef: (input.accountRef || "").slice(0, 100),
+            orgId: String(orgConfig.orgId ?? ""),
           },
           _links: {
             callback_url: `${appBaseUrl()}/api/payments/webhook/kopokopo?orgId=${orgConfig.orgId}`,
           },
         }),
       });
-      if (!payRes.ok) throw await describeFailure(payRes, "Kopo Kopo payout failed");
-      const payLocation = payRes.headers.get("Location");
-      if (!payLocation) throw new Error("Kopo Kopo payout returned no Location header");
-      return { providerRef: resourceIdFromLocation(payLocation) };
+
+      if (!res.ok) throw await describeFailure(res, "Kopo Kopo send_money failed");
+      const location = res.headers.get("Location");
+      if (!location) throw new Error("Kopo Kopo send_money succeeded but returned no Location header");
+      return { providerRef: resourceIdFromLocation(location) };
     },
 
     async parseInbound(req: Request) {
@@ -327,6 +264,28 @@ export function getKopoKopoGateway(orgConfig: GatewayOrgConfig): PaymentGateway 
           amountCents: Math.round(Number(resource.amount) * 100),
           requestRef,
           paidAt: resource.origination_time || new Date().toISOString(),
+          raw: body,
+        };
+      }
+
+      // /api/v2/send_money result — this is the current payout path. The
+      // top-level status ("Processed") only means the request was handled, not
+      // that money moved; the real outcome is per-disbursement inside
+      // transfer_batches. payOut() only ever requests one destination, so the
+      // first batch/disbursement is the one that matters.
+      if (body.data?.type === "send_money") {
+        const attrs = body.data.attributes || {};
+        const requestRef = body.data.id;
+        const disbursement = attrs.transfer_batches?.[0]?.disbursements?.[0];
+        if (!disbursement || disbursement.status !== "Transferred" || disbursement.errors) {
+          return { failed: true as const, requestRef, raw: body };
+        }
+        return {
+          providerRef: disbursement.transaction_reference || `kk_send_${requestRef}`,
+          direction: "out" as const,
+          amountCents: Math.round(Number(disbursement.amount) * 100),
+          requestRef,
+          paidAt: disbursement.origination_time || attrs.created_at || new Date().toISOString(),
           raw: body,
         };
       }
