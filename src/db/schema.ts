@@ -827,6 +827,24 @@ export const adminAuditLog = pgTable("admin_audit_log", {
   createdIdx: index("idx_admin_audit_created").on(t.createdAt),
 }));
 
+/** Per-org business action trail — who did what, when, on which record. Admin-only, org-isolated. */
+export const orgAuditLog = pgTable("org_audit_log", {
+  id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
+  actorMemberId: integer("actor_member_id"), // null when the actor is the org owner
+  actorName: text("actor_name").notNull(),
+  actorRole: text("actor_role").notNull(), // owner | admin | accountant | sales | ...
+  action: text("action").notNull(), // create | update | delete | issue | void | approve | reject | login-affecting change, etc.
+  module: text("module").notNull(), // contacts | invoices | quotes | bills | payments | staff | settings | ...
+  recordId: integer("record_id"),
+  recordLabel: text("record_label"), // human label snapshotted at write time, e.g. "INV-0042" — survives the record later being renamed/deleted
+  detail: text("detail"),
+  createdAt: text("created_at").notNull(),
+}, (t) => ({
+  orgCreatedIdx: index("idx_org_audit_org_created").on(t.orgId, t.createdAt),
+  orgModuleIdx: index("idx_org_audit_org_module").on(t.orgId, t.module),
+}));
+
 /** Platform-wide announcements shown as a banner in every tenant's app. */
 export const announcements = pgTable("announcements", {
   id: serial("id").primaryKey(),

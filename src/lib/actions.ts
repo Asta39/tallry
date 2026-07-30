@@ -51,6 +51,16 @@ function revalidatePath(path: string, type?: "page" | "layout") {
 
 import { getOrg } from "@/lib/org";
 import { notifyOrg } from "@/lib/notifications";
+import { logAudit } from "./audit";
+
+const DOC_MODULE: Record<string, "quotes" | "invoices" | "credit_notes" | "bills" | "purchase_orders" | "expenses"> = {
+  quote: "quotes",
+  invoice: "invoices",
+  credit_note: "credit_notes",
+  bill: "bills",
+  purchase_order: "purchase_orders",
+  expense: "expenses",
+};
 
 type NumberKind = "invoice" | "quote" | "credit_note" | "purchase_order" | "payment";
 async function nextNumber(kind: NumberKind): Promise<string> {
@@ -1055,6 +1065,7 @@ export async function saveOrgProfile(data: {
     await seedOrgDefaults(saved.id);
   }
 
+  await logAudit({ action: "update", module: "settings", recordLabel: "Organization profile" });
   revalidatePath("/settings");
   revalidatePath("/");
 }
@@ -1065,7 +1076,14 @@ export async function getTaxClasses() {
 
 /* ---- org-context wrappers: every action runs inside withOrg so currentOrgId() is set ---- */
 export async function saveContact(data: Parameters<typeof _saveContact>[0]) {
-  return withOrg(() => _saveContact(data));
+  const result = await withOrg(() => _saveContact(data));
+  await logAudit({
+    action: data.id ? "update" : "create",
+    module: "contacts",
+    recordId: data.id ?? null,
+    recordLabel: data.displayName,
+  });
+  return result;
 }
 export async function addActivity(contactId: number, kind: string, content: string) {
   return withOrg(() => _addActivity(contactId, kind, content));
@@ -1125,10 +1143,21 @@ export async function saveDocument(data: Parameters<typeof _saveDocument>[0]) {
     const { assertInvoiceCapacity } = await import("./billing-server");
     await assertInvoiceCapacity(access.orgId);
   }
-  return withOrg(() => _saveDocument(data), { requireWrite: true });
+  const docId = await withOrg(() => _saveDocument(data), { requireWrite: true });
+  const [saved] = await db.select({ number: documents.number }).from(documents).where(eq(documents.id, docId)).limit(1);
+  await logAudit({
+    action: data.id ? "update" : "create",
+    module: DOC_MODULE[data.type],
+    recordId: docId,
+    recordLabel: saved?.number,
+  });
+  return docId;
 }
 export async function issueDocument(docId: number) {
-  return withOrg(() => _issueDocument(docId), { requireWrite: true });
+  const result = await withOrg(() => _issueDocument(docId), { requireWrite: true });
+  const [doc] = await db.select({ number: documents.number, type: documents.type }).from(documents).where(eq(documents.id, docId)).limit(1);
+  await logAudit({ action: "issue", module: doc ? DOC_MODULE[doc.type] : "invoices", recordId: docId, recordLabel: doc?.number });
+  return result;
 }
 /** Approve a bill pending approval and post it to the ledger. */
 export async function approveBillAction(docId: number) {
@@ -1152,6 +1181,7 @@ export async function approveBillAction(docId: number) {
       throw e;
     }
     revalidatePath("/purchases/bills");
+    await logAudit({ action: "approve", module: "bills", recordId: docId, recordLabel: claimed.number });
     return { success: true };
   }, { requireWrite: true });
 }
@@ -1168,20 +1198,38 @@ export async function rejectBillAction(docId: number, note: string) {
       .returning();
     if (!claimed) throw new Error("This bill isn't awaiting approval");
     revalidatePath("/purchases/bills");
+    await logAudit({ action: "reject", module: "bills", recordId: docId, recordLabel: claimed.number, detail: note || undefined });
     return { success: true };
   });
 }
 export async function voidDoc(docId: number) {
-  return withOrg(() => _voidDoc(docId));
+  const [doc] = await db.select({ number: documents.number, type: documents.type }).from(documents).where(eq(documents.id, docId)).limit(1);
+  const result = await withOrg(() => _voidDoc(docId));
+  await logAudit({ action: "void", module: doc ? DOC_MODULE[doc.type] : "invoices", recordId: docId, recordLabel: doc?.number });
+  return result;
 }
 export async function markQuote(docId: number, status: "accepted" | "declined") {
-  return withOrg(() => _markQuote(docId, status));
+  const result = await withOrg(() => _markQuote(docId, status));
+  const [doc] = await db.select({ number: documents.number }).from(documents).where(eq(documents.id, docId)).limit(1);
+  await logAudit({ action: status, module: "quotes", recordId: docId, recordLabel: doc?.number });
+  return result;
 }
 export async function convertQuoteToInvoice(quoteId: number) {
-  return withOrg(() => _convertQuoteToInvoice(quoteId));
+  const invId = await withOrg(() => _convertQuoteToInvoice(quoteId));
+  const [doc] = await db.select({ number: documents.number }).from(documents).where(eq(documents.id, invId)).limit(1);
+  await logAudit({ action: "convert_from_quote", module: "invoices", recordId: invId, recordLabel: doc?.number });
+  return invId;
 }
 export async function recordPayment(data: Parameters<typeof _recordPayment>[0]) {
-  return withOrg(() => _recordPayment(data));
+  const paymentId = await withOrg(() => _recordPayment(data));
+  await logAudit({
+    action: data.direction === "out" ? "pay_out" : "receive",
+    module: "payments",
+    recordId: paymentId,
+    recordLabel: data.reference || `Payment #${paymentId}`,
+    detail: `${fmtKES(data.amountCents)} via ${data.method}`,
+  });
+  return paymentId;
 }
 export async function addBankTransaction(data: Parameters<typeof _addBankTransaction>[0]) {
   return withOrg(() => _addBankTransaction(data));
@@ -1193,7 +1241,9 @@ export async function bulkCategorizeTransactions(updates: { txnId: number; categ
   return withOrg(() => _bulkCategorizeTransactions(updates));
 }
 export async function createManualJournal(data: Parameters<typeof _createManualJournal>[0]) {
-  return withOrg(() => _createManualJournal(data));
+  const result = await withOrg(() => _createManualJournal(data));
+  await logAudit({ action: "create", module: "accountant", recordLabel: data.memo || "Manual journal entry" });
+  return result;
 }
 
 /* ---------------- Credit note from invoice / PO → bill ---------------- */

@@ -67,6 +67,7 @@ const groups: {
     items: [
       { href: "/staff", label: "Staff & Roles", icon: "🛡️", perm: "staff" },
       { href: "/recurring", label: "Recurring Templates", icon: "🔁", perm: "accountant" },
+      { href: "/settings/audit-logs", label: "Audit Logs", icon: "🕵️", perm: "__admin_only" },
       { href: "/settings", label: "Settings", icon: "⚙️", perm: "settings" },
     ],
   },
@@ -80,11 +81,13 @@ interface SidebarProps {
   perms?: string[];
   roleLabel?: string;
   timeTrackingEnabled?: boolean;
+  /** Strictly owner/admin — audit logs are never role-toggleable, unlike every other module. */
+  isAdmin?: boolean;
   /** Tailwind top-offset class for the mobile fixed bar, e.g. "top-9" when an announcement banner is showing above it. */
   topOffsetClass?: string;
 }
 
-export function Sidebar({ orgName, orgEmail, logoUrl, perms, roleLabel, timeTrackingEnabled, topOffsetClass = "top-0" }: SidebarProps) {
+export function Sidebar({ orgName, orgEmail, logoUrl, perms, roleLabel, timeTrackingEnabled, isAdmin, topOffsetClass = "top-0" }: SidebarProps) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
@@ -97,6 +100,7 @@ export function Sidebar({ orgName, orgEmail, logoUrl, perms, roleLabel, timeTrac
       ...g,
       items: g.items.filter((it) => {
         if (it.href === "/time-tracking" && !timeTrackingEnabled) return false;
+        if (it.perm === "__admin_only") return !!isAdmin;
         return !allowed || allowed.has(it.perm);
       }),
     }))

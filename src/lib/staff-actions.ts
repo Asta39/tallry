@@ -7,6 +7,7 @@ import { getAccess, ROLES, getAllRoles, type Role } from "./access";
 import { createAdminClient } from "./supabase/admin";
 import { nowISO } from "./money";
 import { customRoles } from "@/db";
+import { logAudit } from "./audit";
 
 async function requireAdmin() {
   const access = await getAccess();
@@ -38,14 +39,15 @@ export async function createStaff(data: {
   });
   if (error) throw new Error(`Could not create account: ${error.message}`);
 
-  await db.insert(members).values({
+  const [member] = await db.insert(members).values({
     orgId: access.orgId,
     userId: created.user.id,
     email: data.email.trim().toLowerCase(),
     name: data.name.trim(),
     role,
     createdAt: nowISO(),
-  });
+  }).returning();
+  await logAudit({ action: "create", module: "staff", recordId: member.id, recordLabel: `${data.name} (${role})` });
   revalidatePath("/staff");
 }
 
@@ -59,6 +61,14 @@ export async function updateStaff(memberId: number, patch: { role?: string; acti
       ...(patch.name !== undefined ? { name: patch.name } : {}),
     })
     .where(and(eq(members.orgId, access.orgId), eq(members.id, memberId)));
+  const [m] = await db.select({ name: members.name }).from(members).where(eq(members.id, memberId)).limit(1);
+  await logAudit({
+    action: "update",
+    module: "staff",
+    recordId: memberId,
+    recordLabel: m?.name,
+    detail: JSON.stringify(patch),
+  });
   revalidatePath("/staff");
 }
 
@@ -82,6 +92,12 @@ export async function setRolePermission(role: string, permKey: string, allowed: 
   } else {
     await db.insert(rolePermissions).values({ orgId: access.orgId, role, permKey, allowed });
   }
+  await logAudit({
+    action: "update",
+    module: "staff",
+    recordLabel: `${role} role permissions`,
+    detail: `${permKey} → ${allowed ? "allowed" : "denied"}`,
+  });
   revalidatePath("/staff");
 }
 

@@ -592,3 +592,19 @@ CREATE TABLE IF NOT EXISTS knowledge_articles (
   created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_knowledge_articles_org ON knowledge_articles(org_id);
+
+CREATE TABLE IF NOT EXISTS org_audit_log (
+  id SERIAL PRIMARY KEY,
+  org_id INTEGER NOT NULL REFERENCES org(id),
+  actor_member_id INTEGER,
+  actor_name TEXT NOT NULL,
+  actor_role TEXT NOT NULL,
+  action TEXT NOT NULL,
+  module TEXT NOT NULL,
+  record_id INTEGER,
+  record_label TEXT,
+  detail TEXT,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_org_audit_org_created ON org_audit_log(org_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_org_audit_org_module ON org_audit_log(org_id, module);

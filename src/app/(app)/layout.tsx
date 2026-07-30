@@ -60,6 +60,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           logoUrl={access.orgRow.logoUrl}
           perms={MODULES.map((m) => m.key).filter((k) => access.perms.has(k))}
           roleLabel={access.isOwner ? "Owner" : roleLabels[access.role]}
+          isAdmin={access.isOwner || access.role === "admin"}
           timeTrackingEnabled={access.orgRow.timeTrackingEnabled}
           topOffsetClass={announcement ? "top-9" : "top-0"}
         />
