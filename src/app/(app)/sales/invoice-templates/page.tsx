@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 
 export default async function InvoiceTemplatesPage({ searchParams }: { searchParams: Promise<{ [key: string]: string | string[] | undefined }> }) {
   const sp = await searchParams;
-  await requirePerm("invoices");
+  await requirePerm("invoice_templates");
   return (
     <>
       <DocList

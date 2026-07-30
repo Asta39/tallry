@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 
 export default async function QuoteTemplatesPage({ searchParams }: { searchParams: Promise<{ [key: string]: string | string[] | undefined }> }) {
   const sp = await searchParams;
-  await requirePerm("quotes");
+  await requirePerm("quote_templates");
   return (
     <>
       <DocList
