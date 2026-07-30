@@ -72,6 +72,8 @@ export async function GET(request: Request) {
         react: InvoiceReminder({
           customerName: contact.displayName || "Customer",
           orgName: o?.name ?? "Your supplier",
+          logoUrl: o?.logoUrl,
+          brandColor: o?.brandColor,
           invoiceNumber: inv.number,
           amountDue: fmtKES(inv.totalCents - inv.paidCents),
           dueDate: inv.dueDate,

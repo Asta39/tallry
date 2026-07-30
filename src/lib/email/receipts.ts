@@ -1,4 +1,4 @@
-import { db, documents, contacts, payments } from "@/db";
+import { db, documents, contacts, payments, org } from "@/db";
 import { eq, and } from "drizzle-orm";
 import { sendEmail } from "./resend";
 import PaymentReceipt from "./templates/PaymentReceipt";
@@ -18,11 +18,16 @@ export async function sendPaymentReceipt(paymentId: number) {
   const [contact] = await db.select().from(contacts).where(eq(contacts.id, doc.contactId));
   if (!contact || !contact.email) return;
 
+  const [o] = await db.select().from(org).where(eq(org.id, payment.orgId));
+
   const token = await getOrCreateReceiptToken(payment.orgId, payment.id)
     .catch(e => { console.error("Receipt token failed:", e); return null; });
 
   // Send the email
   const htmlComponent = PaymentReceipt({
+    orgName: o?.name ?? "Your supplier",
+    logoUrl: o?.logoUrl,
+    brandColor: o?.brandColor,
     customerName: contact.displayName || contact.companyName || "Customer",
     amount: fmtKES(payment.amountCents),
     invoiceNumber: doc.number,
@@ -34,7 +39,7 @@ export async function sendPaymentReceipt(paymentId: number) {
 
   await sendEmail({
     to: contact.email,
-    subject: `Payment Receipt for Invoice ${doc.number}`,
+    subject: `Payment Receipt for Invoice ${doc.number} — ${o?.name ?? ""}`,
     react: htmlComponent,
   });
 }

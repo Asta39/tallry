@@ -4,15 +4,18 @@ import {
   Container,
   Head,
   Heading,
-  Hr,
   Html,
   Preview,
   Section,
   Text,
 } from "@react-email/components";
 import React from "react";
+import { EmailHeader, EmailFooter } from "./Brand";
 
 interface PaymentReceiptProps {
+  orgName: string;
+  logoUrl?: string | null;
+  brandColor?: string | null;
   customerName: string;
   amount: string;
   invoiceNumber: string;
@@ -23,6 +26,9 @@ interface PaymentReceiptProps {
 }
 
 export const PaymentReceipt = ({
+  orgName,
+  logoUrl,
+  brandColor,
   customerName,
   amount,
   invoiceNumber,
@@ -31,14 +37,20 @@ export const PaymentReceipt = ({
   date,
   receiptUrl,
 }: PaymentReceiptProps) => {
+  const color = brandColor || "#0f172a";
   return (
     <Html>
       <Head />
       <Preview>Receipt for your payment of {amount}</Preview>
       <Body style={main}>
         <Container style={container}>
-          <Heading style={h1}>Payment Received</Heading>
-          
+          <EmailHeader orgName={orgName} logoUrl={logoUrl} brandColor={brandColor} />
+
+          <Section style={{ textAlign: "center" as const, margin: "0 0 24px" }}>
+            <div style={{ ...checkCircle, backgroundColor: color }}>✓</div>
+            <Heading style={h1}>Payment Received</Heading>
+          </Section>
+
           <Text style={text}>Hi {customerName},</Text>
           <Text style={text}>
             We have successfully received your payment of <strong>{amount}</strong> for Invoice <strong>{invoiceNumber}</strong>.
@@ -47,7 +59,7 @@ export const PaymentReceipt = ({
           <Section style={receiptSection}>
             <Text style={receiptItem}>
               <span style={receiptLabel}>Amount Paid:</span>
-              <span style={receiptValue}>{amount}</span>
+              <span style={{ ...receiptValue, color }}>{amount}</span>
             </Text>
             <Text style={receiptItem}>
               <span style={receiptLabel}>Date:</span>
@@ -68,11 +80,12 @@ export const PaymentReceipt = ({
               <Button
                 href={receiptUrl}
                 style={{
-                  backgroundColor: "#111827",
+                  backgroundColor: color,
                   color: "#ffffff",
-                  padding: "12px 24px",
+                  padding: "12px 28px",
                   borderRadius: "8px",
                   fontSize: "14px",
+                  fontWeight: 600,
                   textDecoration: "none",
                 }}
               >
@@ -81,20 +94,16 @@ export const PaymentReceipt = ({
             </Section>
           )}
 
-          <Hr style={hr} />
-          <Text style={footer}>
-            Thank you for your business!<br />
-            If you have any questions, please reply to this email.
-          </Text>
+          <Text style={text}>Thank you for your business!</Text>
+          <EmailFooter orgName={orgName} />
         </Container>
       </Body>
     </Html>
   );
 };
 
-// Styles
 const main = {
-  backgroundColor: "#f6f9fc",
+  backgroundColor: "#f1f5f9",
   fontFamily:
     '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Ubuntu,sans-serif',
 };
@@ -102,33 +111,47 @@ const main = {
 const container = {
   backgroundColor: "#ffffff",
   margin: "0 auto",
-  padding: "40px 20px",
+  padding: "36px 32px",
+  marginTop: "32px",
   marginBottom: "64px",
-  borderRadius: "8px",
-  boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
-  maxWidth: "600px",
+  borderRadius: "16px",
+  boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
+  maxWidth: "560px",
+};
+
+const checkCircle: React.CSSProperties = {
+  width: "48px",
+  height: "48px",
+  borderRadius: "999px",
+  color: "#ffffff",
+  fontSize: "22px",
+  fontWeight: 700,
+  lineHeight: "48px",
+  textAlign: "center",
+  margin: "0 auto 12px",
 };
 
 const h1 = {
-  color: "#333",
-  fontSize: "24px",
-  fontWeight: "600",
-  lineHeight: "40px",
-  margin: "0 0 20px",
+  color: "#111827",
+  fontSize: "20px",
+  fontWeight: "700",
+  lineHeight: "28px",
+  margin: "0",
+  textAlign: "center" as const,
 };
 
 const text = {
-  color: "#333",
+  color: "#374151",
   fontSize: "14px",
   lineHeight: "24px",
 };
 
 const receiptSection = {
   backgroundColor: "#f9fafb",
-  padding: "24px",
-  borderRadius: "8px",
-  marginTop: "24px",
-  marginBottom: "24px",
+  padding: "20px 24px",
+  borderRadius: "12px",
+  marginTop: "20px",
+  marginBottom: "8px",
 };
 
 const receiptItem = {
@@ -146,17 +169,7 @@ const receiptLabel = {
 
 const receiptValue = {
   fontWeight: "600",
-};
-
-const hr = {
-  borderColor: "#e6ebf1",
-  margin: "20px 0",
-};
-
-const footer = {
-  color: "#8898aa",
-  fontSize: "12px",
-  lineHeight: "16px",
+  color: "#111827",
 };
 
 export default PaymentReceipt;
