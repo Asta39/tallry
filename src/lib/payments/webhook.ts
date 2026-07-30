@@ -1,5 +1,5 @@
 import crypto from "crypto";
-import { db, paymentEvents, paymentGateways } from "@/db";
+import { db, paymentEvents, paymentGateways, documents } from "@/db";
 import { eq, and } from "drizzle-orm";
 import { getGateway, isInboundFailure, InboundPayment, GatewayId } from "./gateway";
 import { matchPayment } from "./match";
@@ -7,6 +7,9 @@ import { recordPayment } from "@/lib/actions";
 import { sendPaymentReceipt } from "@/lib/email/receipts";
 import { sendPaymentReceiptSms } from "@/lib/sms/receipts";
 import { orgContext } from "@/lib/org";
+import { postEntry, acct } from "@/lib/posting";
+import { SYS } from "@/lib/coa";
+import { ensureExpandedChartOfAccounts } from "@/lib/org";
 
 function timingSafeEqualStr(a: string, b: string): boolean {
   const ab = Buffer.from(a, "utf8");
@@ -178,9 +181,35 @@ async function applyInbound(orgId: number, gatewayId: GatewayId, inbound: Inboun
   // 5. Record money last. If this throws, the event row stays 'received'
   //    with the receipt ref — visible for manual review, safe on retry.
   try {
+    // Mobile money moves whole shillings only; an invoice total with cents
+    // (VAT math routinely produces them) can never be paid exactly through
+    // M-Pesa/Kopo Kopo. Recording the raw received amount leaves a stray few
+    // cents owed either way forever — record exactly the invoice's true
+    // balance instead, and absorb the small difference as a rounding entry so
+    // the customer's balance lands at precisely zero.
+    let amountToRecord = inbound.amountCents;
+    if (direction === "in") {
+      const [doc] = await db
+        .select({ totalCents: documents.totalCents, paidCents: documents.paidCents, creditedCents: documents.creditedCents })
+        .from(documents)
+        .where(and(eq(documents.orgId, orgId), eq(documents.id, matchedInvoiceId)))
+        .limit(1);
+      if (doc) {
+        const balanceCents = doc.totalCents - doc.paidCents - doc.creditedCents;
+        const diff = inbound.amountCents - balanceCents;
+        // Cap at 99 cents — a whole-shilling rounding artifact is at most
+        // that; anything larger is a real under/overpayment and must show up
+        // as a genuine balance, not be silently written off.
+        if (diff !== 0 && Math.abs(diff) < 100) {
+          amountToRecord = balanceCents;
+          await absorbRounding(orgId, diff, new Date().toISOString().split("T")[0], inbound.providerRef);
+        }
+      }
+    }
+
     const paymentId = await recordPayment({
       documentId: matchedInvoiceId,
-      amountCents: inbound.amountCents,
+      amountCents: amountToRecord,
       method: gatewayId === "mpesa_daraja" ? "mpesa" : "kopokopo",
       reference: inbound.providerRef,
       date: new Date().toISOString().split("T")[0],
@@ -201,4 +230,46 @@ async function applyInbound(orgId: number, gatewayId: GatewayId, inbound: Inboun
       .where(eq(paymentEvents.id, claimed.id));
     return { kind: "processed", status: "failed" };
   }
+}
+
+/**
+ * Posts a whole-shilling rounding difference to the Rounding Adjustments
+ * income account, offset against Undeposited Funds — the same account
+ * postPayment() debits/credits for gateway-received cash, so Undeposited
+ * Funds still ends up holding exactly what was actually received even though
+ * the amount applied to the invoice itself was rounded to the true balance.
+ *
+ * diff > 0: customer's mobile-money payment rounded up past the balance due
+ *           (extra cash in, small gain).
+ * diff < 0: rounded down short of the balance due (small shortfall).
+ */
+async function absorbRounding(orgId: number, diffCents: number, date: string, providerRef: string) {
+  // Called from within applyInbound, which already runs inside this org's
+  // orgContext — currentOrgId() below resolves correctly without re-entering it.
+  let roundingAccountId: number;
+  try {
+    roundingAccountId = await acct(SYS.ROUNDING);
+  } catch {
+    // Org predates this account being added to the seed chart — provision it
+    // on the fly rather than losing the rounding write-off.
+    await ensureExpandedChartOfAccounts(orgId);
+    roundingAccountId = await acct(SYS.ROUNDING);
+  }
+  const undepositedId = await acct(SYS.UNDEPOSITED);
+  const amount = Math.abs(diffCents);
+  await postEntry({
+    date,
+    memo: `Rounding adjustment — ${providerRef}`,
+    sourceType: "rounding_adjustment",
+    lines:
+      diffCents > 0
+        ? [
+            { accountId: undepositedId, debitCents: amount },
+            { accountId: roundingAccountId, creditCents: amount },
+          ]
+        : [
+            { accountId: roundingAccountId, debitCents: amount },
+            { accountId: undepositedId, creditCents: amount },
+          ],
+  });
 }

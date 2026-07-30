@@ -14,6 +14,7 @@ export const SYS = {
   UNDEPOSITED: "1050",
   SALES: "4000",
   OTHER_INCOME: "4100",
+  ROUNDING: "4110", // whole-shilling rounding differences from mobile-money settlement
   COGS: "5000",
   INVENTORY_ADJ: "5100",
   OPENING_BALANCE: "3900",
@@ -71,6 +72,7 @@ export const SEED_ACCOUNTS: AccountSeed[] = [
   // --- INCOME (4000 – 4999) ---
   { code: "4000", name: "Sales & Operating Income", type: "income", subtype: "income", description: "Primary gross revenue earned from core commercial sales of products and services.", system: true },
   { code: "4100", name: "Other Revenue", type: "income", subtype: "income", description: "Secondary revenue earned from interest on cash deposits, scrap sales, or exchange rate gains.", system: true },
+  { code: "4110", name: "Rounding Adjustments", type: "income", subtype: "income", description: "Small differences absorbed when M-Pesa/mobile-money can only move whole shillings against an invoice total that includes cents — keeps customer balances at exactly zero instead of leaving a stray few cents owed either way.", system: true },
   { code: "4200", name: "Shipping & Freight Income", type: "income", subtype: "income", description: "Delivery, logistics, and shipping fees billed directly to customers on sales invoices." },
 
   // --- EXPENSES & COGS (5000 – 6999) ---
