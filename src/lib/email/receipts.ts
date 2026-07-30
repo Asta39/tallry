@@ -33,6 +33,7 @@ export async function sendPaymentReceipt(paymentId: number) {
     invoiceNumber: doc.number,
     paymentMethod: payment.method,
     receiptNumber: `RCPT-${payment.id}`,
+    reference: payment.reference,
     date: payment.date,
     receiptUrl: token ? await receiptUrl(token) : undefined,
   });

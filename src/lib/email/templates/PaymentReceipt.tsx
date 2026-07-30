@@ -21,6 +21,7 @@ interface PaymentReceiptProps {
   invoiceNumber: string;
   paymentMethod: string;
   receiptNumber: string;
+  reference?: string | null;
   date: string;
   receiptUrl?: string;
 }
@@ -34,6 +35,7 @@ export const PaymentReceipt = ({
   invoiceNumber,
   paymentMethod,
   receiptNumber,
+  reference,
   date,
   receiptUrl,
 }: PaymentReceiptProps) => {
@@ -73,6 +75,12 @@ export const PaymentReceipt = ({
               <span style={receiptLabel}>Receipt #:</span>
               <span style={receiptValue}>{receiptNumber}</span>
             </Text>
+            {reference && (
+              <Text style={receiptItem}>
+                <span style={receiptLabel}>Reference:</span>
+                <span style={receiptValue}>{reference}</span>
+              </Text>
+            )}
           </Section>
 
           {receiptUrl && (
