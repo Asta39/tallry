@@ -296,12 +296,20 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
           { header: "Net", align: "right", widthPct: 20 },
         ];
         const rowsData = await monthlyIncomeExpense(12);
+        let ieIncomeTotal = 0, ieExpenseTotal = 0;
         rowsData.forEach(r => {
           const net = r.incomeCents - r.expenseCents;
+          ieIncomeTotal += r.incomeCents;
+          ieExpenseTotal += r.expenseCents;
           rows.push({
             id: r.month,
             cells: [r.label, fmtKES(r.incomeCents), fmtKES(r.expenseCents), fmtKES(net)]
           });
+        });
+        rows.push({
+          id: "tot",
+          cells: ["Total (12 months)", fmtKES(ieIncomeTotal), fmtKES(ieExpenseTotal), fmtKES(ieIncomeTotal - ieExpenseTotal)],
+          isBold: true,
         });
 
       } else if (type === "cash-flow") {

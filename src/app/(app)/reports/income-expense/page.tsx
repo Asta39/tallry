@@ -39,6 +39,21 @@ export default async function IncomeExpensePage() {
               </tr>
             );
           })}
+          {(() => {
+            const totalIncome = rows.reduce((s, r) => s + r.incomeCents, 0);
+            const totalExpense = rows.reduce((s, r) => s + r.expenseCents, 0);
+            const totalNet = totalIncome - totalExpense;
+            return (
+              <tr className="hairline-t bg-[var(--color-ink-50)]">
+                <Td className="font-semibold">Total ({rows.length} months)</Td>
+                <Td right className="font-semibold text-[var(--color-good)]">{fmtKES(totalIncome)}</Td>
+                <Td right className="font-semibold text-[var(--color-bad)]">{fmtKES(totalExpense)}</Td>
+                <Td right className={`font-bold ${totalNet >= 0 ? "text-[var(--color-good)]" : "text-[var(--color-bad)]"}`}>
+                  {fmtKES(totalNet)}
+                </Td>
+              </tr>
+            );
+          })()}
         </tbody>
       </TableCard>
     </>
