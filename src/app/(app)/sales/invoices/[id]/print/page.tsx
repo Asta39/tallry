@@ -75,6 +75,7 @@ export default async function PrintInvoice({ params }: { params: Promise<{ id: s
         <table className="w-full mt-8 border-collapse">
           <thead>
             <tr className="border-b-2 border-black text-left">
+              <th className="py-2 pr-2">#</th>
               <th className="py-2 pr-2">Description</th>
               <th className="py-2 px-2 text-right">Qty</th>
               <th className="py-2 px-2 text-right">Unit price</th>
@@ -83,8 +84,9 @@ export default async function PrintInvoice({ params }: { params: Promise<{ id: s
             </tr>
           </thead>
           <tbody>
-            {lines.map((l) => (
+            {lines.map((l, i) => (
               <tr key={l.id} className="border-b border-gray-200">
+                <td className="py-2 pr-2 text-gray-500">{i + 1}</td>
                 <td className="py-2 pr-2"><LineDescription itemName={l.itemName} description={l.description} /></td>
                 <td className="py-2 px-2 text-right">{l.qty}</td>
                 <td className="py-2 px-2 text-right">{fmtKES(l.unitPriceCents)}</td>

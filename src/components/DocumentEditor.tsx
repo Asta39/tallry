@@ -424,6 +424,7 @@ export function DocumentEditor({
         <table className="w-full min-w-[720px]">
           <thead className="hairline-b">
             <tr className="text-[11.5px] uppercase tracking-wide text-[var(--color-ink-400)]">
+              <th className="text-left px-2 py-2.5 font-semibold w-[3%]">#</th>
               <th className="text-left px-4 py-2.5 font-semibold w-[34%]">Item / description</th>
               <th className="text-right px-2 py-2.5 font-semibold w-[8%]">Qty</th>
               <th className="text-right px-2 py-2.5 font-semibold w-[13%]">Price (KSh)</th>
@@ -450,6 +451,7 @@ export function DocumentEditor({
               const t = totals.lines[parsedLines.findIndex((_, pi) => pi === i)] ?? null;
               return (
                 <tr key={i} className="hairline-t align-top">
+                  <td className="px-2 py-3.5 text-[13px] tnum text-[var(--color-ink-400)]">{i + 1}</td>
                   <td className="px-3 py-2">
                     {items.length > 0 && (
                       <SearchableSelect

@@ -193,7 +193,8 @@ function makeStyles(brand: string) {
     },
     th: { fontSize: 7.5, fontFamily: "Helvetica-Bold", color: "#ffffff", textTransform: "uppercase", letterSpacing: 0.6 },
     tr: { flexDirection: "row", borderBottomWidth: 0.5, borderBottomColor: "#e8e8ed", paddingVertical: 5.5, paddingHorizontal: 4 },
-    cDesc: { width: "40%", paddingRight: 6 },
+    cNum: { width: "5%" },
+    cDesc: { width: "35%", paddingRight: 6 },
     cDescShrunk: { width: "25%", paddingRight: 6 },
     itemName: { fontFamily: "Helvetica-Bold" },
     itemDesc: { color: "#6e6e73", fontSize: 8.5, marginTop: 1.5 },
@@ -503,6 +504,7 @@ export function DocumentPdf({
             };
             return (
               <View style={[s.thRow, { backgroundColor: thStyle.backgroundColor }]}>
+                <Text style={[s.th, s.cNum, { color: thStyle.color }]}>#</Text>
                 <Text style={[s.th, s.cDesc, { color: thStyle.color }]}>Description</Text>
                 <Text style={[s.th, s.cQty, { color: thStyle.color }]}>Qty</Text>
                 <Text style={[s.th, s.cPrice, { color: thStyle.color }]}>Unit price</Text>
@@ -526,6 +528,7 @@ export function DocumentPdf({
               const thText = isMinimal ? "#1d1d1f" : "#ffffff";
               
               const elements = [];
+              let seq = 0;
               for (const [cat, catLines] of grouped.entries()) {
                 elements.push(
                   <View key={`cat-${cat}`} style={[s.tr, { backgroundColor: "#f5f5f7", borderBottom: "0.5px solid #d2d2d7" }]} wrap={false}>
@@ -533,8 +536,10 @@ export function DocumentPdf({
                   </View>
                 );
                 for (const l of catLines) {
+                  seq++;
                   elements.push(
                     <View style={s.tr} key={`line-${cat}-${l.description}-${l.qty}-${elements.length}`} wrap={false}>
+                      <Text style={s.cNum}>{seq}</Text>
                       <DescCell line={l} s={s} />
                       <Text style={s.cQty}>{l.qty}</Text>
                       <Text style={s.cPrice}>{fmtKES(l.unitPriceCents)}</Text>
@@ -551,6 +556,7 @@ export function DocumentPdf({
 
             return lines.map((l, i) => (
               <View style={s.tr} key={i} wrap={false}>
+                <Text style={s.cNum}>{i + 1}</Text>
                 <DescCell line={l} s={s} />
                 <Text style={s.cQty}>{l.qty}</Text>
                 <Text style={s.cPrice}>{fmtKES(l.unitPriceCents)}</Text>

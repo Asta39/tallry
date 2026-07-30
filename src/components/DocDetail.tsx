@@ -160,6 +160,7 @@ export async function DocDetail({ id, printHref }: { id: number; printHref?: str
         <table className="w-full min-w-[560px]">
           <thead className="hairline-b">
             <tr>
+              <Th>#</Th>
               <Th>Description</Th>
               <Th right>Qty</Th>
               <Th right>Price</Th>
@@ -178,17 +179,20 @@ export async function DocDetail({ id, printHref }: { id: number; printHref?: str
                   grouped.get(cat)!.push(l);
                 }
                 const elements = [];
+                let seq = 0;
                 for (const [cat, catLines] of grouped.entries()) {
                   elements.push(
                     <tr key={`cat-${cat}`} className="hairline-t bg-[var(--color-ink-50)]">
-                      <td colSpan={6} className="px-4 py-2 text-[13px] font-semibold text-[var(--color-ink-900)]">
+                      <td colSpan={7} className="px-4 py-2 text-[13px] font-semibold text-[var(--color-ink-900)]">
                         {cat}
                       </td>
                     </tr>
                   );
                   for (const l of catLines) {
+                    seq++;
                     elements.push(
                       <tr key={l.id} className="hairline-t">
+                        <Td className="text-[var(--color-ink-400)]">{seq}</Td>
                         <Td><LineDescription itemName={l.itemName} description={l.description} /></Td>
                         <Td right>{l.qty}</Td>
                         <Td right>{fmtKES(l.unitPriceCents)}</Td>
@@ -204,8 +208,9 @@ export async function DocDetail({ id, printHref }: { id: number; printHref?: str
                 return <>{elements}</>;
               }
 
-              return lines.map((l) => (
+              return lines.map((l, i) => (
                 <tr key={l.id} className="hairline-t">
+                  <Td className="text-[var(--color-ink-400)]">{i + 1}</Td>
                   <Td><LineDescription itemName={l.itemName} description={l.description} /></Td>
                   <Td right>{l.qty}</Td>
                   <Td right>{fmtKES(l.unitPriceCents)}</Td>
