@@ -6,7 +6,7 @@ import Link from "next/link";
 export const dynamic = "force-dynamic";
 
 export default async function NewEmployeePage() {
-  await requirePerm("accountant");
+  await requirePerm("payroll");
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">

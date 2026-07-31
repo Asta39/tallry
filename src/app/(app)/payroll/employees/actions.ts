@@ -8,7 +8,7 @@ import { getAccess } from "@/lib/access";
 import { and, eq } from "drizzle-orm";
 
 export async function createEmployeeAction(formData: FormData) {
-  await requirePerm("accountant");
+  await requirePerm("payroll");
   const o = await getOrg();
 
   const name = formData.get("name") as string;

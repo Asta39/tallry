@@ -22,6 +22,13 @@ export function EmployeeForm() {
         router.push("/payroll/employees");
         router.refresh();
       } catch (e) {
+        // Next's redirect() (e.g. from a requirePerm() check inside the action)
+        // throws a control-flow signal tagged with a NEXT_REDIRECT digest, not
+        // a real error — must rethrow so Next's own boundary handles the
+        // navigation, or it renders as an opaque crash instead of redirecting.
+        if (e && typeof e === "object" && "digest" in e && typeof (e as any).digest === "string" && (e as any).digest.startsWith("NEXT_REDIRECT")) {
+          throw e;
+        }
         setError(e instanceof Error ? e.message : "Could not save employee");
       }
     });
