@@ -2,6 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
+import { MorphingPillText } from "./MorphingPillText";
+
+const PILL_PHRASES = ["Ask Zeno", "Ask Invoices", "Ask Reports", "Ask Quotes", "Ask Bills", "Ask Payroll", "Ask Expenses"];
 
 interface ChatMessage {
   id?: number;
@@ -213,7 +216,12 @@ export function AiAssistantPill({ initialBriefCount = 0 }: { initialBriefCount?:
         style={{ background: "rgba(245,245,247,.85)", backdropFilter: "blur(20px) saturate(1.4)" }}
       >
         <span className="text-[15px]">✦</span>
-        <span className="text-[13px] font-medium text-[var(--color-ink-700)]">{open ? "Zeno" : "Ask Zeno"}</span>
+        <MorphingPillText
+          texts={PILL_PHRASES}
+          enabled={!open}
+          frozenText="Zeno"
+          className="text-[13px] font-medium text-[var(--color-ink-700)]"
+        />
         {!open && badge > 0 && (
           <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-[var(--color-accent-500)] text-white text-[10.5px] font-semibold flex items-center justify-center">
             {badge}

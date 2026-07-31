@@ -4,8 +4,7 @@ import { and, eq, isNull, sql } from "drizzle-orm";
 import { getAccess } from "@/lib/access";
 import { getEntitlements } from "@/lib/billing-server";
 import { nairobiDateISO } from "@/lib/timezone";
-import { runAssistantTurn } from "@/lib/ai/gemini";
-import type { Content } from "@google/genai";
+import { runAssistantTurn, type ChatMessage } from "@/lib/ai/llm";
 
 export const dynamic = "force-dynamic";
 
@@ -39,9 +38,9 @@ export async function POST(req: NextRequest) {
     .where(and(eq(aiMessages.orgId, access.orgId), memberCond, eq(aiMessages.nairobiDate, today)))
     .orderBy(aiMessages.createdAt);
 
-  const history: Content[] = historyRows.map((r) => ({
-    role: r.role === "user" ? "user" : "model",
-    parts: [{ text: r.content }],
+  const history: ChatMessage[] = historyRows.map((r) => ({
+    role: r.role === "user" ? "user" : "assistant",
+    content: r.content,
   }));
 
   const now = new Date().toISOString();

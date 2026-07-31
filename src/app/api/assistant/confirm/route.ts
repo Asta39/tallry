@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db, aiMessages } from "@/db";
 import { getAccess } from "@/lib/access";
 import { nairobiDateISO } from "@/lib/timezone";
-import { executeConfirmedAction } from "@/lib/ai/gemini";
+import { executeConfirmedAction } from "@/lib/ai/llm";
 import { findWriteTool } from "@/lib/ai/tools";
 import { logAudit, type AuditModule } from "@/lib/audit";
 
