@@ -46,7 +46,10 @@ function systemPrompt(): string {
     "to find their real contactId — never fabricate a contactId. If searchContacts returns no match, tell the user " +
     "no such contact exists instead of proceeding. If it returns multiple matches, ask the user which one they mean " +
     "instead of guessing. " +
-    "Amounts are in cents; convert to KES (divide by 100) when speaking to the user. Be concise and direct."
+    "All *Cents tool parameters (unitPriceCents, amountCents, unitCostCents) are in CENTS, never KES — the user " +
+    "speaks in KES (shillings), so multiply what they tell you by 100 before passing it as a tool argument. " +
+    "Example: user says 'price is 5600' or 'KES 5,600' -> pass unitPriceCents: 560000, NOT 5600. " +
+    "When speaking back to the user, do the reverse: divide a *Cents value by 100 to show KES. Be concise and direct."
   );
 }
 

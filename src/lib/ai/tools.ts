@@ -169,7 +169,7 @@ export const WRITE_TOOLS: WriteToolDef[] = [
             properties: {
               description: { type: "string" },
               qty: { type: "number" },
-              unitPriceCents: { type: "number" },
+              unitPriceCents: { type: "number", description: "Price in CENTS, not KES. Multiply the KES amount the user gave you by 100 (e.g. user says KES 5600 -> pass 560000)." },
               taxClass: { type: "string", description: "B16 | C0 | A_EXEMPT | D_NONVAT" },
             },
             required: ["description", "qty", "unitPriceCents", "taxClass"],
@@ -201,7 +201,7 @@ export const WRITE_TOOLS: WriteToolDef[] = [
             properties: {
               description: { type: "string" },
               qty: { type: "number" },
-              unitPriceCents: { type: "number" },
+              unitPriceCents: { type: "number", description: "Price in CENTS, not KES. Multiply the KES amount the user gave you by 100 (e.g. user says KES 5600 -> pass 560000)." },
               taxClass: { type: "string" },
             },
             required: ["description", "qty", "unitPriceCents", "taxClass"],
@@ -233,7 +233,7 @@ export const WRITE_TOOLS: WriteToolDef[] = [
             properties: {
               description: { type: "string" },
               qty: { type: "number" },
-              unitPriceCents: { type: "number" },
+              unitPriceCents: { type: "number", description: "Price in CENTS, not KES. Multiply the KES amount the user gave you by 100 (e.g. user says KES 5600 -> pass 560000)." },
               taxClass: { type: "string" },
             },
             required: ["description", "qty", "unitPriceCents", "taxClass"],
@@ -264,7 +264,7 @@ export const WRITE_TOOLS: WriteToolDef[] = [
             properties: {
               description: { type: "string" },
               qty: { type: "number" },
-              unitPriceCents: { type: "number" },
+              unitPriceCents: { type: "number", description: "Price in CENTS, not KES. Multiply the KES amount the user gave you by 100 (e.g. user says KES 5600 -> pass 560000)." },
               taxClass: { type: "string" },
             },
             required: ["description", "qty", "unitPriceCents", "taxClass"],
@@ -286,7 +286,7 @@ export const WRITE_TOOLS: WriteToolDef[] = [
       properties: {
         documentId: { type: "number" },
         direction: { type: "string", description: "'in' for customer payment, 'out' for vendor payment" },
-        amountCents: { type: "number" },
+        amountCents: { type: "number", description: "Amount in CENTS, not KES. Multiply the KES amount the user gave you by 100 (e.g. user says KES 5600 -> pass 560000)." },
         method: { type: "string", description: "mpesa | bank | cash | card | cheque" },
         date: { type: "string" },
         reference: { type: "string" },
@@ -332,7 +332,7 @@ export const WRITE_TOOLS: WriteToolDef[] = [
       properties: {
         itemId: { type: "number" },
         qtyDelta: { type: "number", description: "Positive to add stock, negative to remove" },
-        unitCostCents: { type: "number" },
+        unitCostCents: { type: "number", description: "Cost in CENTS, not KES. Multiply the KES amount the user gave you by 100 (e.g. user says KES 5600 -> pass 560000)." },
         reason: { type: "string" },
       },
       required: ["itemId", "qtyDelta", "unitCostCents", "reason"],
