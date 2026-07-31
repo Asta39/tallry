@@ -27,16 +27,17 @@ export async function createEmployeeAction(formData: FormData) {
   if (!Number.isFinite(basicSalary) || basicSalaryCents < 0) {
     throw new Error("Enter a valid basic salary");
   }
-  // KRA PIN is required for PAYE remittance filing on iTax — without it payroll can run
-  // but the org won't be able to file correctly for this employee.
-  if (!kraPin || !/^[A-Za-z]\d{9}[A-Za-z]$/.test(kraPin.trim())) {
-    throw new Error("A valid KRA PIN is required (e.g. A123456789Z)");
+  // Optional at add-time — a business may not have it on hand yet. Still
+  // validated when given, since a malformed PIN silently breaks P9/PAYE
+  // filing later with no obvious cause.
+  if (kraPin?.trim() && !/^[A-Za-z]\d{9}[A-Za-z]$/.test(kraPin.trim())) {
+    throw new Error("KRA PIN format looks wrong (e.g. A123456789Z) — leave it blank if you don't have it yet");
   }
 
   await db.insert(employees).values({
     orgId: o.id,
     name,
-    kraPin,
+    kraPin: kraPin?.trim() || null,
     nssfNumber,
     shifNumber,
     basicSalaryCents,

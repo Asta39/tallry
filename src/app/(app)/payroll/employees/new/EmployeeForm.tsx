@@ -82,21 +82,18 @@ export function EmployeeForm() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className={labelCls}>
-              KRA PIN Number <span className="text-red-500">*</span>
-            </label>
+            <label className={labelCls}>KRA PIN Number</label>
             <input
               name="kraPin"
               type="text"
               className={`${inputCls} uppercase font-mono`}
               placeholder="A000000000Z"
               maxLength={11}
-              required
               pattern="[A-Za-z]\d{9}[A-Za-z]"
               title="Format: A123456789Z"
             />
             <p className="text-[11px] text-[var(--color-ink-400)] mt-1">
-              Required for generating monthly P9 returns & PAYE submission.
+              Optional for now — needed later for monthly P9 returns & PAYE submission.
             </p>
           </div>
 
