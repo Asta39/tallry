@@ -100,7 +100,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </div>
         </main>
       </div>
-      <AiAssistantPill initialBriefCount={brief?.count ?? 0} />
+      <AiAssistantPill initialBriefCount={brief?.count ?? 0} brandColor={access.orgRow.brandColor} />
     </>
   );
 }

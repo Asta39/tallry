@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { MorphingPillText } from "./MorphingPillText";
 
 const PILL_PHRASES = ["Ask Zeno", "Ask Invoices", "Ask Reports", "Ask Quotes", "Ask Bills", "Ask Payroll", "Ask Expenses"];
@@ -15,13 +16,13 @@ interface ChatMessage {
 
 function AssistantText({ text }: { text: string }) {
   return (
-    <div className="text-[13.5px] leading-relaxed space-y-2 [&_p]:m-0 [&_ul]:m-0 [&_ul]:pl-4 [&_ul]:list-disc [&_ol]:m-0 [&_ol]:pl-4 [&_ol]:list-decimal [&_li]:my-0.5 [&_strong]:font-semibold [&_h1]:text-[14px] [&_h1]:font-semibold [&_h2]:text-[13.5px] [&_h2]:font-semibold [&_h3]:text-[12px] [&_h3]:font-semibold [&_h3]:uppercase [&_h3]:tracking-wide [&_h3]:text-[var(--color-ink-500)] [&_code]:bg-black/5 [&_code]:rounded [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-[12px]">
-      <ReactMarkdown>{text}</ReactMarkdown>
+    <div className="text-[13.5px] leading-relaxed space-y-2 [&_p]:m-0 [&_ul]:m-0 [&_ul]:pl-4 [&_ul]:list-disc [&_ol]:m-0 [&_ol]:pl-4 [&_ol]:list-decimal [&_li]:my-0.5 [&_strong]:font-semibold [&_h1]:text-[14px] [&_h1]:font-semibold [&_h2]:text-[13.5px] [&_h2]:font-semibold [&_h3]:text-[12px] [&_h3]:font-semibold [&_h3]:uppercase [&_h3]:tracking-wide [&_h3]:text-[var(--color-ink-500)] [&_code]:bg-black/5 [&_code]:rounded [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-[12px] [&_table]:w-full [&_table]:border-collapse [&_table]:my-1 [&_th]:text-left [&_th]:text-[11px] [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-wide [&_th]:text-[var(--color-ink-500)] [&_th]:pb-1.5 [&_th]:pr-3 [&_th]:border-b [&_th]:border-black/10 [&_td]:py-1.5 [&_td]:pr-3 [&_td]:border-b [&_td]:border-black/5 [&_td]:align-top [&_tr:last-child_td]:border-b-0">
+      <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
     </div>
   );
 }
 
-export function AiAssistantPill({ initialBriefCount = 0 }: { initialBriefCount?: number }) {
+export function AiAssistantPill({ initialBriefCount = 0, brandColor }: { initialBriefCount?: number; brandColor?: string | null }) {
   const [open, setOpen] = useState(false);
   const [loadedHistory, setLoadedHistory] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -132,7 +133,11 @@ export function AiAssistantPill({ initialBriefCount = 0 }: { initialBriefCount?:
   }
 
   return (
-    <div ref={containerRef} className="no-print fixed bottom-4 inset-x-0 z-[70] flex flex-col items-center gap-3 px-4 pointer-events-none">
+    <div
+      ref={containerRef}
+      className="no-print fixed bottom-4 inset-x-0 z-[70] flex flex-col items-center gap-3 px-4 pointer-events-none"
+      style={brandColor ? ({ "--color-brand": brandColor } as React.CSSProperties) : undefined}
+    >
       {/* Panel — anchored directly above the pill, pill never disappears. */}
       {open && (
         <div className="pointer-events-auto w-full max-w-xl max-h-[65vh] flex flex-col rounded-[28px] overflow-hidden border border-black/5 shadow-2xl animate-[zeno-pop_0.18s_ease-out]" style={{ background: "rgba(255,255,255,.92)", backdropFilter: "blur(28px) saturate(1.6)" }}>

@@ -49,7 +49,14 @@ function systemPrompt(): string {
     "All *Cents tool parameters (unitPriceCents, amountCents, unitCostCents) are in CENTS, never KES — the user " +
     "speaks in KES (shillings), so multiply what they tell you by 100 before passing it as a tool argument. " +
     "Example: user says 'price is 5600' or 'KES 5,600' -> pass unitPriceCents: 560000, NOT 5600. " +
-    "When speaking back to the user, do the reverse: divide a *Cents value by 100 to show KES. Be concise and direct."
+    "When speaking back to the user, do the reverse: divide a *Cents value by 100 to show KES. " +
+    "Kenya accounting context: standard VAT is 16% (taxClass B16), zero-rated exports/certain goods use C0, " +
+    "fully exempt goods/services use A_EXEMPT, and non-VAT items (e.g. wages) use D_NONVAT — pick the class that " +
+    "matches what the user describes rather than defaulting to one. Withholding tax (WHT) is typically deducted " +
+    "by an appointed withholding agent when paying certain professional/rental invoices — mention it only if " +
+    "relevant. KRA PIN format is one letter, 9 digits, one letter (e.g. A123456789Z). " +
+    "Keep replies concise — short paragraphs or a compact list, not long tables, since responses render in a " +
+    "small chat panel. Be direct and avoid restating the question back."
   );
 }
 

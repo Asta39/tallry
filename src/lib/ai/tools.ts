@@ -1,8 +1,8 @@
-import { db, contacts, documents, items } from "@/db";
-import { and, eq, ilike } from "drizzle-orm";
+import { db, contacts, documents, items, accounts, journalEntries, journalLines } from "@/db";
+import { and, eq, ilike, inArray } from "drizzle-orm";
 import { withOrg } from "@/lib/org";
 import type { Access } from "@/lib/access";
-import { aging, profitAndLoss, accountBalances, dashboardStats, vatReturn } from "@/lib/reports";
+import { aging, profitAndLoss, accountBalances, dashboardStats, vatReturn, customerProfitability, costCenterPnL, withholdingTaxReport, vat3Prefill } from "@/lib/reports";
 import { stockOnHand } from "@/lib/inventory";
 import { todayISO, fmtKES } from "@/lib/money";
 import { getDailyBrief } from "./brief";
@@ -22,6 +22,14 @@ export interface ToolDef {
   run: (args: any, access: Access) => Promise<unknown>;
 }
 
+/** Cheap batch name lookup so tool results are self-contained (fewer follow-up round-trips = fewer tokens overall). */
+async function contactNamesFor(orgId: number, ids: (number | null)[]): Promise<Map<number, string>> {
+  const uniqueIds = [...new Set(ids.filter((id): id is number => id != null))];
+  if (uniqueIds.length === 0) return new Map();
+  const rows = await db.select({ id: contacts.id, displayName: contacts.displayName }).from(contacts).where(and(eq(contacts.orgId, orgId), inArray(contacts.id, uniqueIds)));
+  return new Map(rows.map((r) => [r.id, r.displayName]));
+}
+
 export const READ_TOOLS: ToolDef[] = [
   {
     name: "getDailyBrief",
@@ -33,13 +41,24 @@ export const READ_TOOLS: ToolDef[] = [
     name: "getOverdueInvoices",
     description: "List overdue customer invoices (unpaid past due date) with amounts and days overdue.",
     parameters: { type: "object", properties: {} },
-    run: async () => withOrg(() => aging("invoice", todayISO())),
+    // aging()'s rows carry every document column (notes, eTIMS fields, etc) —
+    // fine for the app's own aging report page, way too many tokens to feed
+    // an LLM every turn. Slim to what the model actually needs to answer.
+    run: async (_args, access) => {
+      const { rows, total } = await withOrg(() => aging("invoice", todayISO()));
+      const names = await contactNamesFor(access.orgId, rows.map((r) => r.contactId));
+      return { total, count: rows.length, invoices: rows.map((r) => ({ id: r.id, number: r.number, customer: names.get(r.contactId!) ?? `contact #${r.contactId}`, dueDate: r.dueDate, balanceCents: r.balanceCents, daysOverdue: r.daysOverdue })) };
+    },
   },
   {
     name: "getOverdueBills",
     description: "List overdue vendor bills (unpaid past due date) with amounts and days overdue.",
     parameters: { type: "object", properties: {} },
-    run: async () => withOrg(() => aging("bill", todayISO())),
+    run: async (_args, access) => {
+      const { rows, total } = await withOrg(() => aging("bill", todayISO()));
+      const names = await contactNamesFor(access.orgId, rows.map((r) => r.contactId));
+      return { total, count: rows.length, bills: rows.map((r) => ({ id: r.id, number: r.number, vendor: names.get(r.contactId!) ?? `contact #${r.contactId}`, dueDate: r.dueDate, balanceCents: r.balanceCents, daysOverdue: r.daysOverdue })) };
+    },
   },
   {
     name: "getProfitAndLoss",
@@ -84,6 +103,101 @@ export const READ_TOOLS: ToolDef[] = [
       required: ["from", "to"],
     },
     run: async (args) => withOrg(() => vatReturn(args.from, args.to)),
+  },
+  {
+    name: "getVat3Prefill",
+    description: "Get the KRA VAT3 return prefill data (output/input VAT by class) for a date range — for tax filing.",
+    parameters: {
+      type: "object",
+      properties: {
+        from: { type: "string", description: "Start date, YYYY-MM-DD" },
+        to: { type: "string", description: "End date, YYYY-MM-DD" },
+      },
+      required: ["from", "to"],
+    },
+    run: async (args) => withOrg(() => vat3Prefill(args.from, args.to)),
+  },
+  {
+    name: "getWithholdingTaxReport",
+    description: "Get withholding tax (WHT) withheld by customers when paying invoices, for a date range — a prepaid tax asset offsettable against corporate income tax.",
+    parameters: {
+      type: "object",
+      properties: {
+        from: { type: "string", description: "Start date, YYYY-MM-DD" },
+        to: { type: "string", description: "End date, YYYY-MM-DD" },
+      },
+      required: ["from", "to"],
+    },
+    run: async (args) => withOrg(() => withholdingTaxReport(args.from, args.to)),
+  },
+  {
+    name: "getCustomerProfitability",
+    description: "Get revenue, direct cost, and margin for one customer over a date range. Requires the customer's contactId — call searchContacts first if you only have a name.",
+    parameters: {
+      type: "object",
+      properties: {
+        contactId: { type: "number" },
+        from: { type: "string", description: "Start date, YYYY-MM-DD" },
+        to: { type: "string", description: "End date, YYYY-MM-DD" },
+      },
+      required: ["contactId", "from", "to"],
+    },
+    run: async (args) => withOrg(() => customerProfitability(args.contactId, args.from, args.to)),
+  },
+  {
+    name: "getCostCenterPnL",
+    description: "Get income and expense totals broken down by cost center (department/project/location) for a date range.",
+    parameters: {
+      type: "object",
+      properties: {
+        from: { type: "string", description: "Start date, YYYY-MM-DD" },
+        to: { type: "string", description: "End date, YYYY-MM-DD" },
+      },
+      required: ["from", "to"],
+    },
+    run: async (args) => withOrg(() => costCenterPnL(args.from, args.to)),
+  },
+  {
+    name: "getChartOfAccounts",
+    description: "List every account in the chart of accounts (code, name, type, subtype) — use this to find the right account when categorizing a transaction or answering questions about account structure.",
+    parameters: { type: "object", properties: {} },
+    run: async (_args, access) =>
+      withOrg(() =>
+        db
+          .select({ code: accounts.code, name: accounts.name, type: accounts.type, subtype: accounts.subtype })
+          .from(accounts)
+          .where(eq(accounts.orgId, access.orgId))
+          .orderBy(accounts.code)
+      ),
+  },
+  {
+    name: "explainDocument",
+    description: "Get the full journal entry (ledger postings) behind a specific document — use this to explain 'why did this affect the books this way' for an invoice, bill, payment, or expense.",
+    parameters: {
+      type: "object",
+      properties: { documentId: { type: "number" } },
+      required: ["documentId"],
+    },
+    run: async (args, access) =>
+      withOrg(async () => {
+        const [doc] = await db.select({ id: documents.id, number: documents.number, type: documents.type, journalEntryId: documents.journalEntryId }).from(documents).where(and(eq(documents.orgId, access.orgId), eq(documents.id, args.documentId))).limit(1);
+        if (!doc) throw new Error(`No document found with id ${args.documentId} in this org.`);
+        if (!doc.journalEntryId) return { document: doc.number, posted: false, note: "This document hasn't been posted to the ledger yet (still a draft)." };
+        const [entry] = await db.select({ date: journalEntries.date, memo: journalEntries.memo }).from(journalEntries).where(eq(journalEntries.id, doc.journalEntryId)).limit(1);
+        const lines = await db
+          .select({ accountId: journalLines.accountId, debitCents: journalLines.debitCents, creditCents: journalLines.creditCents, memo: journalLines.memo })
+          .from(journalLines)
+          .where(eq(journalLines.entryId, doc.journalEntryId));
+        const accountIds = [...new Set(lines.map((l) => l.accountId))];
+        const accountRows = await db.select({ id: accounts.id, code: accounts.code, name: accounts.name }).from(accounts).where(inArray(accounts.id, accountIds));
+        const accountById = new Map(accountRows.map((a) => [a.id, a]));
+        return {
+          document: doc.number,
+          date: entry?.date,
+          memo: entry?.memo,
+          lines: lines.map((l) => ({ account: `${accountById.get(l.accountId)?.code} ${accountById.get(l.accountId)?.name}`, debitCents: l.debitCents, creditCents: l.creditCents, memo: l.memo })),
+        };
+      }),
   },
   {
     name: "getStockLevel",

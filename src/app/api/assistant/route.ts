@@ -38,9 +38,16 @@ export async function POST(req: NextRequest) {
     .where(and(eq(aiMessages.orgId, access.orgId), memberCond, eq(aiMessages.nairobiDate, today)))
     .orderBy(aiMessages.createdAt);
 
-  const history: ChatMessage[] = historyRows.map((r) => ({
+  // Cap what's replayed to the model — the free-tier TPM budget is tight
+  // (8000 tokens/min on this model) and a full day's history, including any
+  // verbose table-heavy replies, was blowing through it on later messages.
+  // The UI keeps the full day's history for display (separate GET below);
+  // only the model-facing copy is trimmed and truncated.
+  const MAX_HISTORY_MESSAGES = 8;
+  const MAX_HISTORY_MESSAGE_CHARS = 800;
+  const history: ChatMessage[] = historyRows.slice(-MAX_HISTORY_MESSAGES).map((r) => ({
     role: r.role === "user" ? "user" : "assistant",
-    content: r.content,
+    content: r.content.length > MAX_HISTORY_MESSAGE_CHARS ? r.content.slice(0, MAX_HISTORY_MESSAGE_CHARS) + "…" : r.content,
   }));
 
   const now = new Date().toISOString();
