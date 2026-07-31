@@ -4,7 +4,6 @@ import { requirePerm } from "@/lib/guard";
 import { getOrg } from "@/lib/org";
 import { db, employees } from "@/db";
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 import { getAccess } from "@/lib/access";
 import { and, eq } from "drizzle-orm";
 
@@ -45,7 +44,6 @@ export async function createEmployeeAction(formData: FormData) {
   });
 
   revalidatePath("/payroll/employees");
-  redirect("/payroll/employees");
 }
 
 export async function toggleEmployeeStatusAction(employeeId: number, isActive: boolean) {
