@@ -1,6 +1,7 @@
 import Groq from "groq-sdk";
 import { ALL_TOOLS, findWriteTool, type ToolDef } from "./tools";
 import type { Access } from "@/lib/access";
+import { nairobiDateISO } from "@/lib/timezone";
 
 // llama-3.3-70b-versatile: generous free tier (~30 req/min, thousands/day) —
 // swapped in after Gemini's free tier turned out to cap at 5 req/min on
@@ -33,10 +34,19 @@ export interface AssistantTurnResult {
   pendingAction: PendingAction | null;
 }
 
-const SYSTEM_PROMPT =
-  "You are the accounting assistant inside Zeno, a Kenyan business accounting app. " +
-  "Answer using the provided tools — never invent financial figures. Amounts are in cents; " +
-  "convert to KES (divide by 100) when speaking to the user. Be concise and direct.";
+function systemPrompt(): string {
+  const today = nairobiDateISO();
+  return (
+    "You are the accounting assistant inside Zeno, a Kenyan business accounting app. " +
+    `Today's date is ${today} — use this for any date field unless the user gives a different one. Never guess a date. ` +
+    "Answer using the provided tools — never invent financial figures, IDs, dates, or any other value. " +
+    "Before drafting an invoice, quote, or bill for a named customer or vendor, you MUST call searchContacts first " +
+    "to find their real contactId — never fabricate a contactId. If searchContacts returns no match, tell the user " +
+    "no such contact exists instead of proceeding. If it returns multiple matches, ask the user which one they mean " +
+    "instead of guessing. " +
+    "Amounts are in cents; convert to KES (divide by 100) when speaking to the user. Be concise and direct."
+  );
+}
 
 /**
  * Runs one user turn against Groq with function-calling enabled.
@@ -57,7 +67,7 @@ export async function runAssistantTurn(
   const tools = ALL_TOOLS.map(toGroqTool);
 
   const messages: Groq.Chat.Completions.ChatCompletionMessageParam[] = [
-    { role: "system", content: SYSTEM_PROMPT },
+    { role: "system", content: systemPrompt() },
     ...history.map((h) => ({ role: h.role, content: h.content }) as Groq.Chat.Completions.ChatCompletionMessageParam),
     { role: "user", content: userMessage },
   ];
@@ -65,12 +75,23 @@ export async function runAssistantTurn(
   const toolCalls: AssistantTurnResult["toolCalls"] = [];
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
-    const response = await client.chat.completions.create({
-      model: MODEL,
-      messages,
-      tools,
-      tool_choice: "auto",
-    });
+    let response;
+    try {
+      response = await client.chat.completions.create({ model: MODEL, messages, tools, tool_choice: "auto" });
+    } catch (e) {
+      // Llama-family models on Groq occasionally emit a malformed tool call
+      // (e.g. an XML-ish <function=...> tag instead of a real tool_calls
+      // entry) that the strict parser rejects with 400 tool_use_failed.
+      // One retry clears it most of the time; if it doesn't, fail with a
+      // message the user can act on instead of a raw 500.
+      const isToolUseFailed = e instanceof Groq.APIError && e.status === 400 && String((e as any).error?.error?.code) === "tool_use_failed";
+      if (!isToolUseFailed) throw e;
+      try {
+        response = await client.chat.completions.create({ model: MODEL, messages, tools, tool_choice: "auto" });
+      } catch {
+        return { reply: "I had trouble forming that request — try rephrasing, or ask me one thing at a time.", toolCalls, pendingAction: null };
+      }
+    }
 
     const choice = response.choices[0];
     const calls = choice.message.tool_calls;

@@ -1,4 +1,4 @@
-import { db, contacts, documents } from "@/db";
+import { db, contacts, documents, items } from "@/db";
 import { and, eq, ilike } from "drizzle-orm";
 import { withOrg } from "@/lib/org";
 import type { Access } from "@/lib/access";
@@ -129,6 +129,27 @@ export interface WriteToolDef extends ToolDef {
   summarize: (args: any) => string;
 }
 
+/**
+ * The model can and does hallucinate IDs (fabricated a contactId once,
+ * producing an orphan draft invoice nothing in the org actually pointed to).
+ * Every write tool below checks the id it's about to act on actually
+ * belongs to this org before touching the database — fails with a clear
+ * message instead of silently creating or mutating garbage.
+ */
+async function assertContactExists(orgId: number, contactId: number | null | undefined) {
+  if (contactId == null) return;
+  const [row] = await db.select({ id: contacts.id }).from(contacts).where(and(eq(contacts.orgId, orgId), eq(contacts.id, contactId))).limit(1);
+  if (!row) throw new Error(`No contact found with id ${contactId} in this org — use searchContacts to find the real one.`);
+}
+async function assertDocumentExists(orgId: number, documentId: number) {
+  const [row] = await db.select({ id: documents.id }).from(documents).where(and(eq(documents.orgId, orgId), eq(documents.id, documentId))).limit(1);
+  if (!row) throw new Error(`No document found with id ${documentId} in this org.`);
+}
+async function assertItemExists(orgId: number, itemId: number) {
+  const [row] = await db.select({ id: items.id }).from(items).where(and(eq(items.orgId, orgId), eq(items.id, itemId))).limit(1);
+  if (!row) throw new Error(`No item found with id ${itemId} in this org.`);
+}
+
 export const WRITE_TOOLS: WriteToolDef[] = [
   {
     name: "draftInvoice",
@@ -158,8 +179,10 @@ export const WRITE_TOOLS: WriteToolDef[] = [
       required: ["contactId", "date", "lines"],
     },
     summarize: (a) => `Draft invoice for contact #${a.contactId}, ${a.lines?.length ?? 0} line(s), dated ${a.date}`,
-    run: async (args) =>
-      saveDocument({ type: "invoice", contactId: args.contactId, date: args.date, dueDate: args.dueDate, taxInclusive: false, lines: args.lines }),
+    run: async (args, access) => {
+      await assertContactExists(access.orgId, args.contactId);
+      return saveDocument({ type: "invoice", contactId: args.contactId, date: args.date, dueDate: args.dueDate, taxInclusive: false, lines: args.lines });
+    },
   },
   {
     name: "draftQuote",
@@ -188,8 +211,10 @@ export const WRITE_TOOLS: WriteToolDef[] = [
       required: ["contactId", "date", "lines"],
     },
     summarize: (a) => `Draft quote for contact #${a.contactId}, ${a.lines?.length ?? 0} line(s), dated ${a.date}`,
-    run: async (args) =>
-      saveDocument({ type: "quote", contactId: args.contactId, date: args.date, taxInclusive: false, lines: args.lines }),
+    run: async (args, access) => {
+      await assertContactExists(access.orgId, args.contactId);
+      return saveDocument({ type: "quote", contactId: args.contactId, date: args.date, taxInclusive: false, lines: args.lines });
+    },
   },
   {
     name: "draftBill",
@@ -218,8 +243,10 @@ export const WRITE_TOOLS: WriteToolDef[] = [
       required: ["contactId", "date", "lines"],
     },
     summarize: (a) => `Draft bill from contact #${a.contactId}, ${a.lines?.length ?? 0} line(s), dated ${a.date}`,
-    run: async (args) =>
-      saveDocument({ type: "bill", contactId: args.contactId, date: args.date, taxInclusive: false, lines: args.lines }),
+    run: async (args, access) => {
+      await assertContactExists(access.orgId, args.contactId);
+      return saveDocument({ type: "bill", contactId: args.contactId, date: args.date, taxInclusive: false, lines: args.lines });
+    },
   },
   {
     name: "draftExpense",
@@ -267,15 +294,17 @@ export const WRITE_TOOLS: WriteToolDef[] = [
       required: ["documentId", "direction", "amountCents", "method", "date"],
     },
     summarize: (a) => `Record ${a.direction === "out" ? "payment to" : "payment of"} ${fmtKES(a.amountCents)} via ${a.method} against document #${a.documentId}`,
-    run: async (args) =>
-      recordPayment({
+    run: async (args, access) => {
+      await assertDocumentExists(access.orgId, args.documentId);
+      return recordPayment({
         documentId: args.documentId,
         direction: args.direction,
         amountCents: args.amountCents,
         method: args.method,
         date: args.date,
         reference: args.reference,
-      }),
+      });
+    },
   },
   {
     name: "voidDocument",
@@ -288,7 +317,10 @@ export const WRITE_TOOLS: WriteToolDef[] = [
       required: ["documentId"],
     },
     summarize: (a) => `Void document #${a.documentId} — this cannot be undone`,
-    run: async (args) => voidDoc(args.documentId),
+    run: async (args, access) => {
+      await assertDocumentExists(access.orgId, args.documentId);
+      return voidDoc(args.documentId);
+    },
   },
   {
     name: "adjustStock",
@@ -306,7 +338,10 @@ export const WRITE_TOOLS: WriteToolDef[] = [
       required: ["itemId", "qtyDelta", "unitCostCents", "reason"],
     },
     summarize: (a) => `${a.qtyDelta > 0 ? "Add" : "Remove"} ${Math.abs(a.qtyDelta)} units of item #${a.itemId} — ${a.reason}`,
-    run: async (args) => adjustStock(args.itemId, args.qtyDelta, args.unitCostCents, args.reason),
+    run: async (args, access) => {
+      await assertItemExists(access.orgId, args.itemId);
+      return adjustStock(args.itemId, args.qtyDelta, args.unitCostCents, args.reason);
+    },
   },
   {
     name: "createContact",
