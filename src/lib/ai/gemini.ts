@@ -2,7 +2,10 @@ import { GoogleGenAI, type Content, type FunctionDeclaration } from "@google/gen
 import { ALL_TOOLS, findWriteTool, type ToolDef } from "./tools";
 import type { Access } from "@/lib/access";
 
-const MODEL = "gemini-2.5-flash";
+// "-latest" alias always resolves to Google's current recommended flash-tier
+// model — avoids hardcoding a version that later gets sunset for new keys
+// (gemini-2.5-flash already is, confirmed live against this org's key).
+const MODEL = "gemini-flash-latest";
 const MAX_TOOL_ROUNDS = 5;
 
 function toFunctionDeclaration(tool: ToolDef): FunctionDeclaration {
@@ -91,7 +94,12 @@ export async function runAssistantTurn(
     }
     toolCalls.push({ tool: call.name!, args: call.args, result });
 
-    contents.push({ role: "model", parts: [{ functionCall: { name: call.name, args: call.args } }] });
+    // Replay the model's own response content verbatim (not a hand-rebuilt
+    // functionCall part) — it carries a thoughtSignature the API requires on
+    // any functionCall part fed back into a later turn; reconstructing just
+    // {name, args} drops that signature and the next call gets rejected.
+    const modelContent = response.candidates?.[0]?.content;
+    if (modelContent) contents.push(modelContent);
     contents.push({ role: "user", parts: [{ functionResponse: { name: call.name!, response: { result } } }] });
   }
 
