@@ -3,10 +3,12 @@ import { ALL_TOOLS, findWriteTool, type ToolDef } from "./tools";
 import type { Access } from "@/lib/access";
 import { nairobiDateISO } from "@/lib/timezone";
 
-// llama-3.3-70b-versatile: generous free tier (~30 req/min, thousands/day) —
-// swapped in after Gemini's free tier turned out to cap at 5 req/min on
-// whatever model its "-latest" alias happened to resolve to that week.
-const MODEL = "llama-3.3-70b-versatile";
+// llama-3.3-70b-versatile reliably mis-formatted tool calls against our
+// nested array-of-objects schemas (draftInvoice's `lines`, etc) — emitted a
+// pseudo-XML <function=...> tag instead of a real tool_calls entry, 100% of
+// the time in testing, not intermittently. openai/gpt-oss-20b (also free on
+// Groq) calls the same schemas correctly every time tested.
+const MODEL = "openai/gpt-oss-20b";
 const MAX_TOOL_ROUNDS = 5;
 
 export type ChatMessage = { role: "user" | "assistant"; content: string };
