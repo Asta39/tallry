@@ -2,10 +2,11 @@ import { GoogleGenAI, type Content, type FunctionDeclaration } from "@google/gen
 import { ALL_TOOLS, findWriteTool, type ToolDef } from "./tools";
 import type { Access } from "@/lib/access";
 
-// "-latest" alias always resolves to Google's current recommended flash-tier
-// model — avoids hardcoding a version that later gets sunset for new keys
-// (gemini-2.5-flash already is, confirmed live against this org's key).
-const MODEL = "gemini-flash-latest";
+// Pinned, not the "-latest" alias: that alias silently drifted to
+// gemini-3.6-flash, whose free tier caps at 5 requests/minute — far too
+// tight for real use. 2.0-flash-001 is an older, stable, non-preview model
+// with a materially larger free quota.
+const MODEL = "gemini-2.0-flash-001";
 const MAX_TOOL_ROUNDS = 5;
 
 function toFunctionDeclaration(tool: ToolDef): FunctionDeclaration {

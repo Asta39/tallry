@@ -1,13 +1,21 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Modal } from "./Modal";
+import ReactMarkdown from "react-markdown";
 
 interface ChatMessage {
   id?: number;
   role: "user" | "assistant";
   content: string;
   pendingAction?: { tool: string; args: any; humanSummary: string } | null;
+}
+
+function AssistantText({ text }: { text: string }) {
+  return (
+    <div className="text-[13.5px] leading-relaxed space-y-2 [&_p]:m-0 [&_ul]:m-0 [&_ul]:pl-4 [&_ul]:list-disc [&_ol]:m-0 [&_ol]:pl-4 [&_ol]:list-decimal [&_li]:my-0.5 [&_strong]:font-semibold [&_h1]:text-[14px] [&_h1]:font-semibold [&_h2]:text-[13.5px] [&_h2]:font-semibold [&_h3]:text-[12px] [&_h3]:font-semibold [&_h3]:uppercase [&_h3]:tracking-wide [&_h3]:text-[var(--color-ink-500)] [&_code]:bg-black/5 [&_code]:rounded [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-[12px]">
+      <ReactMarkdown>{text}</ReactMarkdown>
+    </div>
+  );
 }
 
 export function AiAssistantPill({ initialBriefCount = 0 }: { initialBriefCount?: number }) {
@@ -19,6 +27,7 @@ export function AiAssistantPill({ initialBriefCount = 0 }: { initialBriefCount?:
   const [error, setError] = useState<string | null>(null);
   const [badge, setBadge] = useState(initialBriefCount);
   const listRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (open && !loadedHistory) {
@@ -35,6 +44,28 @@ export function AiAssistantPill({ initialBriefCount = 0 }: { initialBriefCount?:
   useEffect(() => {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, busy]);
+
+  // Siri-style: tapping anywhere outside the pill+panel closes it — no dark
+  // scrim dimming the rest of the screen, the app stays fully visible.
+  useEffect(() => {
+    if (!open) return;
+    function onPointerDown(e: PointerEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open]);
 
   async function send(text: string) {
     if (!text.trim() || busy) return;
@@ -98,42 +129,26 @@ export function AiAssistantPill({ initialBriefCount = 0 }: { initialBriefCount?:
   }
 
   return (
-    <>
-      <div className="no-print fixed bottom-4 inset-x-0 z-[70] flex justify-center px-4 pointer-events-none">
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          className="pointer-events-auto flex items-center gap-2 rounded-full px-4 py-2.5 shadow-lg border border-[var(--color-ink-100)] transition-transform hover:-translate-y-0.5"
-          style={{ background: "rgba(245,245,247,.85)", backdropFilter: "blur(20px) saturate(1.4)" }}
-        >
-          <span className="text-[15px]">✦</span>
-          <span className="text-[13px] font-medium text-[var(--color-ink-700)]">Ask Zeno</span>
-          {badge > 0 && (
-            <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-[var(--color-accent-500)] text-white text-[10.5px] font-semibold flex items-center justify-center">
-              {badge}
-            </span>
-          )}
-        </button>
-      </div>
-
-      <Modal open={open} onClose={() => setOpen(false)} title="Zeno Assistant" busy={busy} maxWidthClass="max-w-xl">
-        <div className="flex flex-col h-[60vh]">
-          <div ref={listRef} className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
+    <div ref={containerRef} className="no-print fixed bottom-4 inset-x-0 z-[70] flex flex-col items-center gap-3 px-4 pointer-events-none">
+      {/* Panel — anchored directly above the pill, pill never disappears. */}
+      {open && (
+        <div className="pointer-events-auto w-full max-w-xl max-h-[65vh] flex flex-col rounded-[28px] overflow-hidden border border-black/5 shadow-2xl animate-[zeno-pop_0.18s_ease-out]" style={{ background: "rgba(255,255,255,.92)", backdropFilter: "blur(28px) saturate(1.6)" }}>
+          <div ref={listRef} className="flex-1 overflow-y-auto px-5 py-5 space-y-4">
             {messages.length === 0 && !busy && (
-              <div className="text-[13px] text-[var(--color-ink-400)] text-center mt-8">
-                Ask about overdue invoices, cash position, or say &ldquo;brief me&rdquo; for today&rsquo;s to-dos.
+              <div className="text-[13px] text-[var(--color-ink-400)] text-center mt-6">
+                Ask about overdue invoices, cash position, or say &ldquo;brief me&rdquo; for today&rsquo;s to‑dos.
               </div>
             )}
             {messages.map((m, i) => (
               <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
                 <div
-                  className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-[13.5px] leading-relaxed ${
+                  className={`max-w-[85%] rounded-2xl px-4 py-2.5 ${
                     m.role === "user"
-                      ? "bg-[var(--color-accent-500)] text-white"
-                      : "bg-[var(--color-ink-50)] text-[var(--color-ink-900)]"
+                      ? "bg-[var(--color-accent-500)] text-white text-[13.5px] leading-relaxed"
+                      : "bg-black/[0.04] text-[var(--color-ink-900)]"
                   }`}
                 >
-                  <div className="whitespace-pre-wrap">{m.content}</div>
+                  {m.role === "assistant" ? <AssistantText text={m.content} /> : m.content}
                   {m.pendingAction && (
                     <div className="mt-2.5 pt-2.5 border-t border-black/10 flex gap-2">
                       <button
@@ -159,7 +174,7 @@ export function AiAssistantPill({ initialBriefCount = 0 }: { initialBriefCount?:
             ))}
             {busy && (
               <div className="flex justify-start">
-                <div className="rounded-2xl px-3.5 py-2.5 bg-[var(--color-ink-50)] text-[13px] text-[var(--color-ink-400)]">Thinking…</div>
+                <div className="rounded-2xl px-4 py-2.5 bg-black/[0.04] text-[13px] text-[var(--color-ink-400)]">Thinking…</div>
               </div>
             )}
             {error && <div className="text-[12.5px] text-[var(--color-bad)] text-center">{error}</div>}
@@ -169,14 +184,15 @@ export function AiAssistantPill({ initialBriefCount = 0 }: { initialBriefCount?:
               e.preventDefault();
               send(input);
             }}
-            className="shrink-0 hairline-t px-4 py-3 flex gap-2"
+            className="shrink-0 border-t border-black/5 px-4 py-3 flex gap-2"
           >
             <input
+              autoFocus
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Ask Zeno…"
               disabled={busy}
-              className="flex-1 rounded-full border border-[var(--color-ink-200)] px-4 py-2 text-[13.5px] outline-none focus:border-[var(--color-accent-500)] disabled:opacity-60"
+              className="flex-1 rounded-full border border-black/10 bg-white px-4 py-2 text-[13.5px] outline-none focus:border-[var(--color-accent-500)] disabled:opacity-60"
             />
             <button
               type="submit"
@@ -187,7 +203,23 @@ export function AiAssistantPill({ initialBriefCount = 0 }: { initialBriefCount?:
             </button>
           </form>
         </div>
-      </Modal>
-    </>
+      )}
+
+      {/* Pill — stays put whether the panel is open or closed. */}
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="pointer-events-auto flex items-center gap-2 rounded-full px-4 py-2.5 shadow-lg border border-black/5 transition-transform hover:-translate-y-0.5"
+        style={{ background: "rgba(245,245,247,.85)", backdropFilter: "blur(20px) saturate(1.4)" }}
+      >
+        <span className="text-[15px]">✦</span>
+        <span className="text-[13px] font-medium text-[var(--color-ink-700)]">{open ? "Zeno" : "Ask Zeno"}</span>
+        {!open && badge > 0 && (
+          <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-[var(--color-accent-500)] text-white text-[10.5px] font-semibold flex items-center justify-center">
+            {badge}
+          </span>
+        )}
+      </button>
+    </div>
   );
 }
