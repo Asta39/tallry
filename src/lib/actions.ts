@@ -93,6 +93,37 @@ async function nextNumber(kind: NumberKind): Promise<string> {
   return `${prefixes[kind]}${String(n).padStart(4, "0")}`;
 }
 
+async function nextNumberInTx(kind: NumberKind, tx: any): Promise<string> {
+  const [o] = await tx.select().from(org).where(eq(org.id, currentOrgId())).limit(1);
+  if (!o) throw new Error("Organization not found");
+  const prefixes: Record<NumberKind, string> = {
+    invoice: o.invoicePrefix,
+    quote: "QT-",
+    credit_note: "CN-",
+    purchase_order: "PO-",
+    payment: "PMT-",
+  };
+  const current: Record<NumberKind, number> = {
+    invoice: o.nextInvoiceNo,
+    quote: o.nextQuoteNo,
+    credit_note: o.nextCreditNoteNo,
+    purchase_order: o.nextPoNo,
+    payment: o.nextPaymentNo,
+  };
+  const n = current[kind];
+  await tx
+    .update(org)
+    .set({
+      nextInvoiceNo: kind === "invoice" ? n + 1 : o.nextInvoiceNo,
+      nextQuoteNo: kind === "quote" ? n + 1 : o.nextQuoteNo,
+      nextCreditNoteNo: kind === "credit_note" ? n + 1 : o.nextCreditNoteNo,
+      nextPoNo: kind === "purchase_order" ? n + 1 : o.nextPoNo,
+      nextPaymentNo: kind === "payment" ? n + 1 : o.nextPaymentNo,
+    })
+    .where(eq(org.id, o.id));
+  return `${prefixes[kind]}${String(n).padStart(4, "0")}`;
+}
+
 /* ---------------- Contacts & CRM ---------------- */
 
 async function _saveContact(data: {
@@ -504,130 +535,132 @@ async function _saveDocument(data: {
     data.taxInclusive
   );
 
-  let docId: number;
-  if (data.id) {
-    const [existing] = await db.select().from(documents).where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, data.id))).limit(1);
-    if (!existing) throw new Error("Document not found");
-    let newStatus = existing.status;
-    if (existing.type === "quote") {
-      if (existing.status !== "draft" && existing.status !== "open") throw new Error("Only draft or open quotes can be edited");
-    } else if (existing.type === "invoice") {
-      if (existing.status !== "draft") throw new Error("Issued invoices can't be edited — void and reissue instead");
+  const docId = await db.transaction(async (tx) => {
+    let savedDocId: number;
+    if (data.id) {
+      const [existing] = await tx.select().from(documents).where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, data.id))).limit(1);
+      if (!existing) throw new Error("Document not found");
+      const newStatus = existing.status;
+      if (existing.type === "quote") {
+        if (existing.status !== "draft" && existing.status !== "open") throw new Error("Only draft or open quotes can be edited");
+      } else if (existing.type === "invoice") {
+        if (existing.status !== "draft") throw new Error("Issued invoices can't be edited — void and reissue instead");
+      } else {
+        if (existing.status !== "draft") throw new Error("Only drafts can be edited");
+      }
+      await tx
+        .update(documents)
+        .set({
+          status: newStatus,
+          contactId: data.contactId,
+          date: data.date,
+          dueDate: data.dueDate,
+          taxInclusive: data.taxInclusive,
+          notes: data.notes,
+          subtotalCents: totals.subtotalCents,
+          taxCents: totals.taxCents,
+          totalCents: totals.totalCents,
+          isTemplate: data.isTemplate || false,
+          paidFromBankAccountId: data.paidFromBankAccountId,
+          customerContactId: data.customerContactId ?? null,
+          relatedInvoiceId: data.relatedInvoiceId ?? null,
+          isBillable: data.isBillable ?? false,
+        })
+        .where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, data.id)));
+      await tx.delete(documentLines).where(eq(documentLines.documentId, data.id));
+      savedDocId = data.id;
     } else {
-      if (existing.status !== "draft") throw new Error("Only drafts can be edited");
-    }
-    await db
-      .update(documents)
-      .set({
-        status: newStatus,
-        contactId: data.contactId,
-        date: data.date,
-        dueDate: data.dueDate,
-        taxInclusive: data.taxInclusive,
-        notes: data.notes,
-        subtotalCents: totals.subtotalCents,
-        taxCents: totals.taxCents,
-        totalCents: totals.totalCents,
-        isTemplate: data.isTemplate || false,
-        paidFromBankAccountId: data.paidFromBankAccountId,
-        customerContactId: data.customerContactId ?? null,
-        relatedInvoiceId: data.relatedInvoiceId ?? null,
-        isBillable: data.isBillable ?? false,
-      })
-      .where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, data.id)));
-    await db.delete(documentLines).where(eq(documentLines.documentId, data.id));
-    docId = data.id;
-  } else {
-    const number =
-      data.type === "bill" || data.type === "expense"
-        ? data.billNumber || `${data.type === "bill" ? "BILL" : "EXP"}-${Date.now().toString(36).toUpperCase()}`
-        : await nextNumber(data.type as NumberKind);
-    const [created] = await db
-      .insert(documents)
-      .values({ orgId: currentOrgId(),
-        type: data.type,
-        number,
-        contactId: data.contactId,
-        date: data.date,
-        dueDate: data.dueDate,
-        taxInclusive: data.taxInclusive,
-        isTemplate: data.isTemplate || false,
-        notes: data.notes,
-        subtotalCents: totals.subtotalCents,
-        taxCents: totals.taxCents,
-        totalCents: totals.totalCents,
-        paidFromBankAccountId: data.paidFromBankAccountId,
-        customerContactId: data.customerContactId ?? null,
-        relatedInvoiceId: data.relatedInvoiceId ?? null,
-        isBillable: data.isBillable ?? false,
-        createdByName: data.createdByName,
-        createdByRole: data.createdByRole,
-        createdAt: nowISO(),
-      })
-      .returning();
-    docId = created.id;
-  }
-
-  await db.insert(documentLines).values(
-    data.lines.map((l, i) => {
-      const t = totals.lines[i];
-      return {
-        orgId: currentOrgId(),
-        documentId: docId,
-        itemId: l.itemId,
-        description: l.description,
-        qty: l.qty,
-        unitPriceCents: l.unitPriceCents,
-        discountPct: l.discountPct,
-        taxClass: l.taxClass,
-        taxRateBp: t.taxRateBp,
-        netCents: t.netCents,
-        taxCents: t.taxCents,
-        grossCents: t.grossCents,
-        accountId: l.accountId,
-        position: i,
-        customColumnValue: l.customColumnValue || null,
-        costCenterId: l.costCenterId || null,
-        warehouseId: l.warehouseId || null,
-      };
-    })
-  );
-
-  if (data.assignedMemberIds) {
-    const orgId = currentOrgId();
-    await db.delete(documentAssignments).where(and(eq(documentAssignments.orgId, orgId), eq(documentAssignments.documentId, docId)));
-    if (data.assignedMemberIds.length > 0) {
-      await db.insert(documentAssignments).values(
-        data.assignedMemberIds.map((memberId) => ({
-          orgId,
-          documentId: docId,
-          memberId,
+      const number =
+        data.type === "bill" || data.type === "expense"
+          ? data.billNumber || `${data.type === "bill" ? "BILL" : "EXP"}-${Date.now().toString(36).toUpperCase()}`
+          : await nextNumberInTx(data.type as NumberKind, tx);
+      const [created] = await tx
+        .insert(documents)
+        .values({ orgId: currentOrgId(),
+          type: data.type,
+          number,
+          contactId: data.contactId,
+          date: data.date,
+          dueDate: data.dueDate,
+          taxInclusive: data.taxInclusive,
+          isTemplate: data.isTemplate || false,
+          notes: data.notes,
+          subtotalCents: totals.subtotalCents,
+          taxCents: totals.taxCents,
+          totalCents: totals.totalCents,
+          paidFromBankAccountId: data.paidFromBankAccountId,
+          customerContactId: data.customerContactId ?? null,
+          relatedInvoiceId: data.relatedInvoiceId ?? null,
+          isBillable: data.isBillable ?? false,
+          createdByName: data.createdByName,
+          createdByRole: data.createdByRole,
           createdAt: nowISO(),
-        }))
-      );
-
-      // Insert notifications for assignments — link to the actual document, not
-      // always the invoice URL (was wrong for bill/expense/credit_note/PO).
-      const assignmentPath: Record<string, string> = {
-        quote: "sales/quotes",
-        invoice: "sales/invoices",
-        credit_note: "sales/credit-notes",
-        bill: "purchases/bills",
-        expense: "purchases/expenses",
-        purchase_order: "purchases/orders",
-      };
-      await db.insert(notifications).values(
-        data.assignedMemberIds.map((memberId) => ({
-          orgId,
-          memberId,
-          title: "New Assignment",
-          body: `You have been assigned to ${data.type} #${docId}`,
-          link: `/${assignmentPath[data.type] || "sales/invoices"}/${docId}`,
-          createdAt: nowISO(),
-        }))
-      );
+        })
+        .returning();
+      savedDocId = created.id;
     }
-  }
+
+    await tx.insert(documentLines).values(
+      data.lines.map((l, i) => {
+        const t = totals.lines[i];
+        return {
+          orgId: currentOrgId(),
+          documentId: savedDocId,
+          itemId: l.itemId,
+          description: l.description,
+          qty: l.qty,
+          unitPriceCents: l.unitPriceCents,
+          discountPct: l.discountPct,
+          taxClass: l.taxClass,
+          taxRateBp: t.taxRateBp,
+          netCents: t.netCents,
+          taxCents: t.taxCents,
+          grossCents: t.grossCents,
+          accountId: l.accountId,
+          position: i,
+          customColumnValue: l.customColumnValue || null,
+          costCenterId: l.costCenterId || null,
+          warehouseId: l.warehouseId || null,
+        };
+      })
+    );
+
+    if (data.assignedMemberIds) {
+      const orgId = currentOrgId();
+      await tx.delete(documentAssignments).where(and(eq(documentAssignments.orgId, orgId), eq(documentAssignments.documentId, savedDocId)));
+      if (data.assignedMemberIds.length > 0) {
+        await tx.insert(documentAssignments).values(
+          data.assignedMemberIds.map((memberId) => ({
+            orgId,
+            documentId: savedDocId,
+            memberId,
+            createdAt: nowISO(),
+          }))
+        );
+
+        const assignmentPath: Record<string, string> = {
+          quote: "sales/quotes",
+          invoice: "sales/invoices",
+          credit_note: "sales/credit-notes",
+          bill: "purchases/bills",
+          expense: "purchases/expenses",
+          purchase_order: "purchases/orders",
+        };
+        await tx.insert(notifications).values(
+          data.assignedMemberIds.map((memberId) => ({
+            orgId,
+            memberId,
+            title: "New Assignment",
+            body: `You have been assigned to ${data.type} #${savedDocId}`,
+            link: `/${assignmentPath[data.type] || "sales/invoices"}/${savedDocId}`,
+            createdAt: nowISO(),
+          }))
+        );
+      }
+    }
+
+    return savedDocId;
+  });
 
   revalidatePath("/sales");
   revalidatePath("/purchases");
@@ -1161,6 +1194,18 @@ export async function saveDocument(data: Parameters<typeof _saveDocument>[0]) {
     recordLabel: saved?.number,
   });
   return docId;
+}
+export async function upsertDocumentAction(
+  input: Parameters<typeof _saveDocument>[0] & { issue?: boolean }
+): Promise<{ id?: number; error?: string }> {
+  try {
+    const { issue, ...data } = input;
+    const docId = await saveDocument(data);
+    if (issue) await issueDocument(docId);
+    return { id: docId };
+  } catch (err: any) {
+    return { error: err?.message || "Failed to save document" };
+  }
 }
 export async function issueDocument(docId: number) {
   const result = await withOrg(() => _issueDocument(docId), { requireWrite: true });

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { computeDocument, TAX_CLASSES, type TaxClass } from "@/lib/tax";
 import { fmtKES, parseKES, todayISO } from "@/lib/money";
-import { saveDocument, issueDocument, createItemFromLine, listCustomerInvoices, type DocLineInput } from "@/lib/actions";
+import { upsertDocumentAction, createItemFromLine, listCustomerInvoices, type DocLineInput } from "@/lib/actions";
 import { SearchableSelect } from "@/components/SearchableSelect";
 
 type Option = { id: number; label: string };
@@ -230,7 +230,8 @@ export function DocumentEditor({
             warehouseId: l.warehouseId,
           });
         }
-        const id = await saveDocument({
+        const isAlreadyIssued = !!(initialData?.id && initialData?.status && initialData.status !== "draft");
+        const res = await upsertDocumentAction({
           id: initialData?.id,
           type,
           contactId: Number(contactId) || null,
@@ -246,13 +247,11 @@ export function DocumentEditor({
           assignedMemberIds: assignedMemberIds.length > 0 ? assignedMemberIds : undefined,
           isTemplate: initialData?.isTemplate,
           saveAsTemplate,
+          issue: issue && !isAlreadyIssued,
           lines: finalLines,
         });
-        
-        const isAlreadyIssued = initialData?.id && initialData?.status && initialData.status !== "draft";
-        if (issue && !isAlreadyIssued) {
-          await issueDocument(id);
-        }
+        if (res.error || !res.id) throw new Error(res.error || "Could not save document");
+        const id = res.id;
         router.push(detailHref ? `${detailHref}/${id}` : backHref);
         router.refresh();
       } catch (e) {
