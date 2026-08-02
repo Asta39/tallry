@@ -1,6 +1,6 @@
 import { db, subscriptions, documents, members, featureFlags } from "@/db";
 import { eq, and, sql, gte, inArray } from "drizzle-orm";
-import { PLANS, PlanKey, Entitlements } from "./billing";
+import { PLANS, Entitlements, resolvePlanAccess } from "./billing";
 
 /** Boolean plan features that a per-org flag can force on regardless of plan. */
 const OVERRIDABLE = ["gateways", "sms", "payouts", "portal", "recurring", "payroll"] as const;
@@ -26,21 +26,19 @@ export async function getEntitlements(orgId: number): Promise<Entitlements> {
     // Fallback if no sub exists, though we should create it on org creation
     return {
       plan: "free",
+      subscriptionPlan: "free",
+      status: "active",
       isReadOnly: false,
       limits: await applyFeatureFlags(orgId, PLANS.free),
       paidUntil: "9999-12-31",
     };
   }
 
-  const today = new Date().toISOString().split("T")[0];
-  const isReadOnly = sub.paidUntil < today;
-  const planKey = (PLANS[sub.plan as PlanKey] ? sub.plan : "free") as PlanKey;
+  const resolved = resolvePlanAccess(sub.plan, sub.paidUntil);
 
   return {
-    plan: planKey,
-    isReadOnly,
-    limits: await applyFeatureFlags(orgId, PLANS[planKey]),
-    paidUntil: sub.paidUntil,
+    ...resolved,
+    limits: await applyFeatureFlags(orgId, resolved.limits),
   };
 }
 

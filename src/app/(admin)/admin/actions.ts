@@ -7,7 +7,7 @@ import { db, superAdmins, subscriptions, org, announcements } from "@/db";
 import { eq } from "drizzle-orm";
 import { requireSuperAdmin } from "@/lib/super-admin";
 import { logAdminAction } from "@/lib/admin-audit";
-import { PLANS, PlanKey } from "@/lib/billing";
+import { PLANS, PlanKey, subscriptionStatusForDate } from "@/lib/billing";
 
 export async function stopImpersonating() {
   const user = await requireSuperAdmin();
@@ -81,10 +81,11 @@ export async function setOrgPlanAction(orgId: number, formData: FormData) {
 
   const [existing] = await db.select().from(subscriptions).where(eq(subscriptions.orgId, orgId)).limit(1);
   const before = existing ? `${existing.plan} until ${existing.paidUntil}` : "none";
+  const status = subscriptionStatusForDate(paidUntil);
   if (existing) {
-    await db.update(subscriptions).set({ plan, paidUntil, status: "active" }).where(eq(subscriptions.id, existing.id));
+    await db.update(subscriptions).set({ plan, paidUntil, status }).where(eq(subscriptions.id, existing.id));
   } else {
-    await db.insert(subscriptions).values({ orgId, plan, paidUntil, status: "active", createdAt: new Date().toISOString() });
+    await db.insert(subscriptions).values({ orgId, plan, paidUntil, status, createdAt: new Date().toISOString() });
   }
 
   await logAdminAction({

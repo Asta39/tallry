@@ -48,9 +48,39 @@ export const PLANS = {
 
 export type PlanKey = keyof typeof PLANS;
 export type BillingCycle = "monthly" | "annual";
+export type SubscriptionStatus = "active" | "expired";
+
+export function normalizePlan(plan: string | null | undefined): PlanKey {
+  return (plan && plan in PLANS ? plan : "free") as PlanKey;
+}
+
+export function subscriptionStatusForDate(paidUntil: string, today = new Date().toISOString().slice(0, 10)): SubscriptionStatus {
+  return paidUntil < today ? "expired" : "active";
+}
+
+export function resolvePlanAccess(
+  plan: string | null | undefined,
+  paidUntil: string,
+  today = new Date().toISOString().slice(0, 10)
+) {
+  const subscriptionPlan = normalizePlan(plan);
+  const status = subscriptionStatusForDate(paidUntil, today);
+  const planKey: PlanKey = status === "expired" ? "free" : subscriptionPlan;
+
+  return {
+    plan: planKey,
+    subscriptionPlan,
+    status,
+    isReadOnly: status === "expired",
+    limits: PLANS[planKey],
+    paidUntil,
+  };
+}
 
 export interface Entitlements {
   plan: PlanKey;
+  subscriptionPlan: PlanKey;
+  status: SubscriptionStatus;
   isReadOnly: boolean;
   limits: typeof PLANS[PlanKey];
   paidUntil: string;

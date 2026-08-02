@@ -23,6 +23,7 @@ function monthKeys(n: number): { key: string; label: string }[] {
 export default async function AdminDashboard() {
   const months = monthKeys(6);
   const thisMonthKey = months[months.length - 1].key;
+  const today = new Date().toISOString().slice(0, 10);
 
   const [
     [orgCount],
@@ -37,7 +38,7 @@ export default async function AdminDashboard() {
   ] = await Promise.all([
     db.select({ count: count() }).from(org),
     db.select({ count: count() }).from(members),
-    db.select({ plan: subscriptions.plan, count: count() }).from(subscriptions).where(eq(subscriptions.status, "active")).groupBy(subscriptions.plan),
+    db.select({ plan: subscriptions.plan, count: count() }).from(subscriptions).where(sql`${subscriptions.paidUntil} >= ${today}`).groupBy(subscriptions.plan),
     db.select({ totalVolume: sql<string>`coalesce(sum(${paymentEvents.amountCents}), 0)`, count: count() }).from(paymentEvents).where(eq(paymentEvents.gatewayId, "mpesa_daraja")),
     db.select({ count: count() }).from(paymentEvents).where(sql`${paymentEvents.gatewayId} = 'mpesa_daraja' AND ${paymentEvents.status} IN ('failed', 'unmatched', 'amount_mismatch')`),
     // Org signups per month — signup date comes from the owner's auth.users row
@@ -55,7 +56,7 @@ export default async function AdminDashboard() {
     `),
     db.execute(sql`
       select o.id, o.name, o.email, substr(u.created_at::text, 1, 10) as joined,
-             coalesce(s.plan, 'free') as plan
+             coalesce(case when s.paid_until >= ${today} then s.plan end, 'free') as plan
       from org o
       join auth.users u on u.id::text = o.user_id
       left join subscriptions s on s.org_id = o.id

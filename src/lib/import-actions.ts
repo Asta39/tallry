@@ -1,6 +1,6 @@
 "use server";
 
-import { db, contacts, items, customerGroups, contactGroupMemberships } from "@/db";
+import { db, contacts, items, customerGroups, contactGroupMemberships, itemGroups } from "@/db";
 import { and, eq, inArray } from "drizzle-orm";
 import { revalidatePath as nextRevalidatePath } from "next/cache";
 
@@ -12,7 +12,7 @@ function revalidatePath(path: string) {
     /* outside request context */
   }
 }
-import { withOrg, currentOrgId } from "./org";
+import { withOrg, currentOrgId, getOrg } from "./org";
 import { nowISO, todayISO } from "./money";
 import { saveDocument, type DocLineInput } from "./actions";
 import type { TaxClass } from "./tax";
@@ -110,6 +110,7 @@ export async function importContacts(rows: ContactRow[]): Promise<{ created?: nu
 export interface ItemRow {
   kind: string;
   name: string;
+  group?: string;
   sku?: string;
   unit?: string;
   salePriceCents: number;
@@ -124,16 +125,35 @@ export async function importItems(rows: ItemRow[]): Promise<{ created?: number; 
   try {
     return await withOrg(async () => {
     const orgId = currentOrgId();
+    const o = await getOrg();
     const existing = await db.select({ name: items.name }).from(items).where(eq(items.orgId, orgId));
     const known = new Set(existing.map((e) => e.name.toLowerCase().trim()));
+    const existingGroups = await db.select().from(itemGroups).where(eq(itemGroups.orgId, orgId));
+    const groupMap = new Map(existingGroups.map((g) => [g.name.toLowerCase().trim(), g.id]));
     let created = 0, skipped = 0;
     for (const r of rows) {
       const name = (r.name || "").trim();
       if (!name || known.has(name.toLowerCase())) { skipped++; continue; }
       const purchaseCostCents = Math.max(0, Math.round(r.purchaseCostCents));
+      const groupName = (r.group || "").trim();
+      let itemGroupId: number | null = null;
+      if (groupName) {
+        itemGroupId = groupMap.get(groupName.toLowerCase()) ?? null;
+        if (!itemGroupId) {
+          const [inserted] = await db
+            .insert(itemGroups)
+            .values({ orgId, name: groupName, createdAt: nowISO() })
+            .returning();
+          itemGroupId = inserted.id;
+          groupMap.set(groupName.toLowerCase(), itemGroupId);
+        }
+      } else if (o.itemGroupsEnabled) {
+        throw new Error(`Item group is required for "${name}"`);
+      }
       const [row] = await db.insert(items).values({
         orgId,
         kind: r.kind === "goods" ? "goods" : "service",
+        itemGroupId,
         name,
         sku: r.sku || null,
         unit: r.unit || "unit",

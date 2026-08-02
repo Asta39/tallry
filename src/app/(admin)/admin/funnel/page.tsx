@@ -5,6 +5,7 @@ import Link from "next/link";
 export const dynamic = "force-dynamic";
 
 export default async function AdminFunnelPage() {
+  const today = new Date().toISOString().slice(0, 10);
   const [stageRows, stuckRows] = await Promise.all([
     db.execute(sql`
       select
@@ -12,7 +13,7 @@ export default async function AdminFunnelPage() {
         count(*) filter (where o.name <> '')::int as onboarded,
         count(*) filter (where exists (select 1 from documents d where d.org_id = o.id and d.type = 'invoice'))::int as first_invoice,
         count(*) filter (where exists (select 1 from payments p where p.org_id = o.id))::int as first_payment,
-        count(*) filter (where exists (select 1 from subscriptions s where s.org_id = o.id and s.plan in ('standard','business') and s.status = 'active'))::int as paid
+        count(*) filter (where exists (select 1 from subscriptions s where s.org_id = o.id and s.plan in ('standard','business') and s.paid_until >= ${today}))::int as paid
       from org o
     `),
     db.execute(sql`
@@ -25,7 +26,7 @@ export default async function AdminFunnelPage() {
         end as stage
       from org o
       left join auth.users u on u.id::text = o.user_id
-      where not exists (select 1 from subscriptions s where s.org_id = o.id and s.plan in ('standard','business') and s.status = 'active')
+      where not exists (select 1 from subscriptions s where s.org_id = o.id and s.plan in ('standard','business') and s.paid_until >= ${today})
       order by u.created_at desc
       limit 15
     `),

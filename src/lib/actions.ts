@@ -18,6 +18,7 @@ import {
   notifications,
   customerGroups,
   contactGroupMemberships,
+  itemGroups,
 } from "@/db";
 import { eq, and, ne, desc, isNull, sql, inArray } from "drizzle-orm";
 import { currentOrgId, withOrg, seedOrgDefaults } from "@/lib/org";
@@ -216,6 +217,23 @@ async function _saveDeal(data: {
   revalidatePath("/pipeline");
 }
 
+async function validateItemGroup(orgId: number, itemGroupId: number | null | undefined) {
+  const o = await getOrg();
+  const groupId = itemGroupId ?? null;
+  if (o.itemGroupsEnabled && !groupId) {
+    throw new Error("Pick an item group");
+  }
+  if (groupId) {
+    const [group] = await db
+      .select({ id: itemGroups.id })
+      .from(itemGroups)
+      .where(and(eq(itemGroups.orgId, orgId), eq(itemGroups.id, groupId)))
+      .limit(1);
+    if (!group) throw new Error("The chosen item group no longer exists");
+  }
+  return groupId;
+}
+
 async function _moveDealStage(dealId: number, stage: string) {
   await db.update(deals).set({ stage, updatedAt: nowISO() }).where(and(eq(deals.orgId, currentOrgId()), eq(deals.id, dealId)));
   revalidatePath("/pipeline");
@@ -318,6 +336,7 @@ export async function getInvoiceWithBillableExpenses(docId: number, orgId: numbe
 async function _saveItem(data: {
   id?: number;
   kind: string;
+  itemGroupId?: number | null;
   name: string;
   sku?: string;
   unit: string;
@@ -331,6 +350,7 @@ async function _saveItem(data: {
   openingUnitCostCents?: number;
 }) {
   const orgId = currentOrgId();
+  const itemGroupId = await validateItemGroup(orgId, data.itemGroupId);
 
   // Defense-in-depth: the UI constrains these, but the action itself shouldn't
   // trust client input — a negative price/cost would post reversed debit/credit
@@ -375,6 +395,7 @@ async function _saveItem(data: {
       .update(items)
       .set({
         kind: data.kind,
+        itemGroupId,
         name: data.name,
         sku: data.sku,
         unit: data.unit,
@@ -391,6 +412,7 @@ async function _saveItem(data: {
       .insert(items)
       .values({ orgId: currentOrgId(),
         kind: data.kind,
+        itemGroupId,
         name: data.name,
         sku: data.sku,
         unit: data.unit,
@@ -1031,6 +1053,7 @@ export async function saveOrgProfile(data: {
   dataSegregation?: boolean;
   requireBillApproval?: boolean;
   timeTrackingEnabled?: boolean;
+  itemGroupsEnabled?: boolean;
   nextInvoiceNo?: number;
   nextQuoteNo?: number;
 }) {
@@ -1064,6 +1087,7 @@ export async function saveOrgProfile(data: {
         ...(data.dataSegregation !== undefined ? { dataSegregation: data.dataSegregation } : {}),
         ...(data.requireBillApproval !== undefined ? { requireBillApproval: data.requireBillApproval } : {}),
         ...(data.timeTrackingEnabled !== undefined ? { timeTrackingEnabled: data.timeTrackingEnabled } : {}),
+        ...(data.itemGroupsEnabled !== undefined ? { itemGroupsEnabled: data.itemGroupsEnabled } : {}),
         ...(data.nextInvoiceNo !== undefined ? { nextInvoiceNo: data.nextInvoiceNo } : {}),
         ...(data.nextQuoteNo !== undefined ? { nextQuoteNo: data.nextQuoteNo } : {}),
       })
@@ -1093,6 +1117,7 @@ export async function saveOrgProfile(data: {
         ...(data.nextInvoiceNo !== undefined ? { nextInvoiceNo: data.nextInvoiceNo } : {}),
         ...(data.nextQuoteNo !== undefined ? { nextQuoteNo: data.nextQuoteNo } : {}),
         ...(data.timeTrackingEnabled !== undefined ? { timeTrackingEnabled: data.timeTrackingEnabled } : {}),
+        ...(data.itemGroupsEnabled !== undefined ? { itemGroupsEnabled: data.itemGroupsEnabled } : {}),
       })
       .returning();
     await seedOrgDefaults(saved.id);
@@ -1139,11 +1164,13 @@ export async function createItemFromLine(data: {
   name: string;
   purchaseCostCents: number;
   taxClass: string;
+  itemGroupId?: number | null;
 }) {
   return withOrg(async () => {
     const orgId = currentOrgId();
     const id = await _saveItem({
       kind: "goods",
+      itemGroupId: data.itemGroupId,
       name: data.name,
       unit: "unit",
       salePriceCents: 0,

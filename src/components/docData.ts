@@ -1,4 +1,4 @@
-import { db, contacts, items, accounts, bankAccounts, members, documents, documentLines, documentAssignments, costCenters, warehouses } from "@/db";
+import { db, contacts, items, accounts, bankAccounts, members, documents, documentLines, documentAssignments, costCenters, warehouses, itemGroups } from "@/db";
 import { and, eq, inArray } from "drizzle-orm";
 import { getOrg } from "@/lib/org";
 
@@ -16,6 +16,7 @@ export async function editorOptions(side: "sale" | "purchase") {
       ? await db.select().from(contacts).where(and(eq(contacts.orgId, orgId), inArray(contacts.kind, ["customer", "both"])))
       : contactRows;
   const itemRows = await db.select().from(items).where(and(eq(items.orgId, orgId), eq(items.archived, false)));
+  const itemGroupRows = await db.select().from(itemGroups).where(eq(itemGroups.orgId, orgId)).orderBy(itemGroups.name);
   const expenseRows = await db.select().from(accounts).where(and(eq(accounts.orgId, orgId), eq(accounts.type, "expense")));
   const bankRows = await db.select().from(bankAccounts).where(and(eq(bankAccounts.orgId, orgId), eq(bankAccounts.archived, false)));
   const memberRows = await db.select().from(members).where(and(eq(members.orgId, orgId), eq(members.active, true)));
@@ -35,6 +36,8 @@ export async function editorOptions(side: "sale" | "purchase") {
       taxClass: i.taxClass,
       unit: i.unit,
     })),
+    itemGroups: itemGroupRows.map((g) => ({ id: g.id, label: g.name })),
+    itemGroupsRequired: org.itemGroupsEnabled,
     expenseAccounts: expenseRows.map((a) => ({ id: a.id, label: a.name })),
     bankAccounts: bankRows.map((b) => ({ id: b.id, label: b.name })),
     costCenters: costCenterRows.map((c) => ({ id: c.id, label: c.code ? `${c.code} · ${c.name}` : c.name })),
@@ -77,6 +80,7 @@ export async function fetchInitialData(docId: number) {
       costCenterId: l.costCenterId,
       warehouseId: l.warehouseId,
       addToItems: false,
+      newItemGroupId: null,
     }))
   };
 }

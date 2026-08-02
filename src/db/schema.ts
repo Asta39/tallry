@@ -51,6 +51,8 @@ export const org = pgTable("org", {
   requireBillApproval: boolean("require_bill_approval").notNull().default(false),
   /** When on, staff see a clock-in/out card on their dashboard. */
   timeTrackingEnabled: boolean("time_tracking_enabled").notNull().default(false),
+  /** When on, every item must belong to an admin-managed item group. */
+  itemGroupsEnabled: boolean("item_groups_enabled").notNull().default(false),
 });
 
 export const accounts = pgTable("accounts", {
@@ -161,6 +163,7 @@ export const items = pgTable("items", {
   id: serial("id").primaryKey(),
   orgId: integer("org_id").notNull().references(() => org.id),
   kind: text("kind").notNull(), // service | goods
+  itemGroupId: integer("item_group_id"),
   name: text("name").notNull(),
   sku: text("sku"),
   unit: text("unit").notNull().default("unit"),
@@ -176,6 +179,17 @@ export const items = pgTable("items", {
   archived: boolean("archived").notNull().default(false),
 }, (t) => ({
   orgIdx: index("idx_items_org").on(t.orgId),
+  groupIdx: index("idx_items_group").on(t.orgId, t.itemGroupId),
+}));
+
+/** Admin-created item segments — can be enforced org-wide for inventory hygiene and reporting. */
+export const itemGroups = pgTable("item_groups", {
+  id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
+  name: text("name").notNull(),
+  createdAt: text("created_at").notNull(),
+}, (t) => ({
+  orgNameUnique: uniqueIndex("idx_item_groups_org_name").on(t.orgId, t.name),
 }));
 
 /** FIFO cost lots. Purchases append lots; sales consume remainingQty oldest-first. */
@@ -1015,4 +1029,3 @@ export const budgetLines = pgTable("budget_lines", {
   orgBudgetIdx: index("idx_budget_lines_budget").on(t.orgId, t.budgetId),
   budgetAccountMonthUnique: uniqueIndex("idx_budget_lines_unique").on(t.budgetId, t.accountId, t.month),
 }));
-

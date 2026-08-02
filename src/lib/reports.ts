@@ -1,4 +1,4 @@
-import { db, accounts, journalEntries, journalLines, documents, documentLines, payments, contacts, items, documentAssignments, members, contactGroupMemberships } from "@/db";
+import { db, accounts, journalEntries, journalLines, documents, documentLines, payments, contacts, items, documentAssignments, members, contactGroupMemberships, customerGroups, itemGroups } from "@/db";
 import { currentOrgId } from "@/lib/org";
 import { and, eq, gte, lte, inArray, sql, exists, isNull } from "drizzle-orm";
 import { acct } from "./posting";
@@ -816,6 +816,62 @@ export async function itemsReport(fromDate: string, toDate: string) {
   }));
 }
 
+export async function itemGroupsReport(fromDate: string, toDate: string) {
+  const orgId = currentOrgId();
+  const groups = await db.select().from(itemGroups).where(eq(itemGroups.orgId, orgId)).orderBy(itemGroups.name);
+  const rows = await db
+    .select({
+      groupId: items.itemGroupId,
+      itemCount: sql<number>`count(distinct ${items.id})`,
+      quantitySold: sql<number>`coalesce(sum(${documentLines.qty}), 0)`,
+      amountSoldCents: sql<number>`coalesce(sum(${documentLines.netCents}), 0)`,
+    })
+    .from(documentLines)
+    .innerJoin(documents, eq(documentLines.documentId, documents.id))
+    .innerJoin(items, eq(documentLines.itemId, items.id))
+    .where(
+      and(
+        eq(documents.orgId, orgId),
+        eq(documents.type, "invoice"),
+        inArray(documents.status, ["open", "partial", "paid"]),
+        gte(documents.date, fromDate),
+        lte(documents.date, toDate)
+      )
+    )
+    .groupBy(items.itemGroupId);
+
+  const byId = new Map(rows.map((r) => [r.groupId ?? 0, r]));
+  const data: Array<{
+    groupId: number | null;
+    groupName: string;
+    itemCount: number;
+    quantitySold: number;
+    amountSoldCents: number;
+  }> = groups.map((g) => {
+    const row = byId.get(g.id);
+    return {
+      groupId: g.id,
+      groupName: g.name,
+      itemCount: Number(row?.itemCount ?? 0),
+      quantitySold: Number(row?.quantitySold ?? 0),
+      amountSoldCents: Number(row?.amountSoldCents ?? 0),
+    };
+  });
+
+  const ungrouped = byId.get(0);
+  if (ungrouped) {
+    data.push({
+      groupId: null,
+      groupName: "Ungrouped",
+      itemCount: Number(ungrouped.itemCount ?? 0),
+      quantitySold: Number(ungrouped.quantitySold ?? 0),
+      amountSoldCents: Number(ungrouped.amountSoldCents ?? 0),
+    });
+  }
+
+  return data.sort((a, b) => b.amountSoldCents - a.amountSoldCents);
+}
+
 /**
  * Payments Received Report
  */
@@ -967,6 +1023,53 @@ export async function customersReport(fromDate: string, toDate: string, groupId?
     paidCents: Number(r.paidCents),
     balanceCents: Number(r.totalSalesCents) - Number(r.paidCents) - Number(r.creditedCents),
   }));
+}
+
+export async function customerGroupsReport(fromDate: string, toDate: string) {
+  const orgId = currentOrgId();
+  const groups = await db.select().from(customerGroups).where(eq(customerGroups.orgId, orgId)).orderBy(customerGroups.name);
+  const rows = await db
+    .select({
+      groupId: contactGroupMemberships.groupId,
+      customerCount: sql<number>`count(distinct ${contactGroupMemberships.contactId})`,
+      totalSalesCents: sql<number>`coalesce(sum(${documents.totalCents}), 0)`,
+      paidCents: sql<number>`coalesce(sum(${documents.paidCents}), 0)`,
+      creditedCents: sql<number>`coalesce(sum(${documents.creditedCents}), 0)`,
+      invoiceCount: sql<number>`count(distinct ${documents.id})`,
+    })
+    .from(contactGroupMemberships)
+    .leftJoin(
+      documents,
+      and(
+        eq(documents.contactId, contactGroupMemberships.contactId),
+        eq(documents.orgId, orgId),
+        eq(documents.type, "invoice"),
+        inArray(documents.status, ["open", "partial", "paid"]),
+        gte(documents.date, fromDate),
+        lte(documents.date, toDate)
+      )
+    )
+    .where(eq(contactGroupMemberships.orgId, orgId))
+    .groupBy(contactGroupMemberships.groupId);
+
+  const byId = new Map(rows.map((r) => [r.groupId, r]));
+  return groups
+    .map((g) => {
+      const row = byId.get(g.id);
+      const totalSalesCents = Number(row?.totalSalesCents ?? 0);
+      const paidCents = Number(row?.paidCents ?? 0);
+      const creditedCents = Number(row?.creditedCents ?? 0);
+      return {
+        groupId: g.id,
+        groupName: g.name,
+        customerCount: Number(row?.customerCount ?? 0),
+        invoiceCount: Number(row?.invoiceCount ?? 0),
+        totalSalesCents,
+        paidCents,
+        balanceCents: totalSalesCents - paidCents - creditedCents,
+      };
+    })
+    .sort((a, b) => b.totalSalesCents - a.totalSalesCents);
 }
 
 

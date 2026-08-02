@@ -13,6 +13,8 @@ const reportCards = [
   { href: "/reports/sales/credit-notes", title: "Credit Notes Report", desc: "History of credit notes issued.", icon: "📉" },
   { href: "/reports/sales/estimates", title: "Estimates Report", desc: "Summary of estimates and quotes.", icon: "📝" },
   { href: "/reports/sales/customers", title: "Customers Report", desc: "Sales performance grouped by customer.", icon: "👥" },
+  { href: "/reports/sales/customer-groups", title: "Customer Groups Report", desc: "Sales split by customer segment.", icon: "🧩" },
+  { href: "/reports/sales/item-groups", title: "Item Groups Report", desc: "Sales split by item category.", icon: "🏷️" },
   { href: "/reports/sales/profitability", title: "Customer Profitability", desc: "Revenue less tagged costs, ranked by margin.", icon: "📈" },
 ];
 

@@ -8,6 +8,7 @@ import { PageHeader, PrimaryLink, EmptyState } from "@/components/ui";
 import { CsvImporter } from "@/components/CsvImporter";
 import { ItemsTable } from "@/components/ItemsTable";
 import { ReportChart } from "@/components/ReportCharts";
+import { listItemGroups } from "@/lib/item-groups";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +16,8 @@ export default async function ItemsPage() {
   await requirePerm("items");
   const o = await getOrg();
   const rows = await db.select().from(items).where(and(eq(items.orgId, o.id), eq(items.archived, false)));
+  const groups = await listItemGroups();
+  const groupNames = Object.fromEntries(groups.map((g) => [g.id, g.name]));
   const stock: Record<number, { qty: number; value: number }> = {};
   await Promise.all(
     rows
@@ -31,6 +34,7 @@ export default async function ItemsPage() {
         subtitle="Products and services · stock valued at FIFO cost"
         action={
           <div className="flex items-start gap-2">
+            <PrimaryLink href="/items/groups">Item groups</PrimaryLink>
             <CsvImporter entity="items" label="Bulk import items" />
             <PrimaryLink href="/items/new">+ New item</PrimaryLink>
           </div>
@@ -42,6 +46,7 @@ export default async function ItemsPage() {
           body="Add the products you sell or services you offer. Tracked goods get FIFO stock control with reorder alerts."
           action={
           <div className="flex items-start gap-2">
+            <PrimaryLink href="/items/groups">Item groups</PrimaryLink>
             <CsvImporter entity="items" label="Bulk import items" />
             <PrimaryLink href="/items/new">+ New item</PrimaryLink>
           </div>
@@ -70,7 +75,13 @@ export default async function ItemsPage() {
                 .map((it) => ({ name: it.name, value: stock[it.id]?.qty ?? 0 }))}
             />
           </div>
-          <ItemsTable rows={rows} stock={stock} />
+          <ItemsTable
+            rows={rows}
+            stock={stock}
+            groupNames={groupNames}
+            groupsRequired={o.itemGroupsEnabled}
+            groups={groups.map((g) => ({ id: g.id, name: g.name }))}
+          />
         </>
       )}
     </>

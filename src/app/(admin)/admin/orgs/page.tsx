@@ -4,8 +4,10 @@ import { db, org, subscriptions } from "@/db";
 import { eq } from "drizzle-orm";
 import Link from "next/link";
 import { ImpersonateButton } from "./ImpersonateButton";
+import { subscriptionStatusForDate } from "@/lib/billing";
 
 export default async function OrgsPage() {
+  const today = new Date().toISOString().slice(0, 10);
   const orgsWithSubs = await db
     .select({
       id: org.id,
@@ -14,7 +16,7 @@ export default async function OrgsPage() {
       phone: org.phone,
       portalSlug: org.portalSlug,
       plan: subscriptions.plan,
-      status: subscriptions.status,
+      paidUntil: subscriptions.paidUntil,
     })
     .from(org)
     .leftJoin(subscriptions, eq(org.id, subscriptions.orgId))
@@ -42,6 +44,10 @@ export default async function OrgsPage() {
             <tbody className="divide-y divide-[var(--color-ink-100)]">
               {orgsWithSubs.map((o) => (
                 <tr key={o.id} className="hover:bg-[var(--color-ink-50)] transition-colors">
+                  {(() => {
+                    const status = o.paidUntil ? subscriptionStatusForDate(o.paidUntil, today) : "active";
+                    return (
+                      <>
                   <td className="px-4 py-3 text-[var(--color-ink-500)]">{o.id}</td>
                   <td className="px-4 py-3 font-medium">
                     <Link href={`/admin/orgs/${o.id}`} className="hover:underline text-red-700">{o.name || "Unnamed Org"}</Link>
@@ -52,15 +58,22 @@ export default async function OrgsPage() {
                   </td>
                   <td className="px-4 py-3">
                     <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                      o.status === "active" ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"
+                      !o.plan ? "bg-gray-100 text-gray-800"
+                        : status === "expired" ? "bg-red-100 text-red-800"
+                        : o.plan === "business" ? "bg-purple-100 text-purple-800"
+                        : o.plan === "standard" ? "bg-blue-100 text-blue-800"
+                        : "bg-gray-100 text-gray-800"
                     }`}>
-                      {o.plan || "None"}
+                      {!o.plan ? "Free" : status === "expired" ? `${o.plan} expired` : o.plan}
                     </span>
                   </td>
                   <td className="px-4 py-3 flex items-center gap-3">
                     <Link href={`/admin/orgs/${o.id}`} className="text-sm font-medium text-[var(--color-ink-600)] hover:underline">Details</Link>
                     <ImpersonateButton orgId={o.id} />
                   </td>
+                      </>
+                    );
+                  })()}
                 </tr>
               ))}
               {orgsWithSubs.length === 0 && (

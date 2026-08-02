@@ -24,6 +24,8 @@ export default async function NewBillPage({
         contacts={opts.contacts}
         customers={opts.customers}
         items={opts.items}
+        itemGroups={opts.itemGroups}
+        itemGroupsRequired={opts.itemGroupsRequired}
         costCenters={opts.costCenters}
         warehouses={opts.warehouses}
         expenseAccounts={opts.expenseAccounts}

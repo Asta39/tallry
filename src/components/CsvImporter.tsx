@@ -76,6 +76,7 @@ export function CsvImporter({ entity, label }: { entity: Entity; label: string }
         setPreview({ count: rows.length, sample: rows.slice(0, 5).map((r) => `${r.displayName} (${r.kind})`), rows });
       } else if (entity === "items") {
         const iType = idx("type", "kind"), iName = idx("name"), iSku = idx("sku"), iUnit = idx("unit"),
+          iGroup = idx("group", "item_group", "item_groups"),
           iSell = idx("selling_price", "sale_price", "price"), iBuy = idx("buying_cost", "purchase_cost", "cost"),
           iVat = idx("vat_class", "tax_class"), iTrack = idx("track_stock", "track_inventory"), iReorder = idx("reorder_level"),
           iOpening = idx("opening_qty", "opening_stock");
@@ -83,6 +84,7 @@ export function CsvImporter({ entity, label }: { entity: Entity; label: string }
         const rows: ItemRow[] = body.map((r) => ({
           kind: r[iType] ?? "service",
           name: r[iName] ?? "",
+          group: r[iGroup],
           sku: r[iSku], unit: r[iUnit],
           salePriceCents: parseKES(r[iSell] ?? "") || 0,
           purchaseCostCents: parseKES(r[iBuy] ?? "") || 0,

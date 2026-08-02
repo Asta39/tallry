@@ -13,10 +13,10 @@ const templates: Record<string, string[][]> = {
     ["both", "Jengo Hardware", "", "", "+254711444555", "", "", "Nakuru", "Retail"],
   ],
   items: [
-    ["type", "name", "sku", "unit", "selling_price", "buying_cost", "vat_class", "track_stock", "reorder_level", "opening_qty"],
-    ["service", "Consulting (hourly)", "", "hour", "5000.00", "0", "B16", "no", "0", "0"],
-    ["goods", "Branded T-Shirt", "TS-001", "pc", "1200.00", "700.00", "B16", "yes", "10", "25"],
-    ["goods", "Maize Flour 2kg", "MF-2KG", "pc", "210.00", "180.00", "C0", "yes", "50", "100"],
+    ["type", "name", "group", "sku", "unit", "selling_price", "buying_cost", "vat_class", "track_stock", "reorder_level", "opening_qty"],
+    ["service", "Consulting (hourly)", "Services", "", "hour", "5000.00", "0", "B16", "no", "0", "0"],
+    ["goods", "Branded T-Shirt", "Apparel", "TS-001", "pc", "1200.00", "700.00", "B16", "yes", "10", "25"],
+    ["goods", "Maize Flour 2kg", "Groceries", "MF-2KG", "pc", "210.00", "180.00", "C0", "yes", "50", "100"],
   ],
   invoices: [
   ["invoice_ref", "customer_name", "date", "due_date", "description", "qty", "unit_price", "discount_pct", "vat_class"],
@@ -28,7 +28,7 @@ const templates: Record<string, string[][]> = {
 
 const notes: Record<string, string> = {
   contacts: "# kind: customer | vendor | both. Name required; duplicates (same name) are skipped. groups: comma-separated customer group names (e.g. Wholesale, Key Accounts).",
-  items: "# type: service | goods. vat_class: B16 (16%) | C0 (zero-rated) | A_EXEMPT | D_NONVAT. track_stock: yes | no. Prices in KSh. opening_qty: starting stock on hand, valued at buying_cost (only used when track_stock is yes).",
+  items: "# type: service | goods. group: item group name (created automatically if missing; required when the org enforces item groups). vat_class: B16 (16%) | C0 (zero-rated) | A_EXEMPT | D_NONVAT. track_stock: yes | no. Prices in KSh. opening_qty: starting stock on hand, valued at buying_cost (only used when track_stock is yes).",
   invoices: "# Rows with the same invoice_ref become ONE invoice (multi-line). Imported as DRAFTS — review and issue in the app. Dates YYYY-MM-DD. Prices in KSh before VAT.",
 };
 

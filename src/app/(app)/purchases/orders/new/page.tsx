@@ -17,6 +17,8 @@ export default async function NewPurchaseOrderPage() {
         members={opts.members}
         contacts={opts.contacts}
         items={opts.items}
+        itemGroups={opts.itemGroups}
+        itemGroupsRequired={opts.itemGroupsRequired}
         costCenters={opts.costCenters}
         warehouses={opts.warehouses}
         expenseAccounts={opts.expenseAccounts}

@@ -136,6 +136,16 @@ export function BillingClient({ entitlements, orgPhone, orgEmail }: { entitlemen
 
   return (
     <div className="space-y-16 pb-12 relative">
+      {entitlements.status === "expired" && (
+        <div className="max-w-5xl mx-auto px-4">
+          <div className="rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-red-900">
+            <div className="text-sm font-semibold">Your {PLANS[entitlements.subscriptionPlan].name} plan expired on {entitlements.paidUntil}.</div>
+            <div className="mt-1 text-sm text-red-800">
+              Paid features are now locked and your account is running on Free access until you renew.
+            </div>
+          </div>
+        </div>
+      )}
       {/* Hero Section */}
       <div className="relative pt-12 pb-8 text-center rounded-3xl overflow-hidden bg-gradient-to-b from-[var(--color-brand)]/10 to-transparent">
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full max-w-2xl bg-[var(--color-brand)]/5 blur-3xl rounded-full" />
@@ -143,7 +153,7 @@ export function BillingClient({ entitlements, orgPhone, orgEmail }: { entitlemen
         <div className="relative z-10">
           <div className="inline-flex items-center gap-2 px-3 py-1 text-xs font-semibold rounded-full bg-[var(--color-brand)]/10 text-[var(--color-brand)] mb-4">
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-            Pricing Plan
+            {entitlements.status === "expired" ? `Expired ${PLANS[entitlements.subscriptionPlan].name}` : "Pricing Plan"}
           </div>
           <h1 className="text-4xl md:text-5xl font-extrabold text-[var(--color-ink-900)] tracking-tight">
             Explore Our <br className="md:hidden" /> Affordable Pricing!

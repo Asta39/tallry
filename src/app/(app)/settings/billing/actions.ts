@@ -5,7 +5,7 @@ import { getOrg } from "@/lib/org";
 import { db, subscriptions, billingPayments } from "@/db";
 import { eq, and } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { PLANS, PlanKey, BillingCycle } from "@/lib/billing";
+import { PLANS, PlanKey, BillingCycle, subscriptionStatusForDate } from "@/lib/billing";
 import { intasendStkPush, intasendStatus, intasendCheckout, normalizeKenyanPhone } from "@/lib/payments/intasend";
 import { headers } from "next/headers";
 import { applyBillingPayment } from "@/lib/billing-apply";
@@ -144,9 +144,9 @@ export async function simulateSubscriptionUpgradeAction(plan: PlanKey, cycle: Bi
 
     const [existing] = await db.select().from(subscriptions).where(eq(subscriptions.orgId, o.id)).limit(1);
     if (existing) {
-      await db.update(subscriptions).set({ plan, paidUntil }).where(eq(subscriptions.orgId, o.id));
+      await db.update(subscriptions).set({ plan, paidUntil, status: subscriptionStatusForDate(paidUntil) }).where(eq(subscriptions.orgId, o.id));
     } else {
-      await db.insert(subscriptions).values({ orgId: o.id, plan, paidUntil, createdAt: new Date().toISOString() });
+      await db.insert(subscriptions).values({ orgId: o.id, plan, paidUntil, status: subscriptionStatusForDate(paidUntil), createdAt: new Date().toISOString() });
     }
 
     revalidatePath("/", "layout");

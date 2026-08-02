@@ -29,6 +29,7 @@ interface EditorLine {
   costCenterId: number | null;
   warehouseId: number | null;
   addToItems: boolean;
+  newItemGroupId: number | null;
 }
 
 const emptyLine = (): EditorLine => ({
@@ -43,6 +44,7 @@ const emptyLine = (): EditorLine => ({
   costCenterId: null,
   warehouseId: null,
   addToItems: false,
+  newItemGroupId: null,
 });
 
 export interface EditorInitialData {
@@ -68,6 +70,8 @@ export function DocumentEditor({
   contacts,
   customers,
   items,
+  itemGroups = [],
+  itemGroupsRequired = false,
   expenseAccounts,
   bankAccounts,
   costCenters = [],
@@ -86,6 +90,8 @@ export function DocumentEditor({
    *  purchases. */
   customers?: Option[];
   items: ItemOption[];
+  itemGroups?: Option[];
+  itemGroupsRequired?: boolean;
   expenseAccounts?: Option[];
   bankAccounts?: Option[];
   costCenters?: Option[];
@@ -211,10 +217,14 @@ export function DocumentEditor({
           let itemId = l.itemId;
           const priceCents = Number.isNaN(parseKES(l.price)) ? 0 : parseKES(l.price);
           if (l.addToItems && !itemId && l.description.trim()) {
+            if (itemGroupsRequired && !l.newItemGroupId) {
+              throw new Error(`Pick an item group for "${l.description.trim()}"`);
+            }
             itemId = await createItemFromLine({
               name: l.description.trim(),
               purchaseCostCents: priceCents,
               taxClass: l.taxClass,
+              itemGroupId: l.newItemGroupId,
             });
           }
           finalLines.push({
@@ -469,15 +479,34 @@ export function DocumentEditor({
                       onChange={(e) => update(i, { description: e.target.value })}
                     />
                     {(type === "bill" || type === "purchase_order") && !l.itemId && l.description.trim() && (
-                      <label className="flex items-center gap-1 mt-1 pl-2 text-[11px] text-[var(--color-ink-500)] cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={l.addToItems}
-                          onChange={(e) => update(i, { addToItems: e.target.checked })}
-                          className="accent-[var(--color-accent-500)]"
-                        />
-                        Add &quot;{l.description.trim()}&quot; to Items list
-                      </label>
+                      <div className="mt-1 pl-2">
+                        <label className="flex items-center gap-1 text-[11px] text-[var(--color-ink-500)] cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={l.addToItems}
+                            onChange={(e) => update(i, { addToItems: e.target.checked })}
+                            className="accent-[var(--color-accent-500)]"
+                          />
+                          Add &quot;{l.description.trim()}&quot; to Items list
+                        </label>
+                        {l.addToItems && (itemGroups.length > 0 || itemGroupsRequired) && (
+                          <select
+                            className={cellCls + " mt-1 max-w-[220px]"}
+                            value={l.newItemGroupId ?? ""}
+                            onChange={(e) => update(i, { newItemGroupId: e.target.value ? Number(e.target.value) : null })}
+                          >
+                            <option value="">{itemGroupsRequired ? "Select item group" : "No group"}</option>
+                            {itemGroups.map((g) => (
+                              <option key={g.id} value={g.id}>{g.label}</option>
+                            ))}
+                          </select>
+                        )}
+                        {l.addToItems && itemGroupsRequired && itemGroups.length === 0 && (
+                          <div className="mt-1 text-[11px] text-[var(--color-bad)]">
+                            Create an item group first before adding this line into Items.
+                          </div>
+                        )}
+                      </div>
                     )}
                   </td>
                   <td className="px-1 py-2">
@@ -627,6 +656,7 @@ export function DocumentEditor({
                       costCenterId: null,
                       warehouseId: null,
                       addToItems: false,
+                      newItemGroupId: null,
                     }];
                   });
                 }

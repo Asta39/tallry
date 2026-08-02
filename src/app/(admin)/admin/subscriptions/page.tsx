@@ -2,16 +2,16 @@ export const dynamic = "force-dynamic";
 
 import { db, subscriptions, org } from "@/db";
 import { eq, desc } from "drizzle-orm";
-import { fmtKES } from "@/lib/money";
+import { subscriptionStatusForDate } from "@/lib/billing";
 
 export default async function AdminSubscriptionsPage() {
+  const today = new Date().toISOString().slice(0, 10);
   const subs = await db
     .select({
       id: subscriptions.id,
       orgId: subscriptions.orgId,
       orgName: org.name,
       plan: subscriptions.plan,
-      status: subscriptions.status,
       paidUntil: subscriptions.paidUntil,
       createdAt: subscriptions.createdAt,
     })
@@ -39,29 +39,33 @@ export default async function AdminSubscriptionsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--color-ink-100)]">
-              {subs.map((s) => (
-                <tr key={s.id} className="hover:bg-[var(--color-ink-50)] transition-colors">
+              {subs.map((s) => {
+                const status = subscriptionStatusForDate(s.paidUntil, today);
+                return (
+                  <tr key={s.id} className="hover:bg-[var(--color-ink-50)] transition-colors">
                   <td className="px-4 py-3 font-medium">{s.orgName || `Org #${s.orgId}`}</td>
                   <td className="px-4 py-3">
                     <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                      s.plan === "business" ? "bg-purple-100 text-purple-800"
+                      status === "expired" ? "bg-red-100 text-red-800"
+                        : s.plan === "business" ? "bg-purple-100 text-purple-800"
                         : s.plan === "standard" ? "bg-blue-100 text-blue-800"
                         : "bg-gray-100 text-gray-800"
                     }`}>
-                      {s.plan}
+                      {status === "expired" ? `${s.plan} expired` : s.plan}
                     </span>
                   </td>
                   <td className="px-4 py-3">
                     <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                      s.status === "active" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+                      status === "active" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
                     }`}>
-                      {s.status}
+                      {status}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-[var(--color-ink-500)]">{s.paidUntil}</td>
                   <td className="px-4 py-3 text-[var(--color-ink-500)]">{s.createdAt.slice(0, 10)}</td>
-                </tr>
-              ))}
+                  </tr>
+                );
+              })}
               {subs.length === 0 && (
                 <tr>
                   <td colSpan={5} className="px-4 py-8 text-center text-[var(--color-ink-500)]">
