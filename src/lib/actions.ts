@@ -837,6 +837,8 @@ async function _convertQuoteToInvoiceInner(quote: typeof documents.$inferSelect,
       taxClass: l.taxClass as TaxClass,
       accountId: l.accountId,
       customColumnValue: l.customColumnValue,
+      costCenterId: l.costCenterId,
+      warehouseId: l.warehouseId,
     })),
   });
   await db

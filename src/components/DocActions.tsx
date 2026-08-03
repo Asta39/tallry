@@ -156,7 +156,7 @@ export function DocActions({
             className={secondary}
             disabled={pending}
             onClick={() =>
-              start(async () => {
+              run(async () => {
                 const id = await convertQuoteToInvoice(doc.id);
                 router.push(`/sales/invoices/${id}`);
               })
