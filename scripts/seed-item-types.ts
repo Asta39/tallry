@@ -1,4 +1,4 @@
-import { db, org, itemTypes } from "../src/db";
+import { db, org } from "../src/db";
 import { ensureExpandedChartOfAccounts } from "../src/lib/org";
 
 async function main() {
