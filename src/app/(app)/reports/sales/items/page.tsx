@@ -3,10 +3,9 @@ export const dynamic = "force-dynamic";
 import Link from "next/link";
 import { PageHeader } from "@/components/ui";
 import { itemsReport } from "@/lib/reports";
-import { withOrg } from "@/lib/org";
+import { withOrg, getOrg } from "@/lib/org";
 import { fmtKESCompact } from "@/lib/money";
 import { db, itemTypes } from "@/db";
-import { currentOrgId } from "@/lib/org";
 import { eq, asc } from "drizzle-orm";
 import { PdfLinks } from "@/components/reportShared";
 import { ReportFilters } from "@/components/ReportFilters";
@@ -24,11 +23,12 @@ export default async function ItemsReportPage({
     // resolvePeriod drops unknown keys, so grab it manually
     // Wait, resolvePeriod might just return preset, from, to.
   }
+  const o = await getOrg();
   const filterItemType = sp.itemType || "";
 
   const [items, allTypes] = await Promise.all([
     withOrg(() => itemsReport(fromDate, toDate, filterItemType || undefined)),
-    db.select().from(itemTypes).where(eq(itemTypes.orgId, currentOrgId())).orderBy(asc(itemTypes.name))
+    db.select().from(itemTypes).where(eq(itemTypes.orgId, o.id)).orderBy(asc(itemTypes.name))
   ]);
 
   const topByRevenue = [...items]
