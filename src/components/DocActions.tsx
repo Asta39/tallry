@@ -22,6 +22,15 @@ const primary = `${btn} bg-[var(--color-accent-500)] hover:bg-[var(--color-accen
 const secondary = `${btn} border border-[var(--color-ink-200)] bg-white hover:bg-[var(--color-ink-50)]`;
 const danger = `${btn} text-[var(--color-bad)] hover:bg-red-50`;
 
+function reportInvoiceIssueDebug(hypothesisId: string, location: string, msg: string, data: Record<string, unknown>) {
+  // #region debug-point D:client-issue-logger
+  fetch("http://127.0.0.1:7777/event", {
+    method: "POST",
+    body: JSON.stringify({ sessionId: "invoice-issue-500", runId: "pre-fix", hypothesisId, location, msg: `[DEBUG] ${msg}`, data, ts: Date.now() }),
+  }).catch(() => {});
+  // #endregion
+}
+
 export function DocActions({
   doc,
   bankAccounts,
@@ -85,6 +94,14 @@ export function DocActions({
           router.refresh();
         }
       } catch (e) {
+        // #region debug-point D:client-issue-error
+        reportInvoiceIssueDebug("D", "src/components/DocActions.tsx:run:catch", "client action failed", {
+          docId: doc.id,
+          docType: doc.type,
+          docStatus: doc.status,
+          error: e instanceof Error ? e.message : "Failed",
+        });
+        // #endregion
         setError(e instanceof Error ? e.message : "Failed");
       }
     });
@@ -101,7 +118,16 @@ export function DocActions({
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
         {doc.status === "draft" && (
-          <button className={primary} disabled={pending} onClick={() => run(() => issueDocument(doc.id))}>
+          <button className={primary} disabled={pending} onClick={() => {
+            // #region debug-point D:client-issue-click
+            reportInvoiceIssueDebug("D", "src/components/DocActions.tsx:issue:click", "issue clicked", {
+              docId: doc.id,
+              docType: doc.type,
+              docStatus: doc.status,
+            });
+            // #endregion
+            run(() => issueDocument(doc.id));
+          }}>
             {isQuote ? "Mark as sent" : "Issue"}
           </button>
         )}

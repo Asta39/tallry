@@ -54,6 +54,21 @@ import { getOrg } from "@/lib/org";
 import { notifyOrg } from "@/lib/notifications";
 import { logAudit } from "./audit";
 
+async function reportInvoiceIssueDebug(hypothesisId: string, location: string, msg: string, data: Record<string, unknown>) {
+  // #region debug-point A:server-issue-logger
+  try {
+    const { readFile } = await import("node:fs/promises");
+    const env = await readFile(".dbg/invoice-issue-500.env", "utf8").catch(() => "");
+    const url = env.match(/DEBUG_SERVER_URL=(.+)/)?.[1] || "http://127.0.0.1:7777/event";
+    const sessionId = env.match(/DEBUG_SESSION_ID=(.+)/)?.[1] || "invoice-issue-500";
+    await fetch(url, {
+      method: "POST",
+      body: JSON.stringify({ sessionId, runId: "pre-fix", hypothesisId, location, msg: `[DEBUG] ${msg}`, data, ts: Date.now() }),
+    }).catch(() => {});
+  } catch {}
+  // #endregion
+}
+
 const DOC_MODULE: Record<string, "quotes" | "invoices" | "credit_notes" | "bills" | "purchase_orders" | "expenses"> = {
   quote: "quotes",
   invoice: "invoices",
@@ -702,6 +717,9 @@ async function _saveDocument(data: {
 /** Issue (post) a draft document. For invoices this also signs via the tax device. */
 async function _issueDocument(docId: number) {
   const orgId = currentOrgId();
+  // #region debug-point D:issue-start
+  await reportInvoiceIssueDebug("D", "src/lib/actions.ts:_issueDocument:start", "issue requested", { docId, orgId });
+  // #endregion
   // Atomic claim: flips status off "draft" only for the request that gets there
   // first, so two concurrent "Issue" clicks can't both pass the check and both
   // post a journal entry (and, for stocked items, both draw down FIFO stock).
@@ -710,12 +728,30 @@ async function _issueDocument(docId: number) {
     .set({ status: "issuing" })
     .where(and(eq(documents.orgId, orgId), eq(documents.id, docId), eq(documents.status, "draft")))
     .returning();
+  // #region debug-point D:issue-claim
+  await reportInvoiceIssueDebug("D", "src/lib/actions.ts:_issueDocument:claim", "issue claim result", {
+    docId,
+    claimed: !!claimed,
+    claimedType: claimed?.type ?? null,
+    claimedStatus: claimed?.status ?? null,
+    sourceDocId: claimed?.sourceDocId ?? null,
+  });
+  // #endregion
   if (!claimed) throw new Error("Already issued");
   const doc = claimed;
 
   try {
     await _issueClaimedDocument(doc);
   } catch (e) {
+    // #region debug-point D:issue-failure
+    await reportInvoiceIssueDebug("D", "src/lib/actions.ts:_issueDocument:catch", "issue failed", {
+      docId,
+      type: doc.type,
+      sourceDocId: doc.sourceDocId ?? null,
+      error: e instanceof Error ? e.message : String(e),
+      stack: e instanceof Error ? e.stack ?? null : null,
+    });
+    // #endregion
     // Release the claim so the document isn't stuck mid-issue after a failed post.
     await db.update(documents).set({ status: "draft" }).where(and(eq(documents.orgId, orgId), eq(documents.id, docId), eq(documents.status, "issuing")));
     throw e;
@@ -724,6 +760,16 @@ async function _issueDocument(docId: number) {
 
 async function _issueClaimedDocument(doc: typeof documents.$inferSelect) {
   const docId = doc.id;
+  // #region debug-point A:claimed-doc
+  await reportInvoiceIssueDebug("A", "src/lib/actions.ts:_issueClaimedDocument:start", "issuing claimed document", {
+    docId,
+    type: doc.type,
+    status: doc.status,
+    sourceDocId: doc.sourceDocId ?? null,
+    contactId: doc.contactId ?? null,
+    totalCents: doc.totalCents,
+  });
+  // #endregion
   switch (doc.type) {
     case "invoice": {
       // KRA eTIMS signing — gated behind ETIMS_ENABLED (off until a real
