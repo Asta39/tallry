@@ -155,6 +155,9 @@ CREATE TABLE IF NOT EXISTS bank_accounts (
   name TEXT NOT NULL,
   kind TEXT NOT NULL,
   account_id INTEGER NOT NULL,
+  opening_balance_cents BIGINT NOT NULL DEFAULT 0,
+  opening_balance_date TEXT,
+  opening_balance_entry_id INTEGER,
   archived BOOLEAN NOT NULL DEFAULT FALSE
 );
 
@@ -205,6 +208,9 @@ ALTER TABLE items ADD COLUMN IF NOT EXISTS item_group_id INTEGER;
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS org_id INTEGER;
 ALTER TABLE document_lines ADD COLUMN IF NOT EXISTS org_id INTEGER;
 ALTER TABLE bank_accounts ADD COLUMN IF NOT EXISTS org_id INTEGER;
+ALTER TABLE bank_accounts ADD COLUMN IF NOT EXISTS opening_balance_cents BIGINT NOT NULL DEFAULT 0;
+ALTER TABLE bank_accounts ADD COLUMN IF NOT EXISTS opening_balance_date TEXT;
+ALTER TABLE bank_accounts ADD COLUMN IF NOT EXISTS opening_balance_entry_id INTEGER;
 ALTER TABLE bank_transactions ADD COLUMN IF NOT EXISTS org_id INTEGER;
 ALTER TABLE journal_entries ADD COLUMN IF NOT EXISTS org_id INTEGER;
 ALTER TABLE journal_lines ADD COLUMN IF NOT EXISTS org_id INTEGER;

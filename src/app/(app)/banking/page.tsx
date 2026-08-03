@@ -5,7 +5,7 @@ import { getOrg } from "@/lib/org";
 import { redirect } from "next/navigation";
 import { db, bankAccounts, bankTransactions, accounts } from "@/db";
 import { desc, inArray } from "drizzle-orm";
-import { fmtKES, parseKES, todayISO } from "@/lib/money";
+import { parseKES, todayISO } from "@/lib/money";
 import { addBankTransaction, categorizeTransaction, bulkCategorizeTransactions, applyCategorizationRules, listCategorizationRules, deleteCategorizationRule } from "@/lib/actions";
 import { accountBalances } from "@/lib/reports";
 import { PageHeader, StatusPill, TableCard, Th, Td } from "@/components/ui";
@@ -14,6 +14,7 @@ import { MpesaImport } from "@/components/MpesaImport";
 import { Reconciliation } from "@/components/Reconciliation";
 import { bankReconciliations } from "@/db";
 import { BankingTransactionsClient } from "@/components/BankingTransactionsClient";
+import { MoneyAccountsClient } from "./MoneyAccountsClient";
 
 export const dynamic = "force-dynamic";
 
@@ -75,18 +76,16 @@ export default async function BankingPage() {
     <>
       <PageHeader title="Bank & M-Pesa" subtitle="Your money accounts, per the ledger" />
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        {banks.map((b) => {
-          const bal = balances.find((x) => x.accountId === b.accountId)?.balanceCents ?? 0;
-          return (
-            <div key={b.id} className="card px-5 py-4">
-              <div className="text-[12.5px] text-[var(--color-ink-600)]">{b.name}</div>
-              <div className="money-lg mt-1">{fmtKES(bal)}</div>
-              <div className="text-[11px] uppercase tracking-wide text-[var(--color-ink-400)] mt-0.5">{b.kind}</div>
-            </div>
-          );
-        })}
-      </div>
+      <MoneyAccountsClient
+        banks={banks.map((b) => ({
+          id: b.id,
+          name: b.name,
+          kind: b.kind,
+          balanceCents: balances.find((x) => x.accountId === b.accountId)?.balanceCents ?? 0,
+          openingBalanceCents: b.openingBalanceCents,
+          openingBalanceDate: b.openingBalanceDate,
+        }))}
+      />
 
       <h2 className="text-[15px] font-semibold mt-8 mb-3">Reconcile</h2>
       <Reconciliation

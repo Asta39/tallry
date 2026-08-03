@@ -354,6 +354,9 @@ export const bankAccounts = pgTable("bank_accounts", {
   name: text("name").notNull(),
   kind: text("kind").notNull(), // bank | mpesa | cash | card
   accountId: integer("account_id").notNull(), // linked COA asset account
+  openingBalanceCents: money("opening_balance_cents").notNull().default(0),
+  openingBalanceDate: text("opening_balance_date"),
+  openingBalanceEntryId: integer("opening_balance_entry_id"),
   archived: boolean("archived").notNull().default(false),
 }, (t) => ({
   orgIdx: index("idx_bank_accounts_org").on(t.orgId),

@@ -31,6 +31,7 @@ import {
   postExpense,
   postPayment,
   postEntry,
+  reverseEntry,
   voidDocument,
   acct,
 } from "./posting";
@@ -53,6 +54,7 @@ function revalidatePath(path: string, type?: "page" | "layout") {
 import { getOrg } from "@/lib/org";
 import { notifyOrg } from "@/lib/notifications";
 import { logAudit } from "./audit";
+import { buildBalanceAdjustmentLines } from "./account-balance-adjustments";
 import {
   canApproveSpend,
   getApprovalRequestByToken,
@@ -950,6 +952,16 @@ export async function markAllNotificationsRead(memberId: number | null) {
 
 /* ---------------- Banking ---------------- */
 
+async function ensureMoneyAccountOpeningBalanceAccess() {
+  const access = await getAccess();
+  if (!access || (!access.isOwner && !["admin", "accountant"].includes(access.role))) {
+    throw new Error("Only admins and accountants can update money account opening balances");
+  }
+  if (!access.isOwner && !access.perms.has("banking") && !access.perms.has("accountant")) {
+    throw new Error("You do not have access to manage money account opening balances");
+  }
+}
+
 async function _addBankTransaction(data: {
   bankAccountId: number;
   date: string;
@@ -1017,6 +1029,108 @@ async function _bulkCategorizeTransactions(updates: { txnId: number; categoryAcc
     await _categorizeTransaction(txnId, categoryAccountId);
   }
   revalidatePath("/banking");
+}
+
+async function _setMoneyAccountOpeningBalance(data: {
+  bankAccountId: number;
+  openingBalanceCents: number;
+  openingBalanceDate: string;
+  memo?: string;
+}) {
+  await ensureMoneyAccountOpeningBalanceAccess();
+  const orgId = currentOrgId();
+  const [bank] = await db
+    .select()
+    .from(bankAccounts)
+    .where(and(eq(bankAccounts.orgId, orgId), eq(bankAccounts.id, data.bankAccountId)))
+    .limit(1);
+  if (!bank) throw new Error("Money account not found");
+  if (!["bank", "mpesa"].includes(bank.kind)) throw new Error("Opening balances can only be edited for bank and M-Pesa accounts");
+  if (!data.openingBalanceDate) throw new Error("Opening balance date is required");
+
+  const openingBalanceAccountId = await acct(SYS.OPENING_BALANCE);
+  if (bank.openingBalanceEntryId) {
+    await reverseEntry(
+      bank.openingBalanceEntryId,
+      bank.openingBalanceDate || data.openingBalanceDate,
+      `Reverse opening balance for ${bank.name}`
+    );
+  }
+
+  let openingEntryId: number | null = null;
+  if (data.openingBalanceCents !== 0) {
+    openingEntryId = await postEntry({
+      date: data.openingBalanceDate,
+      memo: (data.memo || `Opening balance for ${bank.name}`).trim(),
+      sourceType: "bank_opening_balance",
+      sourceId: bank.id,
+      lines: buildBalanceAdjustmentLines({
+        accountId: bank.accountId,
+        accountType: "asset",
+        offsetAccountId: openingBalanceAccountId,
+        deltaCents: data.openingBalanceCents,
+      }).map((line) => ({ ...line, memo: bank.name })),
+    });
+  }
+
+  const externalRef = `opening_balance:${bank.id}`;
+  const [existingTxn] = await db
+    .select({ id: bankTransactions.id })
+    .from(bankTransactions)
+    .where(and(eq(bankTransactions.orgId, orgId), eq(bankTransactions.externalRef, externalRef)))
+    .limit(1);
+
+  if (openingEntryId) {
+    if (existingTxn) {
+      await db
+        .update(bankTransactions)
+        .set({
+          date: data.openingBalanceDate,
+          description: `Opening balance · ${bank.name}`,
+          amountCents: data.openingBalanceCents,
+          status: "categorized",
+          categoryAccountId: openingBalanceAccountId,
+          journalEntryId: openingEntryId,
+        })
+        .where(eq(bankTransactions.id, existingTxn.id));
+    } else {
+      await db.insert(bankTransactions).values({
+        orgId,
+        bankAccountId: bank.id,
+        date: data.openingBalanceDate,
+        description: `Opening balance · ${bank.name}`,
+        amountCents: data.openingBalanceCents,
+        status: "categorized",
+        categoryAccountId: openingBalanceAccountId,
+        journalEntryId: openingEntryId,
+        externalRef,
+        createdAt: nowISO(),
+      });
+    }
+  } else if (existingTxn) {
+    await db.delete(bankTransactions).where(eq(bankTransactions.id, existingTxn.id));
+  }
+
+  await db
+    .update(bankAccounts)
+    .set({
+      openingBalanceCents: data.openingBalanceCents,
+      openingBalanceDate: data.openingBalanceCents !== 0 ? data.openingBalanceDate : null,
+      openingBalanceEntryId: openingEntryId,
+    })
+    .where(and(eq(bankAccounts.orgId, orgId), eq(bankAccounts.id, bank.id)));
+
+  revalidatePath("/banking");
+  await logAudit({
+    action: "update",
+    module: "banking",
+    recordId: bank.id,
+    recordLabel: bank.name,
+    detail:
+      data.openingBalanceCents === 0
+        ? "Cleared opening balance"
+        : `Set opening balance to ${fmtKES(data.openingBalanceCents)} on ${data.openingBalanceDate}`,
+  });
 }
 
 /* ---------------- Manual journals ---------------- */
@@ -1421,6 +1535,14 @@ export async function recordPayment(data: Parameters<typeof _recordPayment>[0]) 
 }
 export async function addBankTransaction(data: Parameters<typeof _addBankTransaction>[0]) {
   return withOrg(() => _addBankTransaction(data));
+}
+export async function setMoneyAccountOpeningBalanceAction(
+  data: Parameters<typeof _setMoneyAccountOpeningBalance>[0]
+) {
+  return withOrg(async () => {
+    await _setMoneyAccountOpeningBalance(data);
+    return { success: true };
+  }, { requireWrite: true });
 }
 export async function categorizeTransaction(txnId: number, categoryAccountId: number) {
   return withOrg(() => _categorizeTransaction(txnId, categoryAccountId));
