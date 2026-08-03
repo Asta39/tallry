@@ -49,6 +49,7 @@ export default async function SettingsPage() {
           approvalRequestPhone: o.approvalRequestPhone,
           timeTrackingEnabled: o.timeTrackingEnabled,
           itemGroupsEnabled: o.itemGroupsEnabled,
+          customerGroupsEnabled: o.customerGroupsEnabled,
           nextInvoiceNo: o.nextInvoiceNo,
           nextQuoteNo: o.nextQuoteNo,
           userId: o.userId,

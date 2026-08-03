@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { saveContact } from "@/lib/actions";
 
-type Group = { id: number; name: string };
+type Group = { id: number; name: string; parentGroupId?: number | null };
 
 export interface ContactFormInitial {
   id?: number;
@@ -26,7 +26,7 @@ const input =
   "w-full rounded-lg border border-[var(--color-ink-200)] bg-white px-3 py-2 text-[13px] outline-none focus:border-[var(--color-accent-500)] focus:ring-2 focus:ring-[var(--color-accent-100)] mt-1";
 const labelCls = "text-[12px] font-medium text-[var(--color-ink-600)]";
 
-export function ContactForm({ initial, groups }: { initial?: ContactFormInitial; groups: Group[] }) {
+export function ContactForm({ initial, groups, groupsRequired = true }: { initial?: ContactFormInitial; groups: Group[]; groupsRequired?: boolean }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -36,13 +36,34 @@ export function ContactForm({ initial, groups }: { initial?: ContactFormInitial;
 
   const isCustomer = kind === "customer" || kind === "both";
 
+  // Depth-first order, subgroups directly under their parent — a flat list
+  // sorted alphabetically would scatter a group's children away from it.
+  const orderedGroups = (() => {
+    const byParent = new Map<number | null, Group[]>();
+    for (const g of groups) {
+      const key = g.parentGroupId ?? null;
+      const arr = byParent.get(key) ?? [];
+      arr.push(g);
+      byParent.set(key, arr);
+    }
+    const out: { group: Group; depth: number }[] = [];
+    function walk(parentId: number | null, depth: number) {
+      for (const g of byParent.get(parentId) ?? []) {
+        out.push({ group: g, depth });
+        walk(g.id, depth + 1);
+      }
+    }
+    walk(null, 0);
+    return out;
+  })();
+
   function toggleGroup(id: number) {
     setGroupIds((cur) => (cur.includes(id) ? cur.filter((g) => g !== id) : [...cur, id]));
   }
 
   function submit(formData: FormData) {
     setError(null);
-    if (isCustomer && groupIds.length === 0) {
+    if (isCustomer && groupsRequired && groupIds.length === 0) {
       setError(groups.length === 0 ? "Create a customer group first — an admin can add one under Customer Groups." : "Pick at least one customer group.");
       return;
     }
@@ -87,20 +108,23 @@ export function ContactForm({ initial, groups }: { initial?: ContactFormInitial;
 
       {isCustomer && (
         <div className="block col-span-2">
-          <span className={labelCls}>Customer groups * <span className="font-normal text-[var(--color-ink-400)]">(pick one or more)</span></span>
+          <span className={labelCls}>
+            Customer groups {groupsRequired ? "*" : ""} <span className="font-normal text-[var(--color-ink-400)]">(pick one or more)</span>
+          </span>
           {groups.length === 0 ? (
             <div className="mt-1 text-[12.5px] text-[var(--color-ink-500)]">
               No groups yet — an admin must create one under Customer Groups first.
             </div>
           ) : (
             <div className="mt-1 flex flex-wrap gap-2">
-              {groups.map((g) => {
+              {orderedGroups.map(({ group: g, depth }) => {
                 const on = groupIds.includes(g.id);
                 return (
                   <button
                     type="button"
                     key={g.id}
                     onClick={() => toggleGroup(g.id)}
+                    style={depth > 0 ? { marginLeft: depth * 14 } : undefined}
                     className={`rounded-full border px-3 py-1.5 text-[12.5px] transition-colors ${
                       on
                         ? "bg-[var(--color-accent-500)] border-[var(--color-accent-500)] text-white"
@@ -108,6 +132,7 @@ export function ContactForm({ initial, groups }: { initial?: ContactFormInitial;
                     }`}
                   >
                     {on ? "✓ " : ""}
+                    {depth > 0 ? "↳ " : ""}
                     {g.name}
                   </button>
                 );

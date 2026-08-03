@@ -152,17 +152,20 @@ async function _saveContact(data: {
   groupIds?: number[];
 }) {
   const orgId = currentOrgId();
+  const o = await getOrg();
   const isCustomer = data.kind === "customer" || data.kind === "both";
 
   // Groups apply to customers only; a vendor-only contact never carries any.
   let groupIds = isCustomer ? [...new Set((data.groupIds ?? []).filter(Boolean))] : [];
   if (isCustomer) {
-    if (groupIds.length === 0) throw new Error("Pick at least one customer group");
-    const valid = await db
-      .select({ id: customerGroups.id })
-      .from(customerGroups)
-      .where(and(eq(customerGroups.orgId, orgId), inArray(customerGroups.id, groupIds)));
-    if (valid.length !== groupIds.length) throw new Error("One of the chosen groups no longer exists");
+    if (o.customerGroupsEnabled && groupIds.length === 0) throw new Error("Pick at least one customer group");
+    if (groupIds.length > 0) {
+      const valid = await db
+        .select({ id: customerGroups.id })
+        .from(customerGroups)
+        .where(and(eq(customerGroups.orgId, orgId), inArray(customerGroups.id, groupIds)));
+      if (valid.length !== groupIds.length) throw new Error("One of the chosen groups no longer exists");
+    }
   }
 
   const values = {
@@ -226,7 +229,7 @@ async function _saveDeal(data: {
   revalidatePath("/pipeline");
 }
 
-async function validateItemGroup(orgId: number, itemGroupId: number | null | undefined) {
+async function validateItemGroup(orgId: number, itemGroupId: number | null | undefined, kind?: string) {
   const o = await getOrg();
   const groupId = itemGroupId ?? null;
   if (o.itemGroupsEnabled && !groupId) {
@@ -234,11 +237,14 @@ async function validateItemGroup(orgId: number, itemGroupId: number | null | und
   }
   if (groupId) {
     const [group] = await db
-      .select({ id: itemGroups.id })
+      .select({ id: itemGroups.id, appliesTo: itemGroups.appliesTo, name: itemGroups.name })
       .from(itemGroups)
       .where(and(eq(itemGroups.orgId, orgId), eq(itemGroups.id, groupId)))
       .limit(1);
     if (!group) throw new Error("The chosen item group no longer exists");
+    if (kind && group.appliesTo !== "both" && group.appliesTo !== kind) {
+      throw new Error(`"${group.name}" is a ${group.appliesTo}-only group and can't be used for a ${kind} item`);
+    }
   }
   return groupId;
 }
@@ -359,7 +365,7 @@ async function _saveItem(data: {
   openingUnitCostCents?: number;
 }) {
   const orgId = currentOrgId();
-  const itemGroupId = await validateItemGroup(orgId, data.itemGroupId);
+  const itemGroupId = await validateItemGroup(orgId, data.itemGroupId, data.kind);
 
   // Defense-in-depth: the UI constrains these, but the action itself shouldn't
   // trust client input — a negative price/cost would post reversed debit/credit
@@ -1186,6 +1192,7 @@ export async function saveOrgProfile(data: {
   approvalRequestPhone?: string;
   timeTrackingEnabled?: boolean;
   itemGroupsEnabled?: boolean;
+  customerGroupsEnabled?: boolean;
   nextInvoiceNo?: number;
   nextQuoteNo?: number;
 }) {
@@ -1222,6 +1229,7 @@ export async function saveOrgProfile(data: {
         ...(data.approvalRequestPhone !== undefined ? { approvalRequestPhone: data.approvalRequestPhone || null } : {}),
         ...(data.timeTrackingEnabled !== undefined ? { timeTrackingEnabled: data.timeTrackingEnabled } : {}),
         ...(data.itemGroupsEnabled !== undefined ? { itemGroupsEnabled: data.itemGroupsEnabled } : {}),
+        ...(data.customerGroupsEnabled !== undefined ? { customerGroupsEnabled: data.customerGroupsEnabled } : {}),
         ...(data.nextInvoiceNo !== undefined ? { nextInvoiceNo: data.nextInvoiceNo } : {}),
         ...(data.nextQuoteNo !== undefined ? { nextQuoteNo: data.nextQuoteNo } : {}),
       })
@@ -1254,6 +1262,7 @@ export async function saveOrgProfile(data: {
         ...(data.nextQuoteNo !== undefined ? { nextQuoteNo: data.nextQuoteNo } : {}),
         ...(data.timeTrackingEnabled !== undefined ? { timeTrackingEnabled: data.timeTrackingEnabled } : {}),
         ...(data.itemGroupsEnabled !== undefined ? { itemGroupsEnabled: data.itemGroupsEnabled } : {}),
+        ...(data.customerGroupsEnabled !== undefined ? { customerGroupsEnabled: data.customerGroupsEnabled } : {}),
       })
       .returning();
     await seedOrgDefaults(saved.id);

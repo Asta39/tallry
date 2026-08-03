@@ -687,3 +687,39 @@ CREATE TABLE IF NOT EXISTS item_types (
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_item_types_org_name ON item_types(org_id, name);
+
+-- Customer/item group subgroups + toggle for customer groups + product/service split.
+ALTER TABLE org ADD COLUMN IF NOT EXISTS customer_groups_enabled BOOLEAN NOT NULL DEFAULT TRUE;
+
+ALTER TABLE customer_groups ADD COLUMN IF NOT EXISTS parent_group_id INTEGER;
+CREATE INDEX IF NOT EXISTS idx_customer_groups_parent ON customer_groups(parent_group_id);
+
+ALTER TABLE item_groups ADD COLUMN IF NOT EXISTS parent_group_id INTEGER;
+ALTER TABLE item_groups ADD COLUMN IF NOT EXISTS applies_to TEXT NOT NULL DEFAULT 'both';
+CREATE INDEX IF NOT EXISTS idx_item_groups_parent ON item_groups(parent_group_id);
+
+-- items.item_group_id had no FK — archived items could carry a dangling
+-- reference to an already-deleted group. Null those out before adding the
+-- constraint, then enforce integrity at the DB level going forward.
+UPDATE items SET item_group_id = NULL
+  WHERE item_group_id IS NOT NULL AND item_group_id NOT IN (SELECT id FROM item_groups);
+
+DO $$ BEGIN
+  ALTER TABLE items ADD CONSTRAINT items_item_group_id_fkey
+    FOREIGN KEY (item_group_id) REFERENCES item_groups(id) ON DELETE SET NULL;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  ALTER TABLE customer_groups ADD CONSTRAINT customer_groups_parent_group_id_fkey
+    FOREIGN KEY (parent_group_id) REFERENCES customer_groups(id) ON DELETE SET NULL;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  ALTER TABLE item_groups ADD CONSTRAINT item_groups_parent_group_id_fkey
+    FOREIGN KEY (parent_group_id) REFERENCES item_groups(id) ON DELETE SET NULL;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  ALTER TABLE contact_group_memberships ADD CONSTRAINT contact_group_memberships_group_id_fkey
+    FOREIGN KEY (group_id) REFERENCES customer_groups(id) ON DELETE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;

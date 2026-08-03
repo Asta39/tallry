@@ -22,7 +22,8 @@ export default async function EditContactPage({ params }: { params: Promise<{ id
     <>
       <PageHeader title={`Edit ${c.displayName}`} />
       <ContactForm
-        groups={groups.map((g) => ({ id: g.id, name: g.name }))}
+        groups={groups.map((g) => ({ id: g.id, name: g.name, parentGroupId: g.parentGroupId }))}
+        groupsRequired={o.customerGroupsEnabled}
         initial={{
           id: c.id,
           kind: c.kind,

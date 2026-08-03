@@ -16,7 +16,10 @@ export async function editorOptions(side: "sale" | "purchase") {
       ? await db.select().from(contacts).where(and(eq(contacts.orgId, orgId), inArray(contacts.kind, ["customer", "both"])))
       : contactRows;
   const itemRows = await db.select().from(items).where(and(eq(items.orgId, orgId), eq(items.archived, false)));
-  const itemGroupRows = await db.select().from(itemGroups).where(eq(itemGroups.orgId, orgId)).orderBy(itemGroups.name);
+  // Purchase lines are always added into Items as kind "goods" (createItemFromLine),
+  // so only offer groups that actually allow goods here — a "services only" group
+  // would silently violate validateItemGroup's appliesTo check on submit otherwise.
+  const itemGroupRows = await db.select().from(itemGroups).where(and(eq(itemGroups.orgId, orgId), inArray(itemGroups.appliesTo, ["goods", "both"]))).orderBy(itemGroups.name);
   const expenseRows = await db.select().from(accounts).where(and(eq(accounts.orgId, orgId), eq(accounts.type, "expense")));
   const bankRows = await db.select().from(bankAccounts).where(and(eq(bankAccounts.orgId, orgId), eq(bankAccounts.archived, false)));
   const memberRows = await db.select().from(members).where(and(eq(members.orgId, orgId), eq(members.active, true)));

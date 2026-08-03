@@ -57,6 +57,10 @@ export const org = pgTable("org", {
   timeTrackingEnabled: boolean("time_tracking_enabled").notNull().default(false),
   /** When on, every item must belong to an admin-managed item group. */
   itemGroupsEnabled: boolean("item_groups_enabled").notNull().default(false),
+  /** When on, every customer must belong to an admin-managed customer group.
+   *  Defaults true — this was the unconditional, always-on behavior before
+   *  this toggle existed, so existing orgs see no change unless they opt out. */
+  customerGroupsEnabled: boolean("customer_groups_enabled").notNull().default(true),
 });
 
 export const accounts = pgTable("accounts", {
@@ -106,9 +110,12 @@ export const customerGroups = pgTable("customer_groups", {
   id: serial("id").primaryKey(),
   orgId: integer("org_id").notNull().references(() => org.id),
   name: text("name").notNull(),
+  /** Optional parent for nested subgroups (e.g. "Nairobi Office" -> "Wholesale"). Self-reference, same pattern as accounts.parentAccountId. */
+  parentGroupId: integer("parent_group_id"),
   createdAt: text("created_at").notNull(),
 }, (t) => ({
   orgNameUnique: uniqueIndex("idx_customer_groups_org_name").on(t.orgId, t.name),
+  parentIdx: index("idx_customer_groups_parent").on(t.parentGroupId),
 }));
 
 /**
@@ -191,9 +198,14 @@ export const itemGroups = pgTable("item_groups", {
   id: serial("id").primaryKey(),
   orgId: integer("org_id").notNull().references(() => org.id),
   name: text("name").notNull(),
+  /** Optional parent for nested subgroups. Self-reference, same pattern as accounts.parentAccountId. */
+  parentGroupId: integer("parent_group_id"),
+  /** goods | service | both — restricts which item kind can be assigned to this group. Default 'both' keeps every pre-existing group usable exactly as before. */
+  appliesTo: text("applies_to").notNull().default("both"),
   createdAt: text("created_at").notNull(),
 }, (t) => ({
   orgNameUnique: uniqueIndex("idx_item_groups_org_name").on(t.orgId, t.name),
+  parentIdx: index("idx_item_groups_parent").on(t.parentGroupId),
 }));
 
 /** FIFO cost lots. Purchases append lots; sales consume remainingQty oldest-first. */

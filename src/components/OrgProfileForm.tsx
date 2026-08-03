@@ -28,6 +28,7 @@ interface OrgData {
   approvalRequestPhone?: string | null;
   timeTrackingEnabled: boolean;
   itemGroupsEnabled: boolean;
+  customerGroupsEnabled: boolean;
   nextInvoiceNo?: number | null;
   nextQuoteNo?: number | null;
   userId?: string | null;
@@ -63,6 +64,7 @@ export function OrgProfileForm({ initial }: { initial: OrgData }) {
   const [approvalRequestPhone, setApprovalRequestPhone] = useState(initial.approvalRequestPhone || "");
   const [timeTrackingEnabled, setTimeTrackingEnabled] = useState(initial.timeTrackingEnabled);
   const [itemGroupsEnabled, setItemGroupsEnabled] = useState(initial.itemGroupsEnabled);
+  const [customerGroupsEnabled, setCustomerGroupsEnabled] = useState(initial.customerGroupsEnabled);
 
   const fileRef = useRef<HTMLInputElement>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(initial.logoUrl || null);
@@ -137,6 +139,7 @@ export function OrgProfileForm({ initial }: { initial: OrgData }) {
           approvalRequestPhone: approvalRequestPhone || undefined,
           timeTrackingEnabled,
           itemGroupsEnabled,
+          customerGroupsEnabled,
           nextInvoiceNo: Number(nextInvoiceNo) || 1,
           nextQuoteNo: Number(nextQuoteNo) || 1,
         });
@@ -368,6 +371,20 @@ export function OrgProfileForm({ initial }: { initial: OrgData }) {
             <div className="text-[13px] font-medium text-[var(--color-ink-900)]">Require item groups for every item</div>
             <div className="text-[12px] text-[var(--color-ink-400)] mt-0.5 max-w-lg">
               When enabled, products and services must be assigned to an item group. Purchase lines added into Items will also need a group, and sales reports can be broken down by item group.
+            </div>
+          </div>
+        </label>
+        <label className="flex items-start gap-3 cursor-pointer mt-4 pt-4 hairline-t">
+          <input
+            type="checkbox"
+            checked={customerGroupsEnabled}
+            onChange={(e) => setCustomerGroupsEnabled(e.target.checked)}
+            className="accent-[var(--color-accent-500)] mt-0.5"
+          />
+          <div>
+            <div className="text-[13px] font-medium text-[var(--color-ink-900)]">Require customer groups for every customer</div>
+            <div className="text-[12px] text-[var(--color-ink-400)] mt-0.5 max-w-lg">
+              When enabled (default), every customer must belong to at least one customer group before they can be saved. Turn this off if your organization doesn&apos;t need customer segmentation.
             </div>
           </div>
         </label>

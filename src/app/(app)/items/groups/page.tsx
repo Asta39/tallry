@@ -31,7 +31,7 @@ export default async function ItemGroupsPage() {
         }
       />
       <ItemGroupsClient
-        groups={groups.map((g) => ({ id: g.id, name: g.name, itemCount: g.itemCount }))}
+        groups={groups.map((g) => ({ id: g.id, name: g.name, parentGroupId: g.parentGroupId, appliesTo: g.appliesTo, itemCount: g.itemCount }))}
         canManage={canManage}
         enabled={o.itemGroupsEnabled}
       />

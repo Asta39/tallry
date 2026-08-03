@@ -19,6 +19,7 @@ import type { TaxClass } from "./tax";
 import { addLot } from "./inventory";
 import { postEntry, acct } from "./posting";
 import { SYS } from "./coa";
+import { logAudit } from "./audit";
 
 /**
  * Bulk CSV imports. Row shapes match the template CSVs served by
@@ -44,9 +45,10 @@ export async function importContacts(rows: ContactRow[]): Promise<{ created?: nu
   try {
     return await withOrg(async () => {
     const orgId = currentOrgId();
+    const o = await getOrg();
     const existing = await db.select({ name: contacts.displayName }).from(contacts).where(eq(contacts.orgId, orgId));
     const known = new Set(existing.map((e) => e.name.toLowerCase().trim()));
-    
+
     // Existing customer groups for fast lookup
     const existingGroups = await db.select().from(customerGroups).where(eq(customerGroups.orgId, orgId));
     const groupMap = new Map(existingGroups.map((g) => [g.name.toLowerCase().trim(), g.id]));
@@ -55,12 +57,19 @@ export async function importContacts(rows: ContactRow[]): Promise<{ created?: nu
     for (const r of rows) {
       const name = (r.displayName || "").trim();
       if (!name || known.has(name.toLowerCase())) { skipped++; continue; }
+      const kind = ["customer", "vendor", "both"].includes(r.kind) ? r.kind : "customer";
 
       // Process group names if provided (e.g. "Wholesale, Key Accounts")
       const groupNames = (r.groups || "")
         .split(/[,;]/)
         .map((g) => g.trim())
         .filter(Boolean);
+
+      // Same requirement _saveContact enforces for the manual form — CSV
+      // import must not be a backdoor around "every customer needs a group".
+      if (o.customerGroupsEnabled && (kind === "customer" || kind === "both") && groupNames.length === 0) {
+        throw new Error(`"${name}" needs at least one customer group — this org requires it`);
+      }
 
       const groupIds: number[] = [];
       for (const gName of groupNames) {
@@ -72,13 +81,14 @@ export async function importContacts(rows: ContactRow[]): Promise<{ created?: nu
             .returning();
           gId = inserted.id;
           groupMap.set(gName.toLowerCase(), gId);
+          await logAudit({ action: "create", module: "contacts", recordId: gId, recordLabel: gName, detail: "Auto-created via CSV import" });
         }
         groupIds.push(gId);
       }
 
       const [c] = await db.insert(contacts).values({
         orgId,
-        kind: ["customer", "vendor", "both"].includes(r.kind) ? r.kind : "customer",
+        kind,
         displayName: name,
         companyName: r.companyName || null,
         email: r.email || null,
@@ -136,8 +146,10 @@ export async function importItems(rows: ItemRow[]): Promise<{ created?: number; 
       if (!name || known.has(name.toLowerCase())) { skipped++; continue; }
       const purchaseCostCents = Math.max(0, Math.round(r.purchaseCostCents));
       const groupName = (r.group || "").trim();
+      const kind = r.kind === "goods" ? "goods" : "service";
       let itemGroupId: number | null = null;
       if (groupName) {
+        const reused = existingGroups.find((g) => g.name.toLowerCase().trim() === groupName.toLowerCase());
         itemGroupId = groupMap.get(groupName.toLowerCase()) ?? null;
         if (!itemGroupId) {
           const [inserted] = await db
@@ -146,13 +158,19 @@ export async function importItems(rows: ItemRow[]): Promise<{ created?: number; 
             .returning();
           itemGroupId = inserted.id;
           groupMap.set(groupName.toLowerCase(), itemGroupId);
+          await logAudit({ action: "create", module: "items", recordId: itemGroupId, recordLabel: groupName, detail: "Auto-created via CSV import" });
+        } else if (reused && reused.appliesTo !== "both" && reused.appliesTo !== kind) {
+          // Same restriction validateItemGroup enforces for the manual item
+          // form — this insert path writes to `items` directly, so it has to
+          // check appliesTo itself rather than inheriting the guard for free.
+          throw new Error(`Group "${groupName}" is ${reused.appliesTo}-only and can't be used for "${name}" (a ${kind})`);
         }
       } else if (o.itemGroupsEnabled) {
         throw new Error(`Item group is required for "${name}"`);
       }
       const [row] = await db.insert(items).values({
         orgId,
-        kind: r.kind === "goods" ? "goods" : "service",
+        kind,
         itemGroupId,
         name,
         sku: r.sku || null,

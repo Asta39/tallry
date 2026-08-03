@@ -72,7 +72,9 @@ export default async function NewItemPage() {
             <select name="itemGroupId" className={input} required={groupsRequired} defaultValue="">
               <option value="">{groupsRequired ? "Select a group" : "No group"}</option>
               {groups.map((g) => (
-                <option key={g.id} value={g.id}>{g.name}</option>
+                <option key={g.id} value={g.id}>
+                  {g.name}{g.appliesTo === "goods" ? " (products only)" : g.appliesTo === "service" ? " (services only)" : ""}
+                </option>
               ))}
             </select>
           ) : (
