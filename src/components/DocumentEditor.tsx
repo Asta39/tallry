@@ -689,7 +689,7 @@ export function DocumentEditor({
 
       {error && <div className="text-[13px] text-[var(--color-bad)]">{error}</div>}
 
-      <div className="flex items-center gap-3">
+      <div className="relative z-[75] flex items-center gap-3">
         <button
           onClick={() => submit(true)}
           disabled={pending}
