@@ -10,9 +10,22 @@ export async function defaultWarehouseId(): Promise<number> {
   if (cached) return cached;
   const [row] = await db.select({ id: warehouses.id }).from(warehouses)
     .where(and(eq(warehouses.orgId, orgId), eq(warehouses.isDefault, true))).limit(1);
-  if (!row) throw new Error("No default warehouse configured for this organization");
-  defaultWarehouseCache.set(orgId, row.id);
-  return row.id;
+  if (row) {
+    defaultWarehouseCache.set(orgId, row.id);
+    return row.id;
+  }
+
+  const activeWarehouses = await db
+    .select({ id: warehouses.id })
+    .from(warehouses)
+    .where(and(eq(warehouses.orgId, orgId), eq(warehouses.archived, false)))
+    .limit(2);
+  if (activeWarehouses.length === 1) {
+    defaultWarehouseCache.set(orgId, activeWarehouses[0].id);
+    return activeWarehouses[0].id;
+  }
+
+  throw new Error("No default warehouse configured for this organization");
 }
 
 /** Add a FIFO cost lot (from a bill, opening stock, or positive adjustment). */

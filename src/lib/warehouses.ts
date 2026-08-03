@@ -17,7 +17,18 @@ export async function createWarehouseAction(name: string) {
     await requirePerm("items");
     const trimmed = name.trim();
     if (!trimmed) throw new Error("Name is required");
-    await db.insert(warehouses).values({ orgId: currentOrgId(), name: trimmed, createdAt: nowISO() });
+    const orgId = currentOrgId();
+    const [existing] = await db
+      .select({ id: warehouses.id })
+      .from(warehouses)
+      .where(and(eq(warehouses.orgId, orgId), eq(warehouses.archived, false)))
+      .limit(1);
+    await db.insert(warehouses).values({
+      orgId,
+      name: trimmed,
+      isDefault: !existing,
+      createdAt: nowISO(),
+    });
     revalidatePath("/items/warehouses");
     return { success: true };
   });
