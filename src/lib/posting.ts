@@ -16,21 +16,6 @@ import { SYS } from "./coa";
 import { addLot, consumeFifo } from "./inventory";
 import { nowISO } from "./money";
 
-async function reportInvoiceIssueDebug(hypothesisId: string, location: string, msg: string, data: Record<string, unknown>) {
-  // #region debug-point A:posting-logger
-  try {
-    const { readFile } = await import("node:fs/promises");
-    const env = await readFile(".dbg/invoice-issue-500.env", "utf8").catch(() => "");
-    const url = env.match(/DEBUG_SERVER_URL=(.+)/)?.[1] || "http://127.0.0.1:7777/event";
-    const sessionId = env.match(/DEBUG_SESSION_ID=(.+)/)?.[1] || "invoice-issue-500";
-    await fetch(url, {
-      method: "POST",
-      body: JSON.stringify({ sessionId, runId: "pre-fix", hypothesisId, location, msg: `[DEBUG] ${msg}`, data, ts: Date.now() }),
-    }).catch(() => {});
-  } catch {}
-  // #endregion
-}
-
 /**
  * The posting engine — the ONLY writer to journal_entries / journal_lines.
  * Every function throws if debits ≠ credits.
@@ -149,15 +134,6 @@ async function getDocWithLines(docId: number) {
 /** Invoice: DR AR gross · CR Sales net + VAT Output; FIFO COGS for tracked items. */
 export async function postInvoice(docId: number): Promise<number> {
   const { doc, lines } = await getDocWithLines(docId);
-  // #region debug-point A:post-invoice-start
-  await reportInvoiceIssueDebug("A", "src/lib/posting.ts:postInvoice:start", "postInvoice start", {
-    docId,
-    sourceDocId: doc.sourceDocId ?? null,
-    lineCount: lines.length,
-    totalCents: doc.totalCents,
-    contactId: doc.contactId ?? null,
-  });
-  // #endregion
   const post: PostLine[] = [
     {
       accountId: await acct(SYS.AR),
@@ -167,19 +143,6 @@ export async function postInvoice(docId: number): Promise<number> {
     },
   ];
   for (const l of lines) {
-    // #region debug-point A:post-invoice-line
-    await reportInvoiceIssueDebug("A", "src/lib/posting.ts:postInvoice:line", "processing invoice line", {
-      docId,
-      lineId: l.id,
-      itemId: l.itemId ?? null,
-      accountId: l.accountId ?? null,
-      qty: l.qty,
-      warehouseId: l.warehouseId ?? null,
-      costCenterId: l.costCenterId ?? null,
-      netCents: l.netCents,
-      taxCents: l.taxCents,
-    });
-    // #endregion
     post.push({
       accountId: l.accountId ?? (await acct(SYS.SALES)),
       creditCents: l.netCents,
@@ -193,36 +156,11 @@ export async function postInvoice(docId: number): Promise<number> {
     if (l.itemId) {
       const [item] = await db.select().from(items).where(and(eq(items.orgId, currentOrgId()), eq(items.id, l.itemId))).limit(1);
       if (item?.trackInventory) {
-        try {
-          const cogs = await consumeFifo(l.itemId, l.qty, l.warehouseId ?? undefined);
-          if (cogs > 0) {
-            post.push({ accountId: await acct(SYS.COGS), debitCents: cogs, memo: l.description });
-            post.push({ accountId: await acct(SYS.INVENTORY), creditCents: cogs });
-            await db.update(documentLines).set({ cogsCents: cogs }).where(and(eq(documentLines.orgId, currentOrgId()), eq(documentLines.id, l.id)));
-          }
-          // #region debug-point E:fifo-success
-          await reportInvoiceIssueDebug("E", "src/lib/posting.ts:postInvoice:fifo", "fifo consumption ok", {
-            docId,
-            lineId: l.id,
-            itemId: l.itemId,
-            warehouseId: l.warehouseId ?? null,
-            qty: l.qty,
-            cogs,
-          });
-          // #endregion
-        } catch (e) {
-          // #region debug-point E:fifo-failure
-          await reportInvoiceIssueDebug("E", "src/lib/posting.ts:postInvoice:fifo", "fifo consumption failed", {
-            docId,
-            lineId: l.id,
-            itemId: l.itemId,
-            warehouseId: l.warehouseId ?? null,
-            qty: l.qty,
-            error: e instanceof Error ? e.message : String(e),
-            stack: e instanceof Error ? e.stack ?? null : null,
-          });
-          // #endregion
-          throw e;
+        const cogs = await consumeFifo(l.itemId, l.qty, l.warehouseId ?? undefined);
+        if (cogs > 0) {
+          post.push({ accountId: await acct(SYS.COGS), debitCents: cogs, memo: l.description });
+          post.push({ accountId: await acct(SYS.INVENTORY), creditCents: cogs });
+          await db.update(documentLines).set({ cogsCents: cogs }).where(and(eq(documentLines.orgId, currentOrgId()), eq(documentLines.id, l.id)));
         }
       }
     }
@@ -238,13 +176,6 @@ export async function postInvoice(docId: number): Promise<number> {
     .update(documents)
     .set({ journalEntryId: entryId, status: "open" })
     .where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, doc.id)));
-  // #region debug-point A:post-invoice-success
-  await reportInvoiceIssueDebug("A", "src/lib/posting.ts:postInvoice:success", "postInvoice success", {
-    docId,
-    entryId,
-    status: "open",
-  });
-  // #endregion
   return entryId;
 }
 
