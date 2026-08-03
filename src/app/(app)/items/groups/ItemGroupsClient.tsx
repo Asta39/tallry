@@ -9,8 +9,12 @@ import {
 } from "@/lib/item-groups";
 
 type Group = { id: number; name: string; parentGroupId: number | null; appliesTo: string; itemCount: number };
+type ItemTypeOption = { name: string };
 
-const APPLIES_TO_LABEL: Record<string, string> = { goods: "Products only", service: "Services only", both: "Products & services" };
+function appliesToLabel(appliesTo: string): string {
+  if (appliesTo === "both") return "All item types";
+  return `${appliesTo.charAt(0).toUpperCase() + appliesTo.slice(1)} only`;
+}
 
 /** Depth-first order so a group's subgroups render directly under it, indented. */
 function orderTree(groups: Group[]): { group: Group; depth: number }[] {
@@ -32,7 +36,7 @@ function orderTree(groups: Group[]): { group: Group; depth: number }[] {
   return out;
 }
 
-export function ItemGroupsClient({ groups, canManage, enabled }: { groups: Group[]; canManage: boolean; enabled: boolean }) {
+export function ItemGroupsClient({ groups, types, canManage, enabled }: { groups: Group[]; types: ItemTypeOption[]; canManage: boolean; enabled: boolean }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -102,9 +106,10 @@ export function ItemGroupsClient({ groups, canManage, enabled }: { groups: Group
             ))}
           </select>
           <select className={input} value={newAppliesTo} onChange={(e) => setNewAppliesTo(e.target.value)}>
-            <option value="both">Products & services</option>
-            <option value="goods">Products only</option>
-            <option value="service">Services only</option>
+            <option value="both">All item types</option>
+            {types.map((t) => (
+              <option key={t.name} value={t.name}>{appliesToLabel(t.name)}</option>
+            ))}
           </select>
           <button
             disabled={pending || !newName.trim()}
@@ -157,16 +162,17 @@ export function ItemGroupsClient({ groups, canManage, enabled }: { groups: Group
                           ))}
                         </select>
                         <select className={input} value={editAppliesTo} onChange={(e) => setEditAppliesTo(e.target.value)}>
-                          <option value="both">Products & services</option>
-                          <option value="goods">Products only</option>
-                          <option value="service">Services only</option>
+                          <option value="both">All item types</option>
+                          {types.map((t) => (
+                            <option key={t.name} value={t.name}>{appliesToLabel(t.name)}</option>
+                          ))}
                         </select>
                       </div>
                     ) : (
                       <div>
                         <span className="font-medium">{depth > 0 ? "↳ " : ""}{g.name}</span>
                         {g.appliesTo !== "both" && (
-                          <span className="ml-2 text-[11px] text-[var(--color-ink-400)]">{APPLIES_TO_LABEL[g.appliesTo]}</span>
+                          <span className="ml-2 text-[11px] text-[var(--color-ink-400)]">{appliesToLabel(g.appliesTo)}</span>
                         )}
                       </div>
                     )}

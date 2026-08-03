@@ -1,6 +1,6 @@
 "use server";
 
-import { db, contacts, items, customerGroups, contactGroupMemberships, itemGroups } from "@/db";
+import { db, contacts, items, customerGroups, contactGroupMemberships, itemGroups, itemTypes } from "@/db";
 import { and, eq, inArray } from "drizzle-orm";
 import { revalidatePath as nextRevalidatePath } from "next/cache";
 
@@ -140,13 +140,21 @@ export async function importItems(rows: ItemRow[]): Promise<{ created?: number; 
     const known = new Set(existing.map((e) => e.name.toLowerCase().trim()));
     const existingGroups = await db.select().from(itemGroups).where(eq(itemGroups.orgId, orgId));
     const groupMap = new Map(existingGroups.map((g) => [g.name.toLowerCase().trim(), g.id]));
+    const orgTypes = await db.select().from(itemTypes).where(eq(itemTypes.orgId, orgId));
+    const typeByName = new Map(orgTypes.map((t) => [t.name.toLowerCase(), t]));
     let created = 0, skipped = 0;
     for (const r of rows) {
       const name = (r.name || "").trim();
       if (!name || known.has(name.toLowerCase())) { skipped++; continue; }
       const purchaseCostCents = Math.max(0, Math.round(r.purchaseCostCents));
       const groupName = (r.group || "").trim();
-      const kind = r.kind === "goods" ? "goods" : "service";
+      // Match the CSV's type name against this org's real item types
+      // (goods/service plus any custom ones) rather than collapsing
+      // everything non-"goods" to "service" — that silently mislabeled
+      // custom-type rows before item types existed as a first-class concept.
+      const matchedType = typeByName.get((r.kind || "").toLowerCase().trim());
+      const kind = matchedType?.name ?? "service";
+      const groupMandatory = matchedType ? matchedType.isGroupMandatory : true;
       let itemGroupId: number | null = null;
       if (groupName) {
         const reused = existingGroups.find((g) => g.name.toLowerCase().trim() === groupName.toLowerCase());
@@ -165,7 +173,7 @@ export async function importItems(rows: ItemRow[]): Promise<{ created?: number; 
           // check appliesTo itself rather than inheriting the guard for free.
           throw new Error(`Group "${groupName}" is ${reused.appliesTo}-only and can't be used for "${name}" (a ${kind})`);
         }
-      } else if (o.itemGroupsEnabled) {
+      } else if (o.itemGroupsEnabled && groupMandatory) {
         throw new Error(`Item group is required for "${name}"`);
       }
       const [row] = await db.insert(items).values({

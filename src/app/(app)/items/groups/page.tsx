@@ -3,6 +3,7 @@ import { requirePerm } from "@/lib/guard";
 import { getAccess } from "@/lib/access";
 import { getOrg } from "@/lib/org";
 import { listItemGroupsWithCounts } from "@/lib/item-groups";
+import { listItemTypes } from "@/lib/item-types";
 import { PageHeader } from "@/components/ui";
 import { ItemGroupsClient } from "./ItemGroupsClient";
 
@@ -12,8 +13,7 @@ export default async function ItemGroupsPage() {
   await requirePerm("items");
   const access = await getAccess();
   const canManage = !!access && (access.isOwner || access.role === "admin");
-  const o = await getOrg();
-  const groups = await listItemGroupsWithCounts();
+  const [o, groups, types] = await Promise.all([getOrg(), listItemGroupsWithCounts(), listItemTypes()]);
 
   return (
     <>
@@ -32,6 +32,7 @@ export default async function ItemGroupsPage() {
       />
       <ItemGroupsClient
         groups={groups.map((g) => ({ id: g.id, name: g.name, parentGroupId: g.parentGroupId, appliesTo: g.appliesTo, itemCount: g.itemCount }))}
+        types={types.map((t) => ({ name: t.name }))}
         canManage={canManage}
         enabled={o.itemGroupsEnabled}
       />

@@ -793,3 +793,13 @@ CREATE POLICY leave_requests_org_read ON leave_requests FOR SELECT
 DO $$ BEGIN
   ALTER PUBLICATION supabase_realtime ADD TABLE leave_requests;
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+CREATE TABLE IF NOT EXISTS item_types (
+  id SERIAL PRIMARY KEY,
+  org_id INTEGER NOT NULL REFERENCES org(id),
+  name TEXT NOT NULL,
+  is_group_mandatory BOOLEAN NOT NULL DEFAULT TRUE,
+  is_system BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_item_types_org_name ON item_types(org_id, name);

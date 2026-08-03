@@ -19,6 +19,7 @@ import {
   customerGroups,
   contactGroupMemberships,
   itemGroups,
+  itemTypes,
 } from "@/db";
 import { eq, and, ne, desc, isNull, sql, inArray } from "drizzle-orm";
 import { currentOrgId, withOrg, seedOrgDefaults, orgContext } from "@/lib/org";
@@ -232,7 +233,23 @@ async function _saveDeal(data: {
 async function validateItemGroup(orgId: number, itemGroupId: number | null | undefined, kind?: string) {
   const o = await getOrg();
   const groupId = itemGroupId ?? null;
-  if (o.itemGroupsEnabled && !groupId) {
+
+  // A group is only required when the org has groups enabled AND this
+  // item's type says group is mandatory. An unrecognized/missing type
+  // (shouldn't normally happen — the form only offers real types) falls
+  // back to "mandatory", the org-level default, rather than silently
+  // waiving the requirement.
+  let groupMandatory = true;
+  if (kind) {
+    const [t] = await db
+      .select({ isGroupMandatory: itemTypes.isGroupMandatory })
+      .from(itemTypes)
+      .where(and(eq(itemTypes.orgId, orgId), eq(itemTypes.name, kind)))
+      .limit(1);
+    if (t) groupMandatory = t.isGroupMandatory;
+  }
+
+  if (o.itemGroupsEnabled && groupMandatory && !groupId) {
     throw new Error("Pick an item group");
   }
   if (groupId) {

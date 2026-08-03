@@ -6,6 +6,8 @@ import { parseKES } from "@/lib/money";
 import { TAX_CLASSES } from "@/lib/tax";
 import { PageHeader } from "@/components/ui";
 import { listItemGroups } from "@/lib/item-groups";
+import { listItemTypes } from "@/lib/item-types";
+import { ItemKindGroupFields } from "@/components/ItemKindGroupFields";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
@@ -16,9 +18,9 @@ const label = "text-[12px] font-medium text-[var(--color-ink-600)]";
 
 export default async function NewItemPage() {
   await requirePerm("items");
-  const [o, groups] = await Promise.all([getOrg(), listItemGroups()]);
+  const [o, groups, types] = await Promise.all([getOrg(), listItemGroups(), listItemTypes()]);
   const groupsRequired = o.itemGroupsEnabled;
-  const blockedForMissingGroups = groupsRequired && groups.length === 0;
+  const noGroupsYetWarning = groupsRequired && groups.length === 0;
   async function create(formData: FormData) {
     "use server";
     await saveItem({
@@ -42,22 +44,20 @@ export default async function NewItemPage() {
     <>
       <PageHeader title="New item" />
       <form action={create} className="card p-6 max-w-2xl grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {blockedForMissingGroups && (
+        {noGroupsYetWarning && (
           <div className="col-span-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] text-amber-900">
-            Item groups are required for this organization, but none exist yet.{" "}
+            No item groups exist yet, and this org requires one for types that need it.{" "}
             <Link href="/items/groups" className="font-medium underline">
-              Create an item group first
+              Create an item group
             </Link>
-            .
+            , or pick a type that doesn't require one.
           </div>
         )}
-        <label className="block">
-          <span className={label}>Type</span>
-          <select name="kind" className={input}>
-            <option value="service">Service</option>
-            <option value="goods">Goods (physical product)</option>
-          </select>
-        </label>
+        <ItemKindGroupFields
+          types={types}
+          groups={groups.map((g) => ({ id: g.id, name: g.name, appliesTo: g.appliesTo }))}
+          orgGroupsEnabled={groupsRequired}
+        />
         <label className="block">
           <span className={label}>Name *</span>
           <input name="name" required className={input} />
@@ -65,23 +65,6 @@ export default async function NewItemPage() {
         <label className="block">
           <span className={label}>SKU / code</span>
           <input name="sku" className={input} />
-        </label>
-        <label className="block">
-          <span className={label}>Item group {groupsRequired ? "*" : ""}</span>
-          {groups.length > 0 ? (
-            <select name="itemGroupId" className={input} required={groupsRequired} defaultValue="">
-              <option value="">{groupsRequired ? "Select a group" : "No group"}</option>
-              {groups.map((g) => (
-                <option key={g.id} value={g.id}>
-                  {g.name}{g.appliesTo === "goods" ? " (products only)" : g.appliesTo === "service" ? " (services only)" : ""}
-                </option>
-              ))}
-            </select>
-          ) : (
-            <div className="mt-1 rounded-lg border border-dashed border-[var(--color-ink-200)] px-3 py-2 text-[13px] text-[var(--color-ink-500)]">
-              No item groups yet. <Link href="/items/groups" className="underline">Manage item groups</Link>.
-            </div>
-          )}
         </label>
         <label className="block">
           <span className={label}>Unit</span>
@@ -124,11 +107,8 @@ export default async function NewItemPage() {
           </div>
         </div>
         <div className="col-span-2 flex gap-3 pt-1">
-          <button
-            disabled={blockedForMissingGroups}
-            className="rounded-lg bg-[var(--color-accent-500)] hover:bg-[var(--color-accent-600)] disabled:opacity-60 text-white text-[13px] font-medium px-5 py-2.5"
-          >
-            {blockedForMissingGroups ? "Create a group first" : "Save item"}
+          <button className="rounded-lg bg-[var(--color-accent-500)] hover:bg-[var(--color-accent-600)] disabled:opacity-60 text-white text-[13px] font-medium px-5 py-2.5">
+            Save item
           </button>
           <a href="/items" className="text-[13px] text-[var(--color-ink-400)] self-center">Cancel</a>
         </div>

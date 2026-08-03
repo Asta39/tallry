@@ -249,65 +249,70 @@ export async function payExpenseClaimGatewayAction(
   amountCents: number,
   gatewayId: string,
   accountNumber?: string
-) {
-  return withOrg(async () => {
-    await requirePerm("can_payout");
-    const access = await getAccess();
-    const orgId = currentOrgId();
+): Promise<{ success?: true; error?: string }> {
+  try {
+    return await withOrg(async () => {
+      await requirePerm("can_payout");
+      const access = await getAccess();
+      const orgId = currentOrgId();
 
-    if (!Number.isInteger(amountCents) || amountCents <= 0) throw new Error("Invalid amount");
-    if (amountCents % 100 !== 0) throw new Error("Payouts must be a whole shilling amount");
-    if (!destination.trim()) throw new Error("Enter a destination");
-    if (destinationType === "paybill" && !accountNumber?.trim()) throw new Error("Enter the account number for the receiving paybill");
+      if (!Number.isInteger(amountCents) || amountCents <= 0) throw new Error("Invalid amount");
+      if (amountCents % 100 !== 0) throw new Error("Payouts must be a whole shilling amount");
+      if (!destination.trim()) throw new Error("Enter a destination");
+      if (destinationType === "paybill" && !accountNumber?.trim()) throw new Error("Enter the account number for the receiving paybill");
 
-    const [claim] = await db.select().from(expenseClaims).where(and(eq(expenseClaims.id, id), eq(expenseClaims.orgId, orgId))).limit(1);
-    if (!claim) throw new Error("Claim not found");
-    if (claim.status !== "approved") throw new Error("Only approved claims can be paid");
-    if (amountCents > claim.amountCents) throw new Error("Amount exceeds the claim total");
+      const [claim] = await db.select().from(expenseClaims).where(and(eq(expenseClaims.id, id), eq(expenseClaims.orgId, orgId))).limit(1);
+      if (!claim) throw new Error("Claim not found");
+      if (claim.status !== "approved") throw new Error("Only approved claims can be paid");
+      if (amountCents > claim.amountCents) throw new Error("Amount exceeds the claim total");
 
-    const [gwConfig] = await db.select().from(paymentGateways).where(and(
-      eq(paymentGateways.orgId, orgId),
-      eq(paymentGateways.enabled, true),
-      eq(paymentGateways.gatewayId, gatewayId)
-    )).limit(1);
-    if (!gwConfig) throw new Error("Selected payment gateway is not connected or enabled");
+      const [gwConfig] = await db.select().from(paymentGateways).where(and(
+        eq(paymentGateways.orgId, orgId),
+        eq(paymentGateways.enabled, true),
+        eq(paymentGateways.gatewayId, gatewayId)
+      )).limit(1);
+      if (!gwConfig) throw new Error("Selected payment gateway is not connected or enabled");
 
-    // An accountant paying out (rather than an admin/owner) triggers the
-    // admin notice first — the gateway send-money call only happens after.
-    if (access && !access.isOwner && access.role !== "admin") {
-      await sendExpenseClaimPayoutNotice(claim, access.memberName || "An accountant");
-    }
+      // An accountant paying out (rather than an admin/owner) triggers the
+      // admin notice first — the gateway send-money call only happens after.
+      // Best-effort: an SMS failure here must never block the actual payout.
+      if (access && !access.isOwner && access.role !== "admin") {
+        await sendExpenseClaimPayoutNotice(claim, access.memberName || "An accountant").catch((e) => console.error("Payout notice SMS failed:", e));
+      }
 
-    const gateway = getGateway(gwConfig);
-    const result = await gateway.payOut({
-      destination,
-      destinationType,
-      accountNumber: accountNumber?.trim() || undefined,
-      amountCents,
-      accountRef: `EXPCLAIM-${claim.id}`,
-      payeeName: claim.submittedByName,
-      reason: `Reimbursement: ${claim.description}`,
+      const gateway = getGateway(gwConfig);
+      const result = await gateway.payOut({
+        destination,
+        destinationType,
+        accountNumber: accountNumber?.trim() || undefined,
+        amountCents,
+        accountRef: `EXPCLAIM-${claim.id}`,
+        payeeName: claim.submittedByName,
+        reason: `Reimbursement: ${claim.description}`,
+      });
+
+      // Pending outbound event: applyExpenseClaimGatewayPayout (webhook.ts)
+      // reconciles against this row once the gateway confirms the transfer.
+      await db.insert(paymentEvents).values({
+        orgId,
+        gatewayId,
+        providerRef: result.providerRef,
+        direction: "out",
+        amountCents,
+        payerPhone: destinationType === "phone" ? destination : undefined,
+        accountRef: `EXPCLAIM-${claim.id}`,
+        status: "pending",
+        matchedExpenseClaimId: claim.id,
+        rawJson: JSON.stringify({ payoutRef: result.providerRef, destination, destinationType, amountCents }),
+        createdAt: new Date().toISOString(),
+      }).onConflictDoNothing({ target: [paymentEvents.gatewayId, paymentEvents.providerRef] });
+
+      revalidatePath("/expense-claims");
+      return { success: true };
     });
-
-    // Pending outbound event: applyExpenseClaimGatewayPayout (webhook.ts)
-    // reconciles against this row once the gateway confirms the transfer.
-    await db.insert(paymentEvents).values({
-      orgId,
-      gatewayId,
-      providerRef: result.providerRef,
-      direction: "out",
-      amountCents,
-      payerPhone: destinationType === "phone" ? destination : undefined,
-      accountRef: `EXPCLAIM-${claim.id}`,
-      status: "pending",
-      matchedExpenseClaimId: claim.id,
-      rawJson: JSON.stringify({ payoutRef: result.providerRef, destination, destinationType, amountCents }),
-      createdAt: new Date().toISOString(),
-    }).onConflictDoNothing({ target: [paymentEvents.gatewayId, paymentEvents.providerRef] });
-
-    revalidatePath("/expense-claims");
-    return { success: true };
-  });
+  } catch (err: any) {
+    return { error: err?.message || "Failed to process payout" };
+  }
 }
 
 /**

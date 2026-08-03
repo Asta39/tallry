@@ -208,6 +208,25 @@ export const itemGroups = pgTable("item_groups", {
   parentIdx: index("idx_item_groups_parent").on(t.parentGroupId),
 }));
 
+/**
+ * Item "kinds" (goods, service, and any admin-defined custom types) — every
+ * org is seeded with the two system types on creation; admins can add more
+ * (e.g. "unprocessed") and set per-type whether an item group is mandatory.
+ * items.kind stores this table's `name`, not a foreign key — same
+ * plain-column self-reference convention used for accounts.parentAccountId.
+ */
+export const itemTypes = pgTable("item_types", {
+  id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
+  name: text("name").notNull(),
+  isGroupMandatory: boolean("is_group_mandatory").notNull().default(true),
+  /** System types (goods, service) can't be renamed or deleted. */
+  isSystem: boolean("is_system").notNull().default(false),
+  createdAt: text("created_at").notNull(),
+}, (t) => ({
+  orgNameUnique: uniqueIndex("idx_item_types_org_name").on(t.orgId, t.name),
+}));
+
 /** FIFO cost lots. Purchases append lots; sales consume remainingQty oldest-first. */
 export const stockLots = pgTable("stock_lots", {
   id: serial("id").primaryKey(),

@@ -1,6 +1,7 @@
 import { withOrg } from "@/lib/org";
 import { requirePerm } from "@/lib/guard";
 import { getOrg } from "@/lib/org";
+import { getAccess } from "@/lib/access";
 import { db, items } from "@/db";
 import { eq, and } from "drizzle-orm";
 import { stockOnHand, stockValueCents } from "@/lib/inventory";
@@ -15,6 +16,8 @@ export const dynamic = "force-dynamic";
 export default async function ItemsPage() {
   await requirePerm("items");
   const o = await getOrg();
+  const access = await getAccess();
+  const isAdmin = !!access && (access.isOwner || access.role === "admin");
   const rows = await db.select().from(items).where(and(eq(items.orgId, o.id), eq(items.archived, false)));
   const groups = await listItemGroups();
   const groupNames = Object.fromEntries(groups.map((g) => [g.id, g.name]));
@@ -34,6 +37,7 @@ export default async function ItemsPage() {
         subtitle="Products and services · stock valued at FIFO cost"
         action={
           <div className="flex items-start gap-2">
+            {isAdmin && <PrimaryLink href="/items/types">Item types</PrimaryLink>}
             <PrimaryLink href="/items/groups">Item groups</PrimaryLink>
             <CsvImporter entity="items" label="Bulk import items" />
             <PrimaryLink href="/items/new">+ New item</PrimaryLink>
@@ -46,6 +50,7 @@ export default async function ItemsPage() {
           body="Add the products you sell or services you offer. Tracked goods get FIFO stock control with reorder alerts."
           action={
           <div className="flex items-start gap-2">
+            {isAdmin && <PrimaryLink href="/items/types">Item types</PrimaryLink>}
             <PrimaryLink href="/items/groups">Item groups</PrimaryLink>
             <CsvImporter entity="items" label="Bulk import items" />
             <PrimaryLink href="/items/new">+ New item</PrimaryLink>

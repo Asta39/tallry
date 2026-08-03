@@ -28,7 +28,7 @@ const templates: Record<string, string[][]> = {
 
 const notes: Record<string, string> = {
   contacts: "# kind: customer | vendor | both. Name required; duplicates (same name) are skipped. groups: comma-separated customer group names (e.g. Wholesale, Key Accounts).",
-  items: "# type: service | goods. group: item group name (created automatically if missing; required when the org enforces item groups). vat_class: B16 (16%) | C0 (zero-rated) | A_EXEMPT | D_NONVAT. track_stock: yes | no. Prices in KSh. opening_qty: starting stock on hand, valued at buying_cost (only used when track_stock is yes).",
+  items: "# type: service | goods | unproduced, or any custom type set up under Items > Item types. group: item group name (created automatically if missing; required when the org enforces item groups and the type requires one). vat_class: B16 (16%) | C0 (zero-rated) | A_EXEMPT | D_NONVAT. track_stock: yes | no. Prices in KSh. opening_qty: starting stock on hand, valued at buying_cost (only used when track_stock is yes).",
   invoices: "# Rows with the same invoice_ref become ONE invoice (multi-line). Imported as DRAFTS — review and issue in the app. Dates YYYY-MM-DD. Prices in KSh before VAT.",
 };
 

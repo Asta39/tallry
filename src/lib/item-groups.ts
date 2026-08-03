@@ -1,6 +1,6 @@
 "use server";
 
-import { db, itemGroups, items } from "@/db";
+import { db, itemGroups, items, itemTypes } from "@/db";
 import { eq, and, ne, sql, inArray } from "drizzle-orm";
 import { withOrg, currentOrgId } from "@/lib/org";
 import { requirePerm } from "@/lib/guard";
@@ -16,8 +16,6 @@ async function requireAdmin() {
   }
 }
 
-const VALID_APPLIES_TO = ["goods", "service", "both"] as const;
-export type ItemGroupAppliesTo = (typeof VALID_APPLIES_TO)[number];
 
 /** True if `candidateId` is `groupId` itself or one of its descendants — same walk-the-tree cycle check as customer groups. */
 async function isSelfOrDescendant(orgId: number, groupId: number, candidateId: number): Promise<boolean> {
@@ -49,8 +47,13 @@ async function validateParent(orgId: number, groupId: number | null, parentGroup
   return parentGroupId;
 }
 
-function normalizeAppliesTo(v: string | null | undefined): ItemGroupAppliesTo {
-  return (VALID_APPLIES_TO as readonly string[]).includes(v ?? "") ? (v as ItemGroupAppliesTo) : "both";
+/** "both" or the name of one of this org's real item types — anything else
+ *  (a stale/renamed/deleted type, or garbage input) falls back to "both"
+ *  rather than silently restricting the group to a type that doesn't exist. */
+async function normalizeAppliesTo(orgId: number, v: string | null | undefined): Promise<string> {
+  if (!v || v === "both") return "both";
+  const [t] = await db.select({ id: itemTypes.id }).from(itemTypes).where(and(eq(itemTypes.orgId, orgId), eq(itemTypes.name, v))).limit(1);
+  return t ? v : "both";
 }
 
 export async function listItemGroups() {
@@ -87,7 +90,8 @@ export async function createItemGroupAction(name: string, parentGroupId?: number
       .limit(1);
     if (dupe) throw new Error(`A group called "${trimmed}" already exists`);
     const parent = await validateParent(orgId, null, parentGroupId);
-    const [created] = await db.insert(itemGroups).values({ orgId, name: trimmed, parentGroupId: parent, appliesTo: normalizeAppliesTo(appliesTo), createdAt: nowISO() }).returning();
+    const resolvedAppliesTo = await normalizeAppliesTo(orgId, appliesTo);
+    const [created] = await db.insert(itemGroups).values({ orgId, name: trimmed, parentGroupId: parent, appliesTo: resolvedAppliesTo, createdAt: nowISO() }).returning();
     await logAudit({ action: "create", module: "items", recordId: created.id, recordLabel: trimmed, detail: parent ? `Subgroup of group #${parent}` : undefined });
     revalidatePath("/items/groups");
     revalidatePath("/items/new");
@@ -110,12 +114,13 @@ export async function renameItemGroupAction(id: number, name: string, parentGrou
       .limit(1);
     if (dupe) throw new Error(`A group called "${trimmed}" already exists`);
     const parent = parentGroupId === undefined ? undefined : await validateParent(orgId, id, parentGroupId);
+    const resolvedAppliesTo = appliesTo === undefined ? undefined : await normalizeAppliesTo(orgId, appliesTo);
     await db
       .update(itemGroups)
       .set({
         name: trimmed,
         ...(parent !== undefined ? { parentGroupId: parent } : {}),
-        ...(appliesTo !== undefined ? { appliesTo: normalizeAppliesTo(appliesTo) } : {}),
+        ...(resolvedAppliesTo !== undefined ? { appliesTo: resolvedAppliesTo } : {}),
       })
       .where(and(eq(itemGroups.orgId, orgId), eq(itemGroups.id, id)));
     await logAudit({ action: "update", module: "items", recordId: id, recordLabel: trimmed });
