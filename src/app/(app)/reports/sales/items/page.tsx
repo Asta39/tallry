@@ -3,10 +3,8 @@ export const dynamic = "force-dynamic";
 import Link from "next/link";
 import { PageHeader } from "@/components/ui";
 import { itemsReport } from "@/lib/reports";
-import { withOrg, getOrg } from "@/lib/org";
+import { withOrg } from "@/lib/org";
 import { fmtKESCompact } from "@/lib/money";
-import { db, itemTypes } from "@/db";
-import { eq, asc } from "drizzle-orm";
 import { PdfLinks } from "@/components/reportShared";
 import { ReportFilters } from "@/components/ReportFilters";
 import { ReportChart } from "@/components/ReportCharts";
@@ -15,21 +13,12 @@ import { resolvePeriod } from "@/lib/report-period";
 export default async function ItemsReportPage({
   searchParams,
 }: {
-  searchParams: Promise<{ period?: string; from?: string; to?: string; itemType?: string }>;
+  searchParams: Promise<{ period?: string; from?: string; to?: string }>;
 }) {
   const sp = await searchParams;
-  const { preset, from: fromDate, to: toDate, itemType } = resolvePeriod(sp) as ReturnType<typeof resolvePeriod> & { itemType?: string };
-  if (sp.itemType) {
-    // resolvePeriod drops unknown keys, so grab it manually
-    // Wait, resolvePeriod might just return preset, from, to.
-  }
-  const o = await getOrg();
-  const filterItemType = sp.itemType || "";
+  const { preset, from: fromDate, to: toDate } = resolvePeriod(sp);
 
-  const [items, allTypes] = await Promise.all([
-    withOrg(() => itemsReport(fromDate, toDate, filterItemType || undefined)),
-    db.select().from(itemTypes).where(eq(itemTypes.orgId, o.id)).orderBy(asc(itemTypes.name))
-  ]);
+  const items = await withOrg(() => itemsReport(fromDate, toDate));
 
   const topByRevenue = [...items]
     .sort((a, b) => b.amountSoldCents - a.amountSoldCents)
@@ -56,26 +45,7 @@ export default async function ItemsReportPage({
         </div>
       </div>
 
-      <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-6">
-        <ReportFilters preset={preset} from={fromDate} to={toDate} />
-        <form method="get" className="flex items-center gap-2">
-          {preset && <input type="hidden" name="period" value={preset} />}
-          {sp.from && <input type="hidden" name="from" value={sp.from} />}
-          {sp.to && <input type="hidden" name="to" value={sp.to} />}
-          <label className="text-[13px] font-medium text-[var(--color-ink-600)]">Item Type:</label>
-          <select 
-            name="itemType" 
-            defaultValue={filterItemType} 
-            onChange={(e) => e.target.form?.submit()}
-            className="rounded-lg border border-[var(--color-ink-200)] bg-white px-3 py-1.5 text-[13px] outline-none"
-          >
-            <option value="">All Types</option>
-            {allTypes.map(t => (
-              <option key={t.id} value={t.name}>{t.name.charAt(0).toUpperCase() + t.name.slice(1)}</option>
-            ))}
-          </select>
-        </form>
-      </div>
+      <ReportFilters preset={preset} from={fromDate} to={toDate} />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         <ReportChart title="Top items by revenue" kind="bar" data={topByRevenue} />

@@ -783,39 +783,34 @@ export async function reportStaffNames() {
 /**
  * Detailed Items Report (Sales)
  */
-export async function itemsReport(fromDate: string, toDate: string, itemType?: string) {
-  const conds = [
-    eq(documents.orgId, currentOrgId()),
-    eq(documents.type, "invoice"),
-    inArray(documents.status, ["open", "partial", "paid"]), // excluding draft/void
-    gte(documents.date, fromDate),
-    lte(documents.date, toDate),
-  ];
-  if (itemType) {
-    conds.push(eq(items.kind, itemType));
-  }
-
+export async function itemsReport(fromDate: string, toDate: string) {
   const rows = await db
     .select({
       itemId: items.id,
       itemName: items.name,
       sku: items.sku,
-      kind: items.kind,
       quantitySold: sql<number>`coalesce(sum(${documentLines.qty}), 0)`,
       amountSoldCents: sql<number>`coalesce(sum(${documentLines.netCents}), 0)`,
     })
     .from(documentLines)
     .innerJoin(documents, eq(documentLines.documentId, documents.id))
     .innerJoin(items, eq(documentLines.itemId, items.id))
-    .where(and(...conds))
-    .groupBy(items.id, items.name, items.sku, items.kind)
+    .where(
+      and(
+        eq(documents.orgId, currentOrgId()),
+        eq(documents.type, "invoice"),
+        inArray(documents.status, ["open", "partial", "paid"]), // excluding draft/void
+        gte(documents.date, fromDate),
+        lte(documents.date, toDate)
+      )
+    )
+    .groupBy(items.id, items.name, items.sku)
     .orderBy(sql`sum(${documentLines.netCents}) desc`);
 
   return rows.map(r => ({
     itemId: r.itemId,
     itemName: r.itemName,
     sku: r.sku,
-    kind: r.kind,
     quantitySold: Number(r.quantitySold),
     amountSoldCents: Number(r.amountSoldCents)
   }));

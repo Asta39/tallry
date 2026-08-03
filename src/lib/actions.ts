@@ -19,7 +19,6 @@ import {
   customerGroups,
   contactGroupMemberships,
   itemGroups,
-  itemTypes,
 } from "@/db";
 import { eq, and, ne, desc, isNull, sql, inArray } from "drizzle-orm";
 import { currentOrgId, withOrg, seedOrgDefaults, orgContext } from "@/lib/org";
@@ -227,23 +226,9 @@ async function _saveDeal(data: {
   revalidatePath("/pipeline");
 }
 
-async function validateItemGroup(orgId: number, itemGroupId: number | null | undefined, kind?: string) {
+async function validateItemGroup(orgId: number, itemGroupId: number | null | undefined) {
   const o = await getOrg();
   const groupId = itemGroupId ?? null;
-  
-  // Lookup item type to check if group is mandatory
-  if (kind) {
-    const [t] = await db
-      .select({ isGroupMandatory: itemTypes.isGroupMandatory })
-      .from(itemTypes)
-      .where(and(eq(itemTypes.orgId, orgId), eq(itemTypes.name, kind)))
-      .limit(1);
-      
-    if (t && !t.isGroupMandatory) {
-      return null;
-    }
-  }
-
   if (o.itemGroupsEnabled && !groupId) {
     throw new Error("Pick an item group");
   }
@@ -256,59 +241,6 @@ async function validateItemGroup(orgId: number, itemGroupId: number | null | und
     if (!group) throw new Error("The chosen item group no longer exists");
   }
   return groupId;
-}
-
-export async function saveItemType(fd: FormData) {
-  return withOrg(async () => {
-    const idStr = fd.get("id") as string | null;
-    const name = fd.get("name") as string;
-    const isMandatory = fd.get("isGroupMandatory") === "on";
-
-  if (!name.trim()) throw new Error("Name is required");
-
-  if (idStr) {
-    const id = parseInt(idStr, 10);
-    // don't allow modifying system types (handled by UI mostly, but good to check)
-    const [existing] = await db.select().from(itemTypes).where(and(eq(itemTypes.orgId, currentOrgId()), eq(itemTypes.id, id))).limit(1);
-    if (existing && existing.isSystem) {
-      throw new Error("Cannot edit system item types");
-    }
-
-    await db
-      .update(itemTypes)
-      .set({ name, isGroupMandatory: isMandatory })
-      .where(and(eq(itemTypes.orgId, currentOrgId()), eq(itemTypes.id, id)));
-  } else {
-    await db.insert(itemTypes).values({
-      orgId: currentOrgId(),
-      name,
-      isGroupMandatory: isMandatory,
-      isSystem: false,
-      createdAt: nowISO(),
-    });
-  }
-  revalidatePath("/items/types");
-  });
-}
-
-export async function deleteItemType(fd: FormData) {
-  return withOrg(async () => {
-    const id = parseInt(fd.get("id") as string, 10);
-  
-  const [existing] = await db.select().from(itemTypes).where(and(eq(itemTypes.orgId, currentOrgId()), eq(itemTypes.id, id))).limit(1);
-  if (existing && existing.isSystem) {
-    throw new Error("Cannot delete system item types");
-  }
-
-  // Check if items use this type
-  const [inUse] = await db.select({ id: items.id }).from(items).where(and(eq(items.orgId, currentOrgId()), eq(items.kind, existing.name))).limit(1);
-  if (inUse) {
-    throw new Error("Cannot delete item type because it is being used by existing items.");
-  }
-
-  await db.delete(itemTypes).where(and(eq(itemTypes.orgId, currentOrgId()), eq(itemTypes.id, id)));
-  revalidatePath("/items/types");
-  });
 }
 
 async function _moveDealStage(dealId: number, stage: string) {
@@ -427,7 +359,7 @@ async function _saveItem(data: {
   openingUnitCostCents?: number;
 }) {
   const orgId = currentOrgId();
-  const itemGroupId = await validateItemGroup(orgId, data.itemGroupId, data.kind);
+  const itemGroupId = await validateItemGroup(orgId, data.itemGroupId);
 
   // Defense-in-depth: the UI constrains these, but the action itself shouldn't
   // trust client input — a negative price/cost would post reversed debit/credit

@@ -6,8 +6,6 @@ import { parseKES } from "@/lib/money";
 import { TAX_CLASSES } from "@/lib/tax";
 import { PageHeader } from "@/components/ui";
 import { listItemGroups } from "@/lib/item-groups";
-import { db, itemTypes } from "@/db";
-import { eq, asc } from "drizzle-orm";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
@@ -18,16 +16,9 @@ const label = "text-[12px] font-medium text-[var(--color-ink-600)]";
 
 export default async function NewItemPage() {
   await requirePerm("items");
-  const o = await getOrg();
-  const [groups, orgTypes] = await Promise.all([
-    listItemGroups(),
-    db.select().from(itemTypes).where(eq(itemTypes.orgId, o.id)).orderBy(asc(itemTypes.id))
-  ]);
+  const [o, groups] = await Promise.all([getOrg(), listItemGroups()]);
   const groupsRequired = o.itemGroupsEnabled;
   const blockedForMissingGroups = groupsRequired && groups.length === 0;
-
-  const typeMandatoryMap = Object.fromEntries(orgTypes.map((t) => [t.name, t.isGroupMandatory]));
-
   async function create(formData: FormData) {
     "use server";
     await saveItem({
@@ -50,7 +41,7 @@ export default async function NewItemPage() {
   return (
     <>
       <PageHeader title="New item" />
-      <form id="item-form" action={create} className="card p-6 max-w-2xl grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <form action={create} className="card p-6 max-w-2xl grid grid-cols-1 sm:grid-cols-2 gap-4">
         {blockedForMissingGroups && (
           <div className="col-span-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] text-amber-900">
             Item groups are required for this organization, but none exist yet.{" "}
@@ -62,10 +53,9 @@ export default async function NewItemPage() {
         )}
         <label className="block">
           <span className={label}>Type</span>
-          <select id="kind-select" name="kind" className={input}>
-            {orgTypes.map(t => (
-              <option key={t.id} value={t.name}>{t.name.charAt(0).toUpperCase() + t.name.slice(1)}</option>
-            ))}
+          <select name="kind" className={input}>
+            <option value="service">Service</option>
+            <option value="goods">Goods (physical product)</option>
           </select>
         </label>
         <label className="block">
@@ -77,9 +67,9 @@ export default async function NewItemPage() {
           <input name="sku" className={input} />
         </label>
         <label className="block">
-          <span id="item-group-label" className={label}>Item group {groupsRequired ? "*" : ""}</span>
+          <span className={label}>Item group {groupsRequired ? "*" : ""}</span>
           {groups.length > 0 ? (
-            <select id="group-select" name="itemGroupId" className={input} required={groupsRequired} defaultValue="">
+            <select name="itemGroupId" className={input} required={groupsRequired} defaultValue="">
               <option value="">{groupsRequired ? "Select a group" : "No group"}</option>
               {groups.map((g) => (
                 <option key={g.id} value={g.id}>{g.name}</option>
@@ -140,30 +130,6 @@ export default async function NewItemPage() {
           </button>
           <a href="/items" className="text-[13px] text-[var(--color-ink-400)] self-center">Cancel</a>
         </div>
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              const kindSelect = document.getElementById('kind-select');
-              const groupSelect = document.getElementById('group-select');
-              const groupLabel = document.getElementById('item-group-label');
-              
-              if (kindSelect && groupSelect) {
-                const typeMandatoryMap = ${JSON.stringify(typeMandatoryMap)};
-                function updateGroup() {
-                  const selectedKind = kindSelect.value;
-                  const isMandatory = typeMandatoryMap[selectedKind] ?? true;
-                  groupSelect.disabled = !isMandatory;
-                  groupSelect.required = ${groupsRequired} && isMandatory;
-                  if (groupLabel) {
-                    groupLabel.innerText = 'Item group ' + (groupSelect.required ? '*' : '');
-                  }
-                }
-                kindSelect.addEventListener('change', updateGroup);
-                updateGroup();
-              }
-            `
-          }}
-        />
       </form>
     </>
   );

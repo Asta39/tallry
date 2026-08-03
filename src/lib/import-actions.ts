@@ -152,7 +152,7 @@ export async function importItems(rows: ItemRow[]): Promise<{ created?: number; 
       }
       const [row] = await db.insert(items).values({
         orgId,
-        kind: r.kind === "goods" ? "goods" : (r.kind === "unproduced" ? "unproduced" : "service"),
+        kind: r.kind === "goods" ? "goods" : "service",
         itemGroupId,
         name,
         sku: r.sku || null,

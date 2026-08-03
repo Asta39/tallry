@@ -34,7 +34,6 @@ export default async function ItemsPage() {
         subtitle="Products and services · stock valued at FIFO cost"
         action={
           <div className="flex items-start gap-2">
-            <PrimaryLink href="/items/types">Item types</PrimaryLink>
             <PrimaryLink href="/items/groups">Item groups</PrimaryLink>
             <CsvImporter entity="items" label="Bulk import items" />
             <PrimaryLink href="/items/new">+ New item</PrimaryLink>
@@ -47,7 +46,6 @@ export default async function ItemsPage() {
           body="Add the products you sell or services you offer. Tracked goods get FIFO stock control with reorder alerts."
           action={
           <div className="flex items-start gap-2">
-            <PrimaryLink href="/items/types">Item types</PrimaryLink>
             <PrimaryLink href="/items/groups">Item groups</PrimaryLink>
             <CsvImporter entity="items" label="Bulk import items" />
             <PrimaryLink href="/items/new">+ New item</PrimaryLink>
