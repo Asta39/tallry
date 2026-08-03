@@ -5,6 +5,21 @@ import { eq } from "drizzle-orm";
 import { getUser } from "./supabase/server";
 import { SEED_ACCOUNTS } from "./coa";
 
+async function reportInvoiceIssueDebug(hypothesisId: string, location: string, msg: string, data: Record<string, unknown>) {
+  // #region debug-point D:org-logger
+  try {
+    const { readFile } = await import("node:fs/promises");
+    const env = await readFile(".dbg/invoice-issue-500.env", "utf8").catch(() => "");
+    const url = env.match(/DEBUG_SERVER_URL=(.+)/)?.[1] || "http://127.0.0.1:7777/event";
+    const sessionId = env.match(/DEBUG_SESSION_ID=(.+)/)?.[1] || "invoice-issue-500";
+    await fetch(url, {
+      method: "POST",
+      body: JSON.stringify({ sessionId, runId: "pre-fix", hypothesisId, location, msg: `[DEBUG] ${msg}`, data, ts: Date.now() }),
+    }).catch(() => {});
+  } catch {}
+  // #endregion
+}
+
 export const orgContext = new AsyncLocalStorage<number>();
 
 export function currentOrgId(): number {
@@ -63,19 +78,59 @@ export async function getOrg() {
 export async function withOrg<T>(fn: () => Promise<T>, options?: { requireWrite?: boolean }): Promise<T> {
   // Already inside an org context (nested action call) — reuse it.
   if (orgContext.getStore()) {
+    // #region debug-point D:with-org-nested
+    await reportInvoiceIssueDebug("D", "src/lib/org.ts:withOrg:nested", "withOrg reusing existing org context", {
+      orgId: orgContext.getStore()!,
+      requireWrite: !!options?.requireWrite,
+    });
+    // #endregion
     if (options?.requireWrite) {
       const { getEntitlements } = await import("./billing-server");
       const ents = await getEntitlements(orgContext.getStore()!);
+      // #region debug-point D:with-org-nested-entitlements
+      await reportInvoiceIssueDebug("D", "src/lib/org.ts:withOrg:nested:entitlements", "checked nested write entitlements", {
+        orgId: orgContext.getStore()!,
+        isReadOnly: ents.isReadOnly,
+        status: ents.status,
+        plan: ents.plan,
+        subscriptionPlan: ents.subscriptionPlan,
+      });
+      // #endregion
       if (ents.isReadOnly) throw new Error("Your subscription has expired. Please upgrade to continue creating or editing data.");
     }
     return fn();
   }
+  // #region debug-point D:with-org-start
+  await reportInvoiceIssueDebug("D", "src/lib/org.ts:withOrg:start", "withOrg resolving organization", {
+    requireWrite: !!options?.requireWrite,
+  });
+  // #endregion
   const o = await getOrg();
+  // #region debug-point D:with-org-resolved
+  await reportInvoiceIssueDebug("D", "src/lib/org.ts:withOrg:resolved", "withOrg resolved organization", {
+    orgId: o.id,
+    requireWrite: !!options?.requireWrite,
+  });
+  // #endregion
   if (options?.requireWrite) {
     const { getEntitlements } = await import("./billing-server");
     const ents = await getEntitlements(o.id);
+    // #region debug-point D:with-org-entitlements
+    await reportInvoiceIssueDebug("D", "src/lib/org.ts:withOrg:entitlements", "checked write entitlements", {
+      orgId: o.id,
+      isReadOnly: ents.isReadOnly,
+      status: ents.status,
+      plan: ents.plan,
+      subscriptionPlan: ents.subscriptionPlan,
+    });
+    // #endregion
     if (ents.isReadOnly) throw new Error("Your subscription has expired. Please upgrade to continue creating or editing data.");
   }
+  // #region debug-point D:with-org-run
+  await reportInvoiceIssueDebug("D", "src/lib/org.ts:withOrg:run", "entering org context callback", {
+    orgId: o.id,
+  });
+  // #endregion
   return orgContext.run(o.id, fn);
 }
 

@@ -1283,7 +1283,17 @@ export async function upsertDocumentAction(
   }
 }
 export async function issueDocument(docId: number) {
+  // #region debug-point D:issue-action-entry
+  await reportInvoiceIssueDebug("D", "src/lib/actions.ts:issueDocument:entry", "issueDocument action entered", {
+    docId,
+  });
+  // #endregion
   const result = await withOrg(() => _issueDocument(docId), { requireWrite: true });
+  // #region debug-point D:issue-action-after-withorg
+  await reportInvoiceIssueDebug("D", "src/lib/actions.ts:issueDocument:afterWithOrg", "issueDocument completed withOrg", {
+    docId,
+  });
+  // #endregion
   const [doc] = await db.select({ number: documents.number, type: documents.type }).from(documents).where(eq(documents.id, docId)).limit(1);
   await logAudit({ action: "issue", module: doc ? DOC_MODULE[doc.type] : "invoices", recordId: docId, recordLabel: doc?.number });
   return result;

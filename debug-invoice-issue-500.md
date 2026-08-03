@@ -22,6 +22,10 @@
 
 ## Log Evidence
 - Instrumentation added to `src/components/DocActions.tsx`, `src/lib/actions.ts`, and `src/lib/posting.ts`.
+- `pre-fix` reproduction captured only client-side logs from `DocActions`; no server-side logs from `issueDocument`, `withOrg`, or `postInvoice` were emitted.
+- This narrows the failure to a point before `_issueDocument()` begins, likely at server-action entry or org/write-gate resolution.
 
 ## Verification Conclusion
-- Pending runtime evidence.
+- `D`: Partially confirmed. The client action path catches a generic server-render failure, but current evidence shows the failure occurs before `_issueDocument()` starts.
+- `A`, `B`, `C`, `E`: Still pending because execution has not yet reached posting or post-issue rendering instrumentation.
+- Next instrumentation added around `issueDocument()` entry and `withOrg()` resolution/write checks.
