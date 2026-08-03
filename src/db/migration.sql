@@ -676,3 +676,14 @@ CREATE TABLE IF NOT EXISTS ai_messages (
   created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_ai_messages_org_member_date ON ai_messages(org_id, member_id, nairobi_date);
+
+CREATE TABLE IF NOT EXISTS item_types (
+  id SERIAL PRIMARY KEY,
+  org_id INTEGER NOT NULL REFERENCES org(id),
+  name TEXT NOT NULL,
+  is_group_mandatory BOOLEAN NOT NULL DEFAULT TRUE,
+  is_system BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TEXT NOT NULL
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_item_types_org_name ON item_types(org_id, name);

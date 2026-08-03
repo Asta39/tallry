@@ -93,15 +93,22 @@ export async function seedOrgDefaults(orgId: number) {
   const existing = await db.select().from(accounts).where(eq(accounts.orgId, orgId)).limit(1);
   if (existing.length > 0) return;
 
-  const { subscriptions } = await import("@/db");
+  const { subscriptions, itemTypes } = await import("@/db");
+  const now = new Date().toISOString();
 
   
   await db.insert(subscriptions).values({
     orgId,
     plan: "free",
     paidUntil: "9999-12-31",
-    createdAt: new Date().toISOString(),
+    createdAt: now,
   });
+
+  await db.insert(itemTypes).values([
+    { orgId, name: "goods", isGroupMandatory: true, isSystem: true, createdAt: now },
+    { orgId, name: "service", isGroupMandatory: true, isSystem: true, createdAt: now },
+    { orgId, name: "unproduced", isGroupMandatory: false, isSystem: true, createdAt: now },
+  ]);
 
   const inserted = await db
     .insert(accounts)
@@ -146,5 +153,17 @@ export async function ensureExpandedChartOfAccounts(orgId: number) {
     } else if (!acct.description && s.description) {
       await db.update(accounts).set({ description: s.description }).where(eq(accounts.id, acct.id));
     }
+  }
+
+  const { itemTypes } = await import("@/db");
+  const existingTypes = await db.select().from(itemTypes).where(eq(itemTypes.orgId, orgId));
+  const typeNames = new Set(existingTypes.map((t) => t.name));
+  const now = new Date().toISOString();
+  const toInsert = [];
+  if (!typeNames.has("goods")) toInsert.push({ orgId, name: "goods", isGroupMandatory: true, isSystem: true, createdAt: now });
+  if (!typeNames.has("service")) toInsert.push({ orgId, name: "service", isGroupMandatory: true, isSystem: true, createdAt: now });
+  if (!typeNames.has("unproduced")) toInsert.push({ orgId, name: "unproduced", isGroupMandatory: false, isSystem: true, createdAt: now });
+  if (toInsert.length > 0) {
+    await db.insert(itemTypes).values(toInsert);
   }
 }

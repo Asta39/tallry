@@ -166,7 +166,7 @@ export const deals = pgTable("deals", {
 export const items = pgTable("items", {
   id: serial("id").primaryKey(),
   orgId: integer("org_id").notNull().references(() => org.id),
-  kind: text("kind").notNull(), // service | goods
+  kind: text("kind").notNull(), // maps to itemTypes.name
   itemGroupId: integer("item_group_id"),
   name: text("name").notNull(),
   sku: text("sku"),
@@ -194,6 +194,18 @@ export const itemGroups = pgTable("item_groups", {
   createdAt: text("created_at").notNull(),
 }, (t) => ({
   orgNameUnique: uniqueIndex("idx_item_groups_org_name").on(t.orgId, t.name),
+}));
+
+/** Custom item types with configurable group requirements */
+export const itemTypes = pgTable("item_types", {
+  id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
+  name: text("name").notNull(),
+  isGroupMandatory: boolean("is_group_mandatory").notNull().default(true),
+  isSystem: boolean("is_system").notNull().default(false),
+  createdAt: text("created_at").notNull(),
+}, (t) => ({
+  orgNameUnique: uniqueIndex("idx_item_types_org_name").on(t.orgId, t.name),
 }));
 
 /** FIFO cost lots. Purchases append lots; sales consume remainingQty oldest-first. */
