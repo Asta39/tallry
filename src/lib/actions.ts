@@ -1276,27 +1276,41 @@ export async function upsertDocumentAction(
   try {
     const { issue, ...data } = input;
     const docId = await saveDocument(data);
-    if (issue) await issueDocument(docId);
+    if (issue) {
+      const issueResult = await issueDocument(docId);
+      if (issueResult?.error) return { error: issueResult.error };
+    }
     return { id: docId };
   } catch (err: any) {
     return { error: err?.message || "Failed to save document" };
   }
 }
-export async function issueDocument(docId: number) {
-  // #region debug-point D:issue-action-entry
-  await reportInvoiceIssueDebug("D", "src/lib/actions.ts:issueDocument:entry", "issueDocument action entered", {
-    docId,
-  });
-  // #endregion
-  const result = await withOrg(() => _issueDocument(docId), { requireWrite: true });
-  // #region debug-point D:issue-action-after-withorg
-  await reportInvoiceIssueDebug("D", "src/lib/actions.ts:issueDocument:afterWithOrg", "issueDocument completed withOrg", {
-    docId,
-  });
-  // #endregion
-  const [doc] = await db.select({ number: documents.number, type: documents.type }).from(documents).where(eq(documents.id, docId)).limit(1);
-  await logAudit({ action: "issue", module: doc ? DOC_MODULE[doc.type] : "invoices", recordId: docId, recordLabel: doc?.number });
-  return result;
+export async function issueDocument(docId: number): Promise<{ success?: true; error?: string }> {
+  try {
+    // #region debug-point D:issue-action-entry
+    await reportInvoiceIssueDebug("D", "src/lib/actions.ts:issueDocument:entry", "issueDocument action entered", {
+      docId,
+    });
+    // #endregion
+    await withOrg(() => _issueDocument(docId), { requireWrite: true });
+    // #region debug-point D:issue-action-after-withorg
+    await reportInvoiceIssueDebug("D", "src/lib/actions.ts:issueDocument:afterWithOrg", "issueDocument completed withOrg", {
+      docId,
+    });
+    // #endregion
+    const [doc] = await db.select({ number: documents.number, type: documents.type }).from(documents).where(eq(documents.id, docId)).limit(1);
+    await logAudit({ action: "issue", module: doc ? DOC_MODULE[doc.type] : "invoices", recordId: docId, recordLabel: doc?.number });
+    return { success: true };
+  } catch (err: any) {
+    // #region debug-point D:issue-action-catch
+    await reportInvoiceIssueDebug("D", "src/lib/actions.ts:issueDocument:catch", "issueDocument action failed", {
+      docId,
+      error: err?.message || "Failed to issue document",
+      stack: err instanceof Error ? err.stack ?? null : null,
+    });
+    // #endregion
+    return { error: err?.message || "Failed to issue document" };
+  }
 }
 /** Approve a bill pending approval and post it to the ledger. */
 export async function approveBillAction(docId: number) {
