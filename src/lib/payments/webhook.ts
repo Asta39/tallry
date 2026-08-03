@@ -96,7 +96,7 @@ async function applyInbound(orgId: number, gatewayId: GatewayId, inbound: Inboun
   // 1. Reconcile against a pending STK-push event when we have the request ref.
   //    The conditional UPDATE (status = 'pending') is atomic: only one
   //    concurrent delivery wins the row; losers see zero rows and stop.
-  let claimed: { id: number; matchedDocumentId: number | null; amountCents: number } | null = null;
+  let claimed: { id: number; matchedDocumentId: number | null; matchedExpenseClaimId: number | null; amountCents: number } | null = null;
   let pendingAmountCents: number | null = null;
 
   if (inbound.requestRef) {
@@ -114,7 +114,7 @@ async function applyInbound(orgId: number, gatewayId: GatewayId, inbound: Inboun
         eq(paymentEvents.providerRef, inbound.requestRef),
         eq(paymentEvents.status, "pending"),
       ))
-      .returning({ id: paymentEvents.id, matchedDocumentId: paymentEvents.matchedDocumentId, amountCents: paymentEvents.amountCents });
+      .returning({ id: paymentEvents.id, matchedDocumentId: paymentEvents.matchedDocumentId, matchedExpenseClaimId: paymentEvents.matchedExpenseClaimId, amountCents: paymentEvents.amountCents });
     if (row) {
       claimed = row;
       pendingAmountCents = row.amountCents;
@@ -144,7 +144,7 @@ async function applyInbound(orgId: number, gatewayId: GatewayId, inbound: Inboun
         createdAt: new Date().toISOString(),
       })
       .onConflictDoNothing({ target: [paymentEvents.gatewayId, paymentEvents.providerRef] })
-      .returning({ id: paymentEvents.id, matchedDocumentId: paymentEvents.matchedDocumentId, amountCents: paymentEvents.amountCents });
+      .returning({ id: paymentEvents.id, matchedDocumentId: paymentEvents.matchedDocumentId, matchedExpenseClaimId: paymentEvents.matchedExpenseClaimId, amountCents: paymentEvents.amountCents });
     if (!row) return { kind: "duplicate" };
     claimed = row;
   }
@@ -165,6 +165,23 @@ async function applyInbound(orgId: number, gatewayId: GatewayId, inbound: Inboun
         .set({ status: "amount_mismatch", amountCents: inbound.amountCents })
         .where(eq(paymentEvents.id, claimed.id));
       return { kind: "processed", status: "amount_mismatch" };
+    }
+  }
+
+  // 3b. Expense-claim payouts reconcile against the claim, not a document —
+  //     branch off before the invoice-matching logic below, which doesn't apply.
+  if (claimed.matchedExpenseClaimId) {
+    try {
+      const { applyExpenseClaimGatewayPayout } = await import("@/lib/expense-claims");
+      const entryId = await applyExpenseClaimGatewayPayout(claimed.matchedExpenseClaimId, claimed.amountCents, gatewayId);
+      await db.update(paymentEvents)
+        .set({ status: "applied", paymentId: entryId })
+        .where(eq(paymentEvents.id, claimed.id));
+      return { kind: "processed", status: "applied" };
+    } catch (e) {
+      console.error("applyExpenseClaimGatewayPayout failed for event", claimed.id, e);
+      await db.update(paymentEvents).set({ status: "failed" }).where(eq(paymentEvents.id, claimed.id));
+      return { kind: "processed", status: "failed" };
     }
   }
 

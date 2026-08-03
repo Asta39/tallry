@@ -1703,7 +1703,19 @@ export async function createCreditNoteFromInvoice(invoiceId: number) {
   return withOrg(() => _createCreditNoteFromInvoice(invoiceId));
 }
 export async function convertPoToBill(poId: number, lineQtys?: Record<number, number>) {
-  return withOrg(() => _convertPoToBill(poId, lineQtys));
+  const billId = await withOrg(() => _convertPoToBill(poId, lineQtys));
+  const [[po], [bill]] = await Promise.all([
+    db.select({ number: documents.number }).from(documents).where(eq(documents.id, poId)).limit(1),
+    db.select({ number: documents.number }).from(documents).where(eq(documents.id, billId)).limit(1),
+  ]);
+  await logAudit({
+    action: "convert_from_po",
+    module: "bills",
+    recordId: billId,
+    recordLabel: bill?.number,
+    detail: po?.number ? `Converted from PO ${po.number}` : undefined,
+  });
+  return billId;
 }
 export async function importBankTransactions(
   bankAccountId: number,

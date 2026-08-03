@@ -11,6 +11,7 @@ import { DocActions } from "@/components/DocActions";
 import { LineDescription } from "@/components/LineDescription";
 import { ETIMS_ENABLED } from "@/lib/features";
 import { canApproveSpend, isSpendApprovalType } from "@/lib/spend-approvals";
+import { DocRealtimeRefresh } from "@/components/DocRealtimeRefresh";
 
 const typeLabels: Record<string, string> = {
   invoice: "Invoice",
@@ -20,6 +21,18 @@ const typeLabels: Record<string, string> = {
   expense: "Expense",
   purchase_order: "Purchase order",
 };
+
+function docLinkHref(type: string, id: number): string {
+  switch (type) {
+    case "invoice": return `/sales/invoices/${id}`;
+    case "quote": return `/sales/quotes/${id}`;
+    case "credit_note": return `/sales/credit-notes/${id}`;
+    case "bill": return `/purchases/bills/${id}`;
+    case "expense": return `/purchases/expenses/${id}`;
+    case "purchase_order": return `/purchases/orders/${id}`;
+    default: return "#";
+  }
+}
 
 const roleLabels: Record<string, string> = {
   owner: "Owner",
@@ -51,6 +64,16 @@ export async function DocDetail({ id, printHref }: { id: number; printHref?: str
     ? await db.select().from(documents).where(and(eq(documents.orgId, orgId), eq(documents.id, doc.relatedInvoiceId))).limit(1)
     : [];
 
+  // Conversion lineage — e.g. a bill converted from a PO, or a credit note
+  // from an invoice — shown both ways so a "closed" source doc is never
+  // mistaken for the doc actually being viewed.
+  const [convertedFrom] = doc.sourceDocId
+    ? await db.select().from(documents).where(and(eq(documents.orgId, orgId), eq(documents.id, doc.sourceDocId))).limit(1)
+    : [];
+  const convertedTo = doc.type === "purchase_order"
+    ? await db.select().from(documents).where(and(eq(documents.orgId, orgId), eq(documents.sourceDocId, id))).limit(20)
+    : [];
+
   // Costs tagged to this invoice, shown on the invoice so margin is visible.
   const taggedCosts = doc.type === "invoice"
     ? await db
@@ -64,7 +87,7 @@ export async function DocDetail({ id, printHref }: { id: number; printHref?: str
   const gateways = await db.select().from(paymentGateways).where(and(eq(paymentGateways.orgId, orgId), eq(paymentGateways.enabled, true)));
   const access = await getAccess();
   const canApprove = isSpendApprovalType(doc.type)
-    ? canApproveSpend({
+    ? !!access?.perms.has("accountant") && canApproveSpend({
         access: access ? { isOwner: access.isOwner, role: access.role } : null,
         totalCents: doc.totalCents,
         accountantApprovalLimitCents: org.accountantApprovalLimitCents,
@@ -73,6 +96,7 @@ export async function DocDetail({ id, printHref }: { id: number; printHref?: str
 
   return (
     <>
+      <DocRealtimeRefresh docId={doc.id} />
       <PageHeader
         title={`${typeLabels[doc.type] ?? doc.type} ${doc.number}`}
         subtitle={
@@ -114,6 +138,27 @@ export async function DocDetail({ id, printHref }: { id: number; printHref?: str
               {fmtKES(doc.totalCents - taggedCosts.reduce((s, c) => s + c.totalCents, 0))}
             </span>
           </div>
+        </div>
+      )}
+
+      {(convertedFrom || convertedTo.length > 0) && (
+        <div className="card p-4 mb-4 text-[13px] flex flex-wrap gap-x-8 gap-y-2">
+          {convertedFrom && (
+            <div>
+              <span className="text-[var(--color-ink-500)]">Converted from </span>
+              <Link href={docLinkHref(convertedFrom.type, convertedFrom.id)} className="font-medium hover:underline">
+                {typeLabels[convertedFrom.type] ?? convertedFrom.type} {convertedFrom.number}
+              </Link>
+            </div>
+          )}
+          {convertedTo.map((b) => (
+            <div key={b.id}>
+              <span className="text-[var(--color-ink-500)]">Billed as </span>
+              <Link href={docLinkHref(b.type, b.id)} className="font-medium hover:underline">
+                {typeLabels[b.type] ?? b.type} {b.number}
+              </Link>
+            </div>
+          ))}
         </div>
       )}
 

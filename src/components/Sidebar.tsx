@@ -16,6 +16,7 @@ const groups: {
       { href: "/", label: "Home", icon: "🏠", perm: "dashboard" },
       { href: "/announcements", label: "Announcements", icon: "📣", perm: "announcements" },
       { href: "/time-tracking", label: "Time Tracking", icon: "⏱️", perm: "dashboard" },
+      { href: "/leave-requests", label: "Leave Requests", icon: "🌴", perm: "leave_requests" },
     ],
   },
   {

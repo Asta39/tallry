@@ -734,6 +734,7 @@ export const paymentEvents = pgTable("payment_events", {
   direction: text("direction").notNull().default("in"), // in (customer payment) | out (payout)
   status: text("status").notNull().default("received"), // pending | received | matched | unmatched | applied | failed | amount_mismatch
   matchedDocumentId: integer("matched_document_id"), // if matched to invoice
+  matchedExpenseClaimId: integer("matched_expense_claim_id"), // if matched to a staff expense claim payout
   paymentId: integer("payment_id"), // if applied (points to customer_payments)
   rawJson: text("raw_json"), // JSON payload from provider
   createdAt: text("created_at").notNull(),
@@ -986,6 +987,25 @@ export const expenseClaims = pgTable("expense_claims", {
   paidAt: text("paid_at"),
 }, (t) => ({
   orgStatusIdx: index("idx_expense_claims_org_status").on(t.orgId, t.status),
+}));
+
+/** Staff leave requests (annual, sick, unpaid, etc). */
+export const leaveRequests = pgTable("leave_requests", {
+  id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
+  memberId: integer("member_id"), // requester — null if the owner themselves requested
+  requestedByName: text("requested_by_name").notNull(),
+  leaveType: text("leave_type").notNull(), // annual | sick | unpaid | maternity | paternity | compassionate | other
+  startDate: text("start_date").notNull(),
+  endDate: text("end_date").notNull(),
+  reason: text("reason").notNull(),
+  status: text("status").notNull().default("pending"), // pending | approved | rejected
+  reviewedByName: text("reviewed_by_name"),
+  adminNote: text("admin_note"),
+  createdAt: text("created_at").notNull(),
+  reviewedAt: text("reviewed_at"),
+}, (t) => ({
+  orgStatusIdx: index("idx_leave_requests_org_status").on(t.orgId, t.status),
 }));
 
 /** Staff clock in/out shifts. */

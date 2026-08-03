@@ -723,3 +723,73 @@ DO $$ BEGIN
   ALTER TABLE contact_group_memberships ADD CONSTRAINT contact_group_memberships_group_id_fkey
     FOREIGN KEY (group_id) REFERENCES customer_groups(id) ON DELETE CASCADE;
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+ALTER TABLE payment_events ADD COLUMN IF NOT EXISTS matched_expense_claim_id INTEGER;
+CREATE INDEX IF NOT EXISTS idx_payment_events_expense_claim ON payment_events(matched_expense_claim_id);
+
+-- Realtime: enable RLS + org-scoped SELECT policies on tables with live
+-- client subscriptions, and add them to the realtime publication. RLS is
+-- the actual security boundary here — the client-side .eq('org_id', ...)
+-- filter passed to postgres_changes is a convenience, not a guarantee; a
+-- client that drops the filter must still only receive rows visible to it.
+ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS notifications_org_read ON notifications;
+CREATE POLICY notifications_org_read ON notifications FOR SELECT
+  USING (
+    org_id IN (SELECT id FROM org WHERE user_id = auth.uid()::text)
+    OR member_id IN (SELECT id FROM members WHERE user_id = auth.uid()::text)
+  );
+
+ALTER TABLE expense_claims ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS expense_claims_org_read ON expense_claims;
+CREATE POLICY expense_claims_org_read ON expense_claims FOR SELECT
+  USING (
+    org_id IN (SELECT id FROM org WHERE user_id = auth.uid()::text)
+    OR org_id IN (SELECT org_id FROM members WHERE user_id = auth.uid()::text AND active = true)
+  );
+
+DO $$ BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE notifications;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE expense_claims;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+CREATE TABLE IF NOT EXISTS leave_requests (
+  id SERIAL PRIMARY KEY,
+  org_id INTEGER NOT NULL REFERENCES org(id),
+  member_id INTEGER,
+  requested_by_name TEXT NOT NULL,
+  leave_type TEXT NOT NULL,
+  start_date TEXT NOT NULL,
+  end_date TEXT NOT NULL,
+  reason TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  reviewed_by_name TEXT,
+  admin_note TEXT,
+  created_at TEXT NOT NULL,
+  reviewed_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_leave_requests_org_status ON leave_requests(org_id, status);
+
+ALTER TABLE documents ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS documents_org_read ON documents;
+CREATE POLICY documents_org_read ON documents FOR SELECT
+  USING (
+    org_id IN (SELECT id FROM org WHERE user_id = auth.uid()::text)
+    OR org_id IN (SELECT org_id FROM members WHERE user_id = auth.uid()::text AND active = true)
+  );
+DO $$ BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE documents;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+ALTER TABLE leave_requests ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS leave_requests_org_read ON leave_requests;
+CREATE POLICY leave_requests_org_read ON leave_requests FOR SELECT
+  USING (
+    org_id IN (SELECT id FROM org WHERE user_id = auth.uid()::text)
+    OR org_id IN (SELECT org_id FROM members WHERE user_id = auth.uid()::text AND active = true)
+  );
+DO $$ BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE leave_requests;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;

@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect, useTransition } from "react";
+import { useState, useEffect, useRef, useTransition } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { fmtKES, todayISO } from "@/lib/money";
 import { StatusPill, TableCard, Th, Td } from "@/components/ui";
+import { useRealtimeTable } from "@/lib/realtime/useRealtimeTable";
 
 interface Row {
   doc: any;
@@ -12,6 +13,7 @@ interface Row {
 }
 
 export function DocListClient({
+  orgId,
   type,
   rows,
   stats,
@@ -20,6 +22,7 @@ export function DocListClient({
   isTemplate,
   currentPage,
 }: {
+  orgId: number;
   type: string;
   rows: Row[];
   stats: { draft: number; pending: number; partial: number; overdue: number; paid: number };
@@ -33,6 +36,33 @@ export function DocListClient({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
+
+  // This list is server-filtered/sorted/paginated (search, status, page) —
+  // patching individual rows client-side could put a changed doc on the
+  // wrong page or in the wrong sort position. Re-running the server query
+  // is the only reliable way to reflect a change, so any insert/update/
+  // delete of this doc type just triggers a refresh (debounced so a burst
+  // of webhook-driven updates, e.g. a payment run, doesn't hammer the server).
+  const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scheduleRefresh = () => {
+    if (refreshTimer.current) clearTimeout(refreshTimer.current);
+    refreshTimer.current = setTimeout(() => router.refresh(), 400);
+  };
+  useEffect(() => () => { if (refreshTimer.current) clearTimeout(refreshTimer.current); }, []);
+
+  useRealtimeTable<{ id: number; type: string }>(
+    "documents",
+    { column: "org_id", value: orgId },
+    {
+      onInsert: (row) => { if (row.type === type) scheduleRefresh(); },
+      onUpdate: (row) => { if (row.type === type) scheduleRefresh(); },
+      // DELETE payloads only carry the primary key unless REPLICA IDENTITY
+      // FULL is set (it isn't) — `type` isn't available to filter on, so
+      // refresh unconditionally rather than silently miss a real deletion.
+      onDelete: scheduleRefresh,
+      onUnreliable: scheduleRefresh,
+    }
+  );
 
   const [q, setQ] = useState(searchParams.get("q") || "");
   const status = searchParams.get("status") || "all";

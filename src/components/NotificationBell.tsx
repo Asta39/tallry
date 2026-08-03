@@ -1,29 +1,70 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { getNotifications, markNotificationRead, markAllNotificationsRead } from "@/lib/actions";
 import { useRouter } from "next/navigation";
+import { useRealtimeTable } from "@/lib/realtime/useRealtimeTable";
 
-export function NotificationBell({ memberId, variant = "fixed" }: { memberId: number | null; variant?: "fixed" | "inline" }) {
+type NotificationRow = {
+  id: number;
+  orgId: number;
+  memberId: number | null;
+  title: string;
+  body: string;
+  link: string | null;
+  isRead: boolean;
+  createdAt: string;
+};
+
+export function NotificationBell({ orgId, memberId, variant = "fixed" }: { orgId: number; memberId: number | null; variant?: "fixed" | "inline" }) {
   const router = useRouter();
   const [notifications, setNotifications] = useState<any[]>([]);
   const [open, setOpen] = useState(false);
   const [markingAll, setMarkingAll] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    async function load() {
-      try {
-        const data = await getNotifications(memberId);
-        if (Array.isArray(data)) setNotifications(data);
-      } catch (err) {
-        // Silently catch polling errors on page transition / reload
-      }
+  const load = useCallback(async () => {
+    try {
+      const data = await getNotifications(memberId);
+      if (Array.isArray(data)) setNotifications(data);
+    } catch (err) {
+      // Silently catch errors on page transition / reload
     }
-    load();
-    const interval = setInterval(load, 30000); // poll every 30s
-    return () => clearInterval(interval);
   }, [memberId]);
+
+  useEffect(() => {
+    load();
+    // Realtime covers live updates; this is just a safety-net poll in case
+    // a websocket drops silently without firing CHANNEL_ERROR/TIMED_OUT.
+    const interval = setInterval(load, 120000);
+    return () => clearInterval(interval);
+  }, [load]);
+
+  // Live updates scoped to this org — RLS (notifications_org_read) further
+  // restricts what actually arrives to rows this signed-in user can see
+  // (their own memberId, or all of them if they're the owner), matching
+  // the memberId filter getNotifications() already applies server-side.
+  useRealtimeTable<NotificationRow>(
+    "notifications",
+    { column: "org_id", value: orgId },
+    {
+      onInsert: (row) => {
+        // RLS already restricts delivery to rows this signed-in user is
+        // authorized to see; this is a defense-in-depth re-check that the
+        // row is specifically *this* recipient's (their memberId, or NULL
+        // for the owner) rather than just "somewhere in this org".
+        const mine = memberId ? row.memberId === memberId : row.memberId === null;
+        if (!mine) return;
+        setNotifications((prev) => (prev.some((n) => n.id === row.id) ? prev : [row, ...prev].slice(0, 20)));
+      },
+      onUpdate: (row) => {
+        const mine = memberId ? row.memberId === memberId : row.memberId === null;
+        if (!mine) return;
+        setNotifications((prev) => prev.map((n) => (n.id === row.id ? { ...n, ...row } : n)));
+      },
+      onUnreliable: load,
+    }
+  );
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent | TouchEvent) {

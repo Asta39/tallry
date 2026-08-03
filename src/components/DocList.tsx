@@ -149,6 +149,7 @@ export async function DocList({
         />
       ) : (
         <DocListClient
+          orgId={orgId}
           type={type}
           rows={serializedRows}
           stats={stats}
