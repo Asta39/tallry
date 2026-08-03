@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { fmtKES } from "@/lib/money";
-import { createAccountAction, updateAccountAction, archiveAccountAction } from "@/lib/chart-of-accounts";
+import { createAccountAction, updateAccountAction, archiveAccountAction, adjustAccountBalanceAction } from "@/lib/chart-of-accounts";
 
 type Account = {
   id: number;
@@ -123,9 +123,97 @@ function AccountModal({
   );
 }
 
-export function ChartOfAccountsClient({ accounts, balances: balancesObj }: { accounts: Account[]; balances: Record<number, number> }) {
+function BalanceAdjustModal({
+  account,
+  currentBalanceCents,
+  onClose,
+}: {
+  account: Account;
+  currentBalanceCents: number;
+  onClose: () => void;
+}) {
+  const [targetBalance, setTargetBalance] = useState((currentBalanceCents / 100).toFixed(2));
+  const [memo, setMemo] = useState(`Balance adjustment for ${account.name}`);
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  const deltaCents = Math.round((Number(targetBalance || "0") || 0) * 100) - currentBalanceCents;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          setError(null);
+          startTransition(async () => {
+            try {
+              await adjustAccountBalanceAction({
+                accountId: account.id,
+                targetBalanceCents: Math.round((Number(targetBalance || "0") || 0) * 100),
+                memo,
+              });
+              onClose();
+              window.location.reload();
+            } catch (e: any) {
+              setError(e.message || "Could not adjust balance");
+            }
+          });
+        }}
+        className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4"
+      >
+        <h3 className="text-[16px] font-semibold">Adjust {account.name}</h3>
+        <p className="text-[12.5px] text-[var(--color-ink-500)]">
+          This posts a balancing journal entry against Opening Balance Adjustments so reports stay fully reconciled.
+        </p>
+
+        <div className="grid grid-cols-2 gap-3">
+          <label className="block">
+            <span className="text-[12px] font-medium text-[var(--color-ink-600)]">Current balance</span>
+            <input value={fmtKES(currentBalanceCents)} disabled className={inputCls + " mt-1 disabled:bg-[var(--color-ink-50)] disabled:text-[var(--color-ink-500)]"} />
+          </label>
+          <label className="block">
+            <span className="text-[12px] font-medium text-[var(--color-ink-600)]">New balance</span>
+            <input value={targetBalance} onChange={(e) => setTargetBalance(e.target.value)} className={inputCls + " mt-1"} />
+          </label>
+        </div>
+
+        <div className="rounded-lg bg-[var(--color-ink-50)] px-3 py-2 text-[12.5px] text-[var(--color-ink-600)]">
+          {deltaCents === 0
+            ? "No change will be posted."
+            : `${deltaCents > 0 ? "Increase" : "Reduce"} by ${fmtKES(Math.abs(deltaCents))}.`}
+        </div>
+
+        <label className="block">
+          <span className="text-[12px] font-medium text-[var(--color-ink-600)]">Memo</span>
+          <input value={memo} onChange={(e) => setMemo(e.target.value)} className={inputCls + " mt-1"} />
+        </label>
+
+        {error && <p className="text-[12.5px] text-[var(--color-bad)]">{error}</p>}
+
+        <div className="flex items-center gap-3 pt-1">
+          <button type="submit" disabled={pending} className="rounded-lg bg-[var(--color-accent-500)] hover:bg-[var(--color-accent-600)] disabled:opacity-60 text-white text-[13px] font-medium px-4 py-2 transition-colors">
+            {pending ? "Posting…" : "Save balance"}
+          </button>
+          <button type="button" onClick={onClose} className="text-[13px] text-[var(--color-ink-500)] hover:underline">Cancel</button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+export function ChartOfAccountsClient({
+  accounts,
+  balances: balancesObj,
+  balanceAdjustable,
+}: {
+  accounts: Account[];
+  balances: Record<number, number>;
+  balanceAdjustable: Record<number, boolean>;
+}) {
   const balances = new Map(Object.entries(balancesObj).map(([k, v]) => [Number(k), v]));
   const [modal, setModal] = useState<{ mode: "create" | "edit"; account?: Account } | null>(null);
+  const [adjustAccount, setAdjustAccount] = useState<Account | null>(null);
   const [pendingId, setPendingId] = useState<number | null>(null);
   const [, startTransition] = useTransition();
   const [archiveError, setArchiveError] = useState<string | null>(null);
@@ -172,6 +260,9 @@ export function ChartOfAccountsClient({ accounts, balances: balancesObj }: { acc
           <td className="px-3 py-2.5 text-[13px] text-right tnum">{fmtKES(balances.get(a.id) ?? 0)}</td>
           <td className="px-4 py-2.5 text-right whitespace-nowrap">
             <button onClick={() => setModal({ mode: "edit", account: a })} className="text-[12px] font-medium text-[var(--color-ink-600)] hover:underline mr-3">Edit</button>
+            {balanceAdjustable[a.id] && (
+              <button onClick={() => setAdjustAccount(a)} className="text-[12px] font-medium text-[var(--color-accent-600)] hover:underline mr-3">Adjust balance</button>
+            )}
             {!a.isSystem && (
               <button
                 disabled={pendingId === a.id}
@@ -229,6 +320,13 @@ export function ChartOfAccountsClient({ accounts, balances: balancesObj }: { acc
           account={modal.account}
           siblingsForType={accounts}
           onClose={() => setModal(null)}
+        />
+      )}
+      {adjustAccount && (
+        <BalanceAdjustModal
+          account={adjustAccount}
+          currentBalanceCents={balances.get(adjustAccount.id) ?? 0}
+          onClose={() => setAdjustAccount(null)}
         />
       )}
     </div>

@@ -24,6 +24,8 @@ interface OrgData {
   termsText?: string | null;
   dataSegregation: boolean;
   requireBillApproval: boolean;
+  accountantApprovalLimitCents?: number | null;
+  approvalRequestPhone?: string | null;
   timeTrackingEnabled: boolean;
   itemGroupsEnabled: boolean;
   nextInvoiceNo?: number | null;
@@ -55,6 +57,10 @@ export function OrgProfileForm({ initial }: { initial: OrgData }) {
   const [termsText, setTermsText] = useState(initial.termsText || "");
   const [dataSegregation, setDataSegregation] = useState(initial.dataSegregation);
   const [requireBillApproval, setRequireBillApproval] = useState(initial.requireBillApproval);
+  const [accountantApprovalLimit, setAccountantApprovalLimit] = useState(
+    initial.accountantApprovalLimitCents != null ? (initial.accountantApprovalLimitCents / 100).toFixed(2) : ""
+  );
+  const [approvalRequestPhone, setApprovalRequestPhone] = useState(initial.approvalRequestPhone || "");
   const [timeTrackingEnabled, setTimeTrackingEnabled] = useState(initial.timeTrackingEnabled);
   const [itemGroupsEnabled, setItemGroupsEnabled] = useState(initial.itemGroupsEnabled);
 
@@ -127,6 +133,8 @@ export function OrgProfileForm({ initial }: { initial: OrgData }) {
           termsText: termsText,
           dataSegregation,
           requireBillApproval,
+          accountantApprovalLimitCents: accountantApprovalLimit.trim() ? Math.round((Number(accountantApprovalLimit) || 0) * 100) : null,
+          approvalRequestPhone: approvalRequestPhone || undefined,
           timeTrackingEnabled,
           itemGroupsEnabled,
           nextInvoiceNo: Number(nextInvoiceNo) || 1,
@@ -296,13 +304,45 @@ export function OrgProfileForm({ initial }: { initial: OrgData }) {
             className="accent-[var(--color-accent-500)] mt-0.5"
           />
           <div>
-            <div className="text-[13px] font-medium text-[var(--color-ink-900)]">Require approval before posting bills</div>
+            <div className="text-[13px] font-medium text-[var(--color-ink-900)]">Require approval before posting bills and expenses</div>
             <div className="text-[12px] text-[var(--color-ink-400)] mt-0.5 max-w-lg">
-              When enabled, issuing a bill sends it for approval instead of posting immediately.
-              Any accountant or admin can approve and post it, or reject it with a note.
+              When enabled, issuing a bill or expense sends it for approval instead of posting immediately.
+              Admins can always approve; accountants can optionally be capped to a maximum amount.
             </div>
           </div>
         </label>
+        {requireBillApproval && (
+          <div className="mt-4 space-y-4 rounded-xl border border-[var(--color-ink-100)] bg-[var(--color-ink-50)]/60 p-4">
+            <label className="block">
+              <span className={labelCls}>Maximum amount accountants can approve (optional)</span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={accountantApprovalLimit}
+                onChange={(e) => setAccountantApprovalLimit(e.target.value)}
+                className={inputCls}
+                placeholder="Leave blank for full approval rights"
+              />
+              <div className="text-[12px] text-[var(--color-ink-400)] mt-1">
+                Leave this blank to let accountants approve any bill or expense just like admins. Set a value like 30000 to require admin approval above that amount.
+              </div>
+            </label>
+            <label className="block">
+              <span className={labelCls}>Approval request phone (optional)</span>
+              <input
+                type="tel"
+                value={approvalRequestPhone}
+                onChange={(e) => setApprovalRequestPhone(e.target.value)}
+                className={inputCls}
+                placeholder="Falls back to the business phone if left blank"
+              />
+              <div className="text-[12px] text-[var(--color-ink-400)] mt-1">
+                When Advanta SMS is enabled, approval requests will be texted to this number with secure approve/reject links.
+              </div>
+            </label>
+          </div>
+        )}
         <label className="flex items-start gap-3 cursor-pointer mt-4 pt-4 hairline-t">
           <input
             type="checkbox"

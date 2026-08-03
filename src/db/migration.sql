@@ -576,6 +576,25 @@ CREATE TABLE IF NOT EXISTS reminder_log (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_reminder_log_doc_kind ON reminder_log(document_id, kind);
 
+ALTER TABLE org ADD COLUMN IF NOT EXISTS accountant_approval_limit_cents BIGINT;
+ALTER TABLE org ADD COLUMN IF NOT EXISTS approval_request_phone TEXT;
+
+CREATE TABLE IF NOT EXISTS approval_request_tokens (
+  id SERIAL PRIMARY KEY,
+  org_id INTEGER NOT NULL REFERENCES org(id),
+  document_id INTEGER NOT NULL REFERENCES documents(id),
+  token TEXT NOT NULL,
+  channel TEXT NOT NULL DEFAULT 'sms',
+  recipient TEXT,
+  decision TEXT,
+  note TEXT,
+  acted_at TEXT,
+  revoked BOOLEAN NOT NULL DEFAULT false,
+  created_at TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_approval_request_tokens_token ON approval_request_tokens(token);
+CREATE INDEX IF NOT EXISTS idx_approval_request_tokens_doc ON approval_request_tokens(org_id, document_id);
+
 CREATE TABLE IF NOT EXISTS portal_sessions (
   id SERIAL PRIMARY KEY,
   org_id INTEGER NOT NULL REFERENCES org(id),

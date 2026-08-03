@@ -3,7 +3,7 @@ import { requirePerm } from "@/lib/guard";
 import { eq } from "drizzle-orm";
 import { getOrg } from "@/lib/org";
 import Link from "next/link";
-import { db, accounts } from "@/db";
+import { db, accounts, bankAccounts, items } from "@/db";
 import { accountBalances } from "@/lib/reports";
 import { PageHeader, PrimaryLink } from "@/components/ui";
 import { ChartOfAccountsClient } from "./ChartOfAccountsClient";
@@ -14,8 +14,24 @@ export default async function AccountantPage() {
   await requirePerm("accountant");
   const o = await getOrg();
   const all = await db.select().from(accounts).where(eq(accounts.orgId, o.id));
+  const [bankLinked, itemLinked] = await Promise.all([
+    db.select({ accountId: bankAccounts.accountId }).from(bankAccounts).where(eq(bankAccounts.orgId, o.id)),
+    db
+      .select({ salesAccountId: items.salesAccountId, purchaseAccountId: items.purchaseAccountId })
+      .from(items)
+      .where(eq(items.orgId, o.id)),
+  ]);
   const balances = await withOrg(() => accountBalances({}));
   const balMap: Record<number, number> = Object.fromEntries(balances.map((b) => [b.accountId, b.balanceCents]));
+  const autoManagedIds = new Set<number>();
+  for (const row of bankLinked) autoManagedIds.add(row.accountId);
+  for (const row of itemLinked) {
+    if (row.salesAccountId) autoManagedIds.add(row.salesAccountId);
+    if (row.purchaseAccountId) autoManagedIds.add(row.purchaseAccountId);
+  }
+  const balanceAdjustable: Record<number, boolean> = Object.fromEntries(
+    all.map((a) => [a.id, !a.isSystem && !autoManagedIds.has(a.id)])
+  );
 
   return (
     <>
@@ -48,7 +64,7 @@ export default async function AccountantPage() {
         </Link>
       </div>
 
-      <ChartOfAccountsClient accounts={all} balances={balMap} />
+      <ChartOfAccountsClient accounts={all} balances={balMap} balanceAdjustable={balanceAdjustable} />
     </>
   );
 }

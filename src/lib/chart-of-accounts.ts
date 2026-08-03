@@ -1,10 +1,15 @@
 "use server";
 
-import { db, accounts } from "@/db";
+import { db, accounts, bankAccounts, items } from "@/db";
 import { eq, and, ne } from "drizzle-orm";
 import { withOrg, currentOrgId } from "@/lib/org";
 import { requirePerm } from "@/lib/guard";
 import { revalidatePath } from "next/cache";
+import { postEntry, acct } from "@/lib/posting";
+import { SYS } from "@/lib/coa";
+import { accountBalances } from "@/lib/reports";
+import { todayISO } from "@/lib/money";
+import { buildBalanceAdjustmentLines } from "@/lib/account-balance-adjustments";
 
 const VALID_TYPES = ["asset", "liability", "equity", "income", "expense"] as const;
 type AccountType = (typeof VALID_TYPES)[number];
@@ -133,4 +138,74 @@ export async function archiveAccountAction(id: number, archived: boolean) {
     revalidatePath("/accountant/chart-of-accounts");
     return { success: true };
   });
+}
+
+async function assertBalanceAdjustableAccount(accountId: number) {
+  const orgId = currentOrgId();
+  const [account] = await db.select().from(accounts).where(and(eq(accounts.orgId, orgId), eq(accounts.id, accountId))).limit(1);
+  if (!account) throw new Error("Account not found");
+  if (account.isSystem) throw new Error("System-managed accounts can't be adjusted here");
+
+  const [bankLink] = await db
+    .select({ id: bankAccounts.id })
+    .from(bankAccounts)
+    .where(and(eq(bankAccounts.orgId, orgId), eq(bankAccounts.accountId, accountId), eq(bankAccounts.archived, false)))
+    .limit(1);
+  if (bankLink) throw new Error("Accounts linked to bank, cash, or M-Pesa are updated by banking modules");
+
+  const [purchaseItemLink] = await db
+    .select({ id: items.id })
+    .from(items)
+    .where(and(
+      eq(items.orgId, orgId),
+      eq(items.archived, false),
+      eq(items.purchaseAccountId, accountId),
+    ))
+    .limit(1);
+  const [salesItemLink] = await db
+    .select({ id: items.id })
+    .from(items)
+    .where(and(
+      eq(items.orgId, orgId),
+      eq(items.archived, false),
+      eq(items.salesAccountId, accountId),
+    ))
+    .limit(1);
+  if (purchaseItemLink || salesItemLink) {
+    throw new Error("Accounts linked to items are updated by sales and purchase flows");
+  }
+
+  return account;
+}
+
+export async function adjustAccountBalanceAction(data: {
+  accountId: number;
+  targetBalanceCents: number;
+  memo?: string;
+}) {
+  return withOrg(async () => {
+    await requirePerm("accountant");
+    const account = await assertBalanceAdjustableAccount(data.accountId);
+    const balances = await accountBalances({});
+    const currentBalanceCents = balances.find((row) => row.accountId === data.accountId)?.balanceCents ?? 0;
+    const delta = data.targetBalanceCents - currentBalanceCents;
+    if (delta === 0) return { success: true };
+
+    const openingBalanceAccountId = await acct(SYS.OPENING_BALANCE);
+    await postEntry({
+      date: todayISO(),
+      memo: (data.memo || `Balance adjustment for ${account.name}`).trim(),
+      sourceType: "manual_balance_adjustment",
+      lines: buildBalanceAdjustmentLines({
+        accountId: account.id,
+        accountType: account.type,
+        offsetAccountId: openingBalanceAccountId,
+        deltaCents: delta,
+      }),
+    });
+
+    revalidatePath("/accountant");
+    revalidatePath(`/accountant/ledger/${account.id}`);
+    return { success: true };
+  }, { requireWrite: true });
 }

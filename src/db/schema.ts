@@ -49,6 +49,10 @@ export const org = pgTable("org", {
   lockDate: text("lock_date"),
   /** When on, posting a bill requires an accountant/admin to approve it first. */
   requireBillApproval: boolean("require_bill_approval").notNull().default(false),
+  /** Optional per-accountant cap for spend approvals; null means accountants can approve any amount. */
+  accountantApprovalLimitCents: money("accountant_approval_limit_cents"),
+  /** Optional SMS destination for spend approvals; falls back to the org phone when blank. */
+  approvalRequestPhone: text("approval_request_phone"),
   /** When on, staff see a clock-in/out card on their dashboard. */
   timeTrackingEnabled: boolean("time_tracking_enabled").notNull().default(false),
   /** When on, every item must belong to an admin-managed item group. */
@@ -781,6 +785,23 @@ export const reminderLog = pgTable("reminder_log", {
   sentAt: text("sent_at").notNull(),
 }, (t) => ({
   docKindUnique: uniqueIndex("idx_reminder_log_doc_kind").on(t.documentId, t.kind),
+}));
+
+export const approvalRequestTokens = pgTable("approval_request_tokens", {
+  id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
+  documentId: integer("document_id").notNull().references(() => documents.id),
+  token: text("token").notNull(),
+  channel: text("channel").notNull().default("sms"),
+  recipient: text("recipient"),
+  decision: text("decision"), // approved | rejected
+  note: text("note"),
+  actedAt: text("acted_at"),
+  revoked: boolean("revoked").notNull().default(false),
+  createdAt: text("created_at").notNull(),
+}, (t) => ({
+  tokenUnique: uniqueIndex("idx_approval_request_tokens_token").on(t.token),
+  orgDocIdx: index("idx_approval_request_tokens_doc").on(t.orgId, t.documentId),
 }));
 
 export const portalSessions = pgTable("portal_sessions", {

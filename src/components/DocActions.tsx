@@ -9,8 +9,8 @@ import {
   convertQuoteToInvoice,
   recordPayment,
   createCreditNoteFromInvoice,
-  approveBillAction,
-  rejectBillAction,
+  approveSpendAction,
+  rejectSpendAction,
 } from "@/lib/actions";
 import { convertPoToBill } from "@/lib/actions";
 import { requestPaymentAction, payOutAction } from "@/lib/payments/actions";
@@ -105,9 +105,9 @@ export function DocActions({
             {isQuote ? "Mark as sent" : "Issue"}
           </button>
         )}
-        {doc.type === "bill" && doc.status === "pending_approval" && canApprove && !showReject && (
+        {["bill", "expense"].includes(doc.type) && doc.status === "pending_approval" && canApprove && !showReject && (
           <>
-            <button className={primary} disabled={pending} onClick={() => run(() => approveBillAction(doc.id))}>
+            <button className={primary} disabled={pending} onClick={() => run(() => approveSpendAction(doc.id))}>
               Approve &amp; post
             </button>
             <button className={danger} disabled={pending} onClick={() => setShowReject(true)}>
@@ -115,8 +115,8 @@ export function DocActions({
             </button>
           </>
         )}
-        {doc.type === "bill" && doc.status === "pending_approval" && !canApprove && (
-          <span className="text-[13px] text-[var(--color-ink-500)]">Waiting for an accountant or admin to approve this bill.</span>
+        {["bill", "expense"].includes(doc.type) && doc.status === "pending_approval" && !canApprove && (
+          <span className="text-[13px] text-[var(--color-ink-500)]">Waiting for an eligible approver to review this document.</span>
         )}
         {(
           (doc.type === "quote" && ["draft", "open"].includes(doc.status)) ||
@@ -234,7 +234,7 @@ export function DocActions({
           <button
             className={danger}
             disabled={pending}
-            onClick={() => run(async () => { await rejectBillAction(doc.id, rejectNote); setShowReject(false); })}
+            onClick={() => run(async () => { await rejectSpendAction(doc.id, rejectNote); setShowReject(false); })}
           >
             {pending ? "Rejecting…" : "Confirm rejection"}
           </button>

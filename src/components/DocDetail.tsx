@@ -10,6 +10,7 @@ import { PageHeader, StatusPill, Th, Td } from "@/components/ui";
 import { DocActions } from "@/components/DocActions";
 import { LineDescription } from "@/components/LineDescription";
 import { ETIMS_ENABLED } from "@/lib/features";
+import { canApproveSpend, isSpendApprovalType } from "@/lib/spend-approvals";
 
 const typeLabels: Record<string, string> = {
   invoice: "Invoice",
@@ -62,7 +63,13 @@ export async function DocDetail({ id, printHref }: { id: number; printHref?: str
   const banks = await db.select().from(bankAccounts).where(eq(bankAccounts.orgId, orgId));
   const gateways = await db.select().from(paymentGateways).where(and(eq(paymentGateways.orgId, orgId), eq(paymentGateways.enabled, true)));
   const access = await getAccess();
-  const canApprove = !!access?.perms.has("accountant");
+  const canApprove = isSpendApprovalType(doc.type)
+    ? canApproveSpend({
+        access: access ? { isOwner: access.isOwner, role: access.role } : null,
+        totalCents: doc.totalCents,
+        accountantApprovalLimitCents: org.accountantApprovalLimitCents,
+      })
+    : !!access?.perms.has("accountant");
 
   return (
     <>

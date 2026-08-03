@@ -45,6 +45,8 @@ export default async function SettingsPage() {
           termsText: o.termsText,
           dataSegregation: o.dataSegregation,
           requireBillApproval: o.requireBillApproval,
+          accountantApprovalLimitCents: o.accountantApprovalLimitCents,
+          approvalRequestPhone: o.approvalRequestPhone,
           timeTrackingEnabled: o.timeTrackingEnabled,
           itemGroupsEnabled: o.itemGroupsEnabled,
           nextInvoiceNo: o.nextInvoiceNo,

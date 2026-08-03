@@ -21,7 +21,7 @@ import {
   itemGroups,
 } from "@/db";
 import { eq, and, ne, desc, isNull, sql, inArray } from "drizzle-orm";
-import { currentOrgId, withOrg, seedOrgDefaults } from "@/lib/org";
+import { currentOrgId, withOrg, seedOrgDefaults, orgContext } from "@/lib/org";
 import { revalidatePath as nextRevalidatePath } from "next/cache";
 import { computeDocument, type TaxClass, TAX_CLASSES } from "./tax";
 import {
@@ -53,6 +53,13 @@ function revalidatePath(path: string, type?: "page" | "layout") {
 import { getOrg } from "@/lib/org";
 import { notifyOrg } from "@/lib/notifications";
 import { logAudit } from "./audit";
+import {
+  canApproveSpend,
+  getApprovalRequestByToken,
+  isSpendApprovalType,
+  markApprovalTokenUsed,
+  sendSpendApprovalSms,
+} from "./spend-approvals";
 
 const DOC_MODULE: Record<string, "quotes" | "invoices" | "credit_notes" | "bills" | "purchase_orders" | "expenses"> = {
   quote: "quotes",
@@ -760,12 +767,19 @@ async function _issueClaimedDocument(doc: typeof documents.$inferSelect) {
       if (o.requireBillApproval) {
         await db.update(documents).set({ status: "pending_approval", approvalNote: null }).where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, docId)));
         await notifyOrg(currentOrgId(), ["admin", "accountant"], "Bill awaiting approval", `${doc.number} (${fmtKES(doc.totalCents)}) needs approval before it posts.`, `/purchases/bills/${docId}`);
+        await sendSpendApprovalSms(docId).catch(() => null);
         break;
       }
       await postBill(docId);
       break;
     }
     case "expense":
+      if ((await getOrg()).requireBillApproval) {
+        await db.update(documents).set({ status: "pending_approval", approvalNote: null }).where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, docId)));
+        await notifyOrg(currentOrgId(), ["admin", "accountant"], "Expense awaiting approval", `${doc.number} (${fmtKES(doc.totalCents)}) needs approval before it posts.`, `/purchases/expenses/${docId}`);
+        await sendSpendApprovalSms(docId).catch(() => null);
+        break;
+      }
       await postExpense(docId);
       break;
     case "quote":
@@ -1054,6 +1068,8 @@ export async function saveOrgProfile(data: {
   termsText?: string;
   dataSegregation?: boolean;
   requireBillApproval?: boolean;
+  accountantApprovalLimitCents?: number | null;
+  approvalRequestPhone?: string;
   timeTrackingEnabled?: boolean;
   itemGroupsEnabled?: boolean;
   nextInvoiceNo?: number;
@@ -1088,6 +1104,8 @@ export async function saveOrgProfile(data: {
         ...(data.termsText !== undefined ? { termsText: data.termsText } : {}),
         ...(data.dataSegregation !== undefined ? { dataSegregation: data.dataSegregation } : {}),
         ...(data.requireBillApproval !== undefined ? { requireBillApproval: data.requireBillApproval } : {}),
+        ...(data.accountantApprovalLimitCents !== undefined ? { accountantApprovalLimitCents: data.accountantApprovalLimitCents } : {}),
+        ...(data.approvalRequestPhone !== undefined ? { approvalRequestPhone: data.approvalRequestPhone || null } : {}),
         ...(data.timeTrackingEnabled !== undefined ? { timeTrackingEnabled: data.timeTrackingEnabled } : {}),
         ...(data.itemGroupsEnabled !== undefined ? { itemGroupsEnabled: data.itemGroupsEnabled } : {}),
         ...(data.nextInvoiceNo !== undefined ? { nextInvoiceNo: data.nextInvoiceNo } : {}),
@@ -1116,6 +1134,8 @@ export async function saveOrgProfile(data: {
         ...(data.termsText !== undefined ? { termsText: data.termsText } : {}),
         ...(data.dataSegregation !== undefined ? { dataSegregation: data.dataSegregation } : {}),
         ...(data.requireBillApproval !== undefined ? { requireBillApproval: data.requireBillApproval } : {}),
+        ...(data.accountantApprovalLimitCents !== undefined ? { accountantApprovalLimitCents: data.accountantApprovalLimitCents } : {}),
+        ...(data.approvalRequestPhone !== undefined ? { approvalRequestPhone: data.approvalRequestPhone || null } : {}),
         ...(data.nextInvoiceNo !== undefined ? { nextInvoiceNo: data.nextInvoiceNo } : {}),
         ...(data.nextQuoteNo !== undefined ? { nextQuoteNo: data.nextQuoteNo } : {}),
         ...(data.timeTrackingEnabled !== undefined ? { timeTrackingEnabled: data.timeTrackingEnabled } : {}),
@@ -1249,47 +1269,125 @@ export async function issueDocument(docId: number): Promise<{ success?: true; er
     return { error: err?.message || "Failed to issue document" };
   }
 }
-/** Approve a bill pending approval and post it to the ledger. */
-export async function approveBillAction(docId: number) {
+
+function spendModule(type: "bill" | "expense"): "bills" | "expenses" {
+  return type === "bill" ? "bills" : "expenses";
+}
+
+function spendLink(type: "bill" | "expense", docId: number) {
+  return `/purchases/${type === "bill" ? "bills" : "expenses"}/${docId}`;
+}
+
+async function assertSpendApprovalAccess(doc: { type: "bill" | "expense"; totalCents: number }) {
+  const access = await getAccess();
+  if (!access?.perms.has("accountant")) throw new Error("Not authorized to approve this document");
+  const o = await getOrg();
+  if (!canApproveSpend({ access, totalCents: doc.totalCents, accountantApprovalLimitCents: o.accountantApprovalLimitCents })) {
+    throw new Error(`Only an admin can approve or reject ${doc.type}s above ${fmtKES(o.accountantApprovalLimitCents ?? 0)}.`);
+  }
+  return access;
+}
+
+async function _approvePendingSpend(docId: number, options?: { bypassAccess?: boolean }) {
+  const orgId = currentOrgId();
+  const [pendingDoc] = await db
+    .select({ id: documents.id, type: documents.type, number: documents.number, totalCents: documents.totalCents })
+    .from(documents)
+    .where(and(eq(documents.orgId, orgId), eq(documents.id, docId), inArray(documents.type, ["bill", "expense"]), eq(documents.status, "pending_approval")))
+    .limit(1);
+  if (!pendingDoc || !isSpendApprovalType(pendingDoc.type)) throw new Error("This document isn't awaiting approval");
+  const approvableDoc = { ...pendingDoc, type: pendingDoc.type as "bill" | "expense" };
+  if (!options?.bypassAccess) await assertSpendApprovalAccess(approvableDoc);
+
+  const [claimed] = await db
+    .update(documents)
+    .set({ status: "approving" })
+    .where(and(eq(documents.orgId, orgId), eq(documents.id, docId), inArray(documents.type, ["bill", "expense"]), eq(documents.status, "pending_approval")))
+    .returning();
+  if (!claimed || !isSpendApprovalType(claimed.type)) throw new Error("This document isn't awaiting approval");
+
+  try {
+    if (claimed.type === "bill") await postBill(docId);
+    else await postExpense(docId);
+  } catch (e) {
+    await db.update(documents).set({ status: "pending_approval" }).where(and(eq(documents.orgId, orgId), eq(documents.id, docId), eq(documents.status, "approving")));
+    throw e;
+  }
+
+  revalidatePath("/purchases");
+  revalidatePath(spendLink(claimed.type, docId));
+  return { id: claimed.id, type: claimed.type as "bill" | "expense", number: claimed.number };
+}
+
+async function _rejectPendingSpend(docId: number, note: string, options?: { bypassAccess?: boolean }) {
+  const orgId = currentOrgId();
+  const [pendingDoc] = await db
+    .select({ id: documents.id, type: documents.type, totalCents: documents.totalCents })
+    .from(documents)
+    .where(and(eq(documents.orgId, orgId), eq(documents.id, docId), inArray(documents.type, ["bill", "expense"]), eq(documents.status, "pending_approval")))
+    .limit(1);
+  if (!pendingDoc || !isSpendApprovalType(pendingDoc.type)) throw new Error("This document isn't awaiting approval");
+  const approvableDoc = { ...pendingDoc, type: pendingDoc.type as "bill" | "expense" };
+  if (!options?.bypassAccess) await assertSpendApprovalAccess(approvableDoc);
+
+  const [claimed] = await db
+    .update(documents)
+    .set({ status: "draft", approvalNote: note || "Rejected" })
+    .where(and(eq(documents.orgId, orgId), eq(documents.id, docId), inArray(documents.type, ["bill", "expense"]), eq(documents.status, "pending_approval")))
+    .returning();
+  if (!claimed || !isSpendApprovalType(claimed.type)) throw new Error("This document isn't awaiting approval");
+
+  revalidatePath("/purchases");
+  revalidatePath(spendLink(claimed.type, docId));
+  return { id: claimed.id, type: claimed.type as "bill" | "expense", number: claimed.number };
+}
+
+/** Approve a bill or expense pending approval and post it to the ledger. */
+export async function approveSpendAction(docId: number) {
   return withOrg(async () => {
-    const access = await getAccess();
-    if (!access?.perms.has("accountant")) throw new Error("Not authorized to approve bills");
-    const orgId = currentOrgId();
-    // Atomic claim: only the first "Approve" click flips status off
-    // pending_approval — two accountants clicking simultaneously must not
-    // both pass the check and both post the bill twice.
-    const [claimed] = await db
-      .update(documents)
-      .set({ status: "approving" })
-      .where(and(eq(documents.orgId, orgId), eq(documents.id, docId), eq(documents.type, "bill"), eq(documents.status, "pending_approval")))
-      .returning();
-    if (!claimed) throw new Error("This bill isn't awaiting approval");
-    try {
-      await postBill(docId);
-    } catch (e) {
-      await db.update(documents).set({ status: "pending_approval" }).where(and(eq(documents.orgId, orgId), eq(documents.id, docId), eq(documents.status, "approving")));
-      throw e;
-    }
-    revalidatePath("/purchases/bills");
-    await logAudit({ action: "approve", module: "bills", recordId: docId, recordLabel: claimed.number });
+    const claimed = await _approvePendingSpend(docId);
+    await logAudit({ action: "approve", module: spendModule(claimed.type), recordId: docId, recordLabel: claimed.number });
     return { success: true };
   }, { requireWrite: true });
 }
-/** Reject a bill pending approval, sending it back to draft with a note for the submitter. */
-export async function rejectBillAction(docId: number, note: string) {
+
+/** Reject a bill or expense pending approval, sending it back to draft with a note for the submitter. */
+export async function rejectSpendAction(docId: number, note: string) {
   return withOrg(async () => {
-    const access = await getAccess();
-    if (!access?.perms.has("accountant")) throw new Error("Not authorized to reject bills");
-    const orgId = currentOrgId();
-    const [claimed] = await db
-      .update(documents)
-      .set({ status: "draft", approvalNote: note || "Rejected" })
-      .where(and(eq(documents.orgId, orgId), eq(documents.id, docId), eq(documents.type, "bill"), eq(documents.status, "pending_approval")))
-      .returning();
-    if (!claimed) throw new Error("This bill isn't awaiting approval");
-    revalidatePath("/purchases/bills");
-    await logAudit({ action: "reject", module: "bills", recordId: docId, recordLabel: claimed.number, detail: note || undefined });
+    const claimed = await _rejectPendingSpend(docId, note);
+    await logAudit({ action: "reject", module: spendModule(claimed.type), recordId: docId, recordLabel: claimed.number, detail: note || undefined });
     return { success: true };
+  });
+}
+
+export async function approveBillAction(docId: number) {
+  return approveSpendAction(docId);
+}
+
+export async function rejectBillAction(docId: number, note: string) {
+  return rejectSpendAction(docId, note);
+}
+
+export async function respondToApprovalRequestAction(token: string, decision: "approved" | "rejected", note?: string) {
+  const row = await getApprovalRequestByToken(token);
+  if (!row) return { error: "This approval link is no longer valid." };
+
+  return orgContext.run(row.orgRow.id, async () => {
+    try {
+      if (decision === "approved") {
+        const claimed = await _approvePendingSpend(row.doc.id, { bypassAccess: true });
+        await markApprovalTokenUsed({ tokenId: row.req.id, orgId: row.orgRow.id, documentId: row.doc.id, decision });
+        await notifyOrg(currentOrgId(), ["admin", "accountant"], `${claimed.type === "bill" ? "Bill" : "Expense"} approved remotely`, `${claimed.number} was approved from the SMS approval link.`, spendLink(claimed.type, claimed.id));
+      } else {
+        const claimed = await _rejectPendingSpend(row.doc.id, note || "Rejected from approval link", { bypassAccess: true });
+        await markApprovalTokenUsed({ tokenId: row.req.id, orgId: row.orgRow.id, documentId: row.doc.id, decision, note: note || "Rejected from approval link" });
+        await notifyOrg(currentOrgId(), ["admin", "accountant"], `${claimed.type === "bill" ? "Bill" : "Expense"} rejected remotely`, `${claimed.number} was rejected from the SMS approval link.`, spendLink(claimed.type, claimed.id));
+      }
+      revalidatePath(`/approve/${token}`);
+      return { success: true };
+    } catch (err: any) {
+      return { error: err?.message || "Failed to process approval request" };
+    }
   });
 }
 export async function voidDoc(docId: number) {
