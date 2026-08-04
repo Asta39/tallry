@@ -205,7 +205,8 @@ export async function DocDetail({ id, printHref }: { id: number; printHref?: str
           totalCents: doc.totalCents,
           paidCents: doc.paidCents,
         }}
-        bankAccounts={banks.map((b) => ({ id: b.id, label: b.name }))}
+        bankAccounts={banks.map((b) => ({ id: b.id, label: b.name, kind: b.kind }))}
+        canPayout={!!access?.perms.has("can_payout")}
         printHref={printHref}
         gateways={gateways.map(g => ({ id: g.gatewayId, name: g.gatewayId === "mpesa_daraja" ? "M-Pesa Daraja" : "Kopo Kopo" }))}
         contactPhone={contact?.phone || ""}

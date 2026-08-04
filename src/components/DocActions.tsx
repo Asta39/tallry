@@ -22,6 +22,24 @@ const primary = `${btn} bg-[var(--color-accent-500)] hover:bg-[var(--color-accen
 const secondary = `${btn} border border-[var(--color-ink-200)] bg-white hover:bg-[var(--color-ink-50)]`;
 const danger = `${btn} text-[var(--color-bad)] hover:bg-red-50`;
 
+/** Method → bank-account `kind` this app already uses for bank accounts
+ *  (bank | mpesa | cash). Cheque/card have no dedicated kind — default them
+ *  to a real bank account rather than leaving the picker on whatever
+ *  happens to sort first. */
+const METHOD_TO_KIND: Record<string, string> = {
+  mpesa: "mpesa",
+  bank: "bank",
+  cash: "cash",
+  cheque: "bank",
+  card: "bank",
+};
+
+function bestBankIdForMethod(banks: { id: number; kind?: string }[], method: string): number | "" {
+  const wantKind = METHOD_TO_KIND[method];
+  const match = banks.find((b) => b.kind === wantKind);
+  return match?.id ?? banks[0]?.id ?? "";
+}
+
 export function DocActions({
   doc,
   bankAccounts,
@@ -29,6 +47,7 @@ export function DocActions({
   gateways,
   contactPhone,
   canApprove,
+  canPayout,
   poLines,
 }: {
   doc: {
@@ -38,11 +57,17 @@ export function DocActions({
     totalCents: number;
     paidCents: number;
   };
-  bankAccounts: { id: number; label: string }[];
+  bankAccounts: { id: number; label: string; kind?: string }[];
   printHref?: string;
   gateways?: { id: string; name: string }[];
   contactPhone?: string;
   canApprove?: boolean;
+  /** Whether this viewer can actually send a gateway payout (server-side
+   *  requirePerm("can_payout") check mirrored here) — without this, the
+   *  button showed for everyone and only failed after they'd filled in the
+   *  whole form and clicked Confirm, which read as "payment won't initiate"
+   *  rather than "you need this permission granted". */
+  canPayout?: boolean;
   poLines?: { id: number; description: string; qty: number; billedQty: number }[];
 }) {
   const [rejectNote, setRejectNote] = useState("");
@@ -54,7 +79,10 @@ export function DocActions({
   const [amount, setAmount] = useState(((doc.totalCents - doc.paidCents) / 100).toFixed(2));
   const [wht, setWht] = useState("0");
   const [method, setMethod] = useState("mpesa");
-  const [bankId, setBankId] = useState<number | "">(bankAccounts[0]?.id ?? "");
+  // Defaulting to bankAccounts[0] regardless of `method` meant selecting
+  // "M-Pesa" here didn't necessarily point the actual ledger account at the
+  // M-Pesa till — whichever account happened to sort first won, silently.
+  const [bankId, setBankId] = useState<number | "">(() => bestBankIdForMethod(bankAccounts, "mpesa"));
   const [reference, setReference] = useState("");
   const [error, setError] = useState<string | null>(null);
 
@@ -136,10 +164,15 @@ export function DocActions({
             Request via Gateway (STK)
           </button>
         )}
-        {payable && ["bill", "expense"].includes(doc.type) && gatewayConnected && (
+        {payable && ["bill", "expense"].includes(doc.type) && gatewayConnected && canPayout && (
           <button className={primary} disabled={pending} onClick={() => setShowPayout((v) => !v)}>
             Pay via Gateway
           </button>
+        )}
+        {payable && ["bill", "expense"].includes(doc.type) && gatewayConnected && !canPayout && (
+          <span className="text-[12px] text-[var(--color-ink-400)]">
+            Gateway payouts aren't enabled for your role — ask an admin to grant "Gateway Payouts" in Staff &amp; Roles.
+          </span>
         )}
         {isQuote && doc.status === "open" && (
           <>
@@ -309,7 +342,19 @@ export function DocActions({
           )}
           <label className="block">
             <span className="text-[12px] font-medium text-[var(--color-ink-600)]">Method</span>
-            <select className={inputCls + " w-full mt-1"} value={method} onChange={(e) => setMethod(e.target.value)}>
+            <select
+              className={inputCls + " w-full mt-1"}
+              value={method}
+              onChange={(e) => {
+                const nextMethod = e.target.value;
+                setMethod(nextMethod);
+                // Keep "Into account" pointed at the account that actually
+                // matches the method — otherwise picking M-Pesa here while
+                // "Into account" silently stayed on some other bank account
+                // posted the payment to the wrong ledger account entirely.
+                setBankId(bestBankIdForMethod(bankAccounts, nextMethod));
+              }}
+            >
               <option value="mpesa">M-Pesa</option>
               <option value="bank">Bank transfer</option>
               <option value="cash">Cash</option>
