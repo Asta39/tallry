@@ -1,21 +1,23 @@
 import { requirePerm } from "@/lib/guard";
 import { getOrg } from "@/lib/org";
-import { db, fixedAssets } from "@/db";
+import { db, fixedAssets, bankAccounts } from "@/db";
 import { and, eq } from "drizzle-orm";
 import { PageHeader } from "@/components/ui";
 import { fmtKES } from "@/lib/money";
 import Link from "next/link";
 import { DepreciationRunner } from "./DepreciationRunner";
+import { DisposeAssetButton } from "./DisposeAssetButton";
 
 export const dynamic = "force-dynamic";
 
 export default async function AssetsPage() {
   await requirePerm("accountant");
   const o = await getOrg();
-  
-  const assets = await db.select().from(fixedAssets).where(
-    eq(fixedAssets.orgId, o.id)
-  );
+
+  const [assets, banks] = await Promise.all([
+    db.select().from(fixedAssets).where(eq(fixedAssets.orgId, o.id)),
+    db.select().from(bankAccounts).where(and(eq(bankAccounts.orgId, o.id), eq(bankAccounts.archived, false))),
+  ]);
 
   return (
     <>
@@ -40,12 +42,13 @@ export default async function AssetsPage() {
                 <th>Useful Life</th>
                 <th>Method</th>
                 <th>Status</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
               {assets.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="text-center py-8 text-base-content/50">
+                  <td colSpan={7} className="text-center py-8 text-base-content/50">
                     No fixed assets registered yet.
                   </td>
                 </tr>
@@ -61,6 +64,9 @@ export default async function AssetsPage() {
                       <span className={`badge ${a.status === 'active' ? 'badge-success badge-outline' : 'badge-neutral'}`}>
                         {a.status}
                       </span>
+                    </td>
+                    <td className="text-right">
+                      {a.status === "active" && <DisposeAssetButton assetId={a.id} assetName={a.name} banks={banks.map((b) => ({ id: b.id, name: b.name }))} />}
                     </td>
                   </tr>
                 ))

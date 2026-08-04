@@ -57,13 +57,19 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         let totDeb = 0;
         let totCred = 0;
         bals.forEach((b) => {
-          if (b.debitCents > 0 || b.creditCents > 0) {
+          // Net balance in the account's normal-side column, not the raw
+          // cumulative debitCents/creditCents — see trial-balance/page.tsx
+          // for why the gross totals can never actually go out of balance.
+          const debitNature = b.type === "asset" || b.type === "expense";
+          const netDebit = debitNature ? Math.max(b.balanceCents, 0) : Math.max(-b.balanceCents, 0);
+          const netCredit = debitNature ? Math.max(-b.balanceCents, 0) : Math.max(b.balanceCents, 0);
+          if (netDebit > 0 || netCredit > 0) {
             rows.push({
               id: b.accountId.toString(),
-              cells: [`${b.code} - ${b.name}`, fmtKES(b.debitCents), fmtKES(b.creditCents)],
+              cells: [`${b.code} - ${b.name}`, fmtKES(netDebit), fmtKES(netCredit)],
             });
-            totDeb += b.debitCents;
-            totCred += b.creditCents;
+            totDeb += netDebit;
+            totCred += netCredit;
           }
         });
         rows.push({

@@ -462,38 +462,54 @@ export async function ensureAccount(code: string, name: string, type: "asset" | 
 export async function writeOffInvoice(docId: number) {
   return withOrg(async () => {
     const orgId = currentOrgId();
+
+    // Atomic claim: two concurrent write-off clicks (double-click, or a
+    // client retry) must not both pass the status check and both post the
+    // bad-debt entry — that would double-credit AR and double-book the
+    // expense. Every other status-transition-that-posts function in this
+    // codebase uses this pattern; this one previously didn't.
     const [doc] = await db
-      .select()
-      .from(documents)
-      .where(and(eq(documents.orgId, orgId), eq(documents.id, docId)))
-      .limit(1);
-    if (!doc || doc.type !== "invoice") throw new Error("Invoice not found");
-    if (!["open", "partial"].includes(doc.status)) throw new Error("Only unpaid invoices can be written off");
-    const balance = doc.totalCents - doc.paidCents;
-    if (balance <= 0) throw new Error("Nothing left to write off");
-
-    // Pro-rata VAT portion of the unpaid balance (KRA allows bad-debt VAT relief
-    // subject to conditions; we reverse it and let the accountant adjust if not).
-    const vatPortion = doc.totalCents > 0 ? Math.round((balance * doc.taxCents) / doc.totalCents) : 0;
-    const netPortion = balance - vatPortion;
-
-    const badDebts = await ensureAccount("6120", "Bad Debts Written Off", "expense", "expense");
-    await postEntry({
-      date: todayISO(),
-      memo: `Write off ${doc.number}`,
-      sourceType: "bad_debt_writeoff",
-      sourceId: doc.id,
-      lines: [
-        { accountId: badDebts, debitCents: netPortion, memo: doc.number },
-        ...(vatPortion > 0 ? [{ accountId: await acct(SYS.VAT_OUTPUT), debitCents: vatPortion }] : []),
-        { accountId: await acct(SYS.AR), creditCents: balance, contactId: doc.contactId },
-      ],
-    });
-    await db
       .update(documents)
-      .set({ status: "written_off" })
-      .where(and(eq(documents.orgId, orgId), eq(documents.id, docId)));
-    revalidatePath("/sales/invoices");
+      .set({ status: "writing_off" })
+      .where(and(eq(documents.orgId, orgId), eq(documents.id, docId), eq(documents.type, "invoice"), sql`${documents.status} IN ('open', 'partial')`))
+      .returning();
+    if (!doc) throw new Error("Only unpaid invoices can be written off");
+    const balance = doc.totalCents - doc.paidCents;
+    if (balance <= 0) {
+      await db.update(documents).set({ status: doc.paidCents > 0 ? "partial" : "open" }).where(and(eq(documents.orgId, orgId), eq(documents.id, docId), eq(documents.status, "writing_off")));
+      throw new Error("Nothing left to write off");
+    }
+
+    try {
+      // Pro-rata VAT portion of the unpaid balance (KRA allows bad-debt VAT relief
+      // subject to conditions; we reverse it and let the accountant adjust if not).
+      const vatPortion = doc.totalCents > 0 ? Math.round((balance * doc.taxCents) / doc.totalCents) : 0;
+      const netPortion = balance - vatPortion;
+
+      const badDebts = await ensureAccount("6120", "Bad Debts Written Off", "expense", "expense");
+      await postEntry({
+        date: todayISO(),
+        memo: `Write off ${doc.number}`,
+        sourceType: "bad_debt_writeoff",
+        sourceId: doc.id,
+        lines: [
+          { accountId: badDebts, debitCents: netPortion, memo: doc.number },
+          ...(vatPortion > 0 ? [{ accountId: await acct(SYS.VAT_OUTPUT), debitCents: vatPortion }] : []),
+          { accountId: await acct(SYS.AR), creditCents: balance, contactId: doc.contactId },
+        ],
+      });
+      await db
+        .update(documents)
+        .set({ status: "written_off" })
+        .where(and(eq(documents.orgId, orgId), eq(documents.id, docId)));
+      revalidatePath("/sales/invoices");
+    } catch (e) {
+      // Revert the claim to whatever it was before (open vs partial) so the
+      // invoice stays write-off-able rather than getting stuck.
+      const revertStatus = doc.paidCents > 0 ? "partial" : "open";
+      await db.update(documents).set({ status: revertStatus }).where(and(eq(documents.orgId, orgId), eq(documents.id, docId), eq(documents.status, "writing_off")));
+      throw e;
+    }
   });
 }
 

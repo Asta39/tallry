@@ -25,7 +25,14 @@ export async function GET(req: NextRequest) {
   if (report === "trial-balance") {
     rows = [["Code", "Account", "Type", "Debits", "Credits", "Balance"]];
     for (const r of await withOrg(() => accountBalances({ to }))) {
-      rows.push([r.code, r.name, r.type, money(r.debitCents), money(r.creditCents), money(r.balanceCents)]);
+      // Net balance in the account's normal-side column, not the raw
+      // cumulative debitCents/creditCents — see trial-balance/page.tsx for
+      // why the gross totals can never actually flag an out-of-balance book.
+      const debitNature = r.type === "asset" || r.type === "expense";
+      const netDebit = debitNature ? Math.max(r.balanceCents, 0) : Math.max(-r.balanceCents, 0);
+      const netCredit = debitNature ? Math.max(-r.balanceCents, 0) : Math.max(r.balanceCents, 0);
+      if (!netDebit && !netCredit) continue;
+      rows.push([r.code, r.name, r.type, money(netDebit), money(netCredit), money(r.balanceCents)]);
     }
   } else if (report === "pnl") {
     const pl = await withOrg(() => profitAndLoss(from, to));
