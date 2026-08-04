@@ -36,7 +36,14 @@ function createDb() {
   return drizzle(client, { schema });
 }
 
+// Cache the client (and its connection pool) on the warm Lambda/Node process
+// in every environment, not just dev. Skipping this in production meant every
+// serverless invocation opened a brand-new pool of up to 10 Postgres
+// connections instead of reusing the warm instance's — under any concurrent
+// load (e.g. several Realtime-triggered refreshes landing close together)
+// that churns through Supabase's connection ceiling fast, surfacing as
+// random "Server Component render error" failures with no clear repro.
 export const db = globalThis.__biasharaPg ?? createDb();
-if (process.env.NODE_ENV !== "production") globalThis.__biasharaPg = db;
+globalThis.__biasharaPg = db;
 
 export * from "./schema";
