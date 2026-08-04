@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 export interface SearchableOption {
   id: number;
@@ -30,6 +31,8 @@ export function SearchableSelect({
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [highlight, setHighlight] = useState(0);
+  const [menuRect, setMenuRect] = useState<{ top: number; left: number; width: number } | null>(null);
+  const [mounted, setMounted] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
   const selected = options.find((o) => o.id === value);
@@ -39,6 +42,8 @@ export function SearchableSelect({
     if (!q) return options.slice(0, 50);
     return options.filter((o) => o.label.toLowerCase().includes(q)).slice(0, 50);
   }, [options, query]);
+
+  useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     function onDocClick(e: MouseEvent) {
@@ -50,11 +55,54 @@ export function SearchableSelect({
 
   useEffect(() => setHighlight(0), [query, open]);
 
+  // Dropdown is rendered in a portal (not a descendant of rootRef), so its
+  // position has to be computed from the input's real screen position —
+  // this is also what lets it escape an ancestor's `overflow-x-auto`
+  // (which, per the CSS overflow spec, implicitly clips the y-axis too),
+  // the exact bug that was hiding this list under the document-lines table.
+  useLayoutEffect(() => {
+    if (!open || !rootRef.current) return;
+    function measure() {
+      const r = rootRef.current!.getBoundingClientRect();
+      setMenuRect({ top: r.bottom + 4, left: r.left, width: r.width });
+    }
+    measure();
+    window.addEventListener("scroll", measure, true);
+    window.addEventListener("resize", measure);
+    return () => {
+      window.removeEventListener("scroll", measure, true);
+      window.removeEventListener("resize", measure);
+    };
+  }, [open]);
+
   function pick(id: number) {
     onChange(id);
     setQuery("");
     setOpen(false);
   }
+
+  const menu = open && menuRect && (
+    <div
+      className="fixed z-[200] max-h-64 overflow-auto rounded-lg border border-[var(--color-ink-200)] bg-white shadow-lg"
+      style={{ top: menuRect.top, left: menuRect.left, width: menuRect.width }}
+    >
+      {filtered.length === 0 ? (
+        <div className="px-3 py-2.5 text-[12.5px] text-[var(--color-ink-400)]">No matches</div>
+      ) : (
+        filtered.map((o, i) => (
+          <button
+            key={o.id}
+            type="button"
+            className={`block w-full text-left px-3 py-2 text-[13px] ${i === highlight ? "bg-[var(--color-ink-50)]" : ""} ${o.id === value ? "font-semibold" : ""}`}
+            onMouseEnter={() => setHighlight(i)}
+            onMouseDown={(e) => { e.preventDefault(); pick(o.id); }}
+          >
+            {o.label}
+          </button>
+        ))
+      )}
+    </div>
+  );
 
   return (
     <div ref={rootRef} className={`relative ${className}`}>
@@ -85,25 +133,7 @@ export function SearchableSelect({
           ×
         </button>
       )}
-      {open && (
-        <div className="absolute z-30 mt-1 w-full max-h-64 overflow-auto rounded-lg border border-[var(--color-ink-200)] bg-white shadow-lg">
-          {filtered.length === 0 ? (
-            <div className="px-3 py-2.5 text-[12.5px] text-[var(--color-ink-400)]">No matches</div>
-          ) : (
-            filtered.map((o, i) => (
-              <button
-                key={o.id}
-                type="button"
-                className={`block w-full text-left px-3 py-2 text-[13px] ${i === highlight ? "bg-[var(--color-ink-50)]" : ""} ${o.id === value ? "font-semibold" : ""}`}
-                onMouseEnter={() => setHighlight(i)}
-                onMouseDown={(e) => { e.preventDefault(); pick(o.id); }}
-              >
-                {o.label}
-              </button>
-            ))
-          )}
-        </div>
-      )}
+      {mounted && menu ? createPortal(menu, document.body) : null}
     </div>
   );
 }

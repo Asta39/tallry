@@ -1,11 +1,17 @@
 import { db, contacts, items, accounts, bankAccounts, members, documents, documentLines, documentAssignments, costCenters, warehouses, itemGroups } from "@/db";
 import { and, eq, inArray } from "drizzle-orm";
 import { getOrg } from "@/lib/org";
+import { getAccess } from "@/lib/access";
 
 /** Serialized option lists for the DocumentEditor (server → client). */
 export async function editorOptions(side: "sale" | "purchase") {
   const org = await getOrg();
   const orgId = org.id;
+  const access = await getAccess();
+  // Assigning a document to a staff member is a managerial action — general
+  // staff creating their own invoices/quotes/expenses shouldn't see (or be
+  // able to set) it, only accountants/admins/the owner.
+  const canAssignStaff = !!access && (access.isOwner || access.role === "admin" || access.role === "accountant");
   const wantedKinds = side === "sale" ? ["customer", "both"] : ["vendor", "both"];
   const contactRows = await db.select().from(contacts).where(and(eq(contacts.orgId, orgId), inArray(contacts.kind, wantedKinds)));
   // Expenses and bills can be tagged to the customer the cost was incurred for,
@@ -22,7 +28,9 @@ export async function editorOptions(side: "sale" | "purchase") {
   const itemGroupRows = await db.select().from(itemGroups).where(and(eq(itemGroups.orgId, orgId), inArray(itemGroups.appliesTo, ["goods", "both"]))).orderBy(itemGroups.name);
   const expenseRows = await db.select().from(accounts).where(and(eq(accounts.orgId, orgId), eq(accounts.type, "expense")));
   const bankRows = await db.select().from(bankAccounts).where(and(eq(bankAccounts.orgId, orgId), eq(bankAccounts.archived, false)));
-  const memberRows = await db.select().from(members).where(and(eq(members.orgId, orgId), eq(members.active, true)));
+  const memberRows = canAssignStaff
+    ? await db.select().from(members).where(and(eq(members.orgId, orgId), eq(members.active, true)))
+    : [];
   const costCenterRows = await db.select().from(costCenters).where(and(eq(costCenters.orgId, orgId), eq(costCenters.active, true)));
   const warehouseRows = await db.select().from(warehouses).where(and(eq(warehouses.orgId, orgId), eq(warehouses.archived, false)));
 

@@ -1,4 +1,4 @@
-import { db, documents, documentLines, contacts, payments, bankAccounts, paymentGateways, items } from "@/db";
+import { db, documents, documentLines, contacts, payments, bankAccounts, paymentGateways, items, accounts, costCenters } from "@/db";
 import { and, eq } from "drizzle-orm";
 import { getOrg } from "@/lib/org";
 import { getAccess } from "@/lib/access";
@@ -63,6 +63,17 @@ export async function DocDetail({ id, printHref }: { id: number; printHref?: str
   const [rebilledOn] = doc.relatedInvoiceId
     ? await db.select().from(documents).where(and(eq(documents.orgId, orgId), eq(documents.id, doc.relatedInvoiceId))).limit(1)
     : [];
+
+  // Which GL account and cost center each line will post to — shown for
+  // spend documents so an approver (including via the remote SMS link) can
+  // confirm the books-of-accounts impact before approving, not just the total.
+  const showPosting = ["bill", "expense", "purchase_order"].includes(doc.type);
+  const accountsById = showPosting
+    ? Object.fromEntries((await db.select({ id: accounts.id, name: accounts.name }).from(accounts).where(eq(accounts.orgId, orgId))).map((a) => [a.id, a.name]))
+    : {};
+  const costCentersById = showPosting
+    ? Object.fromEntries((await db.select({ id: costCenters.id, name: costCenters.name, code: costCenters.code }).from(costCenters).where(eq(costCenters.orgId, orgId))).map((c) => [c.id, c.code ? `${c.code} · ${c.name}` : c.name]))
+    : {};
 
   // Conversion lineage — e.g. a bill converted from a PO, or a credit note
   // from an invoice — shown both ways so a "closed" source doc is never
@@ -217,6 +228,8 @@ export async function DocDetail({ id, printHref }: { id: number; printHref?: str
               <Th right>Qty</Th>
               <Th right>Price</Th>
               <Th>VAT</Th>
+              {showPosting && <Th>Category</Th>}
+              {showPosting && <Th>Cost center</Th>}
               <Th right>Net</Th>
               <Th right>Amount</Th>
             </tr>
@@ -235,7 +248,7 @@ export async function DocDetail({ id, printHref }: { id: number; printHref?: str
                 for (const [cat, catLines] of grouped.entries()) {
                   elements.push(
                     <tr key={`cat-${cat}`} className="hairline-t bg-[var(--color-ink-50)]">
-                      <td colSpan={7} className="px-4 py-2 text-[13px] font-semibold text-[var(--color-ink-900)]">
+                      <td colSpan={showPosting ? 9 : 7} className="px-4 py-2 text-[13px] font-semibold text-[var(--color-ink-900)]">
                         {cat}
                       </td>
                     </tr>
@@ -251,6 +264,8 @@ export async function DocDetail({ id, printHref }: { id: number; printHref?: str
                         <Td className="text-[var(--color-ink-400)]">
                           {TAX_CLASSES[l.taxClass as TaxClass]?.label ?? l.taxClass}
                         </Td>
+                        {showPosting && <Td className="text-[var(--color-ink-500)]">{("accountId" in l && l.accountId) ? accountsById[l.accountId] ?? "—" : "—"}</Td>}
+                        {showPosting && <Td className="text-[var(--color-ink-500)]">{("costCenterId" in l && l.costCenterId) ? costCentersById[l.costCenterId] ?? "—" : "—"}</Td>}
                         <Td right>{fmtKES(l.netCents)}</Td>
                         <Td right className="font-medium">{fmtKES(l.grossCents)}</Td>
                       </tr>
@@ -269,6 +284,8 @@ export async function DocDetail({ id, printHref }: { id: number; printHref?: str
                   <Td className="text-[var(--color-ink-400)]">
                     {TAX_CLASSES[l.taxClass as TaxClass]?.label ?? l.taxClass}
                   </Td>
+                  {showPosting && <Td className="text-[var(--color-ink-500)]">{("accountId" in l && l.accountId) ? accountsById[l.accountId] ?? "—" : "—"}</Td>}
+                  {showPosting && <Td className="text-[var(--color-ink-500)]">{("costCenterId" in l && l.costCenterId) ? costCentersById[l.costCenterId] ?? "—" : "—"}</Td>}
                   <Td right>{fmtKES(l.netCents)}</Td>
                   <Td right className="font-medium">{fmtKES(l.grossCents)}</Td>
                 </tr>

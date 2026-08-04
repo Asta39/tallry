@@ -1,5 +1,7 @@
 import { getApprovalRequestByToken } from "@/lib/spend-approvals";
 import { fmtKES } from "@/lib/money";
+import { db, documentLines, accounts, costCenters } from "@/db";
+import { eq } from "drizzle-orm";
 import { ApprovalRequestClient } from "./ApprovalRequestClient";
 
 export const dynamic = "force-dynamic";
@@ -20,6 +22,21 @@ export default async function ApprovalRequestPage(props: { params: Promise<{ tok
       </div>
     );
   }
+
+  const lines = await db
+    .select({
+      description: documentLines.description,
+      qty: documentLines.qty,
+      grossCents: documentLines.grossCents,
+      accountName: accounts.name,
+      costCenterName: costCenters.name,
+    })
+    .from(documentLines)
+    .leftJoin(accounts, eq(documentLines.accountId, accounts.id))
+    .leftJoin(costCenters, eq(documentLines.costCenterId, costCenters.id))
+    .where(eq(documentLines.documentId, row.doc.id));
+
+  const appPath = row.doc.type === "bill" ? `/purchases/bills/${row.doc.id}` : `/purchases/expenses/${row.doc.id}`;
 
   return (
     <div className="min-h-screen bg-[var(--color-ink-50)] px-4 py-10">
@@ -47,11 +64,38 @@ export default async function ApprovalRequestPage(props: { params: Promise<{ tok
               <div className="mt-1 text-[14px] font-medium">Awaiting approval</div>
             </div>
           </div>
+
+          {lines.length > 0 && (
+            <div className="mt-4">
+              <div className="text-[11px] font-medium uppercase tracking-wide text-[var(--color-ink-400)] mb-2">What this is for</div>
+              <div className="rounded-xl border border-[var(--color-ink-100)] divide-y divide-[var(--color-ink-100)]">
+                {lines.map((l, i) => (
+                  <div key={i} className="flex items-start justify-between gap-3 px-3 py-2.5 text-[13px]">
+                    <div>
+                      <div className="font-medium">{l.description}</div>
+                      <div className="text-[11.5px] text-[var(--color-ink-400)]">
+                        {l.qty} × · {l.accountName ?? "Uncategorized"}{l.costCenterName ? ` · ${l.costCenterName}` : ""}
+                      </div>
+                    </div>
+                    <div className="tnum shrink-0">{fmtKES(l.grossCents)}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="rounded-2xl bg-white p-6 shadow-sm">
           <ApprovalRequestClient token={token} initialStatus={row.doc.status} />
         </div>
+
+        <p className="text-center text-[12px] text-[var(--color-ink-400)]">
+          Want to review the full history or pay this yourself?{" "}
+          <a href={appPath} className="font-medium text-[var(--color-accent-600)] hover:underline">
+            Open in Zeno
+          </a>{" "}
+          (sign-in required — this link works without one, but moving money does not).
+        </p>
       </div>
     </div>
   );
