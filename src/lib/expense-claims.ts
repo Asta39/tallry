@@ -68,6 +68,7 @@ export async function submitExpenseClaimAction(data: {
   description: string;
   amountCents: number;
   receiptUrl?: string;
+  payoutPhone?: string;
 }) {
   return withOrg(async () => {
     await requirePerm("expense_claims");
@@ -85,6 +86,7 @@ export async function submitExpenseClaimAction(data: {
       description: data.description.trim(),
       amountCents: data.amountCents,
       receiptUrl: data.receiptUrl,
+      payoutPhone: data.payoutPhone?.trim() || null,
       status: "pending",
       createdAt: nowISO(),
     });

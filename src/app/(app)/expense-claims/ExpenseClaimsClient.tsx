@@ -23,6 +23,7 @@ type Claim = {
   reviewedByName: string | null;
   reviewNote: string | null;
   categoryAccountId: number;
+  payoutPhone: string | null;
 };
 
 // Raw Postgres Realtime payload shape — column names, not the camelCase
@@ -39,6 +40,7 @@ type RawClaimRow = {
   reviewed_by_name: string | null;
   review_note: string | null;
   category_account_id: number;
+  payout_phone: string | null;
 };
 
 function toClaim(row: RawClaimRow): Claim {
@@ -52,6 +54,7 @@ function toClaim(row: RawClaimRow): Claim {
     reviewedByName: row.reviewed_by_name,
     reviewNote: row.review_note,
     categoryAccountId: row.category_account_id,
+    payoutPhone: row.payout_phone,
   };
 }
 
@@ -93,6 +96,7 @@ function SubmitForm({ categoryAccounts }: { categoryAccounts: { id: number; code
           categoryAccountId: Number(fd.get("categoryAccountId")),
           description: String(fd.get("description") || ""),
           amountCents: Math.round(amountKes * 100),
+          payoutPhone: String(fd.get("payoutPhone") || "") || undefined,
         });
         setSuccess(true);
         form.reset();
@@ -127,10 +131,16 @@ function SubmitForm({ categoryAccounts }: { categoryAccounts: { id: number; code
         <span className="text-[12px] font-medium text-[var(--color-ink-600)]">Description</span>
         <input type="text" name="description" placeholder="e.g. Fuel for client visit, Nairobi–Nakuru" className={inputCls + " mt-1"} required />
       </label>
-      <label className="block max-w-[200px]">
-        <span className="text-[12px] font-medium text-[var(--color-ink-600)]">Amount (KES)</span>
-        <input type="number" name="amount" step="0.01" min="0.01" placeholder="0.00" className={inputCls + " mt-1"} required />
-      </label>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <label className="block">
+          <span className="text-[12px] font-medium text-[var(--color-ink-600)]">Amount (KES)</span>
+          <input type="number" name="amount" step="0.01" min="0.01" placeholder="0.00" className={inputCls + " mt-1"} required />
+        </label>
+        <label className="block">
+          <span className="text-[12px] font-medium text-[var(--color-ink-600)]">M-Pesa number to reimburse to (optional)</span>
+          <input type="tel" name="payoutPhone" placeholder="2547…" className={inputCls + " mt-1"} />
+        </label>
+      </div>
       <div className="flex items-center gap-3 pt-1">
         <button type="submit" disabled={pending} className="rounded-lg bg-[var(--color-accent-500)] hover:bg-[var(--color-accent-600)] disabled:opacity-60 text-white text-[13px] font-medium px-4 py-2 transition-colors">
           {pending ? "Submitting…" : "Submit claim"}
@@ -204,11 +214,13 @@ function RejectButton({ id }: { id: number }) {
 function PayButton({
   id,
   amountCents,
+  payoutPhone,
   banks,
   gateways,
 }: {
   id: number;
   amountCents: number;
+  payoutPhone: string | null;
   banks: { id: number; name: string }[];
   gateways: { id: string; name: string }[];
 }) {
@@ -216,7 +228,9 @@ function PayButton({
   const [bankId, setBankId] = useState(banks[0]?.id);
   const [gwId, setGwId] = useState(gateways[0]?.id ?? "");
   const [gwDestType, setGwDestType] = useState<"phone" | "till" | "paybill">("phone");
-  const [gwDest, setGwDest] = useState("");
+  // The claimant's own submitted number, if they gave one — pre-filled but
+  // still editable, so paying to a different number is always possible.
+  const [gwDest, setGwDest] = useState(payoutPhone || "");
   const [gwAccountNo, setGwAccountNo] = useState("");
   const [gwAmount, setGwAmount] = useState((amountCents / 100).toFixed(2));
   const [error, setError] = useState<string | null>(null);
@@ -383,12 +397,14 @@ function HistorySection({ reviewed, banks, gateways }: { reviewed: Claim[]; bank
               <td className="px-5 py-2.5 whitespace-nowrap text-[var(--color-ink-500)]">{c.date}</td>
               <td className="px-3 py-2.5">
                 <div>{c.description}</div>
-                <div className="text-[11px] text-[var(--color-ink-400)]">{c.submittedByName}</div>
+                <div className="text-[11px] text-[var(--color-ink-400)]">
+                  {c.submittedByName}{c.payoutPhone ? ` · Reimburse to ${c.payoutPhone}` : ""}
+                </div>
               </td>
               <td className="px-3 py-2.5"><StatusBadge status={c.status} /></td>
               <td className="px-3 py-2.5 text-right font-medium tnum">{fmtKES(c.amountCents)}</td>
               <td className="px-5 py-2.5 text-right">
-                {c.status === "approved" && <PayButton id={c.id} amountCents={c.amountCents} banks={banks} gateways={gateways} />}
+                {c.status === "approved" && <PayButton id={c.id} amountCents={c.amountCents} payoutPhone={c.payoutPhone} banks={banks} gateways={gateways} />}
               </td>
             </tr>
           ))}

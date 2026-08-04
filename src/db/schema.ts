@@ -1030,6 +1030,11 @@ export const expenseClaims = pgTable("expense_claims", {
   description: text("description").notNull(),
   amountCents: money("amount_cents").notNull(),
   receiptUrl: text("receipt_url"),
+  /** Where the claimant wants to be reimbursed (M-Pesa number, most often)
+   *  — collected at submission time so whoever pays it out via gateway
+   *  isn't left guessing/asking separately; pre-fills but doesn't lock the
+   *  destination field on the payout form. */
+  payoutPhone: text("payout_phone"),
   status: text("status").notNull().default("pending"), // pending | approved | rejected | paid
   reviewedByName: text("reviewed_by_name"),
   reviewNote: text("review_note"),
