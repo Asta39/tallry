@@ -59,19 +59,26 @@ export async function updateItemTypeAction(id: number, name: string, isGroupMand
 
     const [existing] = await db.select().from(itemTypes).where(and(eq(itemTypes.orgId, orgId), eq(itemTypes.id, id))).limit(1);
     if (!existing) throw new Error("Item type not found");
-    if (existing.isSystem) throw new Error("System item types can't be renamed, but you can still change whether a group is required");
+    // Only block an actual rename attempt on a system type — the mandatory
+    // flag must stay editable regardless (the UI keeps the name field
+    // disabled for system types precisely so this branch is never hit in
+    // normal use, but the server action has to allow the isGroupMandatory-
+    // only case explicitly rather than rejecting every edit outright).
+    if (existing.isSystem && trimmed !== existing.name) {
+      throw new Error("System item types can't be renamed, but you can still change whether a group is required");
+    }
 
-    const [dupe] = await db
-      .select({ id: itemTypes.id })
-      .from(itemTypes)
-      .where(and(eq(itemTypes.orgId, orgId), eq(itemTypes.name, trimmed), ne(itemTypes.id, id)))
-      .limit(1);
-    if (dupe) throw new Error(`An item type called "${trimmed}" already exists`);
-
-    // A rename must cascade to every item already using the old name, or
-    // those items silently fall back to "no known type" (items.kind is a
-    // plain string, not a foreign key — see schema.ts for why).
     if (trimmed !== existing.name) {
+      const [dupe] = await db
+        .select({ id: itemTypes.id })
+        .from(itemTypes)
+        .where(and(eq(itemTypes.orgId, orgId), eq(itemTypes.name, trimmed), ne(itemTypes.id, id)))
+        .limit(1);
+      if (dupe) throw new Error(`An item type called "${trimmed}" already exists`);
+
+      // A rename must cascade to every item already using the old name, or
+      // those items silently fall back to "no known type" (items.kind is a
+      // plain string, not a foreign key — see schema.ts for why).
       await db.update(items).set({ kind: trimmed }).where(and(eq(items.orgId, orgId), eq(items.kind, existing.name)));
     }
 
