@@ -272,22 +272,40 @@ export function getKopoKopoGateway(orgConfig: GatewayOrgConfig): PaymentGateway 
       // top-level status ("Processed") only means the request was handled, not
       // that money moved; the real outcome is per-disbursement inside
       // transfer_batches. payOut() only ever requests one destination, so the
-      // first batch/disbursement is the one that matters.
+      // first batch/disbursement is the one that matters. Kopo Kopo can
+      // deliver this callback more than once as the disbursement progresses
+      // (e.g. a "Pending"/"Processing" delivery before the terminal one) —
+      // treating every non-"Transferred" status as a hard failure would
+      // consume the pending reconcile row on the FIRST (non-terminal)
+      // delivery, silently dropping the real success that arrives after it.
+      // Only an explicit error or a recognized terminal-failure status closes
+      // the row as failed; anything else is ignored so a later delivery can
+      // still reconcile it.
       if (body.data?.type === "send_money") {
         const attrs = body.data.attributes || {};
         const requestRef = body.data.id;
         const disbursement = attrs.transfer_batches?.[0]?.disbursements?.[0];
-        if (!disbursement || disbursement.status !== "Transferred" || disbursement.errors) {
+        if (!disbursement) return null;
+
+        if (disbursement.status === "Transferred" && !disbursement.errors) {
+          return {
+            providerRef: disbursement.transaction_reference || `kk_send_${requestRef}`,
+            direction: "out" as const,
+            amountCents: Math.round(Number(disbursement.amount) * 100),
+            requestRef,
+            paidAt: disbursement.origination_time || attrs.created_at || new Date().toISOString(),
+            raw: body,
+          };
+        }
+
+        const terminalFailureStatuses = ["Failed", "Declined", "Rejected", "Errored"];
+        if (disbursement.errors || terminalFailureStatuses.includes(disbursement.status)) {
           return { failed: true as const, requestRef, raw: body };
         }
-        return {
-          providerRef: disbursement.transaction_reference || `kk_send_${requestRef}`,
-          direction: "out" as const,
-          amountCents: Math.round(Number(disbursement.amount) * 100),
-          requestRef,
-          paidAt: disbursement.origination_time || attrs.created_at || new Date().toISOString(),
-          raw: body,
-        };
+
+        // Non-terminal status (e.g. "Pending"/"Processing") — not done yet,
+        // don't consume the pending row.
+        return null;
       }
 
       if (body.topic === "buygoods_transaction_received") {
