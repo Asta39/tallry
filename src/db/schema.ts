@@ -61,6 +61,11 @@ export const org = pgTable("org", {
    *  Defaults true — this was the unconditional, always-on behavior before
    *  this toggle existed, so existing orgs see no change unless they opt out. */
   customerGroupsEnabled: boolean("customer_groups_enabled").notNull().default(true),
+  /** Max an accountant (not admin/owner) can pay out on an expense claim via
+   *  gateway without admin approval first. 0 or null = unlimited — mirrors
+   *  the bill-approval limit's shape but with 0-means-unlimited semantics,
+   *  matching how this specific setting was specced. */
+  expenseClaimPayoutLimitCents: money("expense_claim_payout_limit_cents"),
 });
 
 export const accounts = pgTable("accounts", {
@@ -837,6 +842,36 @@ export const approvalRequestTokens = pgTable("approval_request_tokens", {
 }, (t) => ({
   tokenUnique: uniqueIndex("idx_approval_request_tokens_token").on(t.token),
   orgDocIdx: index("idx_approval_request_tokens_doc").on(t.orgId, t.documentId),
+}));
+
+/**
+ * A separate table (not approvalRequestTokens — that FKs documentId to
+ * `documents`, which expense claims aren't) for expense-claim gateway
+ * payouts that exceed an accountant's payout limit. The full payout
+ * request (destination/amount/gateway) is captured here at request time
+ * so the admin's approve action can execute exactly what was asked for,
+ * without trusting anything re-submitted from the click.
+ */
+export const expenseClaimPayoutApprovals = pgTable("expense_claim_payout_approvals", {
+  id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
+  claimId: integer("claim_id").notNull().references(() => expenseClaims.id),
+  token: text("token").notNull(),
+  requestedByName: text("requested_by_name").notNull(),
+  destination: text("destination").notNull(),
+  destinationType: text("destination_type").notNull(),
+  accountNumber: text("account_number"),
+  amountCents: money("amount_cents").notNull(),
+  gatewayId: text("gateway_id").notNull(),
+  recipient: text("recipient"),
+  decision: text("decision"), // approved | rejected
+  note: text("note"),
+  actedAt: text("acted_at"),
+  revoked: boolean("revoked").notNull().default(false),
+  createdAt: text("created_at").notNull(),
+}, (t) => ({
+  tokenUnique: uniqueIndex("idx_expclaim_payout_approvals_token").on(t.token),
+  claimIdx: index("idx_expclaim_payout_approvals_claim").on(t.orgId, t.claimId),
 }));
 
 export const portalSessions = pgTable("portal_sessions", {

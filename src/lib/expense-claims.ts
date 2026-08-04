@@ -1,6 +1,7 @@
 "use server";
 
-import { db, expenseClaims, accounts, bankAccounts, org, paymentGateways, paymentEvents } from "@/db";
+import crypto from "crypto";
+import { db, expenseClaims, accounts, bankAccounts, org, paymentGateways, paymentEvents, expenseClaimPayoutApprovals } from "@/db";
 import { eq, and, desc, or, isNull } from "drizzle-orm";
 import { withOrg, currentOrgId, getOrg } from "@/lib/org";
 import { requirePerm } from "@/lib/guard";
@@ -11,10 +12,19 @@ import { ensureAccount } from "@/lib/phase-a-actions";
 import { nowISO, todayISO, fmtKES } from "@/lib/money";
 import { revalidatePath } from "next/cache";
 import { notifyOrg } from "@/lib/notifications";
-import { getGateway } from "@/lib/payments/gateway";
+import { getGateway, type PaymentGateway } from "@/lib/payments/gateway";
 import { getOrgSmsConfig, sendSms } from "@/lib/sms";
 import { approvalRequestRecipient } from "@/lib/spend-approvals";
 import { appOrigin } from "@/lib/receipts/tokens";
+import { logAudit } from "@/lib/audit";
+
+const TOKEN_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
+function generatePayoutToken(length = 16): string {
+  const bytes = crypto.randomBytes(length);
+  let out = "";
+  for (let i = 0; i < length; i++) out += TOKEN_ALPHABET[bytes[i] % TOKEN_ALPHABET.length];
+  return out;
+}
 
 async function payableAccountId(): Promise<number> {
   return ensureAccount("2100", "Staff Reimbursements Payable", "liability", "current_liability");
@@ -210,30 +220,44 @@ export async function payExpenseClaimAction(id: number, bankAccountId: number) {
   });
 }
 
-/**
- * Notify the org's approval-request number (same phone bills use for
- * approval SMS) that someone other than an admin/owner is paying out a
- * claim — so an admin always hears about money leaving even when they
- * weren't the one who clicked Pay. Never throws; a missing SMS config or
- * phone just means no notice goes out.
- */
-async function sendExpenseClaimPayoutNotice(claim: typeof expenseClaims.$inferSelect, actorName: string) {
-  try {
-    const [orgRow] = await db.select().from(org).where(eq(org.id, claim.orgId)).limit(1);
-    if (!orgRow) return;
-    const cfg = await getOrgSmsConfig(claim.orgId);
-    if (!cfg) return;
-    const recipient = approvalRequestRecipient(orgRow.approvalRequestPhone || orgRow.phone);
-    if (!recipient) return;
-    const url = `${await appOrigin()}/expense-claims`;
-    await sendSms(
-      cfg,
-      recipient,
-      `${orgRow.name || "Zeno"}: ${actorName} is paying out ${claim.submittedByName}'s expense claim for ${fmtKES(claim.amountCents)} (${claim.description}). Review: ${url}`
-    );
-  } catch {
-    // Best-effort notice — never block the actual payout on SMS delivery.
-  }
+/** Actually calls the gateway and records the pending outbound event — the
+ *  one place both the direct-pay path and the admin's approve-then-pay
+ *  path call into, so they can never drift out of sync with each other. */
+async function executeGatewayPayoutForClaim(
+  orgId: number,
+  claim: { id: number; submittedByName: string; description: string },
+  gateway: PaymentGateway,
+  gatewayId: string,
+  destination: string,
+  destinationType: "phone" | "till" | "paybill",
+  amountCents: number,
+  accountNumber: string | undefined
+) {
+  const result = await gateway.payOut({
+    destination,
+    destinationType,
+    accountNumber: accountNumber?.trim() || undefined,
+    amountCents,
+    accountRef: `EXPCLAIM-${claim.id}`,
+    payeeName: claim.submittedByName,
+    reason: `Reimbursement: ${claim.description}`,
+  });
+
+  // Pending outbound event: applyExpenseClaimGatewayPayout (webhook.ts)
+  // reconciles against this row once the gateway confirms the transfer.
+  await db.insert(paymentEvents).values({
+    orgId,
+    gatewayId,
+    providerRef: result.providerRef,
+    direction: "out",
+    amountCents,
+    payerPhone: destinationType === "phone" ? destination : undefined,
+    accountRef: `EXPCLAIM-${claim.id}`,
+    status: "pending",
+    matchedExpenseClaimId: claim.id,
+    rawJson: JSON.stringify({ payoutRef: result.providerRef, destination, destinationType, amountCents }),
+    createdAt: new Date().toISOString(),
+  }).onConflictDoNothing({ target: [paymentEvents.gatewayId, paymentEvents.providerRef] });
 }
 
 /**
@@ -241,6 +265,14 @@ async function sendExpenseClaimPayoutNotice(claim: typeof expenseClaims.$inferSe
  * Kopo) straight to the claimant's phone (or a till/paybill). Mirrors the
  * bill/expense payOutAction flow: money moves once the gateway confirms via
  * webhook (see applyExpenseClaimGatewayPayout), not at request time.
+ *
+ * If the actor is an accountant (not owner/admin) and the org has set a
+ * payout limit that this amount exceeds, the payout is NOT sent — instead
+ * an approval request is created and texted to the admin's number, who can
+ * approve it (which pays it exactly as requested) or reject it from their
+ * phone, no login needed. This is a real gate, not a courtesy notice: the
+ * gateway is never called until either the amount clears the limit or an
+ * admin approves.
  */
 export async function payExpenseClaimGatewayAction(
   id: number,
@@ -249,7 +281,7 @@ export async function payExpenseClaimGatewayAction(
   amountCents: number,
   gatewayId: string,
   accountNumber?: string
-): Promise<{ success?: true; error?: string }> {
+): Promise<{ success?: true; requiresApproval?: true; error?: string }> {
   try {
     return await withOrg(async () => {
       await requirePerm("can_payout");
@@ -273,39 +305,50 @@ export async function payExpenseClaimGatewayAction(
       )).limit(1);
       if (!gwConfig) throw new Error("Selected payment gateway is not connected or enabled");
 
-      // An accountant paying out (rather than an admin/owner) triggers the
-      // admin notice first — the gateway send-money call only happens after.
-      // Best-effort: an SMS failure here must never block the actual payout.
-      if (access && !access.isOwner && access.role !== "admin") {
-        await sendExpenseClaimPayoutNotice(claim, access.memberName || "An accountant").catch((e) => console.error("Payout notice SMS failed:", e));
+      const orgRow = await getOrg();
+      const isAccountantNotAdmin = !!access && !access.isOwner && access.role !== "admin";
+      const limit = orgRow.expenseClaimPayoutLimitCents;
+      const needsApproval = isAccountantNotAdmin && !!limit && limit > 0 && amountCents > limit;
+
+      if (needsApproval) {
+        const recipient = approvalRequestRecipient(orgRow.approvalRequestPhone || orgRow.phone);
+        if (!recipient) {
+          throw new Error(`This payout needs admin approval (over the ${fmtKES(limit)} limit), but no approval phone is set — add one in Settings first.`);
+        }
+        const cfg = await getOrgSmsConfig(orgId);
+        if (!cfg) {
+          throw new Error(`This payout needs admin approval (over the ${fmtKES(limit)} limit), but SMS isn't configured for this org.`);
+        }
+
+        const token = generatePayoutToken();
+        await db.insert(expenseClaimPayoutApprovals).values({
+          orgId,
+          claimId: claim.id,
+          token,
+          requestedByName: access!.memberName || "An accountant",
+          destination,
+          destinationType,
+          accountNumber: accountNumber?.trim() || null,
+          amountCents,
+          gatewayId,
+          recipient,
+          createdAt: nowISO(),
+        });
+
+        const url = `${await appOrigin()}/approve/expense-payout/${token}`;
+        await sendSms(
+          cfg,
+          recipient,
+          `${orgRow.name || "Zeno"}: ${access!.memberName || "An accountant"} wants to pay ${claim.submittedByName}'s expense claim (${fmtKES(amountCents)}, ${claim.description}) — over the ${fmtKES(limit)} limit. Approve: ${url}`
+        );
+
+        await logAudit({ action: "request_payout_approval", module: "expense_claims", recordId: claim.id, recordLabel: claim.submittedByName, detail: `${fmtKES(amountCents)} pending admin approval` });
+        revalidatePath("/expense-claims");
+        return { requiresApproval: true };
       }
 
       const gateway = getGateway(gwConfig);
-      const result = await gateway.payOut({
-        destination,
-        destinationType,
-        accountNumber: accountNumber?.trim() || undefined,
-        amountCents,
-        accountRef: `EXPCLAIM-${claim.id}`,
-        payeeName: claim.submittedByName,
-        reason: `Reimbursement: ${claim.description}`,
-      });
-
-      // Pending outbound event: applyExpenseClaimGatewayPayout (webhook.ts)
-      // reconciles against this row once the gateway confirms the transfer.
-      await db.insert(paymentEvents).values({
-        orgId,
-        gatewayId,
-        providerRef: result.providerRef,
-        direction: "out",
-        amountCents,
-        payerPhone: destinationType === "phone" ? destination : undefined,
-        accountRef: `EXPCLAIM-${claim.id}`,
-        status: "pending",
-        matchedExpenseClaimId: claim.id,
-        rawJson: JSON.stringify({ payoutRef: result.providerRef, destination, destinationType, amountCents }),
-        createdAt: new Date().toISOString(),
-      }).onConflictDoNothing({ target: [paymentEvents.gatewayId, paymentEvents.providerRef] });
+      await executeGatewayPayoutForClaim(orgId, claim, gateway, gatewayId, destination, destinationType, amountCents, accountNumber);
 
       revalidatePath("/expense-claims");
       return { success: true };
@@ -313,6 +356,84 @@ export async function payExpenseClaimGatewayAction(
   } catch (err: any) {
     return { error: err?.message || "Failed to process payout" };
   }
+}
+
+/**
+ * Admin (or anyone with the token) approves or rejects a pending expense-
+ * claim payout request. Approving executes the exact payout that was
+ * originally requested — nothing re-submitted from the click is trusted.
+ * No login required (SMS-token flow), matching the bill/expense remote
+ * approval pattern.
+ */
+export async function respondToExpenseClaimPayoutApprovalAction(
+  token: string,
+  decision: "approved" | "rejected",
+  note?: string
+): Promise<{ success?: true; error?: string }> {
+  try {
+    if (!/^[A-Za-z0-9]{10,32}$/.test(token)) throw new Error("Invalid link");
+
+    const [row] = await db.select().from(expenseClaimPayoutApprovals).where(and(eq(expenseClaimPayoutApprovals.token, token), eq(expenseClaimPayoutApprovals.revoked, false))).limit(1);
+    if (!row || row.decision) throw new Error("This request has already been handled or is no longer available");
+
+    const [claim] = await db.select().from(expenseClaims).where(eq(expenseClaims.id, row.claimId)).limit(1);
+    if (!claim) throw new Error("Claim not found");
+
+    if (decision === "approved") {
+      if (claim.status !== "approved") throw new Error(`This claim is no longer payable (status: ${claim.status})`);
+      const [gwConfig] = await db.select().from(paymentGateways).where(and(
+        eq(paymentGateways.orgId, row.orgId),
+        eq(paymentGateways.enabled, true),
+        eq(paymentGateways.gatewayId, row.gatewayId)
+      )).limit(1);
+      if (!gwConfig) throw new Error("The payment gateway used for this request is no longer connected or enabled");
+
+      const gateway = getGateway(gwConfig);
+      await executeGatewayPayoutForClaim(
+        row.orgId,
+        claim,
+        gateway,
+        row.gatewayId,
+        row.destination,
+        row.destinationType as "phone" | "till" | "paybill",
+        row.amountCents,
+        row.accountNumber || undefined
+      );
+    }
+
+    await db.update(expenseClaimPayoutApprovals).set({
+      decision,
+      note: note?.trim() || null,
+      actedAt: nowISO(),
+      revoked: true,
+    }).where(eq(expenseClaimPayoutApprovals.id, row.id));
+
+    await logAudit({
+      action: decision === "approved" ? "approve_payout_request" : "reject_payout_request",
+      module: "expense_claims",
+      recordId: claim.id,
+      recordLabel: claim.submittedByName,
+      detail: note?.trim() || undefined,
+    });
+
+    revalidatePath("/expense-claims");
+    return { success: true };
+  } catch (err: any) {
+    return { error: err?.message || "Failed to respond to request" };
+  }
+}
+
+export async function getExpenseClaimPayoutApprovalByToken(token: string) {
+  if (!/^[A-Za-z0-9]{10,32}$/.test(token)) return null;
+  const [row] = await db
+    .select({ approval: expenseClaimPayoutApprovals, claim: expenseClaims, orgRow: org })
+    .from(expenseClaimPayoutApprovals)
+    .innerJoin(expenseClaims, eq(expenseClaims.id, expenseClaimPayoutApprovals.claimId))
+    .innerJoin(org, eq(org.id, expenseClaimPayoutApprovals.orgId))
+    .where(and(eq(expenseClaimPayoutApprovals.token, token), eq(expenseClaimPayoutApprovals.revoked, false)))
+    .limit(1);
+  if (!row || row.approval.decision) return null;
+  return row;
 }
 
 /**

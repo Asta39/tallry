@@ -26,6 +26,7 @@ interface OrgData {
   requireBillApproval: boolean;
   accountantApprovalLimitCents?: number | null;
   approvalRequestPhone?: string | null;
+  expenseClaimPayoutLimitCents?: number | null;
   timeTrackingEnabled: boolean;
   itemGroupsEnabled: boolean;
   customerGroupsEnabled: boolean;
@@ -62,6 +63,9 @@ export function OrgProfileForm({ initial }: { initial: OrgData }) {
     initial.accountantApprovalLimitCents != null ? (initial.accountantApprovalLimitCents / 100).toFixed(2) : ""
   );
   const [approvalRequestPhone, setApprovalRequestPhone] = useState(initial.approvalRequestPhone || "");
+  const [expenseClaimPayoutLimit, setExpenseClaimPayoutLimit] = useState(
+    initial.expenseClaimPayoutLimitCents ? (initial.expenseClaimPayoutLimitCents / 100).toFixed(2) : "0"
+  );
   const [timeTrackingEnabled, setTimeTrackingEnabled] = useState(initial.timeTrackingEnabled);
   const [itemGroupsEnabled, setItemGroupsEnabled] = useState(initial.itemGroupsEnabled);
   const [customerGroupsEnabled, setCustomerGroupsEnabled] = useState(initial.customerGroupsEnabled);
@@ -137,6 +141,7 @@ export function OrgProfileForm({ initial }: { initial: OrgData }) {
           requireBillApproval,
           accountantApprovalLimitCents: accountantApprovalLimit.trim() ? Math.round((Number(accountantApprovalLimit) || 0) * 100) : null,
           approvalRequestPhone: approvalRequestPhone || undefined,
+          expenseClaimPayoutLimitCents: Math.round((Number(expenseClaimPayoutLimit) || 0) * 100),
           timeTrackingEnabled,
           itemGroupsEnabled,
           customerGroupsEnabled,
@@ -346,6 +351,25 @@ export function OrgProfileForm({ initial }: { initial: OrgData }) {
             </label>
           </div>
         )}
+        <div className="mt-4 pt-4 hairline-t">
+          <label className="block">
+            <span className={labelCls}>Maximum amount an accountant can pay out on an expense claim (0 = no limit)</span>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={expenseClaimPayoutLimit}
+              onChange={(e) => setExpenseClaimPayoutLimit(e.target.value)}
+              className={inputCls}
+              placeholder="0"
+            />
+            <div className="text-[12px] text-[var(--color-ink-400)] mt-1">
+              0 lets an accountant pay out any approved expense claim via gateway. Set a value like 5000 and an accountant-initiated
+              payout above that amount is texted to the approval request phone above for the admin to approve (or pay themselves)
+              before it goes out — admins/the owner are never limited.
+            </div>
+          </label>
+        </div>
         <label className="flex items-start gap-3 cursor-pointer mt-4 pt-4 hairline-t">
           <input
             type="checkbox"

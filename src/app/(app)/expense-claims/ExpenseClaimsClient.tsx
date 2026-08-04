@@ -301,7 +301,12 @@ function PayButton({
               if (!confirm("Send this payout now? Real money will be moved immediately.")) return;
               try {
                 const res = await payExpenseClaimGatewayAction(id, gwDest.trim(), gwDestType, amt, gwId, gwAccountNo.trim() || undefined);
-                if (res && "error" in res && (res as any).error) { setError((res as any).error); return; }
+                if (res?.error) { setError(res.error); return; }
+                if (res?.requiresApproval) {
+                  alert("This amount is over your payout limit — sent to the admin for approval. They can approve it from their phone or pay it themselves.");
+                  window.location.reload();
+                  return;
+                }
                 window.location.reload();
               } catch (e: any) {
                 setError(e.message || "Payout failed");

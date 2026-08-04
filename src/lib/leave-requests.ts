@@ -9,6 +9,7 @@ import { nowISO } from "@/lib/money";
 import { revalidatePath } from "next/cache";
 import { notifyOrg, notifyMembers } from "@/lib/notifications";
 import { logAudit } from "@/lib/audit";
+import { canReviewLeaveRequests } from "@/lib/leave-permissions";
 
 const LEAVE_TYPES = ["annual", "sick", "unpaid", "maternity", "paternity", "compassionate", "other"] as const;
 type LeaveType = (typeof LEAVE_TYPES)[number];
@@ -17,12 +18,9 @@ function normalizeLeaveType(v: string | null | undefined): LeaveType {
   return (LEAVE_TYPES as readonly string[]).includes(v ?? "") ? (v as LeaveType) : "other";
 }
 
-/** Only the org owner or an admin-role member may review requests — mirrors
- *  the "admins approve" requirement, distinct from the broader leave_requests
- *  module permission that just gates who can submit/see this screen at all. */
 function assertCanReview(access: NonNullable<Awaited<ReturnType<typeof getAccess>>>) {
-  if (!(access.isOwner || access.role === "admin")) {
-    throw new Error("Only an admin can review leave requests");
+  if (!canReviewLeaveRequests(access)) {
+    throw new Error("You don't have permission to review leave requests");
   }
 }
 

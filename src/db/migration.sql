@@ -803,3 +803,26 @@ CREATE TABLE IF NOT EXISTS item_types (
   created_at TEXT NOT NULL
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_item_types_org_name ON item_types(org_id, name);
+
+ALTER TABLE org ADD COLUMN IF NOT EXISTS expense_claim_payout_limit_cents BIGINT;
+
+CREATE TABLE IF NOT EXISTS expense_claim_payout_approvals (
+  id SERIAL PRIMARY KEY,
+  org_id INTEGER NOT NULL REFERENCES org(id),
+  claim_id INTEGER NOT NULL REFERENCES expense_claims(id),
+  token TEXT NOT NULL,
+  requested_by_name TEXT NOT NULL,
+  destination TEXT NOT NULL,
+  destination_type TEXT NOT NULL,
+  account_number TEXT,
+  amount_cents BIGINT NOT NULL,
+  gateway_id TEXT NOT NULL,
+  recipient TEXT,
+  decision TEXT,
+  note TEXT,
+  acted_at TEXT,
+  revoked BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_expclaim_payout_approvals_token ON expense_claim_payout_approvals(token);
+CREATE INDEX IF NOT EXISTS idx_expclaim_payout_approvals_claim ON expense_claim_payout_approvals(org_id, claim_id);

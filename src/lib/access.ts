@@ -26,6 +26,7 @@ export const MODULES: { key: string; label: string }[] = [
   { key: "expenses", label: "Expenses" },
   { key: "expense_claims", label: "Staff expense claims" },
   { key: "leave_requests", label: "Staff leave requests" },
+  { key: "manage_leave_requests", label: "Manage leave requests (view/approve everyone's, not just own)" },
   { key: "bills", label: "Bills" },
   { key: "purchase_orders", label: "Purchase orders" },
   { key: "items", label: "Items & Stock" },
