@@ -458,6 +458,16 @@ export async function applyExpenseClaimGatewayPayout(claimId: number, amountCent
   try {
     const payable = await payableAccountId();
     const date = todayISO();
+    // Prefer the org's actual M-Pesa till account over the generic
+    // Undeposited Funds clearing account — both gateways settle there in
+    // practice, and without this the reimbursement would post correctly by
+    // amount but never show up in the real 1010 · M-Pesa ledger.
+    const [mpesaBank] = await db
+      .select({ id: bankAccounts.id, accountId: bankAccounts.accountId })
+      .from(bankAccounts)
+      .where(and(eq(bankAccounts.orgId, orgId), eq(bankAccounts.kind, "mpesa"), eq(bankAccounts.archived, false)))
+      .limit(1);
+    const creditAccountId = mpesaBank?.accountId ?? (await acct(SYS.UNDEPOSITED));
     const entryId = await postEntry({
       date,
       memo: `Reimbursement paid via ${gatewayId}: ${claim.description} (${claim.submittedByName})`,
@@ -465,7 +475,7 @@ export async function applyExpenseClaimGatewayPayout(claimId: number, amountCent
       sourceId: claim.id,
       lines: [
         { accountId: payable, debitCents: amountCents },
-        { accountId: await acct(SYS.UNDEPOSITED), creditCents: amountCents },
+        { accountId: creditAccountId, creditCents: amountCents },
       ],
     });
 
@@ -475,7 +485,19 @@ export async function applyExpenseClaimGatewayPayout(claimId: number, amountCent
       paidAt: nowISO(),
     }).where(eq(expenseClaims.id, claimId));
 
+    if (mpesaBank) {
+      await mirrorBankTxn({
+        bankAccountId: mpesaBank.id,
+        date,
+        description: `Reimbursement · ${claim.submittedByName}`,
+        amountCents: -amountCents,
+        journalEntryId: entryId,
+        externalRef: `expclaim_gw:${claim.id}`,
+      });
+    }
+
     revalidatePath("/expense-claims");
+    revalidatePath("/banking");
     return entryId;
   } catch (e) {
     await db.update(expenseClaims).set({ status: "approved" }).where(and(eq(expenseClaims.id, claimId), eq(expenseClaims.status, "paying")));

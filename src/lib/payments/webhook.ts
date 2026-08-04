@@ -1,5 +1,5 @@
 import crypto from "crypto";
-import { db, paymentEvents, paymentGateways, documents } from "@/db";
+import { db, paymentEvents, paymentGateways, documents, bankAccounts } from "@/db";
 import { eq, and } from "drizzle-orm";
 import { getGateway, isInboundFailure, InboundPayment, GatewayId } from "./gateway";
 import { matchPayment } from "./match";
@@ -224,6 +224,17 @@ async function applyInbound(orgId: number, gatewayId: GatewayId, inbound: Inboun
       }
     }
 
+    // Both gateways settle into the org's M-Pesa till in practice — without
+    // a bankAccountId here, postPayment() falls back to Undeposited Funds,
+    // which is why gateway-received/paid-out money was showing up correctly
+    // under "Payments Received" (method is set fine) but never landing in
+    // the actual 1010 · M-Pesa ledger account.
+    const [mpesaBank] = await db
+      .select({ id: bankAccounts.id })
+      .from(bankAccounts)
+      .where(and(eq(bankAccounts.orgId, orgId), eq(bankAccounts.kind, "mpesa"), eq(bankAccounts.archived, false)))
+      .limit(1);
+
     const paymentId = await recordPayment({
       documentId: matchedInvoiceId,
       amountCents: amountToRecord,
@@ -231,6 +242,7 @@ async function applyInbound(orgId: number, gatewayId: GatewayId, inbound: Inboun
       reference: inbound.providerRef,
       date: new Date().toISOString().split("T")[0],
       direction,
+      bankAccountId: mpesaBank?.id,
     });
     await db.update(paymentEvents)
       .set({ status: "applied", matchedDocumentId: matchedInvoiceId, paymentId })
