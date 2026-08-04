@@ -155,7 +155,7 @@ export function DocActions({
           </button>
         )}
         {payable && (
-          <button className={primary} disabled={pending} onClick={() => setShowPay((v) => !v)}>
+          <button className={primary} disabled={pending} onClick={() => setShowPay((v) => !v)} title="Records a payment already made elsewhere — sends no money">
             Record payment
           </button>
         )}

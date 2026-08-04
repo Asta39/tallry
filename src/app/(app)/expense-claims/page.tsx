@@ -38,7 +38,7 @@ export default async function ExpenseClaimsPage() {
         canReview={canReview}
         pending={pending}
         reviewed={reviewed}
-        banks={banks.map((b) => ({ id: b.id, name: b.name }))}
+        banks={banks.map((b) => ({ id: b.id, name: b.name, kind: b.kind }))}
         gateways={gateways.map((g) => ({ id: g.gatewayId, name: g.gatewayId === "mpesa_daraja" ? "M-Pesa Daraja" : "Kopo Kopo" }))}
       />
     </>

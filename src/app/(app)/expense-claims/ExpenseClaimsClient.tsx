@@ -221,11 +221,16 @@ function PayButton({
   id: number;
   amountCents: number;
   payoutPhone: string | null;
-  banks: { id: number; name: string }[];
+  banks: { id: number; name: string; kind?: string }[];
   gateways: { id: string; name: string }[];
 }) {
   const [mode, setMode] = useState<"closed" | "bank" | "gateway">("closed");
-  const [bankId, setBankId] = useState(banks[0]?.id);
+  // Defaulting to banks[0] regardless of what the reimbursement actually
+  // went out as meant "Pay from bank" could record the movement against
+  // e.g. Main Bank Account while the money was really sent via M-Pesa (or,
+  // just as often, not sent anywhere — see the warning below) — the M-Pesa
+  // ledger then never shows the change the accountant expects to see.
+  const [bankId, setBankId] = useState(() => banks.find((b) => b.kind === "mpesa")?.id ?? banks[0]?.id);
   const [gwId, setGwId] = useState(gateways[0]?.id ?? "");
   const [gwDestType, setGwDestType] = useState<"phone" | "till" | "paybill">("phone");
   // The claimant's own submitted number, if they gave one — pre-filled but
@@ -243,10 +248,10 @@ function PayButton({
     return (
       <div className="flex items-center justify-end gap-2">
         {banks.length > 0 && (
-          <button onClick={() => setMode("bank")} className="text-[12px] font-medium text-[var(--color-accent-600)] hover:underline">Pay from bank</button>
+          <button onClick={() => setMode("bank")} className="text-[12px] font-medium text-[var(--color-accent-600)] hover:underline" title="Records a payment already made elsewhere — sends no money">Record as paid</button>
         )}
         {gateways.length > 0 && (
-          <button onClick={() => setMode("gateway")} className="text-[12px] font-medium text-[var(--color-accent-600)] hover:underline">Pay via gateway</button>
+          <button onClick={() => setMode("gateway")} className="text-[12px] font-medium text-[var(--color-accent-600)] hover:underline" title="Actually sends money via M-Pesa/Kopo Kopo">Pay via gateway</button>
         )}
       </div>
     );
@@ -254,18 +259,26 @@ function PayButton({
 
   if (mode === "bank") {
     return (
-      <div className="flex items-center gap-1.5">
-        <select value={bankId} onChange={(e) => setBankId(Number(e.target.value))} className="rounded border border-[var(--color-ink-200)] px-1.5 py-1 text-[11.5px]">
-          {banks.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-        </select>
-        <button
-          disabled={pending}
-          onClick={() => startTransition(async () => { await payExpenseClaimAction(id, bankId!); window.location.reload(); })}
-          className="text-[11.5px] font-medium text-[var(--color-good)] hover:underline disabled:opacity-50"
-        >
-          Confirm
-        </button>
-        <button onClick={() => setMode("closed")} className="text-[11.5px] text-[var(--color-ink-400)] hover:underline">Cancel</button>
+      <div className="flex flex-col items-end gap-1 py-1">
+        <div className="flex items-center gap-1.5">
+          <select value={bankId} onChange={(e) => setBankId(Number(e.target.value))} className="rounded border border-[var(--color-ink-200)] px-1.5 py-1 text-[11.5px]">
+            {banks.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+          </select>
+          <button
+            disabled={pending}
+            onClick={() => {
+              if (!window.confirm("This only RECORDS the reimbursement in the books — it does not send any money. Only confirm if you've already paid this person outside the app (cash, manual M-Pesa, etc). To actually send money, use \"Pay via gateway\" instead.")) return;
+              startTransition(async () => { await payExpenseClaimAction(id, bankId!); window.location.reload(); });
+            }}
+            className="text-[11.5px] font-medium text-[var(--color-good)] hover:underline disabled:opacity-50"
+          >
+            Confirm
+          </button>
+          <button onClick={() => setMode("closed")} className="text-[11.5px] text-[var(--color-ink-400)] hover:underline">Cancel</button>
+        </div>
+        <span className="text-[10.5px] text-[var(--color-ink-400)] max-w-[220px] text-right">
+          Only records a payment already made elsewhere — sends no money.
+        </span>
       </div>
     );
   }
@@ -384,7 +397,7 @@ function ReviewSection({ pending, banks }: { pending: Claim[]; banks: { id: numb
   );
 }
 
-function HistorySection({ reviewed, banks, gateways }: { reviewed: Claim[]; banks: { id: number; name: string }[]; gateways: { id: string; name: string }[] }) {
+function HistorySection({ reviewed, banks, gateways }: { reviewed: Claim[]; banks: { id: number; name: string; kind?: string }[]; gateways: { id: string; name: string }[] }) {
   return (
     <div className="card overflow-hidden">
       <div className="px-5 pt-4 pb-3 hairline-b">
@@ -435,7 +448,7 @@ export function ExpenseClaimsClient({
   canReview: boolean;
   pending: Claim[];
   reviewed: Claim[];
-  banks: { id: number; name: string }[];
+  banks: { id: number; name: string; kind?: string }[];
   gateways: { id: string; name: string }[];
 }) {
   const router = useRouter();
