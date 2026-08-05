@@ -2,6 +2,7 @@ import { getClientSession } from "@/lib/client-portal/auth";
 import { db, knowledgeArticles } from "@/db";
 import { eq, and, desc } from "drizzle-orm";
 import { redirect } from "next/navigation";
+import Image from "next/image";
 import { PageHeader } from "@/components/ui";
 import { WhatsAppInquiry } from "./WhatsAppInquiry";
 
@@ -34,7 +35,8 @@ export default async function ClientPortalKnowledge({ params }: { params: Promis
           <h2 className="text-lg font-bold text-[var(--color-ink-900)]">Articles</h2>
           
           {articles.length === 0 ? (
-            <div className="card px-5 py-12 text-center text-[13.5px] text-[var(--color-ink-500)] border border-[var(--color-ink-100)]">
+            <div className="card px-5 py-10 flex flex-col items-center text-center text-[13.5px] text-[var(--color-ink-500)] border border-[var(--color-ink-100)]">
+              <Image src="/portal/illus-question.png" alt="" width={120} height={120} className="mb-2 select-none pointer-events-none" />
               No articles have been published yet.
             </div>
           ) : (

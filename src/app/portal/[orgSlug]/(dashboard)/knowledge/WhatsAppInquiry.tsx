@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 
 export function WhatsAppInquiry({ orgPhone }: { orgPhone: string | null }) {
   const [message, setMessage] = useState("");
@@ -25,6 +26,7 @@ export function WhatsAppInquiry({ orgPhone }: { orgPhone: string | null }) {
 
   return (
     <div className="card p-5 border border-[var(--color-ink-100)] shadow-sm sticky top-24">
+      <Image src="/portal/illus-support.png" alt="" width={64} height={64} className="mb-2 select-none pointer-events-none" />
       <h3 className="text-[15px] font-bold text-[var(--color-ink-900)] mb-1">Need Help?</h3>
       <p className="text-[13px] text-[var(--color-ink-600)] mb-4">
         Send us a message directly on WhatsApp. We typically reply within a few hours.

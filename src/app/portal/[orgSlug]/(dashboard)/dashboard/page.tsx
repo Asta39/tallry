@@ -3,6 +3,7 @@ import { db, documents } from "@/db";
 import { eq, and, desc, inArray } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { StatusPill, TableCard, Th, Td } from "@/components/ui";
 import { fmtKES } from "@/lib/money";
 
@@ -74,11 +75,10 @@ export default async function ClientPortalDashboard({ params }: { params: Promis
           </div>
           <p className="text-[12.5px] text-[var(--color-ink-500)] mb-4">Invoices awaiting your payment.</p>
           {unpaidInvoices.length === 0 ? (
-            <div className="flex-1 flex items-center justify-center text-center">
-              <div>
-                <div className="text-[13.5px] text-[var(--color-ink-500)]">You're all caught up.</div>
-                <div className="text-[12px] text-[var(--color-ink-400)] mt-1">No pending invoices to pay.</div>
-              </div>
+            <div className="flex-1 flex flex-col items-center justify-center text-center">
+              <Image src="/portal/illus-team.png" alt="" width={160} height={160} className="mb-2 select-none pointer-events-none" />
+              <div className="text-[13.5px] text-[var(--color-ink-500)]">You're all caught up.</div>
+              <div className="text-[12px] text-[var(--color-ink-400)] mt-1">No pending invoices to pay.</div>
             </div>
           ) : (
             <div className="space-y-3">
