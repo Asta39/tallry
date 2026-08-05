@@ -15,6 +15,7 @@ import {
 import { convertPoToBill } from "@/lib/actions";
 import { requestPaymentAction, payOutAction } from "@/lib/payments/actions";
 import { fmtKES, parseKES, todayISO } from "@/lib/money";
+import { isStaleServerActionError, STALE_ACTION_MESSAGE } from "@/lib/stale-action";
 
 const btn =
   "rounded-lg text-[13px] font-medium px-4 py-2 transition-colors disabled:opacity-50";
@@ -45,6 +46,7 @@ export function DocActions({
   bankAccounts,
   printHref,
   gateways,
+  preferredGatewayId,
   contactPhone,
   canApprove,
   canPayout,
@@ -60,6 +62,10 @@ export function DocActions({
   bankAccounts: { id: number; label: string; kind?: string }[];
   printHref?: string;
   gateways?: { id: string; name: string }[];
+  /** org.billPayoutGatewayId — pre-selects this gateway in the payout
+   *  dropdown when the org has more than one connected, instead of
+   *  whichever one happened to sort first. */
+  preferredGatewayId?: string | null;
   contactPhone?: string;
   canApprove?: boolean;
   /** Whether this viewer can actually send a gateway payout (server-side
@@ -89,7 +95,9 @@ export function DocActions({
   // Gateway states
   const [showRequestPayment, setShowRequestPayment] = useState(false);
   const [showPayout, setShowPayout] = useState(false);
-  const [gwId, setGwId] = useState(gateways?.[0]?.id || "");
+  const [gwId, setGwId] = useState(
+    () => gateways?.find((g) => g.id === preferredGatewayId)?.id || gateways?.[0]?.id || ""
+  );
   const [gwPhone, setGwPhone] = useState(contactPhone || "");
   const [gwAmount, setGwAmount] = useState(((doc.totalCents - doc.paidCents) / 100).toFixed(2));
   const [gwDestType, setGwDestType] = useState<"phone" | "till" | "paybill">("phone");
@@ -113,7 +121,7 @@ export function DocActions({
           router.refresh();
         }
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Failed");
+        setError(isStaleServerActionError(e) ? STALE_ACTION_MESSAGE : e instanceof Error ? e.message : "Failed");
       }
     });
   };
@@ -515,7 +523,16 @@ export function DocActions({
           </div>
         </div>
       )}
-      {error && <div className="text-[13px] text-[var(--color-bad)]">{error}</div>}
+      {error && (
+        <div className="text-[13px] text-[var(--color-bad)] flex items-center gap-2">
+          {error}
+          {error === STALE_ACTION_MESSAGE && (
+            <button onClick={() => window.location.reload()} className="underline font-medium shrink-0">
+              Refresh
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

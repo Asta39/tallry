@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { respondToApprovalRequestAction } from "@/lib/actions";
+import { isStaleServerActionError, STALE_ACTION_MESSAGE } from "@/lib/stale-action";
 
 const inputCls =
   "w-full rounded-lg border border-[var(--color-ink-200)] bg-white px-3 py-2 text-[13px] outline-none focus:border-[var(--color-accent-500)] focus:ring-2 focus:ring-[var(--color-accent-100)] transition-all";
@@ -25,13 +26,17 @@ export function ApprovalRequestClient({
     setError(null);
     setSuccess(null);
     startTransition(async () => {
-      const res = await respondToApprovalRequestAction(token, decision, rejectNote);
-      if (res?.error) {
-        setError(res.error);
-        return;
+      try {
+        const res = await respondToApprovalRequestAction(token, decision, rejectNote);
+        if (res?.error) {
+          setError(res.error);
+          return;
+        }
+        setSuccess(decision === "approved" ? "Document approved successfully." : "Document rejected successfully.");
+        router.refresh();
+      } catch (e) {
+        setError(isStaleServerActionError(e) ? STALE_ACTION_MESSAGE : e instanceof Error ? e.message : "Failed");
       }
-      setSuccess(decision === "approved" ? "Document approved successfully." : "Document rejected successfully.");
-      router.refresh();
     });
   }
 
@@ -41,7 +46,14 @@ export function ApprovalRequestClient({
 
   return (
     <div className="space-y-4">
-      {error && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-[13px] text-[var(--color-bad)]">{error}</div>}
+      {error && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-[13px] text-[var(--color-bad)] flex items-center gap-2">
+          {error}
+          {error === STALE_ACTION_MESSAGE && (
+            <button onClick={() => window.location.reload()} className="underline font-medium shrink-0">Refresh</button>
+          )}
+        </div>
+      )}
       {success && <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-[13px] text-[var(--color-good)]">{success}</div>}
 
       <div className="flex flex-wrap gap-3">

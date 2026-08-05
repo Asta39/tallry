@@ -28,6 +28,7 @@ interface OrgData {
   approvalRequestPhone?: string | null;
   expenseClaimPayoutLimitCents?: number | null;
   expenseClaimPayoutGatewayId?: string | null;
+  billPayoutGatewayId?: string | null;
   timeTrackingEnabled: boolean;
   itemGroupsEnabled: boolean;
   customerGroupsEnabled: boolean;
@@ -68,6 +69,7 @@ export function OrgProfileForm({ initial, gatewayOptions = [] }: { initial: OrgD
     initial.expenseClaimPayoutLimitCents ? (initial.expenseClaimPayoutLimitCents / 100).toFixed(2) : "0"
   );
   const [expenseClaimPayoutGatewayId, setExpenseClaimPayoutGatewayId] = useState(initial.expenseClaimPayoutGatewayId || "");
+  const [billPayoutGatewayId, setBillPayoutGatewayId] = useState(initial.billPayoutGatewayId || "");
   const [timeTrackingEnabled, setTimeTrackingEnabled] = useState(initial.timeTrackingEnabled);
   const [itemGroupsEnabled, setItemGroupsEnabled] = useState(initial.itemGroupsEnabled);
   const [customerGroupsEnabled, setCustomerGroupsEnabled] = useState(initial.customerGroupsEnabled);
@@ -145,6 +147,7 @@ export function OrgProfileForm({ initial, gatewayOptions = [] }: { initial: OrgD
           approvalRequestPhone: approvalRequestPhone || undefined,
           expenseClaimPayoutLimitCents: Math.round((Number(expenseClaimPayoutLimit) || 0) * 100),
           expenseClaimPayoutGatewayId: expenseClaimPayoutGatewayId || null,
+          billPayoutGatewayId: billPayoutGatewayId || null,
           timeTrackingEnabled,
           itemGroupsEnabled,
           customerGroupsEnabled,
@@ -354,6 +357,25 @@ export function OrgProfileForm({ initial, gatewayOptions = [] }: { initial: OrgD
             </label>
           </div>
         )}
+        <div className="mt-4 pt-4 hairline-t">
+          <label className="block">
+            <span className={labelCls}>Gateway to use for bill / vendor payouts</span>
+            <select
+              value={billPayoutGatewayId}
+              onChange={(e) => setBillPayoutGatewayId(e.target.value)}
+              className={inputCls}
+              disabled={gatewayOptions.length === 0}
+            >
+              <option value="">{gatewayOptions.length === 0 ? "No gateway connected yet" : "Auto — use whichever is connected"}</option>
+              {gatewayOptions.map((g) => (
+                <option key={g.id} value={g.id}>{g.name}</option>
+              ))}
+            </select>
+            <div className="text-[12px] text-[var(--color-ink-400)] mt-1">
+              Pre-selects this gateway when paying a bill out — useful once you have more than one connected under Payment Gateways.
+            </div>
+          </label>
+        </div>
         <div className="mt-4 pt-4 hairline-t">
           <label className="block">
             <span className={labelCls}>Maximum amount an accountant can pay out on an expense claim (0 = no limit)</span>

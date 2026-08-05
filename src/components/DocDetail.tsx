@@ -210,6 +210,7 @@ export async function DocDetail({ id, printHref }: { id: number; printHref?: str
         canPayout={!!access?.perms.has("can_payout")}
         printHref={printHref}
         gateways={gateways.map(g => ({ id: g.gatewayId, name: g.gatewayId === "mpesa_daraja" ? "M-Pesa Daraja" : "Kopo Kopo" }))}
+        preferredGatewayId={org.billPayoutGatewayId}
         contactPhone={contact?.phone || ""}
         canApprove={canApprove}
         poLines={doc.type === "purchase_order" ? lines.map((l) => ({ id: l.id, description: l.description, qty: l.qty, billedQty: l.billedQty })) : undefined}

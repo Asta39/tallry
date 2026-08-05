@@ -56,6 +56,7 @@ export default async function SettingsPage() {
           approvalRequestPhone: o.approvalRequestPhone,
           expenseClaimPayoutLimitCents: o.expenseClaimPayoutLimitCents,
           expenseClaimPayoutGatewayId: o.expenseClaimPayoutGatewayId,
+          billPayoutGatewayId: o.billPayoutGatewayId,
           timeTrackingEnabled: o.timeTrackingEnabled,
           itemGroupsEnabled: o.itemGroupsEnabled,
           customerGroupsEnabled: o.customerGroupsEnabled,

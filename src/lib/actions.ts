@@ -1209,6 +1209,7 @@ export async function saveOrgProfile(data: {
   approvalRequestPhone?: string;
   expenseClaimPayoutLimitCents?: number | null;
   expenseClaimPayoutGatewayId?: string | null;
+  billPayoutGatewayId?: string | null;
   timeTrackingEnabled?: boolean;
   itemGroupsEnabled?: boolean;
   customerGroupsEnabled?: boolean;
@@ -1248,6 +1249,7 @@ export async function saveOrgProfile(data: {
         ...(data.approvalRequestPhone !== undefined ? { approvalRequestPhone: data.approvalRequestPhone || null } : {}),
         ...(data.expenseClaimPayoutLimitCents !== undefined ? { expenseClaimPayoutLimitCents: data.expenseClaimPayoutLimitCents } : {}),
         ...(data.expenseClaimPayoutGatewayId !== undefined ? { expenseClaimPayoutGatewayId: data.expenseClaimPayoutGatewayId || null } : {}),
+        ...(data.billPayoutGatewayId !== undefined ? { billPayoutGatewayId: data.billPayoutGatewayId || null } : {}),
         ...(data.timeTrackingEnabled !== undefined ? { timeTrackingEnabled: data.timeTrackingEnabled } : {}),
         ...(data.itemGroupsEnabled !== undefined ? { itemGroupsEnabled: data.itemGroupsEnabled } : {}),
         ...(data.customerGroupsEnabled !== undefined ? { customerGroupsEnabled: data.customerGroupsEnabled } : {}),

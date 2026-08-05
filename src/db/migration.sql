@@ -832,3 +832,5 @@ ALTER TABLE expense_claims ADD COLUMN IF NOT EXISTS payout_phone TEXT;
 ALTER TABLE org ADD COLUMN IF NOT EXISTS expense_claim_payout_gateway_id TEXT;
 
 ALTER TABLE org ADD COLUMN IF NOT EXISTS mpesa_till_gateway_id TEXT;
+
+ALTER TABLE org ADD COLUMN IF NOT EXISTS bill_payout_gateway_id TEXT;

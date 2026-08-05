@@ -79,6 +79,11 @@ export const org = pgTable("org", {
    *  the UI can label that account "(via Kopo Kopo)" instead of implying
    *  it's Safaricom Daraja specifically. Null = no non-Daraja gateway noted. */
   mpesaTillGatewayId: text("mpesa_till_gateway_id"),
+  /** Default gateway pre-selected when paying a bill/vendor out via gateway —
+   *  same "which of my connected gateways should this smoothly default to"
+   *  pattern as expenseClaimPayoutGatewayId, just for vendor bill payouts.
+   *  Null falls back to whichever connected gateway sorts first. */
+  billPayoutGatewayId: text("bill_payout_gateway_id"),
 });
 
 export const accounts = pgTable("accounts", {
