@@ -8,6 +8,20 @@ import { fmtKES } from "@/lib/money";
 
 export const dynamic = "force-dynamic";
 
+function StatIcon({ name }: { name: "invoice" | "quote" | "balance" | "activity" }) {
+  const paths: Record<string, React.ReactNode> = {
+    invoice: <><path d="M6 2h9l3 3v17H6z" /><path d="M9 8h6M9 12h6M9 16h4" /></>,
+    quote: <><path d="M7 8h10M7 12h10M7 16h6" /><rect x="3" y="4" width="18" height="16" rx="2" /></>,
+    balance: <><path d="M12 2v20M17 5H9.5a2.5 2.5 0 0 0 0 5H14a2.5 2.5 0 0 1 0 5H7" /></>,
+    activity: <><polyline points="3 12 8 12 10 18 14 6 16 12 21 12" /></>,
+  };
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      {paths[name]}
+    </svg>
+  );
+}
+
 export default async function ClientPortalDashboard({ params }: { params: Promise<{ orgSlug: string }> }) {
   const { orgSlug } = await params;
   const session = await getClientSession(orgSlug);
@@ -30,22 +44,34 @@ export default async function ClientPortalDashboard({ params }: { params: Promis
 
   const totalOutstandingCents = unpaidInvoices.reduce((s, d) => s + (d.totalCents - d.paidCents), 0);
 
+  const stats = [
+    { label: "Unpaid Invoices", value: String(unpaidInvoices.length), icon: "invoice" as const },
+    { label: "Active Quotes", value: String(activeQuotes.length), icon: "quote" as const },
+    { label: "Outstanding Balance", value: fmtKES(totalOutstandingCents), icon: "balance" as const },
+    { label: "Recent Activity", value: String(recentDocs.length), icon: "activity" as const },
+  ];
+
   return (
     <div className="space-y-6">
       <div className="flex items-end justify-between">
-        <h1 className="text-2xl font-bold text-[var(--color-ink-900)] tracking-tight">Client Dashboard</h1>
+        <h1 className="text-3xl font-bold text-[var(--color-ink-900)] tracking-tight">Client Dashboard</h1>
         <Link
           href={`/portal/${orgSlug}/documents`}
-          className="px-4 py-2 bg-[var(--color-ink-900)] text-white text-[13px] font-medium rounded-full hover:bg-black transition-colors"
+          className="px-4 py-2.5 bg-[var(--color-ink-900)] text-white text-[13px] font-semibold rounded-full hover:bg-black transition-colors"
         >
           View all documents
         </Link>
       </div>
 
-      {/* Card grid: spotlight action card (spans 2 rows) + stat tiles alongside it */}
+      {/* Bento grid: spotlight action card (spans 2 rows) + icon-badge stat tiles */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="card lg:row-span-2 p-6 flex flex-col">
-          <h2 className="text-[15px] font-semibold mb-1">Action Needed</h2>
+          <div className="flex items-center gap-3 mb-1">
+            <div className="w-10 h-10 rounded-2xl bg-[var(--color-accent-100)] text-[var(--color-accent-700)] flex items-center justify-center shrink-0">
+              <StatIcon name="invoice" />
+            </div>
+            <h2 className="text-[16px] font-bold">Action Needed</h2>
+          </div>
           <p className="text-[12.5px] text-[var(--color-ink-500)] mb-4">Invoices awaiting your payment.</p>
           {unpaidInvoices.length === 0 ? (
             <div className="flex-1 flex items-center justify-center text-center">
@@ -57,14 +83,14 @@ export default async function ClientPortalDashboard({ params }: { params: Promis
           ) : (
             <div className="space-y-3">
               {unpaidInvoices.map(inv => (
-                <div key={inv.id} className="flex items-center justify-between p-3 bg-red-50/50 border border-red-100 rounded-lg">
+                <div key={inv.id} className="flex items-center justify-between p-3 bg-red-50/50 border border-red-100 rounded-2xl">
                   <div>
                     <div className="font-medium text-[13.5px] text-[var(--color-ink-900)]">{inv.number}</div>
                     <div className="text-[12.5px] text-[var(--color-ink-500)] mt-0.5">Due {inv.dueDate} &middot; {fmtKES(inv.totalCents - inv.paidCents)}</div>
                   </div>
                   <Link
                     href={`/portal/${orgSlug}/documents`}
-                    className="px-4 py-1.5 bg-[var(--color-brand)] text-white text-[12.5px] font-semibold rounded-md shadow-sm hover:opacity-90"
+                    className="px-4 py-1.5 bg-[var(--color-brand)] text-white text-[12.5px] font-semibold rounded-full shadow-sm hover:opacity-90"
                   >
                     Pay Now
                   </Link>
@@ -74,27 +100,22 @@ export default async function ClientPortalDashboard({ params }: { params: Promis
           )}
         </div>
 
-        <div className="card p-5 flex flex-col justify-between">
-          <h3 className="text-[13px] text-[var(--color-ink-500)] font-medium">Unpaid Invoices</h3>
-          <div className="money-lg text-[var(--color-ink-900)]">{unpaidInvoices.length}</div>
-        </div>
-        <div className="card p-5 flex flex-col justify-between">
-          <h3 className="text-[13px] text-[var(--color-ink-500)] font-medium">Active Quotes</h3>
-          <div className="money-lg text-[var(--color-ink-900)]">{activeQuotes.length}</div>
-        </div>
-        <div className="card p-5 flex flex-col justify-between">
-          <h3 className="text-[13px] text-[var(--color-ink-500)] font-medium">Outstanding Balance</h3>
-          <div className="money-lg text-[var(--color-ink-900)]">{fmtKES(totalOutstandingCents)}</div>
-        </div>
-        <div className="card p-5 flex flex-col justify-between">
-          <h3 className="text-[13px] text-[var(--color-ink-500)] font-medium">Recent Activity</h3>
-          <div className="money-lg text-[var(--color-ink-900)]">{recentDocs.length}</div>
-        </div>
+        {stats.map((s) => (
+          <div key={s.label} className="card p-5 flex flex-col gap-3">
+            <div className="w-9 h-9 rounded-full bg-[var(--color-ink-50)] text-[var(--color-ink-600)] flex items-center justify-center">
+              <StatIcon name={s.icon} />
+            </div>
+            <div>
+              <h3 className="text-[12.5px] text-[var(--color-ink-500)] font-medium mb-1">{s.label}</h3>
+              <div className="money-lg text-[var(--color-ink-900)]">{s.value}</div>
+            </div>
+          </div>
+        ))}
       </div>
 
       <div>
         <div className="flex justify-between items-end mb-4">
-          <h2 className="text-[15px] font-semibold text-[var(--color-ink-900)]">Recent Documents</h2>
+          <h2 className="text-[16px] font-bold text-[var(--color-ink-900)]">Recent Documents</h2>
           <Link href={`/portal/${orgSlug}/documents`} className="text-[13px] text-[var(--color-brand)] font-medium hover:underline">
             View all &rarr;
           </Link>

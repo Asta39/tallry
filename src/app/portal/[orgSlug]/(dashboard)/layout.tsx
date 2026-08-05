@@ -26,29 +26,30 @@ export default async function ClientPortalLayout({
 
   return (
     <div
-      className="min-h-screen bg-[#FAFAFA] font-sans text-[var(--color-ink-900)] flex flex-col"
-      style={{ "--color-brand": o.brandColor || "#0f766e" } as React.CSSProperties}
+      className="min-h-screen bg-[#F1F2F6] font-sans text-[var(--color-ink-900)] flex flex-col"
+      style={{ "--color-brand": o.brandColor || "#0f766e", "--radius-card": "20px" } as React.CSSProperties}
     >
-      {/* Full-width bar: logo, segmented pill nav, account/logout — Apple-calm
-          chrome (sidebar-chrome translucency, hairline, shadow-card). */}
+      {/* Full-width bar: logo, segmented pill nav, account/logout. Bigger radius
+          + bolder wordmark than the main app chrome — portal-only reskin, does
+          not touch the shared design tokens used elsewhere. */}
       <header className="sticky top-0 z-40 px-4 pt-4">
         <div className="max-w-6xl mx-auto">
-          <div className="sidebar-chrome hairline shadow-[var(--shadow-card)] rounded-2xl px-4 py-2.5 flex items-center gap-4">
+          <div className="bg-white hairline shadow-[var(--shadow-card)] rounded-3xl px-5 py-3 flex items-center gap-5">
             <Link
               href={`/portal/${orgSlug}/dashboard`}
-              className="shrink-0 font-semibold text-[14px] tracking-tight whitespace-nowrap"
+              className="shrink-0 font-bold text-[15px] tracking-tight whitespace-nowrap"
             >
               {o.name}
             </Link>
             <PortalNav orgSlug={orgSlug} />
             <div className="ml-auto flex items-center gap-2 shrink-0">
-              <div className="w-8 h-8 rounded-full bg-[var(--color-accent-100)] text-[var(--color-accent-700)] text-[12.5px] font-semibold flex items-center justify-center">
+              <div className="w-9 h-9 rounded-full bg-[var(--color-accent-100)] text-[var(--color-accent-700)] text-[13px] font-bold flex items-center justify-center">
                 {o.name.slice(0, 1).toUpperCase()}
               </div>
               <form action={logout}>
                 <button
                   type="submit"
-                  className="flex items-center justify-center w-8 h-8 rounded-full text-[var(--color-ink-400)] hover:text-[var(--color-ink-900)] hover:bg-[var(--color-ink-100)] transition-colors"
+                  className="flex items-center justify-center w-9 h-9 rounded-full text-[var(--color-ink-400)] hover:text-[var(--color-ink-900)] hover:bg-[var(--color-ink-100)] transition-colors"
                   title="Log out"
                   aria-label="Log out"
                 >
