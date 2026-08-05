@@ -20,7 +20,10 @@ import {
   contactGroupMemberships,
   itemGroups,
   itemTypes,
+  paymentGateways,
+  paymentEvents,
 } from "@/db";
+import { getGateway } from "@/lib/payments/gateway";
 import { eq, and, ne, desc, isNull, sql, inArray } from "drizzle-orm";
 import { currentOrgId, withOrg, seedOrgDefaults, orgContext } from "@/lib/org";
 import { revalidatePath as nextRevalidatePath } from "next/cache";
@@ -59,6 +62,7 @@ import { buildBalanceAdjustmentLines } from "./account-balance-adjustments";
 import {
   canApproveSpend,
   getApprovalRequestByToken,
+  getApprovalRequestAnyState,
   isSpendApprovalType,
   markApprovalTokenUsed,
   sendSpendApprovalSms,
@@ -543,6 +547,11 @@ async function _saveDocument(data: {
   notes?: string;
   billNumber?: string; // vendor's own number for bills
   paidFromBankAccountId?: number | null;
+  /** Bills only — where the vendor gets paid, captured up front so a remote
+   *  (no-login SMS link) approval can also pay it immediately. */
+  payoutDestination?: string | null;
+  payoutDestinationType?: "phone" | "till" | "paybill" | null;
+  payoutAccountNumber?: string | null;
   /** Expense/bill cost attribution — the customer the cost was incurred for. */
   customerContactId?: number | null;
   /** Invoice this cost was rebilled on. Must belong to customerContactId. */
@@ -619,6 +628,9 @@ async function _saveDocument(data: {
           customerContactId: data.customerContactId ?? null,
           relatedInvoiceId: data.relatedInvoiceId ?? null,
           isBillable: data.isBillable ?? false,
+          payoutDestination: data.payoutDestination ?? null,
+          payoutDestinationType: data.payoutDestinationType ?? null,
+          payoutAccountNumber: data.payoutAccountNumber ?? null,
         })
         .where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, data.id)));
       await tx.delete(documentLines).where(eq(documentLines.documentId, data.id));
@@ -646,6 +658,9 @@ async function _saveDocument(data: {
           customerContactId: data.customerContactId ?? null,
           relatedInvoiceId: data.relatedInvoiceId ?? null,
           isBillable: data.isBillable ?? false,
+          payoutDestination: data.payoutDestination ?? null,
+          payoutDestinationType: data.payoutDestinationType ?? null,
+          payoutAccountNumber: data.payoutAccountNumber ?? null,
           createdByName: data.createdByName,
           createdByRole: data.createdByRole,
           createdAt: nowISO(),
@@ -1365,6 +1380,14 @@ export async function adjustStock(itemId: number, qtyDelta: number, unitCostCent
   return result;
 }
 export async function saveDocument(data: Parameters<typeof _saveDocument>[0]) {
+  // Only enforced here, not inside _saveDocument itself — convertPoToBill
+  // calls _saveDocument directly and doesn't (yet) collect a payout
+  // destination on the source PO, so it must stay exempt from this.
+  if (data.type === "bill") {
+    if (!data.payoutDestinationType) throw new Error("Select how this vendor gets paid (mobile number, till, or paybill)");
+    if (!data.payoutDestination?.trim()) throw new Error("Enter the vendor's payout destination");
+    if (data.payoutDestinationType === "paybill" && !data.payoutAccountNumber?.trim()) throw new Error("Enter the paybill account number");
+  }
   const access = await getAccess();
   if (access && !access.isOwner && access.role !== "admin" && access.memberId) {
     data.assignedMemberIds = Array.from(new Set([...(data.assignedMemberIds || []), access.memberId]));
@@ -1537,6 +1560,95 @@ export async function respondToApprovalRequestAction(token: string, decision: "a
     }
   });
 }
+
+/**
+ * Pays an already-approved bill out via gateway straight from the same SMS
+ * approval link — no login, no trip to the dashboard. Only works on a token
+ * whose decision is "approved" (i.e. this exact link's approval already
+ * posted the bill), and only for bills, which capture a mandatory payout
+ * destination at creation for exactly this reason (expenses/POs don't).
+ * Posts the cash leg immediately (see the same reasoning in
+ * executeGatewayPayoutForClaim for expense claims) rather than waiting on
+ * the async gateway webhook.
+ */
+export async function payApprovedBillGatewayAction(token: string): Promise<{ success?: true; error?: string }> {
+  const row = await getApprovalRequestAnyState(token);
+  if (!row) return { error: "This approval link is no longer valid." };
+  if (row.req.decision !== "approved") return { error: "This bill hasn't been approved through this link yet." };
+  if (row.doc.type !== "bill") return { error: "Only bills can be paid this way." };
+
+  return orgContext.run(row.orgRow.id, async () => {
+    try {
+      const orgId = row.orgRow.id;
+      const [doc] = await db.select().from(documents).where(and(eq(documents.orgId, orgId), eq(documents.id, row.doc.id))).limit(1);
+      if (!doc) return { error: "Bill not found." };
+      const outstanding = doc.totalCents - doc.paidCents;
+      if (outstanding <= 0) return { error: "This bill is already fully paid." };
+      if (!doc.payoutDestinationType || !doc.payoutDestination) return { error: "No payout destination was set on this bill." };
+
+      const preferredId = row.orgRow.billPayoutGatewayId;
+      const [preferred] = preferredId
+        ? await db.select().from(paymentGateways).where(and(eq(paymentGateways.orgId, orgId), eq(paymentGateways.enabled, true), eq(paymentGateways.gatewayId, preferredId))).limit(1)
+        : [];
+      const [fallback] = !preferred
+        ? await db.select().from(paymentGateways).where(and(eq(paymentGateways.orgId, orgId), eq(paymentGateways.enabled, true))).limit(1)
+        : [];
+      const gwConfig = preferred || fallback;
+      if (!gwConfig) return { error: "No payment gateway is connected for this org." };
+
+      const gateway = getGateway(gwConfig);
+      const [payee] = doc.contactId
+        ? await db.select({ name: contacts.displayName }).from(contacts).where(and(eq(contacts.id, doc.contactId), eq(contacts.orgId, orgId))).limit(1)
+        : [];
+
+      const result = await gateway.payOut({
+        destination: doc.payoutDestination,
+        destinationType: doc.payoutDestinationType as "phone" | "till" | "paybill",
+        accountNumber: doc.payoutAccountNumber || undefined,
+        amountCents: outstanding,
+        accountRef: doc.number,
+        payeeName: payee?.name || undefined,
+        reason: `Payout for bill ${doc.number}`,
+      });
+
+      await db.insert(paymentEvents).values({
+        orgId,
+        gatewayId: gwConfig.gatewayId,
+        providerRef: result.providerRef,
+        direction: "out",
+        amountCents: outstanding,
+        payerPhone: doc.payoutDestinationType === "phone" ? doc.payoutDestination : undefined,
+        accountRef: doc.number,
+        status: "applied",
+        matchedDocumentId: doc.id,
+        rawJson: JSON.stringify({ payoutRef: result.providerRef, destination: doc.payoutDestination, destinationType: doc.payoutDestinationType, amountCents: outstanding }),
+        createdAt: new Date().toISOString(),
+      }).onConflictDoNothing({ target: [paymentEvents.gatewayId, paymentEvents.providerRef] });
+
+      // Same reasoning as the M-Pesa till reconciliation engine: without an
+      // explicit bankAccountId, postPayment() falls back to Undeposited
+      // Funds instead of the real till.
+      const [mpesaBank] = await db.select({ id: bankAccounts.id }).from(bankAccounts).where(and(eq(bankAccounts.orgId, orgId), eq(bankAccounts.kind, "mpesa"), eq(bankAccounts.archived, false))).limit(1);
+
+      await _recordPayment({
+        direction: "out",
+        documentId: doc.id,
+        date: todayISO(),
+        amountCents: outstanding,
+        method: gwConfig.gatewayId === "mpesa_daraja" ? "mpesa" : "kopokopo",
+        reference: result.providerRef,
+        bankAccountId: mpesaBank?.id,
+      });
+
+      await logAudit({ action: "pay_approved_bill_remote", module: "bills", recordId: doc.id, recordLabel: doc.number, detail: `${fmtKES(outstanding)} via ${gwConfig.gatewayId}` });
+      nextRevalidatePath(`/approve/${token}`);
+      return { success: true };
+    } catch (err: any) {
+      return { error: err?.message || "Failed to process payout" };
+    }
+  });
+}
+
 export async function voidDoc(docId: number) {
   const [doc] = await db.select({ number: documents.number, type: documents.type }).from(documents).where(eq(documents.id, docId)).limit(1);
   const result = await withOrg(() => _voidDoc(docId));

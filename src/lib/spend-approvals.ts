@@ -65,6 +65,25 @@ export async function approvalRequestUrl(token: string): Promise<string> {
   return `${await appOrigin()}/approve/${token}`;
 }
 
+/** Looks up a token regardless of decision/revoked state — used after an
+ *  approval has already been acted on, when the page still needs to know
+ *  what happened (e.g. to offer paying an approved bill out). The pending-
+ *  only getApprovalRequestByToken below intentionally can't do this: once
+ *  approved, the document is no longer "pending_approval" and that lookup
+ *  correctly returns null. */
+export async function getApprovalRequestAnyState(token: string) {
+  if (!/^[A-Za-z0-9]{10,32}$/.test(token)) return null;
+  const [row] = await db
+    .select({ req: approvalRequestTokens, doc: documents, orgRow: org })
+    .from(approvalRequestTokens)
+    .innerJoin(documents, eq(documents.id, approvalRequestTokens.documentId))
+    .innerJoin(org, eq(org.id, approvalRequestTokens.orgId))
+    .where(eq(approvalRequestTokens.token, token))
+    .limit(1);
+  if (!row || !isSpendApprovalType(row.doc.type)) return null;
+  return row;
+}
+
 export async function sendSpendApprovalSms(documentId: number): Promise<{ sent: boolean; reason?: string }> {
   const [doc] = await db
     .select({

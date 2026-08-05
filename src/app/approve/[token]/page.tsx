@@ -1,4 +1,4 @@
-import { getApprovalRequestByToken } from "@/lib/spend-approvals";
+import { getApprovalRequestByToken, getApprovalRequestAnyState } from "@/lib/spend-approvals";
 import { fmtKES } from "@/lib/money";
 import { db, documentLines, accounts, costCenters } from "@/db";
 import { eq } from "drizzle-orm";
@@ -8,7 +8,12 @@ export const dynamic = "force-dynamic";
 
 export default async function ApprovalRequestPage(props: { params: Promise<{ token: string }> }) {
   const { token } = await props.params;
-  const row = await getApprovalRequestByToken(token);
+  const pendingRow = await getApprovalRequestByToken(token);
+  // Once approved, the document is no longer "pending_approval" so the lookup
+  // above returns null — fall back to the any-state lookup so a bill's Pay
+  // step (and a clear "already handled" message otherwise) still has
+  // something to show instead of a dead end.
+  const row = pendingRow || (await getApprovalRequestAnyState(token));
 
   if (!row) {
     return (
@@ -22,6 +27,8 @@ export default async function ApprovalRequestPage(props: { params: Promise<{ tok
       </div>
     );
   }
+
+  const isPayable = row.doc.type === "bill" && row.req.decision === "approved" && row.doc.paidCents < row.doc.totalCents;
 
   const lines = await db
     .select({
@@ -61,8 +68,19 @@ export default async function ApprovalRequestPage(props: { params: Promise<{ tok
             </div>
             <div className="col-span-2">
               <div className="text-[11px] font-medium uppercase tracking-wide text-[var(--color-ink-400)]">Current status</div>
-              <div className="mt-1 text-[14px] font-medium">Awaiting approval</div>
+              <div className="mt-1 text-[14px] font-medium">
+                {row.doc.status === "pending_approval" ? "Awaiting approval" : row.doc.status === "paid" ? "Paid" : row.req.decision === "rejected" ? "Rejected" : "Approved"}
+              </div>
             </div>
+            {row.doc.type === "bill" && row.doc.payoutDestination && (
+              <div className="col-span-2">
+                <div className="text-[11px] font-medium uppercase tracking-wide text-[var(--color-ink-400)]">Pay to</div>
+                <div className="mt-1 text-[14px] font-medium">
+                  {row.doc.payoutDestinationType === "phone" ? "Mobile" : row.doc.payoutDestinationType === "till" ? "Till" : "Paybill"} {row.doc.payoutDestination}
+                  {row.doc.payoutAccountNumber ? ` · Acct: ${row.doc.payoutAccountNumber}` : ""}
+                </div>
+              </div>
+            )}
           </div>
 
           {lines.length > 0 && (
@@ -86,7 +104,14 @@ export default async function ApprovalRequestPage(props: { params: Promise<{ tok
         </div>
 
         <div className="rounded-2xl bg-white p-6 shadow-sm">
-          <ApprovalRequestClient token={token} initialStatus={row.doc.status} />
+          <ApprovalRequestClient
+            token={token}
+            initialStatus={row.doc.status}
+            isPayable={isPayable}
+            outstandingCents={row.doc.totalCents - row.doc.paidCents}
+            payoutDestination={row.doc.payoutDestination}
+            payoutDestinationType={row.doc.payoutDestinationType}
+          />
         </div>
 
         <p className="text-center text-[12px] text-[var(--color-ink-400)]">

@@ -326,6 +326,12 @@ export const documents = pgTable("documents", {
   qrUrl: text("qr_url"),
   // expense-specific: paid-from bank account
   paidFromBankAccountId: integer("paid_from_bank_account_id"),
+  /** Bills only, captured at creation so an admin approving remotely (SMS
+   *  link, no login) can pay it out immediately without knowing the vendor's
+   *  payout details themselves. Required at bill-creation time in the UI. */
+  payoutDestination: text("payout_destination"),
+  payoutDestinationType: text("payout_destination_type"), // phone | till | paybill
+  payoutAccountNumber: text("payout_account_number"), // paybill account number only
   /**
    * Cost attribution for expenses/bills: which customer the cost was incurred
    * for, and the invoice it was rebilled on (if any). Distinct from contactId,

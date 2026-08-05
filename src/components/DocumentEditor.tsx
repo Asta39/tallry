@@ -55,6 +55,9 @@ export interface EditorInitialData {
   taxInclusive: boolean;
   notes: string;
   billNumber: string;
+  payoutDestinationType?: "phone" | "till" | "paybill";
+  payoutDestination?: string;
+  payoutAccountNumber?: string;
   paidFrom: number | "";
   assignedMemberIds: number[];
   customerContactId?: number | "";
@@ -120,6 +123,9 @@ export function DocumentEditor({
   const [taxInclusive, setTaxInclusive] = useState(initialData?.taxInclusive ?? false);
   const [notes, setNotes] = useState(initialData?.notes ?? "");
   const [billNumber, setBillNumber] = useState(initialData?.billNumber ?? "");
+  const [payoutDestinationType, setPayoutDestinationType] = useState<"phone" | "till" | "paybill">(initialData?.payoutDestinationType ?? "phone");
+  const [payoutDestination, setPayoutDestination] = useState(initialData?.payoutDestination ?? "");
+  const [payoutAccountNumber, setPayoutAccountNumber] = useState(initialData?.payoutAccountNumber ?? "");
   const [paidFrom, setPaidFrom] = useState<number | "">(initialData?.paidFrom ?? "");
   const [assignedMemberIds, setAssignedMemberIds] = useState<number[]>(initialData?.assignedMemberIds ?? []);
   const [saveAsTemplate, setSaveAsTemplate] = useState(false);
@@ -250,6 +256,9 @@ export function DocumentEditor({
           taxInclusive,
           notes: notes || undefined,
           billNumber: billNumber || undefined,
+          payoutDestinationType: type === "bill" ? payoutDestinationType : undefined,
+          payoutDestination: type === "bill" ? payoutDestination || undefined : undefined,
+          payoutAccountNumber: type === "bill" && payoutDestinationType === "paybill" ? payoutAccountNumber || undefined : undefined,
           paidFromBankAccountId: paidFrom === "" ? null : paidFrom,
           customerContactId: isSpend && customerContactId !== "" ? Number(customerContactId) : null,
           relatedInvoiceId: isSpend && relatedInvoiceId !== "" ? Number(relatedInvoiceId) : null,
@@ -327,6 +336,51 @@ export function DocumentEditor({
             </span>
             <input className={inputCls + " mt-1"} value={billNumber} onChange={(e) => setBillNumber(e.target.value)} placeholder="optional" />
           </label>
+        )}
+        {type === "bill" && (
+          <>
+            <label className="block">
+              <span className="text-[12px] font-medium text-[var(--color-ink-600)]">
+                Pay this vendor via <span className="text-[var(--color-bad)]">*</span>
+              </span>
+              <select
+                className={inputCls + " mt-1"}
+                value={payoutDestinationType}
+                onChange={(e) => setPayoutDestinationType(e.target.value as "phone" | "till" | "paybill")}
+              >
+                <option value="phone">Mobile number (B2C)</option>
+                <option value="till">Till number</option>
+                <option value="paybill">Paybill</option>
+              </select>
+            </label>
+            <label className="block">
+              <span className="text-[12px] font-medium text-[var(--color-ink-600)]">
+                {payoutDestinationType === "phone" ? "Vendor's M-Pesa number" : payoutDestinationType === "till" ? "Till number" : "Paybill number"}
+                {" "}<span className="text-[var(--color-bad)]">*</span>
+              </span>
+              <input
+                className={inputCls + " mt-1"}
+                value={payoutDestination}
+                onChange={(e) => setPayoutDestination(e.target.value)}
+                placeholder={payoutDestinationType === "phone" ? "2547…" : "e.g. 123456"}
+                required
+              />
+            </label>
+            {payoutDestinationType === "paybill" && (
+              <label className="block">
+                <span className="text-[12px] font-medium text-[var(--color-ink-600)]">
+                  Account number <span className="text-[var(--color-bad)]">*</span>
+                </span>
+                <input
+                  className={inputCls + " mt-1"}
+                  value={payoutAccountNumber}
+                  onChange={(e) => setPayoutAccountNumber(e.target.value)}
+                  placeholder="Account / reference number"
+                  required
+                />
+              </label>
+            )}
+          </>
         )}
         <label className="flex items-center gap-2 self-end pb-2">
           <input
