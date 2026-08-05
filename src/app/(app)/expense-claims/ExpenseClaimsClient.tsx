@@ -137,8 +137,8 @@ function SubmitForm({ categoryAccounts }: { categoryAccounts: { id: number; code
           <input type="number" name="amount" step="0.01" min="0.01" placeholder="0.00" className={inputCls + " mt-1"} required />
         </label>
         <label className="block">
-          <span className="text-[12px] font-medium text-[var(--color-ink-600)]">M-Pesa number to reimburse to (optional)</span>
-          <input type="tel" name="payoutPhone" placeholder="2547…" className={inputCls + " mt-1"} />
+          <span className="text-[12px] font-medium text-[var(--color-ink-600)]">M-Pesa number to reimburse to</span>
+          <input type="tel" name="payoutPhone" placeholder="2547…" className={inputCls + " mt-1"} required />
         </label>
       </div>
       <div className="flex items-center gap-3 pt-1">

@@ -76,6 +76,9 @@ export async function submitExpenseClaimAction(data: {
     if (!data.description.trim()) throw new Error("Add a short description");
     if (!(data.amountCents > 0)) throw new Error("Amount must be greater than zero");
 
+    if (!data.categoryAccountId) throw new Error("Select an expense category");
+    if (!data.payoutPhone?.trim()) throw new Error("Enter the M-Pesa number to reimburse");
+
     const submittedByName = access?.memberName || "Owner";
     await db.insert(expenseClaims).values({
       orgId: currentOrgId(),
@@ -86,7 +89,7 @@ export async function submitExpenseClaimAction(data: {
       description: data.description.trim(),
       amountCents: data.amountCents,
       receiptUrl: data.receiptUrl,
-      payoutPhone: data.payoutPhone?.trim() || null,
+      payoutPhone: data.payoutPhone.trim(),
       status: "pending",
       createdAt: nowISO(),
     });
@@ -95,6 +98,53 @@ export async function submitExpenseClaimAction(data: {
     revalidatePath("/expense-claims");
     return { success: true };
   });
+}
+
+/** Post the accrual journal (DR category · CR Staff Reimbursements Payable)
+ *  and flip the claim to "approved". Shared by the direct-approve path and
+ *  the admin-approval-token path (respondToExpenseClaimPayoutApprovalAction),
+ *  since an over-limit claim reaches "approved" via either route. */
+async function accrueClaim(claim: typeof expenseClaims.$inferSelect, reviewerName: string): Promise<number> {
+  const payable = await payableAccountId();
+  const entryId = await postEntry({
+    date: todayISO(),
+    memo: `Expense claim: ${claim.description} (${claim.submittedByName})`,
+    sourceType: "expense_claim",
+    sourceId: claim.id,
+    lines: [
+      { accountId: claim.categoryAccountId, debitCents: claim.amountCents },
+      { accountId: payable, creditCents: claim.amountCents },
+    ],
+  });
+
+  await db.update(expenseClaims).set({
+    status: "approved",
+    reviewedByName: reviewerName,
+    journalEntryId: entryId,
+    reviewedAt: nowISO(),
+  }).where(eq(expenseClaims.id, claim.id));
+
+  return entryId;
+}
+
+/** Best-effort auto-pay right after a claim is accrued: sends the reimbursement
+ *  to the claimant's submitted M-Pesa number via the first enabled gateway and
+ *  posts the cash leg immediately (see executeGatewayPayoutForClaim). Never
+ *  throws — a missing gateway or a failed payout just leaves the claim
+ *  "approved" so the accountant can still pay it manually. */
+async function tryAutoPayApprovedClaim(orgId: number, claimId: number) {
+  const [claim] = await db.select().from(expenseClaims).where(and(eq(expenseClaims.id, claimId), eq(expenseClaims.orgId, orgId))).limit(1);
+  if (!claim || claim.status !== "approved" || !claim.payoutPhone) return;
+
+  const [gwConfig] = await db.select().from(paymentGateways).where(and(eq(paymentGateways.orgId, orgId), eq(paymentGateways.enabled, true))).limit(1);
+  if (!gwConfig) return;
+
+  try {
+    const gateway = getGateway(gwConfig);
+    await executeGatewayPayoutForClaim(orgId, claim, gateway, gwConfig.gatewayId, claim.payoutPhone, "phone", claim.amountCents, undefined);
+  } catch (e) {
+    console.error("Auto-pay failed for expense claim", claimId, e);
+  }
 }
 
 export async function approveExpenseClaimAction(id: number) {
@@ -113,28 +163,64 @@ export async function approveExpenseClaimAction(id: number) {
     if (!claim) throw new Error("Claim already reviewed");
 
     try {
-      const payable = await payableAccountId();
-      const entryId = await postEntry({
-        date: todayISO(),
-        memo: `Expense claim: ${claim.description} (${claim.submittedByName})`,
-        sourceType: "expense_claim",
-        sourceId: claim.id,
-        lines: [
-          { accountId: claim.categoryAccountId, debitCents: claim.amountCents },
-          { accountId: payable, creditCents: claim.amountCents },
-        ],
-      });
+      const orgRow = await getOrg();
+      // Accountants (not owner/admin) cannot approve a claim above the org's
+      // set limit themselves — this used to be checked only at gateway-payout
+      // time, which let an accountant approve (accrue) a claim of any size;
+      // the limit now gates the approval step itself.
+      const isAccountantNotAdmin = !!access && !access.isOwner && access.role !== "admin";
+      const limit = orgRow.expenseClaimPayoutLimitCents;
+      const needsApproval = isAccountantNotAdmin && !!limit && limit > 0 && claim.amountCents > limit;
 
-      await db.update(expenseClaims).set({
-        status: "approved",
-        reviewedByName: access?.memberName || "Owner",
-        journalEntryId: entryId,
-        reviewedAt: nowISO(),
-      }).where(eq(expenseClaims.id, id));
+      if (needsApproval) {
+        // Revert to pending — this accountant cannot approve it themselves.
+        await db.update(expenseClaims).set({ status: "pending" }).where(eq(expenseClaims.id, id));
+
+        const recipient = approvalRequestRecipient(orgRow.approvalRequestPhone || orgRow.phone);
+        if (!recipient) throw new Error(`This claim needs admin approval (over the ${fmtKES(limit)} limit), but no approval phone is set — add one in Settings first.`);
+        const cfg = await getOrgSmsConfig(orgId);
+        if (!cfg) throw new Error(`This claim needs admin approval (over the ${fmtKES(limit)} limit), but SMS isn't configured for this org.`);
+
+        const [gwConfig] = await db.select().from(paymentGateways).where(and(eq(paymentGateways.orgId, orgId), eq(paymentGateways.enabled, true))).limit(1);
+
+        const token = generatePayoutToken();
+        await db.insert(expenseClaimPayoutApprovals).values({
+          orgId,
+          claimId: claim.id,
+          token,
+          requestedByName: access!.memberName || "An accountant",
+          destination: claim.payoutPhone || "",
+          destinationType: "phone",
+          accountNumber: null,
+          amountCents: claim.amountCents,
+          gatewayId: gwConfig?.gatewayId || "",
+          recipient,
+          createdAt: nowISO(),
+        });
+
+        const url = `${await appOrigin()}/approve/expense-payout/${token}`;
+        await sendSms(
+          cfg,
+          recipient,
+          `${orgRow.name || "Zeno"}: ${access!.memberName || "An accountant"} wants to approve & pay ${claim.submittedByName}'s expense claim (${fmtKES(claim.amountCents)}, ${claim.description}) — over the ${fmtKES(limit)} limit. Approve: ${url}`
+        );
+
+        await logAudit({ action: "request_claim_approval", module: "expense_claims", recordId: claim.id, recordLabel: claim.submittedByName, detail: `${fmtKES(claim.amountCents)} pending admin approval` });
+        revalidatePath("/expense-claims");
+        return { requiresApproval: true };
+      }
+
+      await accrueClaim(claim, access?.memberName || "Owner");
     } catch (e) {
       await db.update(expenseClaims).set({ status: "pending" }).where(and(eq(expenseClaims.id, id), eq(expenseClaims.status, "approving")));
       throw e;
     }
+
+    // Approval succeeded (accrued) — try to pay it out immediately. This runs
+    // outside the try/catch above: a payout failure here must not un-approve
+    // an already-accrued claim, it should just leave it "approved" for a
+    // manual pay retry.
+    await tryAutoPayApprovedClaim(orgId, id);
 
     revalidatePath("/expense-claims");
     return { success: true };
@@ -245,8 +331,11 @@ async function executeGatewayPayoutForClaim(
     reason: `Reimbursement: ${claim.description}`,
   });
 
-  // Pending outbound event: applyExpenseClaimGatewayPayout (webhook.ts)
-  // reconciles against this row once the gateway confirms the transfer.
+  // Recorded as already applied and posted immediately below — the
+  // accountant needs the ledger balance to move the moment the payout is
+  // sent, not whenever the gateway's async webhook callback eventually
+  // lands. (If that webhook does arrive later, applyExpenseClaimGatewayPayout
+  // will find the claim no longer "approved" and no-op harmlessly.)
   await db.insert(paymentEvents).values({
     orgId,
     gatewayId,
@@ -255,11 +344,13 @@ async function executeGatewayPayoutForClaim(
     amountCents,
     payerPhone: destinationType === "phone" ? destination : undefined,
     accountRef: `EXPCLAIM-${claim.id}`,
-    status: "pending",
+    status: "applied",
     matchedExpenseClaimId: claim.id,
     rawJson: JSON.stringify({ payoutRef: result.providerRef, destination, destinationType, amountCents }),
     createdAt: new Date().toISOString(),
   }).onConflictDoNothing({ target: [paymentEvents.gatewayId, paymentEvents.providerRef] });
+
+  await applyExpenseClaimGatewayPayout(claim.id, amountCents, gatewayId);
 }
 
 /**
@@ -382,7 +473,16 @@ export async function respondToExpenseClaimPayoutApprovalAction(
     if (!claim) throw new Error("Claim not found");
 
     if (decision === "approved") {
-      if (claim.status !== "approved") throw new Error(`This claim is no longer payable (status: ${claim.status})`);
+      // The claim reaches this point either already "approved" (a payout
+      // that itself exceeded the limit, requested from the Pay button), or
+      // still "pending" (an over-limit claim whose approval step itself was
+      // routed to the admin) — accrue it first in the latter case so a
+      // single admin tap both approves and pays.
+      if (claim.status === "pending") {
+        await accrueClaim(claim, row.requestedByName || "Admin");
+      } else if (claim.status !== "approved") {
+        throw new Error(`This claim is no longer payable (status: ${claim.status})`);
+      }
       const [gwConfig] = await db.select().from(paymentGateways).where(and(
         eq(paymentGateways.orgId, row.orgId),
         eq(paymentGateways.enabled, true),

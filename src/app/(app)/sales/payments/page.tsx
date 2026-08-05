@@ -8,18 +8,25 @@ import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
-export default async function PaymentsPage() {
+export default async function PaymentsPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
   await requirePerm("invoices"); // Assuming if they can view invoices, they can view payments
   const o = await getOrg();
+  const { tab } = await searchParams;
+  // Previously this page joined `payments` -> `documents` with no direction
+  // filter, so vendor bill payments (direction "out") showed up mixed into
+  // "Payments Received" — mislabeled and colored green like money in. Split
+  // into two explicit tabs, each filtered by payments.direction.
+  const direction: "in" | "out" = tab === "made" ? "out" : "in";
 
-  const allPayments = await db
+  const rows = await db
     .select({
       payment: payments,
       docNumber: documents.number,
+      docType: documents.type,
       contactName: contacts.displayName,
     })
     .from(payments)
-    .where(eq(payments.orgId, o.id))
+    .where(and(eq(payments.orgId, o.id), eq(payments.direction, direction)))
     .innerJoin(documents, eq(documents.id, payments.documentId))
     .innerJoin(contacts, eq(contacts.id, documents.contactId))
     .orderBy(desc(payments.date), desc(payments.id));
@@ -34,8 +41,8 @@ export default async function PaymentsPage() {
   return (
     <>
       <PageHeader
-        title="Payments Received"
-        subtitle="All payments applied to invoices"
+        title={direction === "in" ? "Payments Received" : "Payments Made"}
+        subtitle={direction === "in" ? "Money in — payments applied to invoices" : "Money out — payments applied to bills and expense claims"}
         action={
           <Link
             href="/sales/payments/events"
@@ -47,9 +54,25 @@ export default async function PaymentsPage() {
           </Link>
         }
       />
-      {allPayments.length === 0 ? (
+
+      <div className="flex gap-4 border-b border-[var(--color-ink-200)] mb-5">
+        <Link
+          href="/sales/payments?tab=received"
+          className={`pb-3 text-[13.5px] font-medium transition-colors ${direction === "in" ? "text-[var(--color-brand)] border-b-2 border-[var(--color-brand)]" : "text-[var(--color-ink-500)] hover:text-[var(--color-ink-900)]"}`}
+        >
+          Received
+        </Link>
+        <Link
+          href="/sales/payments?tab=made"
+          className={`pb-3 text-[13.5px] font-medium transition-colors ${direction === "out" ? "text-[var(--color-brand)] border-b-2 border-[var(--color-brand)]" : "text-[var(--color-ink-500)] hover:text-[var(--color-ink-900)]"}`}
+        >
+          Made
+        </Link>
+      </div>
+
+      {rows.length === 0 ? (
         <div className="card px-6 py-10 text-center text-[13px] text-[var(--color-ink-400)]">
-          No payments recorded yet. Record a payment on an open invoice to see it here.
+          {direction === "in" ? "No payments recorded yet. Record a payment on an open invoice to see it here." : "No payments made yet."}
         </div>
       ) : (
         <TableCard>
@@ -57,15 +80,15 @@ export default async function PaymentsPage() {
             <tr>
               <Th>Date</Th>
               <Th>Payment #</Th>
-              <Th>Customer</Th>
-              <Th>Invoice</Th>
+              <Th>{direction === "in" ? "Customer" : "Vendor / Payee"}</Th>
+              <Th>{direction === "in" ? "Invoice" : "Bill"}</Th>
               <Th>Method</Th>
               <Th right>Amount</Th>
               <Th></Th>
             </tr>
           </thead>
           <tbody>
-            {allPayments.map((row) => (
+            {rows.map((row) => (
               <tr key={row.payment.id} className="hairline-t">
                 <Td className="text-[var(--color-ink-400)]">{row.payment.date}</Td>
                 <Td className="font-medium">
@@ -75,13 +98,13 @@ export default async function PaymentsPage() {
                 </Td>
                 <Td>{row.contactName}</Td>
                 <Td>
-                  <Link href={`/sales/invoices/${row.payment.documentId}`} className="text-[var(--color-accent-600)] hover:underline">
+                  <Link href={`/${row.docType === "bill" ? "purchases/bills" : "sales/invoices"}/${row.payment.documentId}`} className="text-[var(--color-accent-600)] hover:underline">
                     {row.docNumber}
                   </Link>
                 </Td>
                 <Td className="capitalize">{row.payment.method || "—"}</Td>
-                <Td right className="tnum font-medium text-[var(--color-good)]">
-                  {fmtKES(row.payment.amountCents)}
+                <Td right className={`tnum font-medium ${direction === "in" ? "text-[var(--color-good)]" : "text-[var(--color-bad)]"}`}>
+                  {direction === "in" ? "+" : "-"}{fmtKES(row.payment.amountCents)}
                 </Td>
                 <Td right>
                   <Link
