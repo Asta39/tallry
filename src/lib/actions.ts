@@ -73,8 +73,8 @@ const DOC_MODULE: Record<string, "quotes" | "invoices" | "credit_notes" | "bills
   expense: "expenses",
 };
 
-type NumberKind = "invoice" | "quote" | "credit_note" | "purchase_order" | "payment";
-async function nextNumber(kind: NumberKind): Promise<string> {
+export type NumberKind = "invoice" | "quote" | "credit_note" | "purchase_order" | "payment";
+export async function nextNumber(kind: NumberKind): Promise<string> {
   const o = await getOrg();
   const prefixes: Record<NumberKind, string> = {
     invoice: o.invoicePrefix,

@@ -1,7 +1,8 @@
 "use server";
 
 import crypto from "crypto";
-import { db, expenseClaims, accounts, bankAccounts, org, paymentGateways, paymentEvents, expenseClaimPayoutApprovals } from "@/db";
+import { db, expenseClaims, accounts, bankAccounts, org, paymentGateways, paymentEvents, expenseClaimPayoutApprovals, payments } from "@/db";
+import { nextNumber } from "@/lib/actions";
 import { eq, and, desc, or, isNull } from "drizzle-orm";
 import { withOrg, currentOrgId, getOrg, orgContext } from "@/lib/org";
 import { requirePerm } from "@/lib/guard";
@@ -342,6 +343,23 @@ export async function payExpenseClaimAction(id: number, bankAccountId: number) {
         externalRef: `expclaim:${claim.id}`,
       });
 
+      // Expense claims aren't `documents`, so this row carries no
+      // documentId/contactId — the Payments Made screen left-joins those and
+      // falls back to the reference text, same as it already does for the
+      // payment detail page.
+      await db.insert(payments).values({
+        orgId,
+        number: await nextNumber("payment"),
+        direction: "out",
+        date,
+        amountCents: claim.amountCents,
+        method: bank.kind === "mpesa" ? "mpesa" : "bank",
+        bankAccountId: bank.id,
+        reference: `Expense claim reimbursement · ${claim.submittedByName} · ${claim.description}`,
+        journalEntryId: entryId,
+        createdAt: nowISO(),
+      });
+
       await db.update(expenseClaims).set({
         status: "paid",
         paidJournalEntryId: entryId,
@@ -652,6 +670,19 @@ export async function applyExpenseClaimGatewayPayout(claimId: number, amountCent
       paidJournalEntryId: entryId,
       paidAt: nowISO(),
     }).where(eq(expenseClaims.id, claimId));
+
+    await db.insert(payments).values({
+      orgId,
+      number: await nextNumber("payment"),
+      direction: "out",
+      date,
+      amountCents,
+      method: "mpesa",
+      bankAccountId: mpesaBank?.id,
+      reference: `Expense claim reimbursement via ${gatewayId} · ${claim.submittedByName} · ${claim.description}`,
+      journalEntryId: entryId,
+      createdAt: nowISO(),
+    });
 
     if (mpesaBank) {
       await mirrorBankTxn({

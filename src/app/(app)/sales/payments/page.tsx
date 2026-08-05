@@ -27,8 +27,11 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
     })
     .from(payments)
     .where(and(eq(payments.orgId, o.id), eq(payments.direction, direction)))
-    .innerJoin(documents, eq(documents.id, payments.documentId))
-    .innerJoin(contacts, eq(contacts.id, documents.contactId))
+    // Left join: expense-claim reimbursements aren't linked to a `documents`
+    // row at all (they settle a liability account, not an invoice/bill), so
+    // an inner join here silently dropped every one of them from this list.
+    .leftJoin(documents, eq(documents.id, payments.documentId))
+    .leftJoin(contacts, eq(contacts.id, documents.contactId))
     .orderBy(desc(payments.date), desc(payments.id));
 
   const [{ pending }] = await db.select({ pending: count() }).from(paymentEvents)
@@ -96,24 +99,39 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
                     PAY-{row.payment.id.toString().padStart(4, "0")}
                   </Link>
                 </Td>
-                <Td>{row.contactName}</Td>
+                <Td>{row.contactName || (row.payment.reference?.startsWith("Expense claim") ? "Expense claim" : "—")}</Td>
                 <Td>
-                  <Link href={`/${row.docType === "bill" ? "purchases/bills" : "sales/invoices"}/${row.payment.documentId}`} className="text-[var(--color-accent-600)] hover:underline">
-                    {row.docNumber}
-                  </Link>
+                  {row.docNumber ? (
+                    <Link href={`/${row.docType === "bill" ? "purchases/bills" : "sales/invoices"}/${row.payment.documentId}`} className="text-[var(--color-accent-600)] hover:underline">
+                      {row.docNumber}
+                    </Link>
+                  ) : (
+                    <span className="text-[var(--color-ink-400)]" title={row.payment.reference || undefined}>
+                      {row.payment.reference || "—"}
+                    </span>
+                  )}
                 </Td>
                 <Td className="capitalize">{row.payment.method || "—"}</Td>
                 <Td right className={`tnum font-medium ${direction === "in" ? "text-[var(--color-good)]" : "text-[var(--color-bad)]"}`}>
                   {direction === "in" ? "+" : "-"}{fmtKES(row.payment.amountCents)}
                 </Td>
                 <Td right>
-                  <Link
-                    href={`/sales/payments/${row.payment.id}/print`}
-                    target="_blank"
-                    className="text-[12.5px] text-[var(--color-ink-400)] hover:text-[var(--color-ink-900)]"
-                  >
-                    PDF Receipt
-                  </Link>
+                  {row.docNumber ? (
+                    <Link
+                      href={`/sales/payments/${row.payment.id}/print`}
+                      target="_blank"
+                      className="text-[12.5px] text-[var(--color-ink-400)] hover:text-[var(--color-ink-900)]"
+                    >
+                      PDF Receipt
+                    </Link>
+                  ) : (
+                    <Link
+                      href={`/sales/payments/${row.payment.id}`}
+                      className="text-[12.5px] text-[var(--color-ink-400)] hover:text-[var(--color-ink-900)]"
+                    >
+                      Details
+                    </Link>
+                  )}
                 </Td>
               </tr>
             ))}

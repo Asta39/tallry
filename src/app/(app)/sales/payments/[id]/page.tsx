@@ -41,21 +41,23 @@ export default async function PaymentDetailPage(props: { params: Promise<{ id: s
         title={payment.number}
         subtitle={isIn ? "Payment received" : "Payment sent"}
         action={
-          <div className="flex gap-2">
-            <a
-              href={`/api/payment-receipt/pdf/${payment.id}`}
-              target="_blank"
-              className="px-3 py-2 rounded-lg border border-[var(--color-ink-200)] text-[12.5px] font-medium hover:bg-[var(--color-ink-50)]"
-            >
-              View PDF
-            </a>
-            <a
-              href={`/api/payment-receipt/pdf/${payment.id}?download=1`}
-              className="px-3 py-2 rounded-lg bg-[var(--color-accent-600)] hover:bg-[var(--color-accent-700)] text-white text-[12.5px] font-medium"
-            >
-              Download PDF
-            </a>
-          </div>
+          doc && contact ? (
+            <div className="flex gap-2">
+              <a
+                href={`/api/payment-receipt/pdf/${payment.id}`}
+                target="_blank"
+                className="px-3 py-2 rounded-lg border border-[var(--color-ink-200)] text-[12.5px] font-medium hover:bg-[var(--color-ink-50)]"
+              >
+                View PDF
+              </a>
+              <a
+                href={`/api/payment-receipt/pdf/${payment.id}?download=1`}
+                className="px-3 py-2 rounded-lg bg-[var(--color-accent-600)] hover:bg-[var(--color-accent-700)] text-white text-[12.5px] font-medium"
+              >
+                Download PDF
+              </a>
+            </div>
+          ) : undefined
         }
       />
 
@@ -88,11 +90,13 @@ export default async function PaymentDetailPage(props: { params: Promise<{ id: s
           <Item label="Method"><span className="capitalize">{payment.method || "—"}</span></Item>
           <Item label="Reference">{payment.reference || "—"}</Item>
           {payment.whtCents > 0 && <Item label="Withholding tax">{fmtKES(payment.whtCents)}</Item>}
-          <Item label="Print view">
-            <Link href={`/sales/payments/${payment.id}/print`} className="text-[var(--color-accent-600)] hover:underline">
-              Open printable receipt
-            </Link>
-          </Item>
+          {doc && contact && (
+            <Item label="Print view">
+              <Link href={`/sales/payments/${payment.id}/print`} className="text-[var(--color-accent-600)] hover:underline">
+                Open printable receipt
+              </Link>
+            </Item>
+          )}
         </dl>
       </div>
 
