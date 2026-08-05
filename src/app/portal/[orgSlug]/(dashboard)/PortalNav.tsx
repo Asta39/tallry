@@ -10,11 +10,31 @@ const ITEMS = [
   { href: "knowledge", label: "Help & Articles" },
 ];
 
+const CRUMB: Record<string, string> = {
+  dashboard: "Dashboard",
+  documents: "Invoices & Quotes",
+  deals: "Projects",
+  knowledge: "Help & Articles",
+};
+
+export function PortalBreadcrumb({ orgSlug }: { orgSlug: string }) {
+  const pathname = usePathname();
+  const seg = pathname.split("/").filter(Boolean)[2] ?? "dashboard";
+  const label = CRUMB[seg] ?? "Dashboard";
+  return (
+    <div className="flex items-center gap-1.5 text-[13px] text-[var(--color-ink-400)]">
+      <Link href={`/portal/${orgSlug}/dashboard`} className="hover:text-[var(--color-ink-600)]">Home</Link>
+      <span>/</span>
+      <span className="text-[var(--color-ink-600)] font-medium">{label}</span>
+    </div>
+  );
+}
+
 export function PortalNav({ orgSlug }: { orgSlug: string }) {
   const pathname = usePathname();
 
   return (
-    <nav className="flex items-center gap-0.5 overflow-x-auto min-w-0">
+    <nav className="flex items-center gap-0.5 overflow-x-auto min-w-0 bg-[var(--color-ink-50)] rounded-full p-1">
       {ITEMS.map((item) => {
         const href = `/portal/${orgSlug}/${item.href}`;
         const active = pathname === href || pathname.startsWith(`${href}/`);
@@ -24,8 +44,8 @@ export function PortalNav({ orgSlug }: { orgSlug: string }) {
             href={href}
             className={`shrink-0 px-3.5 py-1.5 rounded-full text-[13.5px] font-medium whitespace-nowrap transition-colors ${
               active
-                ? "bg-[var(--color-accent-500)] text-white shadow-sm"
-                : "text-[var(--color-ink-600)] hover:text-[var(--color-ink-900)] hover:bg-[var(--color-ink-100)]"
+                ? "bg-white text-[var(--color-ink-900)] shadow-sm"
+                : "text-[var(--color-ink-600)] hover:text-[var(--color-ink-900)]"
             }`}
           >
             {item.label}
