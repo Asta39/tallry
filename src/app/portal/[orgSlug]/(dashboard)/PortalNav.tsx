@@ -8,6 +8,7 @@ const ITEMS = [
   { href: "documents", label: "Invoices & Quotes" },
   { href: "deals", label: "Projects" },
   { href: "knowledge", label: "Help & Articles" },
+  { href: "profile", label: "Profile" },
 ];
 
 const CRUMB: Record<string, string> = {
@@ -15,6 +16,7 @@ const CRUMB: Record<string, string> = {
   documents: "Invoices & Quotes",
   deals: "Projects",
   knowledge: "Help & Articles",
+  profile: "Profile",
 };
 
 export function PortalBreadcrumb({ orgSlug }: { orgSlug: string }) {
