@@ -118,7 +118,7 @@ function SubmitForm({ categoryAccounts }: { categoryAccounts: { id: number; code
           <input type="date" name="date" defaultValue={todayISO()} className={inputCls + " mt-1"} required />
         </label>
         <label className="block">
-          <span className="text-[12px] font-medium text-[var(--color-ink-600)]">Category</span>
+          <span className="text-[12px] font-medium text-[var(--color-ink-600)]">Category <span className="text-[var(--color-bad)]">*</span></span>
           <select name="categoryAccountId" className={inputCls + " mt-1"} required defaultValue="">
             <option value="" disabled>Select an expense category…</option>
             {categoryAccounts.map((a) => (
@@ -137,7 +137,7 @@ function SubmitForm({ categoryAccounts }: { categoryAccounts: { id: number; code
           <input type="number" name="amount" step="0.01" min="0.01" placeholder="0.00" className={inputCls + " mt-1"} required />
         </label>
         <label className="block">
-          <span className="text-[12px] font-medium text-[var(--color-ink-600)]">M-Pesa number to reimburse to</span>
+          <span className="text-[12px] font-medium text-[var(--color-ink-600)]">M-Pesa number to reimburse to <span className="text-[var(--color-bad)]">*</span></span>
           <input type="tel" name="payoutPhone" placeholder="2547…" className={inputCls + " mt-1"} required />
         </label>
       </div>
@@ -351,9 +351,11 @@ function PayButton({
   );
 }
 
-function ReviewSection({ pending, banks }: { pending: Claim[]; banks: { id: number; name: string }[] }) {
+function ReviewSection({ pending, banks, isOwnerOrAdmin, awaitingIds }: { pending: Claim[]; banks: { id: number; name: string }[]; isOwnerOrAdmin: boolean; awaitingIds: number[] }) {
   const [, startTransition] = useTransition();
   const [approvingId, setApprovingId] = useState<number | null>(null);
+  const [approveError, setApproveError] = useState<string | null>(null);
+  const awaitingSet = new Set(awaitingIds);
 
   return (
     <div className="card overflow-hidden">
@@ -372,19 +374,34 @@ function ReviewSection({ pending, banks }: { pending: Claim[]; banks: { id: numb
               </td>
               <td className="px-3 py-2.5 text-right font-medium tnum">{fmtKES(c.amountCents)}</td>
               <td className="px-5 py-2.5 text-right">
-                <div className="flex items-center justify-end gap-3">
-                  <button
-                    disabled={approvingId === c.id}
-                    onClick={() => {
-                      setApprovingId(c.id);
-                      startTransition(async () => { await approveExpenseClaimAction(c.id); window.location.reload(); });
-                    }}
-                    className="text-[12px] font-medium text-[var(--color-good)] hover:underline disabled:opacity-50"
-                  >
-                    {approvingId === c.id ? "Approving…" : "Approve"}
-                  </button>
-                  <RejectButton id={c.id} />
-                </div>
+                {awaitingSet.has(c.id) && !isOwnerOrAdmin ? (
+                  <span className="inline-flex px-2.5 py-1 rounded-full text-[11.5px] font-medium bg-amber-50 text-amber-700 border border-amber-200">
+                    Waiting for admin approval
+                  </span>
+                ) : (
+                  <div className="flex items-center justify-end gap-3">
+                    <button
+                      disabled={approvingId === c.id}
+                      onClick={() => {
+                        setApprovingId(c.id);
+                        setApproveError(null);
+                        startTransition(async () => {
+                          try {
+                            await approveExpenseClaimAction(c.id);
+                            window.location.reload();
+                          } catch (e: any) {
+                            setApproveError(e?.message || "Could not approve claim");
+                            setApprovingId(null);
+                          }
+                        });
+                      }}
+                      className="text-[12px] font-medium text-[var(--color-good)] hover:underline disabled:opacity-50"
+                    >
+                      {approvingId === c.id ? "Approving…" : "Approve"}
+                    </button>
+                    <RejectButton id={c.id} />
+                  </div>
+                )}
               </td>
             </tr>
           ))}
@@ -393,6 +410,7 @@ function ReviewSection({ pending, banks }: { pending: Claim[]; banks: { id: numb
           )}
         </tbody>
       </table>
+      {approveError && <div className="px-5 py-3 text-[12.5px] text-[var(--color-bad)] hairline-t">{approveError}</div>}
     </div>
   );
 }
@@ -436,6 +454,8 @@ export function ExpenseClaimsClient({
   mine: initialMine,
   categoryAccounts,
   canReview,
+  isOwnerOrAdmin,
+  awaitingIds,
   pending: initialPending,
   reviewed: initialReviewed,
   banks,
@@ -446,6 +466,8 @@ export function ExpenseClaimsClient({
   mine: Claim[];
   categoryAccounts: { id: number; code: string; name: string }[];
   canReview: boolean;
+  isOwnerOrAdmin: boolean;
+  awaitingIds: number[];
   pending: Claim[];
   reviewed: Claim[];
   banks: { id: number; name: string; kind?: string }[];
@@ -492,7 +514,7 @@ export function ExpenseClaimsClient({
   return (
     <div className="space-y-6">
       <SubmitForm categoryAccounts={categoryAccounts} />
-      {canReview && <ReviewSection pending={pending} banks={banks} />}
+      {canReview && <ReviewSection pending={pending} banks={banks} isOwnerOrAdmin={isOwnerOrAdmin} awaitingIds={awaitingIds} />}
       {canReview && <HistorySection reviewed={reviewed} banks={banks} gateways={gateways} />}
       <MyClaimsTable claims={mine} />
     </div>

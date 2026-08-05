@@ -1,6 +1,6 @@
 import { requirePerm } from "@/lib/guard";
 import { getAccess } from "@/lib/access";
-import { myExpenseClaims, pendingExpenseClaims, reviewedExpenseClaims, listExpenseAccounts } from "@/lib/expense-claims";
+import { myExpenseClaims, pendingExpenseClaims, reviewedExpenseClaims, listExpenseAccounts, activeAdminApprovalClaimIds } from "@/lib/expense-claims";
 import { db, bankAccounts, paymentGateways } from "@/db";
 import { eq, and } from "drizzle-orm";
 import { getOrg } from "@/lib/org";
@@ -14,9 +14,10 @@ export default async function ExpenseClaimsPage() {
   const access = await getAccess();
   const canReview = !!access?.perms.has("accountant");
   const canPayout = !!access?.perms.has("can_payout");
+  const isOwnerOrAdmin = !!access && (access.isOwner || access.role === "admin");
   const o = await getOrg();
 
-  const [mine, categoryAccounts, pending, reviewed, banks, gateways] = await Promise.all([
+  const [mine, categoryAccounts, pending, reviewed, banks, gateways, awaitingIds] = await Promise.all([
     myExpenseClaims(),
     listExpenseAccounts(),
     canReview ? pendingExpenseClaims() : Promise.resolve([]),
@@ -25,6 +26,7 @@ export default async function ExpenseClaimsPage() {
     canReview && canPayout
       ? db.select().from(paymentGateways).where(and(eq(paymentGateways.orgId, o.id), eq(paymentGateways.enabled, true)))
       : Promise.resolve([]),
+    canReview ? activeAdminApprovalClaimIds() : Promise.resolve([]),
   ]);
 
   return (
@@ -36,6 +38,8 @@ export default async function ExpenseClaimsPage() {
         mine={mine}
         categoryAccounts={categoryAccounts}
         canReview={canReview}
+        isOwnerOrAdmin={isOwnerOrAdmin}
+        awaitingIds={awaitingIds}
         pending={pending}
         reviewed={reviewed}
         banks={banks.map((b) => ({ id: b.id, name: b.name, kind: b.kind }))}

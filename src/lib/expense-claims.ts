@@ -3,7 +3,7 @@
 import crypto from "crypto";
 import { db, expenseClaims, accounts, bankAccounts, org, paymentGateways, paymentEvents, expenseClaimPayoutApprovals } from "@/db";
 import { eq, and, desc, or, isNull } from "drizzle-orm";
-import { withOrg, currentOrgId, getOrg } from "@/lib/org";
+import { withOrg, currentOrgId, getOrg, orgContext } from "@/lib/org";
 import { requirePerm } from "@/lib/guard";
 import { getAccess } from "@/lib/access";
 import { postEntry, mirrorBankTxn, acct } from "@/lib/posting";
@@ -56,10 +56,70 @@ export async function pendingExpenseClaims() {
   );
 }
 
+/** Claim ids currently sitting on an un-decided admin-approval SMS request —
+ *  the review UI uses this to hide Approve/Reject and show "Waiting for
+ *  admin approval" instead, for anyone but the owner/admin. */
+export async function activeAdminApprovalClaimIds() {
+  return withOrg(async () => {
+    const rows = await db
+      .select({ claimId: expenseClaimPayoutApprovals.claimId })
+      .from(expenseClaimPayoutApprovals)
+      .where(and(
+        eq(expenseClaimPayoutApprovals.orgId, currentOrgId()),
+        eq(expenseClaimPayoutApprovals.revoked, false),
+        isNull(expenseClaimPayoutApprovals.decision),
+      ));
+    return rows.map((r) => r.claimId);
+  });
+}
+
 export async function reviewedExpenseClaims() {
   return withOrg(() =>
     db.select().from(expenseClaims).where(and(eq(expenseClaims.orgId, currentOrgId()), or(eq(expenseClaims.status, "approved"), eq(expenseClaims.status, "paid")))).orderBy(desc(expenseClaims.createdAt)).limit(50)
   );
+}
+
+/** Creates the admin-approval SMS request for an over-limit claim — shared
+ *  by submission time (the normal case) and, defensively, anywhere else that
+ *  needs to route a claim to the admin. The claim itself stays "pending";
+ *  only the owner/admin approving (dashboard or this link) accrues it. */
+async function requestAdminApprovalForClaim(
+  orgId: number,
+  claim: { id: number; amountCents: number; description: string; submittedByName: string; payoutPhone: string | null },
+  requestedByName: string,
+  limit: number
+) {
+  const orgRow = await getOrg();
+  const recipient = approvalRequestRecipient(orgRow.approvalRequestPhone || orgRow.phone);
+  if (!recipient) throw new Error(`This claim exceeds the ${fmtKES(limit)} approval limit, but no approval phone is set — ask your admin to add one in Settings first.`);
+  const cfg = await getOrgSmsConfig(orgId);
+  if (!cfg) throw new Error(`This claim exceeds the ${fmtKES(limit)} approval limit, but SMS isn't configured for this org — ask your admin to set it up first.`);
+
+  const [gwConfig] = await db.select().from(paymentGateways).where(and(eq(paymentGateways.orgId, orgId), eq(paymentGateways.enabled, true))).limit(1);
+
+  const token = generatePayoutToken();
+  await db.insert(expenseClaimPayoutApprovals).values({
+    orgId,
+    claimId: claim.id,
+    token,
+    requestedByName,
+    destination: claim.payoutPhone || "",
+    destinationType: "phone",
+    accountNumber: null,
+    amountCents: claim.amountCents,
+    gatewayId: gwConfig?.gatewayId || "",
+    recipient,
+    createdAt: nowISO(),
+  });
+
+  const url = `${await appOrigin()}/approve/expense-payout/${token}`;
+  await sendSms(
+    cfg,
+    recipient,
+    `${orgRow.name || "Zeno"}: ${requestedByName} submitted an expense claim (${fmtKES(claim.amountCents)}, ${claim.description}) — over the ${fmtKES(limit)} limit. Approve: ${url}`
+  );
+
+  await logAudit({ action: "request_claim_approval", module: "expense_claims", recordId: claim.id, recordLabel: claim.submittedByName, detail: `${fmtKES(claim.amountCents)} pending admin approval` });
 }
 
 export async function submitExpenseClaimAction(data: {
@@ -79,9 +139,10 @@ export async function submitExpenseClaimAction(data: {
     if (!data.categoryAccountId) throw new Error("Select an expense category");
     if (!data.payoutPhone?.trim()) throw new Error("Enter the M-Pesa number to reimburse");
 
+    const orgId = currentOrgId();
     const submittedByName = access?.memberName || "Owner";
-    await db.insert(expenseClaims).values({
-      orgId: currentOrgId(),
+    const [claim] = await db.insert(expenseClaims).values({
+      orgId,
       memberId: access?.memberId ?? null,
       submittedByName,
       date: data.date || todayISO(),
@@ -92,9 +153,19 @@ export async function submitExpenseClaimAction(data: {
       payoutPhone: data.payoutPhone.trim(),
       status: "pending",
       createdAt: nowISO(),
-    });
+    }).returning();
 
-    await notifyOrg(currentOrgId(), ["admin", "accountant"], "New expense claim", `${submittedByName} submitted a claim for ${data.description.trim()}`, "/expense-claims");
+    // Over-limit claims from anyone but the owner/admin need the admin's
+    // sign-off before an accountant can even approve them — routed by SMS
+    // right away, at submission, rather than waiting for an accountant to
+    // click "Approve" and discover it's blocked.
+    const isOwnerOrAdmin = !!access && (access.isOwner || access.role === "admin");
+    const limit = (await getOrg()).expenseClaimPayoutLimitCents;
+    if (!isOwnerOrAdmin && !!limit && limit > 0 && claim.amountCents > limit) {
+      await requestAdminApprovalForClaim(orgId, claim, submittedByName, limit);
+    }
+
+    await notifyOrg(orgId, ["admin", "accountant"], "New expense claim", `${submittedByName} submitted a claim for ${data.description.trim()}`, "/expense-claims");
     revalidatePath("/expense-claims");
     return { success: true };
   });
@@ -123,6 +194,15 @@ async function accrueClaim(claim: typeof expenseClaims.$inferSelect, reviewerNam
     journalEntryId: entryId,
     reviewedAt: nowISO(),
   }).where(eq(expenseClaims.id, claim.id));
+
+  // The claim may have an outstanding admin-approval SMS request (created at
+  // submission for an over-limit claim). If it got approved some other way
+  // — the admin using the normal dashboard button instead of the SMS link —
+  // that request must be revoked, or re-opening the link later shows a
+  // broken "approve" screen instead of "already handled".
+  await db.update(expenseClaimPayoutApprovals)
+    .set({ revoked: true })
+    .where(and(eq(expenseClaimPayoutApprovals.claimId, claim.id), eq(expenseClaimPayoutApprovals.revoked, false), isNull(expenseClaimPayoutApprovals.decision)));
 
   return entryId;
 }
@@ -165,49 +245,16 @@ export async function approveExpenseClaimAction(id: number) {
     try {
       const orgRow = await getOrg();
       // Accountants (not owner/admin) cannot approve a claim above the org's
-      // set limit themselves — this used to be checked only at gateway-payout
-      // time, which let an accountant approve (accrue) a claim of any size;
-      // the limit now gates the approval step itself.
+      // limit — the SMS approval request was already sent to the admin at
+      // submission time (see requestAdminApprovalForClaim); this is just the
+      // server-side backstop in case the UI's hidden-button state is bypassed.
       const isAccountantNotAdmin = !!access && !access.isOwner && access.role !== "admin";
       const limit = orgRow.expenseClaimPayoutLimitCents;
       const needsApproval = isAccountantNotAdmin && !!limit && limit > 0 && claim.amountCents > limit;
 
       if (needsApproval) {
-        // Revert to pending — this accountant cannot approve it themselves.
         await db.update(expenseClaims).set({ status: "pending" }).where(eq(expenseClaims.id, id));
-
-        const recipient = approvalRequestRecipient(orgRow.approvalRequestPhone || orgRow.phone);
-        if (!recipient) throw new Error(`This claim needs admin approval (over the ${fmtKES(limit)} limit), but no approval phone is set — add one in Settings first.`);
-        const cfg = await getOrgSmsConfig(orgId);
-        if (!cfg) throw new Error(`This claim needs admin approval (over the ${fmtKES(limit)} limit), but SMS isn't configured for this org.`);
-
-        const [gwConfig] = await db.select().from(paymentGateways).where(and(eq(paymentGateways.orgId, orgId), eq(paymentGateways.enabled, true))).limit(1);
-
-        const token = generatePayoutToken();
-        await db.insert(expenseClaimPayoutApprovals).values({
-          orgId,
-          claimId: claim.id,
-          token,
-          requestedByName: access!.memberName || "An accountant",
-          destination: claim.payoutPhone || "",
-          destinationType: "phone",
-          accountNumber: null,
-          amountCents: claim.amountCents,
-          gatewayId: gwConfig?.gatewayId || "",
-          recipient,
-          createdAt: nowISO(),
-        });
-
-        const url = `${await appOrigin()}/approve/expense-payout/${token}`;
-        await sendSms(
-          cfg,
-          recipient,
-          `${orgRow.name || "Zeno"}: ${access!.memberName || "An accountant"} wants to approve & pay ${claim.submittedByName}'s expense claim (${fmtKES(claim.amountCents)}, ${claim.description}) — over the ${fmtKES(limit)} limit. Approve: ${url}`
-        );
-
-        await logAudit({ action: "request_claim_approval", module: "expense_claims", recordId: claim.id, recordLabel: claim.submittedByName, detail: `${fmtKES(claim.amountCents)} pending admin approval` });
-        revalidatePath("/expense-claims");
-        return { requiresApproval: true };
+        throw new Error(`This claim is over the ${fmtKES(limit)} limit and needs admin approval — it was already sent for approval when submitted.`);
       }
 
       await accrueClaim(claim, access?.memberName || "Owner");
@@ -244,6 +291,10 @@ export async function rejectExpenseClaimAction(id: number, note: string) {
       .where(and(eq(expenseClaims.id, id), eq(expenseClaims.orgId, orgId), eq(expenseClaims.status, "pending")))
       .returning();
     if (!claim) throw new Error("Claim already reviewed");
+
+    await db.update(expenseClaimPayoutApprovals)
+      .set({ revoked: true })
+      .where(and(eq(expenseClaimPayoutApprovals.claimId, id), eq(expenseClaimPayoutApprovals.revoked, false), isNull(expenseClaimPayoutApprovals.decision)));
 
     revalidatePath("/expense-claims");
     return { success: true };
@@ -469,6 +520,23 @@ export async function respondToExpenseClaimPayoutApprovalAction(
     const [row] = await db.select().from(expenseClaimPayoutApprovals).where(and(eq(expenseClaimPayoutApprovals.token, token), eq(expenseClaimPayoutApprovals.revoked, false))).limit(1);
     if (!row || row.decision) throw new Error("This request has already been handled or is no longer available");
 
+    // No-login token flow: there is no session to resolve the org from, so
+    // accrueClaim/postEntry/applyExpenseClaimGatewayPayout (all of which
+    // call currentOrgId() internally) would otherwise throw "No organization
+    // in context" — explicitly enter the requesting org's context here,
+    // same pattern the payment webhook uses for its own no-session calls.
+    return await orgContext.run(row.orgId, () => respondInOrgContext(row, decision, note));
+  } catch (err: any) {
+    return { error: err?.message || "Failed to respond to request" };
+  }
+}
+
+async function respondInOrgContext(
+  row: typeof expenseClaimPayoutApprovals.$inferSelect,
+  decision: "approved" | "rejected",
+  note?: string
+): Promise<{ success?: true; error?: string }> {
+  try {
     const [claim] = await db.select().from(expenseClaims).where(eq(expenseClaims.id, row.claimId)).limit(1);
     if (!claim) throw new Error("Claim not found");
 
