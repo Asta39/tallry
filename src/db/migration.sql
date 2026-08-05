@@ -828,3 +828,5 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_expclaim_payout_approvals_token ON expense
 CREATE INDEX IF NOT EXISTS idx_expclaim_payout_approvals_claim ON expense_claim_payout_approvals(org_id, claim_id);
 
 ALTER TABLE expense_claims ADD COLUMN IF NOT EXISTS payout_phone TEXT;
+
+ALTER TABLE org ADD COLUMN IF NOT EXISTS expense_claim_payout_gateway_id TEXT;

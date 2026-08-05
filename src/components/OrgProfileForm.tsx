@@ -27,6 +27,7 @@ interface OrgData {
   accountantApprovalLimitCents?: number | null;
   approvalRequestPhone?: string | null;
   expenseClaimPayoutLimitCents?: number | null;
+  expenseClaimPayoutGatewayId?: string | null;
   timeTrackingEnabled: boolean;
   itemGroupsEnabled: boolean;
   customerGroupsEnabled: boolean;
@@ -35,7 +36,7 @@ interface OrgData {
   userId?: string | null;
 }
 
-export function OrgProfileForm({ initial }: { initial: OrgData }) {
+export function OrgProfileForm({ initial, gatewayOptions = [] }: { initial: OrgData; gatewayOptions?: { id: string; name: string }[] }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -66,6 +67,7 @@ export function OrgProfileForm({ initial }: { initial: OrgData }) {
   const [expenseClaimPayoutLimit, setExpenseClaimPayoutLimit] = useState(
     initial.expenseClaimPayoutLimitCents ? (initial.expenseClaimPayoutLimitCents / 100).toFixed(2) : "0"
   );
+  const [expenseClaimPayoutGatewayId, setExpenseClaimPayoutGatewayId] = useState(initial.expenseClaimPayoutGatewayId || "");
   const [timeTrackingEnabled, setTimeTrackingEnabled] = useState(initial.timeTrackingEnabled);
   const [itemGroupsEnabled, setItemGroupsEnabled] = useState(initial.itemGroupsEnabled);
   const [customerGroupsEnabled, setCustomerGroupsEnabled] = useState(initial.customerGroupsEnabled);
@@ -142,6 +144,7 @@ export function OrgProfileForm({ initial }: { initial: OrgData }) {
           accountantApprovalLimitCents: accountantApprovalLimit.trim() ? Math.round((Number(accountantApprovalLimit) || 0) * 100) : null,
           approvalRequestPhone: approvalRequestPhone || undefined,
           expenseClaimPayoutLimitCents: Math.round((Number(expenseClaimPayoutLimit) || 0) * 100),
+          expenseClaimPayoutGatewayId: expenseClaimPayoutGatewayId || null,
           timeTrackingEnabled,
           itemGroupsEnabled,
           customerGroupsEnabled,
@@ -367,6 +370,27 @@ export function OrgProfileForm({ initial }: { initial: OrgData }) {
               0 lets an accountant pay out any approved expense claim via gateway. Set a value like 5000 and an accountant-initiated
               payout above that amount is texted to the approval request phone above for the admin to approve (or pay themselves)
               before it goes out — admins/the owner are never limited.
+            </div>
+          </label>
+          <label className="block mt-4">
+            <span className={labelCls}>Gateway to use for automatic expense claim payouts</span>
+            <select
+              value={expenseClaimPayoutGatewayId}
+              onChange={(e) => setExpenseClaimPayoutGatewayId(e.target.value)}
+              className={inputCls}
+              disabled={gatewayOptions.length === 0}
+            >
+              <option value="">
+                {gatewayOptions.length === 0 ? "No gateway connected yet" : "Auto — use whichever is connected"}
+              </option>
+              {gatewayOptions.map((g) => (
+                <option key={g.id} value={g.id}>{g.name}</option>
+              ))}
+            </select>
+            <div className="text-[12px] text-[var(--color-ink-400)] mt-1">
+              {gatewayOptions.length > 1
+                ? "You have more than one gateway connected — pick which one reimbursements should go out through so approving a claim pays it automatically without asking."
+                : "Connect a gateway under Payment Gateways to enable automatic payouts. With more than one connected, pick which one to use here."}
             </div>
           </label>
         </div>

@@ -31,6 +31,24 @@ async function payableAccountId(): Promise<number> {
   return ensureAccount("2100", "Staff Reimbursements Payable", "liability", "current_liability");
 }
 
+/** Picks the gateway to use for an automatic expense-claim payout. Orgs with
+ *  more than one connected gateway can't have this picked implicitly — honor
+ *  org.expenseClaimPayoutGatewayId when it's set and still enabled; only
+ *  fall back to "first enabled" when no preference was configured (or that
+ *  preferred gateway got disconnected since). */
+async function pickExpenseClaimGateway(orgId: number, preferredGatewayId: string | null) {
+  if (preferredGatewayId) {
+    const [preferred] = await db.select().from(paymentGateways).where(and(
+      eq(paymentGateways.orgId, orgId),
+      eq(paymentGateways.enabled, true),
+      eq(paymentGateways.gatewayId, preferredGatewayId)
+    )).limit(1);
+    if (preferred) return preferred;
+  }
+  const [fallback] = await db.select().from(paymentGateways).where(and(eq(paymentGateways.orgId, orgId), eq(paymentGateways.enabled, true))).limit(1);
+  return fallback;
+}
+
 export async function listExpenseAccounts() {
   return withOrg(() =>
     db.select({ id: accounts.id, code: accounts.code, name: accounts.name })
@@ -96,7 +114,7 @@ async function requestAdminApprovalForClaim(
   const cfg = await getOrgSmsConfig(orgId);
   if (!cfg) throw new Error(`This claim exceeds the ${fmtKES(limit)} approval limit, but SMS isn't configured for this org — ask your admin to set it up first.`);
 
-  const [gwConfig] = await db.select().from(paymentGateways).where(and(eq(paymentGateways.orgId, orgId), eq(paymentGateways.enabled, true))).limit(1);
+  const gwConfig = await pickExpenseClaimGateway(orgId, orgRow.expenseClaimPayoutGatewayId);
 
   const token = generatePayoutToken();
   await db.insert(expenseClaimPayoutApprovals).values({
@@ -209,15 +227,17 @@ async function accrueClaim(claim: typeof expenseClaims.$inferSelect, reviewerNam
 }
 
 /** Best-effort auto-pay right after a claim is accrued: sends the reimbursement
- *  to the claimant's submitted M-Pesa number via the first enabled gateway and
- *  posts the cash leg immediately (see executeGatewayPayoutForClaim). Never
- *  throws — a missing gateway or a failed payout just leaves the claim
- *  "approved" so the accountant can still pay it manually. */
+ *  to the claimant's submitted M-Pesa number via the org's configured payout
+ *  gateway (or the only enabled one, if it only has one) and posts the cash
+ *  leg immediately (see executeGatewayPayoutForClaim). Never throws — a
+ *  missing gateway or a failed payout just leaves the claim "approved" so
+ *  the accountant can still pay it manually. */
 async function tryAutoPayApprovedClaim(orgId: number, claimId: number) {
   const [claim] = await db.select().from(expenseClaims).where(and(eq(expenseClaims.id, claimId), eq(expenseClaims.orgId, orgId))).limit(1);
   if (!claim || claim.status !== "approved" || !claim.payoutPhone) return;
 
-  const [gwConfig] = await db.select().from(paymentGateways).where(and(eq(paymentGateways.orgId, orgId), eq(paymentGateways.enabled, true))).limit(1);
+  const orgRow = await getOrg();
+  const gwConfig = await pickExpenseClaimGateway(orgId, orgRow.expenseClaimPayoutGatewayId);
   if (!gwConfig) return;
 
   try {

@@ -2,7 +2,7 @@ import { getOrg } from "@/lib/org";
 import { requirePerm } from "@/lib/guard";
 import { redirect } from "next/navigation";
 import { getUser } from "@/lib/supabase/server";
-import { db, org } from "@/db";
+import { db, org, paymentGateways } from "@/db";
 import { eq, and } from "drizzle-orm";
 import Link from "next/link";
 import { PageHeader } from "@/components/ui";
@@ -18,6 +18,13 @@ export default async function SettingsPage() {
 
 
   if (!o) redirect("/onboarding");
+
+  const connectedGateways = await db
+    .select({ gatewayId: paymentGateways.gatewayId })
+    .from(paymentGateways)
+    .where(and(eq(paymentGateways.orgId, o.id), eq(paymentGateways.enabled, true)));
+  const GATEWAY_NAMES: Record<string, string> = { mpesa_daraja: "M-Pesa Daraja", kopokopo: "Kopo Kopo" };
+  const gatewayOptions = connectedGateways.map((g) => ({ id: g.gatewayId, name: GATEWAY_NAMES[g.gatewayId] || g.gatewayId }));
 
   return (
     <>
@@ -48,6 +55,7 @@ export default async function SettingsPage() {
           accountantApprovalLimitCents: o.accountantApprovalLimitCents,
           approvalRequestPhone: o.approvalRequestPhone,
           expenseClaimPayoutLimitCents: o.expenseClaimPayoutLimitCents,
+          expenseClaimPayoutGatewayId: o.expenseClaimPayoutGatewayId,
           timeTrackingEnabled: o.timeTrackingEnabled,
           itemGroupsEnabled: o.itemGroupsEnabled,
           customerGroupsEnabled: o.customerGroupsEnabled,
@@ -55,6 +63,7 @@ export default async function SettingsPage() {
           nextQuoteNo: o.nextQuoteNo,
           userId: o.userId,
         }}
+        gatewayOptions={gatewayOptions}
       />
 
       <div className="card px-6 py-5 max-w-2xl mt-5 text-[12.5px] text-[var(--color-ink-600)] space-y-1.5">

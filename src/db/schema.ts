@@ -66,6 +66,11 @@ export const org = pgTable("org", {
    *  the bill-approval limit's shape but with 0-means-unlimited semantics,
    *  matching how this specific setting was specced. */
   expenseClaimPayoutLimitCents: money("expense_claim_payout_limit_cents"),
+  /** Which connected gateway (mpesa_daraja | kopokopo) to use for automatic
+   *  expense-claim payouts — orgs with more than one connected gateway can't
+   *  have that picked implicitly ("first enabled"); null falls back to that
+   *  first-enabled behavior for orgs that only have one anyway. */
+  expenseClaimPayoutGatewayId: text("expense_claim_payout_gateway_id"),
 });
 
 export const accounts = pgTable("accounts", {
