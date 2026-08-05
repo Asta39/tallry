@@ -233,6 +233,12 @@ export function DocumentEditor({
               itemGroupId: l.newItemGroupId,
             });
           }
+          if ((type === "bill" || type === "expense" || type === "purchase_order") && !l.accountId) {
+            throw new Error(`Pick a category for "${l.description.trim() || "a line"}"`);
+          }
+          if ((type === "bill" || type === "expense" || type === "purchase_order") && costCenters.length > 0 && !l.costCenterId) {
+            throw new Error(`Pick a cost center for "${l.description.trim() || "a line"}"`);
+          }
           finalLines.push({
             itemId,
             description: l.description || "Item",
@@ -496,7 +502,7 @@ export function DocumentEditor({
                 <th className="text-left px-2 py-2.5 font-semibold">{customDocumentColumnName}</th>
               )}
               <th className="text-left px-2 py-2.5 font-semibold w-[13%]">VAT</th>
-              {(type === "bill" || type === "expense") && (
+              {(type === "bill" || type === "expense" || type === "purchase_order") && (
                 <th className="text-left px-2 py-2.5 font-semibold w-[15%]">Category</th>
               )}
               {costCenters.length > 0 && (
@@ -608,7 +614,7 @@ export function DocumentEditor({
                       ))}
                     </select>
                   </td>
-                  {(type === "bill" || type === "expense") && (
+                  {(type === "bill" || type === "expense" || type === "purchase_order") && (
                     <td className="px-1 py-2">
                       <select
                         className={cellCls}
@@ -617,7 +623,7 @@ export function DocumentEditor({
                           update(i, { accountId: e.target.value ? Number(e.target.value) : null })
                         }
                       >
-                        <option value="">Misc. expense</option>
+                        <option value="">Select category…</option>
                         {expenseAccounts?.map((a) => (
                           <option key={a.id} value={a.id}>
                             {a.label}

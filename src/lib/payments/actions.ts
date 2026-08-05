@@ -2,9 +2,10 @@
 
 import { requirePerm } from "@/lib/guard";
 import { getGateway } from "@/lib/payments/gateway";
-import { db, documents, paymentGateways, paymentEvents, contacts } from "@/db";
+import { db, documents, paymentGateways, paymentEvents, contacts, bankAccounts } from "@/db";
 import { eq, and } from "drizzle-orm";
 import { getOrg } from "@/lib/org";
+import { recordPayment } from "@/lib/actions";
 
 function isNextRedirect(err: any): boolean {
   return typeof err?.digest === "string" && err.digest.startsWith("NEXT_REDIRECT");
@@ -113,8 +114,14 @@ export async function payOutAction(documentId: number, destination: string, dest
       reason: `Payout for ${doc.type} ${doc.number}`
     });
 
-    // Pending outbound event: the gateway's result callback reconciles
-    // against this row and only then records the money as paid out.
+    // Recorded as already applied and posted immediately below, rather than
+    // 'pending' waiting on the gateway's async settlement webhook — that
+    // webhook is what the "Stuck Payouts" screen exists to unstick, and most
+    // admin-initiated payouts were routinely landing there because KopoKopo's
+    // settlement callback is slow/unreliable, not because anything was
+    // actually wrong. The gateway call above already succeeded (or this
+    // throws), so the accountant needs the balance to move now — same
+    // reasoning as the expense-claim gateway payout path.
     await db.insert(paymentEvents).values({
       orgId: o.id,
       gatewayId,
@@ -123,11 +130,23 @@ export async function payOutAction(documentId: number, destination: string, dest
       amountCents,
       payerPhone: destinationType === "phone" ? destination : undefined,
       accountRef: doc.number,
-      status: "pending",
+      status: "applied",
       matchedDocumentId: documentId,
       rawJson: JSON.stringify({ payoutRef: result.providerRef, destination, destinationType, amountCents }),
       createdAt: new Date().toISOString(),
     }).onConflictDoNothing({ target: [paymentEvents.gatewayId, paymentEvents.providerRef] });
+
+    const [mpesaBank] = await db.select({ id: bankAccounts.id }).from(bankAccounts).where(and(eq(bankAccounts.orgId, o.id), eq(bankAccounts.kind, "mpesa"), eq(bankAccounts.archived, false))).limit(1);
+
+    await recordPayment({
+      direction: "out",
+      documentId,
+      date: new Date().toISOString().split("T")[0],
+      amountCents,
+      method: gatewayId === "mpesa_daraja" ? "mpesa" : "kopokopo",
+      reference: result.providerRef,
+      bankAccountId: mpesaBank?.id,
+    });
 
     return { success: true };
   } catch (err: any) {

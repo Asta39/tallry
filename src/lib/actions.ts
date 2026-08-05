@@ -22,6 +22,7 @@ import {
   itemTypes,
   paymentGateways,
   paymentEvents,
+  costCenters,
 } from "@/db";
 import { getGateway } from "@/lib/payments/gateway";
 import { eq, and, ne, desc, isNull, sql, inArray } from "drizzle-orm";
@@ -1388,6 +1389,22 @@ export async function saveDocument(data: Parameters<typeof _saveDocument>[0]) {
     if (!data.payoutDestination?.trim()) throw new Error("Enter the vendor's payout destination");
     if (data.payoutDestinationType === "paybill" && !data.payoutAccountNumber?.trim()) throw new Error("Enter the paybill account number");
   }
+  if (data.type === "bill" || data.type === "expense" || data.type === "purchase_order") {
+    for (const l of data.lines) {
+      if (!l.accountId) throw new Error(`Pick a category for "${l.description || "a line"}"`);
+    }
+    const orgIdForCostCenters = data.id
+      ? (await db.select({ orgId: documents.orgId }).from(documents).where(eq(documents.id, data.id)).limit(1))[0]?.orgId
+      : (await getAccess())?.orgId;
+    if (orgIdForCostCenters) {
+      const [{ count }] = await db.select({ count: sql<number>`count(*)`.mapWith(Number) }).from(costCenters).where(eq(costCenters.orgId, orgIdForCostCenters));
+      if (count > 0) {
+        for (const l of data.lines) {
+          if (!l.costCenterId) throw new Error(`Pick a cost center for "${l.description || "a line"}"`);
+        }
+      }
+    }
+  }
   const access = await getAccess();
   if (access && !access.isOwner && access.role !== "admin" && access.memberId) {
     data.assignedMemberIds = Array.from(new Set([...(data.assignedMemberIds || []), access.memberId]));
@@ -1799,6 +1816,12 @@ async function _convertPoToBill(poId: number, lineQtys?: Record<number, number>)
         discountPct: l.discountPct,
         taxClass: l.taxClass as TaxClass,
         accountId: l.accountId,
+        // Previously dropped on conversion — the bill posted with no cost
+        // center tag on its journal lines and, for stocked items, lost the
+        // warehouse the receipt should have gone into, even when the PO
+        // itself had both set correctly.
+        costCenterId: l.costCenterId,
+        warehouseId: l.warehouseId,
       })),
     });
     await db
