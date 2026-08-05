@@ -2,6 +2,7 @@ import { withOrg } from "@/lib/org";
 import { requirePerm } from "@/lib/guard";
 import { eq, and } from "drizzle-orm";
 import { getOrg } from "@/lib/org";
+import { bankAccountLabel } from "@/lib/bank-label";
 import { redirect } from "next/navigation";
 import { db, bankAccounts, bankTransactions, accounts } from "@/db";
 import { desc, inArray } from "drizzle-orm";
@@ -79,7 +80,7 @@ export default async function BankingPage() {
       <MoneyAccountsClient
         banks={banks.map((b) => ({
           id: b.id,
-          name: b.name,
+          name: bankAccountLabel(b, o.mpesaTillGatewayId),
           kind: b.kind,
           balanceCents: balances.find((x) => x.accountId === b.accountId)?.balanceCents ?? 0,
           openingBalanceCents: b.openingBalanceCents,
@@ -89,21 +90,21 @@ export default async function BankingPage() {
 
       <h2 className="text-[15px] font-semibold mt-8 mb-3">Reconcile</h2>
       <Reconciliation
-        banks={banks.map((b) => ({ id: b.id, label: b.name }))}
+        banks={banks.map((b) => ({ id: b.id, label: bankAccountLabel(b, o.mpesaTillGatewayId) }))}
         openRec={openRec ? { id: openRec.id } : null}
       />
 
       <h2 className="text-[15px] font-semibold mt-8 mb-3">Import M-Pesa statement</h2>
-      <MpesaImport banks={banks.map((b) => ({ id: b.id, label: b.name }))} />
+      <MpesaImport banks={banks.map((b) => ({ id: b.id, label: bankAccountLabel(b, o.mpesaTillGatewayId) }))} />
 
       <h2 className="text-[15px] font-semibold mt-6 mb-3">Import CSV statement</h2>
-      <BankImport banks={banks.map((b) => ({ id: b.id, label: b.name }))} />
+      <BankImport banks={banks.map((b) => ({ id: b.id, label: bankAccountLabel(b, o.mpesaTillGatewayId) }))} />
 
       <h2 className="text-[15px] font-semibold mt-8 mb-3">Add a transaction</h2>
       <form action={addTxn} className="card p-3 flex gap-2 items-center flex-wrap">
         <select name="bankAccountId" className="rounded-md border border-[var(--color-ink-200)] px-2 py-2 text-[13px] bg-white">
           {banks.map((b) => (
-            <option key={b.id} value={b.id}>{b.name}</option>
+            <option key={b.id} value={b.id}>{bankAccountLabel(b, o.mpesaTillGatewayId)}</option>
           ))}
         </select>
         <select name="direction" className="rounded-md border border-[var(--color-ink-200)] px-2 py-2 text-[13px] bg-white">

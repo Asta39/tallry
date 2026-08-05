@@ -4,6 +4,7 @@ import { myExpenseClaims, pendingExpenseClaims, reviewedExpenseClaims, listExpen
 import { db, bankAccounts, paymentGateways } from "@/db";
 import { eq, and } from "drizzle-orm";
 import { getOrg } from "@/lib/org";
+import { bankAccountLabel } from "@/lib/bank-label";
 import { PageHeader } from "@/components/ui";
 import { ExpenseClaimsClient } from "./ExpenseClaimsClient";
 
@@ -42,7 +43,7 @@ export default async function ExpenseClaimsPage() {
         awaitingIds={awaitingIds}
         pending={pending}
         reviewed={reviewed}
-        banks={banks.map((b) => ({ id: b.id, name: b.name, kind: b.kind }))}
+        banks={banks.map((b) => ({ id: b.id, name: bankAccountLabel(b, o.mpesaTillGatewayId), kind: b.kind }))}
         gateways={gateways.map((g) => ({ id: g.gatewayId, name: g.gatewayId === "mpesa_daraja" ? "M-Pesa Daraja" : "Kopo Kopo" }))}
       />
     </>

@@ -1,9 +1,9 @@
 "use server";
 
-import { db, paymentGateways } from "@/db";
+import { db, paymentGateways, org } from "@/db";
 import { eq, and } from "drizzle-orm";
 import { requirePerm } from "@/lib/guard";
-import { getOrg, withOrg } from "@/lib/org";
+import { getOrg, withOrg, currentOrgId } from "@/lib/org";
 import { encryptConfig, decryptConfig } from "@/lib/payments/crypto";
 import { getGateway } from "@/lib/payments/gateway";
 import { randomBytes } from "crypto";
@@ -92,6 +92,20 @@ export async function savePaymentGatewayAction(formData: FormData) {
       });
     }
 
+    revalidatePath("/settings/payments");
+    return { success: true };
+  });
+}
+
+/** Records which connected gateway actually settles this org's M-Pesa till
+ *  (some orgs receive M-Pesa money through Kopo Kopo, not a direct Daraja
+ *  integration) — purely a label for account pickers; routing itself
+ *  already keys off bankAccounts.kind='mpesa' regardless of gateway. */
+export async function saveMpesaTillGatewayAction(gatewayId: string | null) {
+  return withOrg(async () => {
+    await requirePerm("settings");
+    const orgId = currentOrgId();
+    await db.update(org).set({ mpesaTillGatewayId: gatewayId || null }).where(eq(org.id, orgId));
     revalidatePath("/settings/payments");
     return { success: true };
   });

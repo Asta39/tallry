@@ -1658,6 +1658,15 @@ async function _convertPoToBill(poId: number, lineQtys?: Record<number, number>)
     }
     if (toBill.length === 0) throw new Error("Nothing left to bill on this purchase order");
 
+    // _convertPoToBill calls _saveDocument directly rather than the public
+    // saveDocument() wrapper (already inside its own withOrg), so it has to
+    // replicate the wrapper's auto-assign-the-actor and creator-attribution
+    // steps itself — without this, a converted bill was invisible to the
+    // converting accountant under staff data segregation (no assignment row)
+    // and showed no creator on the document.
+    const access = await getAccess();
+    const assignedMemberIds = access && !access.isOwner && access.role !== "admin" && access.memberId ? [access.memberId] : undefined;
+
     const billId = await _saveDocument({
       type: "bill",
       contactId: po.contactId,
@@ -1665,6 +1674,9 @@ async function _convertPoToBill(poId: number, lineQtys?: Record<number, number>)
       taxInclusive: po.taxInclusive,
       billNumber: `BILL-${po.number}`,
       notes: po.notes ?? undefined,
+      assignedMemberIds,
+      createdByName: access?.memberName,
+      createdByRole: access ? (access.isOwner ? "owner" : access.role) : undefined,
       lines: toBill.map(({ line: l, qty }) => ({
         itemId: l.itemId,
         description: l.description,
@@ -1679,6 +1691,13 @@ async function _convertPoToBill(poId: number, lineQtys?: Record<number, number>)
       .update(documents)
       .set({ sourceDocId: poId })
       .where(and(eq(documents.orgId, orgId), eq(documents.id, billId)));
+
+    // _saveDocument only ever creates a draft — without this, the bill sat
+    // as an invisible, unissued draft forever: never posted to the ledger,
+    // never routed into the approval workflow (if the org requires one),
+    // and absent from the Bills screen's normal "what needs my attention"
+    // view even though the PO already showed it as "converted to bill".
+    await _issueDocument(billId);
 
     for (const { line: l, qty } of toBill) {
       await db.update(documentLines).set({ billedQty: l.billedQty + qty }).where(eq(documentLines.id, l.id));

@@ -71,6 +71,14 @@ export const org = pgTable("org", {
    *  have that picked implicitly ("first enabled"); null falls back to that
    *  first-enabled behavior for orgs that only have one anyway. */
   expenseClaimPayoutGatewayId: text("expense_claim_payout_gateway_id"),
+  /** Which connected gateway actually settles this org's M-Pesa till —
+   *  some orgs receive M-Pesa money through Kopo Kopo rather than a direct
+   *  Daraja integration. Account routing itself doesn't need this (webhook.ts
+   *  already posts any gateway's settlement into the bankAccounts row with
+   *  kind='mpesa' regardless of which gateway confirmed it); this exists so
+   *  the UI can label that account "(via Kopo Kopo)" instead of implying
+   *  it's Safaricom Daraja specifically. Null = no non-Daraja gateway noted. */
+  mpesaTillGatewayId: text("mpesa_till_gateway_id"),
 });
 
 export const accounts = pgTable("accounts", {

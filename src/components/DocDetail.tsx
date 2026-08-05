@@ -1,6 +1,7 @@
 import { db, documents, documentLines, contacts, payments, bankAccounts, paymentGateways, items, accounts, costCenters } from "@/db";
 import { and, eq } from "drizzle-orm";
 import { getOrg } from "@/lib/org";
+import { bankAccountLabel } from "@/lib/bank-label";
 import { getAccess } from "@/lib/access";
 import { notFound } from "next/navigation";
 import Link from "next/link";
@@ -205,7 +206,7 @@ export async function DocDetail({ id, printHref }: { id: number; printHref?: str
           totalCents: doc.totalCents,
           paidCents: doc.paidCents,
         }}
-        bankAccounts={banks.map((b) => ({ id: b.id, label: b.name, kind: b.kind }))}
+        bankAccounts={banks.map((b) => ({ id: b.id, label: bankAccountLabel(b, org.mpesaTillGatewayId), kind: b.kind }))}
         canPayout={!!access?.perms.has("can_payout")}
         printHref={printHref}
         gateways={gateways.map(g => ({ id: g.gatewayId, name: g.gatewayId === "mpesa_daraja" ? "M-Pesa Daraja" : "Kopo Kopo" }))}

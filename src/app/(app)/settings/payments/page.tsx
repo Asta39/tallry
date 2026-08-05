@@ -7,8 +7,10 @@ import { eq, and } from "drizzle-orm";
 import { decryptConfig } from "@/lib/payments/crypto";
 import { PageHeader } from "@/components/ui";
 import { PaymentGatewayForm } from "./PaymentGatewayForm";
+import { MpesaTillSettings } from "./MpesaTillSettings";
 import { UpgradePrompt } from "@/components/UpgradePrompt";
 import { getEntitlements } from "@/lib/billing-server";
+import { previewMpesaTillReconciliation } from "@/lib/mpesa-till-reconcile";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +24,8 @@ export default async function PaymentsSettingsPage() {
   const isLocked = !entitlements.limits.gateways;
 
   const gateways = await db.select().from(paymentGateways).where(eq(paymentGateways.orgId, o.id));
+  const connectedGatewayIds = gateways.filter((g) => g.enabled).map((g) => g.gatewayId);
+  const reconcilePreview = await previewMpesaTillReconciliation();
 
   // The client component will handle the masked state
   const gatewaysState = gateways.map(g => {
@@ -52,6 +56,11 @@ export default async function PaymentsSettingsPage() {
 
         <div className="mt-8 space-y-8">
           <PaymentGatewayForm gateways={gatewaysState} />
+          <MpesaTillSettings
+            connectedGateways={connectedGatewayIds}
+            initialGatewayId={o.mpesaTillGatewayId}
+            preview={reconcilePreview}
+          />
         </div>
       </div>
     </UpgradePrompt>
