@@ -1,6 +1,7 @@
 import crypto from "crypto";
 import { PaymentGateway, GatewayOrgConfig, appBaseUrl } from "./gateway";
 import { decryptConfig } from "./crypto";
+import { normalizeKenyanPhone } from "./phone";
 
 const SANDBOX_BASE = "https://sandbox.kopokopo.com";
 // api.kopokopo.com, NOT app.kopokopo.com — the latter is the merchant dashboard.
@@ -18,13 +19,14 @@ function resourceIdFromLocation(location: string): string {
   return segments[segments.length - 1] || location;
 }
 
-/** Kopo Kopo wants E.164 (+2547XXXXXXXX); users type 07XX / 7XX / 2547XX. */
+/** Kopo Kopo wants E.164 (+2547XXXXXXXX); users type 07XX / 7XX / 2547XX.
+ *  Delegates to the shared, validating normalizeKenyanPhone — this used to
+ *  have its own weaker inline logic that didn't validate anything, so a
+ *  mistyped number (e.g. "245..." instead of "254...") got blindly
+ *  re-prefixed with "254" into a garbled, too-long number instead of
+ *  failing here with a readable error. */
 function normalizePhone(raw: string): string {
-  const digits = (raw || "").replace(/[^\d]/g, "");
-  if (digits.startsWith("254")) return `+${digits}`;
-  if (digits.startsWith("0")) return `+254${digits.slice(1)}`;
-  if (digits.length === 9) return `+254${digits}`;
-  return raw.startsWith("+") ? raw : `+${digits}`;
+  return `+${normalizeKenyanPhone(raw)}`;
 }
 
 /**
@@ -152,13 +154,14 @@ export function getKopoKopoGateway(orgConfig: GatewayOrgConfig): PaymentGateway 
       let destination: Record<string, unknown>;
       if (input.destinationType === "phone") {
         // Examples in Kopo Kopo's own docs use bare digits (no +) for this
-        // endpoint, unlike the old pay_recipients API.
-        const digits = input.destination.replace(/[^\d]/g, "");
-        const phone = digits.startsWith("254")
-          ? digits
-          : digits.startsWith("0")
-          ? `254${digits.slice(1)}`
-          : `254${digits}`;
+        // endpoint, unlike the old pay_recipients API. This used to build the
+        // digits inline without validating them — a mistyped number (e.g.
+        // "245717357468" instead of "254717357468") doesn't start with "254"
+        // or "0", so it fell into the catch-all branch and got a blind
+        // "254" prefix slapped on top, producing a garbled 15-digit number
+        // Kopo Kopo then rejected with a confusing HTTP 400. Validating here
+        // instead throws a clear, actionable error before the API call.
+        const phone = normalizeKenyanPhone(input.destination);
         destination = {
           type: "mobile_wallet",
           phone_number: phone,
