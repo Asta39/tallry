@@ -5,6 +5,16 @@ import { eq } from "drizzle-orm";
 import { getOrgSmsConfig, sendSms, normalizeKePhone } from "@/lib/sms";
 import { fmtKES } from "@/lib/money";
 
+/** Gateway provider refs are long UUIDs (Kopo Kopo) or verbose conversation
+ *  ids (Daraja) — unreadable in an SMS. Compress to the last 8 alphanumeric
+ *  characters, uppercased, as a short code the accountant can actually read
+ *  back or note down; still specific enough per payout to be useful for a
+ *  quick "does this match what I see" check. */
+function shortRef(providerRef: string): string {
+  const alnum = (providerRef || "").replace(/[^A-Za-z0-9]/g, "").toUpperCase();
+  return alnum.slice(-8) || providerRef;
+}
+
 /**
  * Texts org.accountantNotifyPhone a confirmation every time a bill or
  * expense claim is actually paid out via gateway — whoever paid it
@@ -29,7 +39,7 @@ export async function notifyAccountantOfPayout(
     await sendSms(
       cfg,
       recipient,
-      `${orgRow.name || "Zeno"}: ${fmtKES(params.amountCents)} paid out to ${params.destination} for ${params.label} via ${gatewayName}. Ref: ${params.providerRef}`
+      `${orgRow.name || "Zeno"}: ${fmtKES(params.amountCents)} paid out to ${params.destination} for ${params.label} via ${gatewayName}. Ref: ${shortRef(params.providerRef)}`
     );
   } catch (e) {
     console.error("notifyAccountantOfPayout failed", e);
