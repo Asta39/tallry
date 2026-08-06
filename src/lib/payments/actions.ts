@@ -6,6 +6,7 @@ import { db, documents, paymentGateways, paymentEvents, contacts, bankAccounts }
 import { eq, and } from "drizzle-orm";
 import { getOrg } from "@/lib/org";
 import { recordPayment } from "@/lib/actions";
+import { notifyAccountantOfPayout } from "@/lib/payout-notify";
 
 function isNextRedirect(err: any): boolean {
   return typeof err?.digest === "string" && err.digest.startsWith("NEXT_REDIRECT");
@@ -146,6 +147,14 @@ export async function payOutAction(documentId: number, destination: string, dest
       method: gatewayId === "mpesa_daraja" ? "mpesa" : "kopokopo",
       reference: result.providerRef,
       bankAccountId: mpesaBank?.id,
+    });
+
+    await notifyAccountantOfPayout(o.id, {
+      label: `${doc.type} ${doc.number}`,
+      amountCents,
+      destination,
+      providerRef: result.providerRef,
+      gatewayId,
     });
 
     return { success: true };

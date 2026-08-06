@@ -25,6 +25,7 @@ import {
   costCenters,
 } from "@/db";
 import { getGateway } from "@/lib/payments/gateway";
+import { notifyAccountantOfPayout } from "@/lib/payout-notify";
 import { eq, and, ne, desc, isNull, sql, inArray } from "drizzle-orm";
 import { currentOrgId, withOrg, seedOrgDefaults, orgContext } from "@/lib/org";
 import { revalidatePath as nextRevalidatePath } from "next/cache";
@@ -1223,6 +1224,7 @@ export async function saveOrgProfile(data: {
   requireBillApproval?: boolean;
   accountantApprovalLimitCents?: number | null;
   approvalRequestPhone?: string;
+  accountantNotifyPhone?: string;
   expenseClaimPayoutLimitCents?: number | null;
   expenseClaimPayoutGatewayId?: string | null;
   billPayoutGatewayId?: string | null;
@@ -1263,6 +1265,7 @@ export async function saveOrgProfile(data: {
         ...(data.requireBillApproval !== undefined ? { requireBillApproval: data.requireBillApproval } : {}),
         ...(data.accountantApprovalLimitCents !== undefined ? { accountantApprovalLimitCents: data.accountantApprovalLimitCents } : {}),
         ...(data.approvalRequestPhone !== undefined ? { approvalRequestPhone: data.approvalRequestPhone || null } : {}),
+        ...(data.accountantNotifyPhone !== undefined ? { accountantNotifyPhone: data.accountantNotifyPhone || null } : {}),
         ...(data.expenseClaimPayoutLimitCents !== undefined ? { expenseClaimPayoutLimitCents: data.expenseClaimPayoutLimitCents } : {}),
         ...(data.expenseClaimPayoutGatewayId !== undefined ? { expenseClaimPayoutGatewayId: data.expenseClaimPayoutGatewayId || null } : {}),
         ...(data.billPayoutGatewayId !== undefined ? { billPayoutGatewayId: data.billPayoutGatewayId || null } : {}),
@@ -1297,6 +1300,7 @@ export async function saveOrgProfile(data: {
         ...(data.requireBillApproval !== undefined ? { requireBillApproval: data.requireBillApproval } : {}),
         ...(data.accountantApprovalLimitCents !== undefined ? { accountantApprovalLimitCents: data.accountantApprovalLimitCents } : {}),
         ...(data.approvalRequestPhone !== undefined ? { approvalRequestPhone: data.approvalRequestPhone || null } : {}),
+        ...(data.accountantNotifyPhone !== undefined ? { accountantNotifyPhone: data.accountantNotifyPhone || null } : {}),
         ...(data.expenseClaimPayoutLimitCents !== undefined ? { expenseClaimPayoutLimitCents: data.expenseClaimPayoutLimitCents } : {}),
         ...(data.nextInvoiceNo !== undefined ? { nextInvoiceNo: data.nextInvoiceNo } : {}),
         ...(data.nextQuoteNo !== undefined ? { nextQuoteNo: data.nextQuoteNo } : {}),
@@ -1658,6 +1662,13 @@ export async function payApprovedBillGatewayAction(token: string): Promise<{ suc
       });
 
       await logAudit({ action: "pay_approved_bill_remote", module: "bills", recordId: doc.id, recordLabel: doc.number, detail: `${fmtKES(outstanding)} via ${gwConfig.gatewayId}` });
+      await notifyAccountantOfPayout(orgId, {
+        label: `bill ${doc.number}`,
+        amountCents: outstanding,
+        destination: doc.payoutDestination,
+        providerRef: result.providerRef,
+        gatewayId: gwConfig.gatewayId,
+      });
       nextRevalidatePath(`/approve/${token}`);
       return { success: true };
     } catch (err: any) {

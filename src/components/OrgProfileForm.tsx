@@ -26,6 +26,7 @@ interface OrgData {
   requireBillApproval: boolean;
   accountantApprovalLimitCents?: number | null;
   approvalRequestPhone?: string | null;
+  accountantNotifyPhone?: string | null;
   expenseClaimPayoutLimitCents?: number | null;
   expenseClaimPayoutGatewayId?: string | null;
   billPayoutGatewayId?: string | null;
@@ -65,6 +66,7 @@ export function OrgProfileForm({ initial, gatewayOptions = [] }: { initial: OrgD
     initial.accountantApprovalLimitCents != null ? (initial.accountantApprovalLimitCents / 100).toFixed(2) : ""
   );
   const [approvalRequestPhone, setApprovalRequestPhone] = useState(initial.approvalRequestPhone || "");
+  const [accountantNotifyPhone, setAccountantNotifyPhone] = useState(initial.accountantNotifyPhone || "");
   const [expenseClaimPayoutLimit, setExpenseClaimPayoutLimit] = useState(
     initial.expenseClaimPayoutLimitCents ? (initial.expenseClaimPayoutLimitCents / 100).toFixed(2) : "0"
   );
@@ -145,6 +147,7 @@ export function OrgProfileForm({ initial, gatewayOptions = [] }: { initial: OrgD
           requireBillApproval,
           accountantApprovalLimitCents: accountantApprovalLimit.trim() ? Math.round((Number(accountantApprovalLimit) || 0) * 100) : null,
           approvalRequestPhone: approvalRequestPhone || undefined,
+          accountantNotifyPhone: accountantNotifyPhone || undefined,
           expenseClaimPayoutLimitCents: Math.round((Number(expenseClaimPayoutLimit) || 0) * 100),
           expenseClaimPayoutGatewayId: expenseClaimPayoutGatewayId || null,
           billPayoutGatewayId: billPayoutGatewayId || null,
@@ -373,6 +376,22 @@ export function OrgProfileForm({ initial, gatewayOptions = [] }: { initial: OrgD
             </select>
             <div className="text-[12px] text-[var(--color-ink-400)] mt-1">
               Pre-selects this gateway when paying a bill out — useful once you have more than one connected under Payment Gateways.
+            </div>
+          </label>
+        </div>
+        <div className="mt-4 pt-4 hairline-t">
+          <label className="block">
+            <span className={labelCls}>Accountant's number for payout confirmations (optional)</span>
+            <input
+              type="tel"
+              value={accountantNotifyPhone}
+              onChange={(e) => setAccountantNotifyPhone(e.target.value)}
+              className={inputCls}
+              placeholder="2547…"
+            />
+            <div className="text-[12px] text-[var(--color-ink-400)] mt-1">
+              Every time a bill or expense claim is actually paid out via gateway — by anyone, admin or accountant — this number gets a text with
+              the amount, destination, and gateway reference. Lets the accountant verify money moved without calling to check.
             </div>
           </label>
         </div>

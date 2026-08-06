@@ -18,6 +18,7 @@ import { getOrgSmsConfig, sendSms } from "@/lib/sms";
 import { approvalRequestRecipient } from "@/lib/spend-approvals";
 import { appOrigin } from "@/lib/receipts/tokens";
 import { logAudit } from "@/lib/audit";
+import { notifyAccountantOfPayout } from "@/lib/payout-notify";
 
 const TOKEN_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
 function generatePayoutToken(length = 16): string {
@@ -440,6 +441,14 @@ async function executeGatewayPayoutForClaim(
   }).onConflictDoNothing({ target: [paymentEvents.gatewayId, paymentEvents.providerRef] });
 
   await applyExpenseClaimGatewayPayout(claim.id, amountCents, gatewayId);
+
+  await notifyAccountantOfPayout(orgId, {
+    label: `expense claim (${claim.submittedByName})`,
+    amountCents,
+    destination,
+    providerRef: result.providerRef,
+    gatewayId,
+  });
 }
 
 /**

@@ -53,6 +53,12 @@ export const org = pgTable("org", {
   accountantApprovalLimitCents: money("accountant_approval_limit_cents"),
   /** Optional SMS destination for spend approvals; falls back to the org phone when blank. */
   approvalRequestPhone: text("approval_request_phone"),
+  /** Optional SMS destination texted a payout confirmation every time a bill
+   *  or expense claim is actually paid out via gateway (by anyone — admin or
+   *  accountant) — so the accountant can independently verify money moved
+   *  without phoning whoever paid it. Separate from approvalRequestPhone,
+   *  which is for approval requests, not payout confirmations. */
+  accountantNotifyPhone: text("accountant_notify_phone"),
   /** When on, staff see a clock-in/out card on their dashboard. */
   timeTrackingEnabled: boolean("time_tracking_enabled").notNull().default(false),
   /** When on, every item must belong to an admin-managed item group. */

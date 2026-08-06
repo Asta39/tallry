@@ -54,6 +54,7 @@ export default async function SettingsPage() {
           requireBillApproval: o.requireBillApproval,
           accountantApprovalLimitCents: o.accountantApprovalLimitCents,
           approvalRequestPhone: o.approvalRequestPhone,
+          accountantNotifyPhone: o.accountantNotifyPhone,
           expenseClaimPayoutLimitCents: o.expenseClaimPayoutLimitCents,
           expenseClaimPayoutGatewayId: o.expenseClaimPayoutGatewayId,
           billPayoutGatewayId: o.billPayoutGatewayId,
