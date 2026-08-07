@@ -486,6 +486,25 @@ export async function voidDocument(docId: number, date: string): Promise<void> {
         }
       }
     }
+  } else if (doc.type === "credit_note" && doc.sourceDocId && doc.status !== "draft") {
+    // A credit note that was posted (issued) applied its total to the source
+    // invoice's creditedCents. Voiding it must undo that, or the invoice is
+    // left permanently overstated as "credited" against a credit note that
+    // no longer exists — this was the exact bug reported: voided credit
+    // notes never released their amount, so the invoice's balance stayed
+    // wrong forever and re-issuing a correct credit note only compounded it.
+    const [inv] = await db
+      .update(documents)
+      .set({ creditedCents: sql`greatest(${documents.creditedCents} - ${doc.totalCents}, 0)` })
+      .where(and(eq(documents.orgId, orgId), eq(documents.id, doc.sourceDocId), eq(documents.type, "invoice")))
+      .returning();
+    if (inv && !["draft", "void"].includes(inv.status)) {
+      const remaining = inv.totalCents - inv.paidCents - inv.creditedCents;
+      const status = remaining <= 0 ? "paid" : inv.paidCents > 0 || inv.creditedCents > 0 ? "partial" : "open";
+      if (inv.status !== status) {
+        await db.update(documents).set({ status }).where(and(eq(documents.orgId, orgId), eq(documents.id, inv.id)));
+      }
+    }
   }
 
   await db.update(documents).set({ status: "void" }).where(and(eq(documents.orgId, orgId), eq(documents.id, docId)));

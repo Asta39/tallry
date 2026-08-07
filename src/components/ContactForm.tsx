@@ -75,6 +75,11 @@ export function ContactForm({ initial, groups, groupsRequired = true }: { initia
       setError(groups.length === 0 ? "Create a customer group first — an admin can add one under Customer Groups." : "Pick at least one customer group.");
       return;
     }
+    if (isVendor && !initial?.id) {
+      if (!payoutDestinationType) return setError("Select how this vendor gets paid (mobile number, till, or paybill)");
+      if (!payoutDestination.trim()) return setError("Enter the vendor's payout destination");
+      if (payoutDestinationType === "paybill" && !payoutAccountNumber.trim()) return setError("Enter the paybill account number");
+    }
     start(async () => {
       try {
         await saveContact({
@@ -191,10 +196,13 @@ export function ContactForm({ initial, groups, groupsRequired = true }: { initia
       {isVendor && (
         <div className="col-span-2 rounded-xl border border-[var(--color-ink-200)] bg-[var(--color-ink-50)]/50 p-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="col-span-2 text-[12px] font-medium text-[var(--color-ink-700)]">
-            Payment details <span className="font-normal text-[var(--color-ink-400)]">(optional — autofills new bills/POs for this vendor)</span>
+            Payment details{" "}
+            <span className="font-normal text-[var(--color-ink-400)]">
+              ({initial?.id ? "autofills new bills/POs for this vendor" : "required — autofills new bills/POs for this vendor"})
+            </span>
           </div>
           <label className="block">
-            <span className={labelCls}>Pay via</span>
+            <span className={labelCls}>Pay via{initial?.id ? "" : " *"}</span>
             <select value={payoutDestinationType} onChange={(e) => setPayoutDestinationType(e.target.value)} className={input}>
               <option value="">Not set</option>
               <option value="phone">Mobile number (B2C)</option>
@@ -205,6 +213,7 @@ export function ContactForm({ initial, groups, groupsRequired = true }: { initia
           <label className="block">
             <span className={labelCls}>
               {payoutDestinationType === "till" ? "Till number" : payoutDestinationType === "paybill" ? "Paybill number" : "Mobile number"}
+              {initial?.id ? "" : " *"}
             </span>
             <input
               value={payoutDestination}

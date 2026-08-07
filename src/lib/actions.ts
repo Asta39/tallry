@@ -165,6 +165,18 @@ async function _saveContact(data: {
   const orgId = currentOrgId();
   const o = await getOrg();
   const isCustomer = data.kind === "customer" || data.kind === "both";
+  const isVendor = data.kind === "vendor" || data.kind === "both";
+
+  // New vendors must capture payout details at creation — otherwise a bill
+  // against them has no destination, and the admin approval link's "Pay" tap
+  // silently fails and sends everyone back to the dashboard to enter payment
+  // details manually. Only enforced on create so editing an unrelated field
+  // on an existing vendor that predates this rule doesn't get blocked.
+  if (isVendor && !data.id) {
+    if (!data.payoutDestinationType) throw new Error("Select how this vendor gets paid (mobile number, till, or paybill)");
+    if (!data.payoutDestination?.trim()) throw new Error("Enter the vendor's payout destination");
+    if (data.payoutDestinationType === "paybill" && !data.payoutAccountNumber?.trim()) throw new Error("Enter the paybill account number");
+  }
 
   // Groups apply to customers only; a vendor-only contact never carries any.
   let groupIds = isCustomer ? [...new Set((data.groupIds ?? []).filter(Boolean))] : [];
@@ -1639,6 +1651,17 @@ export async function respondToApprovalRequestAction(token: string, decision: "a
         const claimed = await _approvePendingSpend(row.doc.id, { bypassAccess: true });
         await markApprovalTokenUsed({ tokenId: row.req.id, orgId: row.orgRow.id, documentId: row.doc.id, decision });
         await notifyOrg(currentOrgId(), ["admin", "accountant"], `${claimed.type === "bill" ? "Bill" : "Expense"} approved remotely`, `${claimed.number} was approved from the SMS approval link.`, spendLink(claimed.type, claimed.id));
+
+        // Bills capture a mandatory payout destination at creation — approving
+        // from this link is Kevin's one tap, so pay it out immediately instead
+        // of making him tap a second "Pay" button (which, on older bills with
+        // no destination, just failed and sent him back to the dashboard to
+        // enter payment details manually — the exact complaint this replaces).
+        // Best-effort: a missing gateway/destination just leaves the bill
+        // approved-but-unpaid for the accountant to pay manually, same as before.
+        if (claimed.type === "bill") {
+          await executeBillGatewayPayout(row.orgRow.id, claimed.id, row.orgRow.billPayoutGatewayId);
+        }
       } else {
         const claimed = await _rejectPendingSpend(row.doc.id, note || "Rejected from approval link", { bypassAccess: true });
         await markApprovalTokenUsed({ tokenId: row.req.id, orgId: row.orgRow.id, documentId: row.doc.id, decision, note: note || "Rejected from approval link" });
@@ -1662,6 +1685,86 @@ export async function respondToApprovalRequestAction(token: string, decision: "a
  * executeGatewayPayoutForClaim for expense claims) rather than waiting on
  * the async gateway webhook.
  */
+/** Core gateway payout for an approved, unpaid bill — pays its full outstanding
+ *  balance to the destination captured on the bill. Shared by the SMS
+ *  approval link's "Pay" button and the auto-pay-on-approval path below, so
+ *  they can never drift out of sync with each other. Must be called already
+ *  inside the paying org's context (orgContext.run or withOrg). */
+async function executeBillGatewayPayout(orgId: number, docId: number, billPayoutGatewayId: string | null): Promise<{ success?: true; error?: string }> {
+  try {
+    const [doc] = await db.select().from(documents).where(and(eq(documents.orgId, orgId), eq(documents.id, docId))).limit(1);
+    if (!doc) return { error: "Bill not found." };
+    const outstanding = doc.totalCents - doc.paidCents;
+    if (outstanding <= 0) return { error: "This bill is already fully paid." };
+    if (!doc.payoutDestinationType || !doc.payoutDestination) return { error: "No payout destination was set on this bill." };
+
+    const [preferred] = billPayoutGatewayId
+      ? await db.select().from(paymentGateways).where(and(eq(paymentGateways.orgId, orgId), eq(paymentGateways.enabled, true), eq(paymentGateways.gatewayId, billPayoutGatewayId))).limit(1)
+      : [];
+    const [fallback] = !preferred
+      ? await db.select().from(paymentGateways).where(and(eq(paymentGateways.orgId, orgId), eq(paymentGateways.enabled, true))).limit(1)
+      : [];
+    const gwConfig = preferred || fallback;
+    if (!gwConfig) return { error: "No payment gateway is connected for this org." };
+
+    const gateway = getGateway(gwConfig);
+    const [payee] = doc.contactId
+      ? await db.select({ name: contacts.displayName }).from(contacts).where(and(eq(contacts.id, doc.contactId), eq(contacts.orgId, orgId))).limit(1)
+      : [];
+
+    const result = await gateway.payOut({
+      destination: doc.payoutDestination,
+      destinationType: doc.payoutDestinationType as "phone" | "till" | "paybill",
+      accountNumber: doc.payoutAccountNumber || undefined,
+      amountCents: outstanding,
+      accountRef: doc.number,
+      payeeName: payee?.name || undefined,
+      reason: `Payout for bill ${doc.number}`,
+    });
+
+    await db.insert(paymentEvents).values({
+      orgId,
+      gatewayId: gwConfig.gatewayId,
+      providerRef: result.providerRef,
+      direction: "out",
+      amountCents: outstanding,
+      payerPhone: doc.payoutDestinationType === "phone" ? doc.payoutDestination : undefined,
+      accountRef: doc.number,
+      status: "applied",
+      matchedDocumentId: doc.id,
+      rawJson: JSON.stringify({ payoutRef: result.providerRef, destination: doc.payoutDestination, destinationType: doc.payoutDestinationType, amountCents: outstanding }),
+      createdAt: new Date().toISOString(),
+    }).onConflictDoNothing({ target: [paymentEvents.gatewayId, paymentEvents.providerRef] });
+
+    // Same reasoning as the M-Pesa till reconciliation engine: without an
+    // explicit bankAccountId, postPayment() falls back to Undeposited
+    // Funds instead of the real till.
+    const [mpesaBank] = await db.select({ id: bankAccounts.id }).from(bankAccounts).where(and(eq(bankAccounts.orgId, orgId), eq(bankAccounts.kind, "mpesa"), eq(bankAccounts.archived, false))).limit(1);
+
+    await _recordPayment({
+      direction: "out",
+      documentId: doc.id,
+      date: todayISO(),
+      amountCents: outstanding,
+      method: gwConfig.gatewayId === "mpesa_daraja" ? "mpesa" : "kopokopo",
+      reference: result.providerRef,
+      bankAccountId: mpesaBank?.id,
+    });
+
+    await logAudit({ action: "pay_approved_bill_remote", module: "bills", recordId: doc.id, recordLabel: doc.number, detail: `${fmtKES(outstanding)} via ${gwConfig.gatewayId}` });
+    await notifyAccountantOfPayout(orgId, {
+      label: `bill ${doc.number}`,
+      amountCents: outstanding,
+      destination: doc.payoutDestination,
+      providerRef: result.providerRef,
+      gatewayId: gwConfig.gatewayId,
+    });
+    return { success: true };
+  } catch (err: any) {
+    return { error: err?.message || "Failed to process payout" };
+  }
+}
+
 export async function payApprovedBillGatewayAction(token: string): Promise<{ success?: true; error?: string }> {
   const row = await getApprovalRequestAnyState(token);
   if (!row) return { error: "This approval link is no longer valid." };
@@ -1669,81 +1772,9 @@ export async function payApprovedBillGatewayAction(token: string): Promise<{ suc
   if (row.doc.type !== "bill") return { error: "Only bills can be paid this way." };
 
   return orgContext.run(row.orgRow.id, async () => {
-    try {
-      const orgId = row.orgRow.id;
-      const [doc] = await db.select().from(documents).where(and(eq(documents.orgId, orgId), eq(documents.id, row.doc.id))).limit(1);
-      if (!doc) return { error: "Bill not found." };
-      const outstanding = doc.totalCents - doc.paidCents;
-      if (outstanding <= 0) return { error: "This bill is already fully paid." };
-      if (!doc.payoutDestinationType || !doc.payoutDestination) return { error: "No payout destination was set on this bill." };
-
-      const preferredId = row.orgRow.billPayoutGatewayId;
-      const [preferred] = preferredId
-        ? await db.select().from(paymentGateways).where(and(eq(paymentGateways.orgId, orgId), eq(paymentGateways.enabled, true), eq(paymentGateways.gatewayId, preferredId))).limit(1)
-        : [];
-      const [fallback] = !preferred
-        ? await db.select().from(paymentGateways).where(and(eq(paymentGateways.orgId, orgId), eq(paymentGateways.enabled, true))).limit(1)
-        : [];
-      const gwConfig = preferred || fallback;
-      if (!gwConfig) return { error: "No payment gateway is connected for this org." };
-
-      const gateway = getGateway(gwConfig);
-      const [payee] = doc.contactId
-        ? await db.select({ name: contacts.displayName }).from(contacts).where(and(eq(contacts.id, doc.contactId), eq(contacts.orgId, orgId))).limit(1)
-        : [];
-
-      const result = await gateway.payOut({
-        destination: doc.payoutDestination,
-        destinationType: doc.payoutDestinationType as "phone" | "till" | "paybill",
-        accountNumber: doc.payoutAccountNumber || undefined,
-        amountCents: outstanding,
-        accountRef: doc.number,
-        payeeName: payee?.name || undefined,
-        reason: `Payout for bill ${doc.number}`,
-      });
-
-      await db.insert(paymentEvents).values({
-        orgId,
-        gatewayId: gwConfig.gatewayId,
-        providerRef: result.providerRef,
-        direction: "out",
-        amountCents: outstanding,
-        payerPhone: doc.payoutDestinationType === "phone" ? doc.payoutDestination : undefined,
-        accountRef: doc.number,
-        status: "applied",
-        matchedDocumentId: doc.id,
-        rawJson: JSON.stringify({ payoutRef: result.providerRef, destination: doc.payoutDestination, destinationType: doc.payoutDestinationType, amountCents: outstanding }),
-        createdAt: new Date().toISOString(),
-      }).onConflictDoNothing({ target: [paymentEvents.gatewayId, paymentEvents.providerRef] });
-
-      // Same reasoning as the M-Pesa till reconciliation engine: without an
-      // explicit bankAccountId, postPayment() falls back to Undeposited
-      // Funds instead of the real till.
-      const [mpesaBank] = await db.select({ id: bankAccounts.id }).from(bankAccounts).where(and(eq(bankAccounts.orgId, orgId), eq(bankAccounts.kind, "mpesa"), eq(bankAccounts.archived, false))).limit(1);
-
-      await _recordPayment({
-        direction: "out",
-        documentId: doc.id,
-        date: todayISO(),
-        amountCents: outstanding,
-        method: gwConfig.gatewayId === "mpesa_daraja" ? "mpesa" : "kopokopo",
-        reference: result.providerRef,
-        bankAccountId: mpesaBank?.id,
-      });
-
-      await logAudit({ action: "pay_approved_bill_remote", module: "bills", recordId: doc.id, recordLabel: doc.number, detail: `${fmtKES(outstanding)} via ${gwConfig.gatewayId}` });
-      await notifyAccountantOfPayout(orgId, {
-        label: `bill ${doc.number}`,
-        amountCents: outstanding,
-        destination: doc.payoutDestination,
-        providerRef: result.providerRef,
-        gatewayId: gwConfig.gatewayId,
-      });
-      nextRevalidatePath(`/approve/${token}`);
-      return { success: true };
-    } catch (err: any) {
-      return { error: err?.message || "Failed to process payout" };
-    }
+    const result = await executeBillGatewayPayout(row.orgRow.id, row.doc.id, row.orgRow.billPayoutGatewayId);
+    if (result.success) nextRevalidatePath(`/approve/${token}`);
+    return result;
   });
 }
 

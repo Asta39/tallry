@@ -43,7 +43,7 @@ export function ApprovalRequestClient({
           setError(res.error);
           return;
         }
-        setSuccess(decision === "approved" ? "Bill approved and posted. You can pay it below." : "Document rejected successfully.");
+        setSuccess(decision === "approved" ? "Approved and posted." : "Document rejected successfully.");
         router.refresh();
       } catch (e) {
         setError(isStaleServerActionError(e) ? STALE_ACTION_MESSAGE : e instanceof Error ? e.message : "Failed");
@@ -114,6 +114,9 @@ export function ApprovalRequestClient({
           )}
         </div>
       );
+    }
+    if (initialStatus === "paid") {
+      return <p className="text-[13px] text-[var(--color-good)] font-medium">Approved and paid in full.</p>;
     }
     return <p className="text-[13px] text-[var(--color-ink-500)]">This approval request has already been handled.</p>;
   }
