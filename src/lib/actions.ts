@@ -1450,9 +1450,9 @@ export async function adjustStock(itemId: number, qtyDelta: number, unitCostCent
 }
 export async function saveDocument(data: Parameters<typeof _saveDocument>[0]) {
   // Only enforced here, not inside _saveDocument itself — convertPoToBill
-  // calls _saveDocument directly and doesn't (yet) collect a payout
-  // destination on the source PO, so it must stay exempt from this.
-  if (data.type === "bill") {
+  // calls _saveDocument directly, and old POs created before purchase orders
+  // collected this must still be able to convert without being blocked.
+  if (data.type === "bill" || data.type === "purchase_order") {
     if (!data.payoutDestinationType) throw new Error("Select how this vendor gets paid (mobile number, till, or paybill)");
     if (!data.payoutDestination?.trim()) throw new Error("Enter the vendor's payout destination");
     if (data.payoutDestinationType === "paybill" && !data.payoutAccountNumber?.trim()) throw new Error("Enter the paybill account number");
@@ -1880,6 +1880,12 @@ async function _convertPoToBill(poId: number, lineQtys?: Record<number, number>)
       taxInclusive: po.taxInclusive,
       billNumber: `BILL-${po.number}`,
       notes: po.notes ?? undefined,
+      // Carried from the PO so the resulting bill can be paid straight from
+      // the admin approval link without anyone having to open it and fill
+      // this in manually — previously dropped entirely on conversion.
+      payoutDestinationType: po.payoutDestinationType as "phone" | "till" | "paybill" | null | undefined,
+      payoutDestination: po.payoutDestination,
+      payoutAccountNumber: po.payoutAccountNumber,
       assignedMemberIds,
       createdByName: access?.memberName,
       createdByRole: access ? (access.isOwner ? "owner" : access.role) : undefined,

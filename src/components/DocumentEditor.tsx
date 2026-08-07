@@ -262,9 +262,9 @@ export function DocumentEditor({
           taxInclusive,
           notes: notes || undefined,
           billNumber: billNumber || undefined,
-          payoutDestinationType: type === "bill" ? payoutDestinationType : undefined,
-          payoutDestination: type === "bill" ? payoutDestination || undefined : undefined,
-          payoutAccountNumber: type === "bill" && payoutDestinationType === "paybill" ? payoutAccountNumber || undefined : undefined,
+          payoutDestinationType: type === "bill" || type === "purchase_order" ? payoutDestinationType : undefined,
+          payoutDestination: type === "bill" || type === "purchase_order" ? payoutDestination || undefined : undefined,
+          payoutAccountNumber: (type === "bill" || type === "purchase_order") && payoutDestinationType === "paybill" ? payoutAccountNumber || undefined : undefined,
           paidFromBankAccountId: paidFrom === "" ? null : paidFrom,
           customerContactId: isSpend && customerContactId !== "" ? Number(customerContactId) : null,
           relatedInvoiceId: isSpend && relatedInvoiceId !== "" ? Number(relatedInvoiceId) : null,
@@ -343,7 +343,7 @@ export function DocumentEditor({
             <input className={inputCls + " mt-1"} value={billNumber} onChange={(e) => setBillNumber(e.target.value)} placeholder="optional" />
           </label>
         )}
-        {type === "bill" && (
+        {(type === "bill" || type === "purchase_order") && (
           <>
             <label className="block">
               <span className="text-[12px] font-medium text-[var(--color-ink-600)]">
