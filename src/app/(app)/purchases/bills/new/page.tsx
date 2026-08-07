@@ -29,6 +29,7 @@ export default async function NewBillPage({
         costCenters={opts.costCenters}
         warehouses={opts.warehouses}
         expenseAccounts={opts.expenseAccounts}
+        vendorPayouts={opts.vendorPayouts}
         defaultContactId={defaultContactId}
         backHref="/purchases/bills"
         detailHref="/purchases/bills"

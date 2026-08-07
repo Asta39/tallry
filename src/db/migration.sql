@@ -843,3 +843,7 @@ ALTER TABLE org ADD COLUMN IF NOT EXISTS accountant_notify_phone TEXT;
 
 ALTER TABLE org ADD COLUMN IF NOT EXISTS restrict_issued_invoice_edit BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE org ADD COLUMN IF NOT EXISTS issued_invoice_edit_roles TEXT;
+
+ALTER TABLE contacts ADD COLUMN IF NOT EXISTS payout_destination_type TEXT;
+ALTER TABLE contacts ADD COLUMN IF NOT EXISTS payout_destination TEXT;
+ALTER TABLE contacts ADD COLUMN IF NOT EXISTS payout_account_number TEXT;

@@ -19,6 +19,9 @@ export interface ContactFormInitial {
   city?: string | null;
   notes?: string | null;
   isWithholdingAgent?: boolean;
+  payoutDestinationType?: string | null;
+  payoutDestination?: string | null;
+  payoutAccountNumber?: string | null;
   groupIds?: number[];
 }
 
@@ -35,6 +38,11 @@ export function ContactForm({ initial, groups, groupsRequired = true }: { initia
   const [groupIds, setGroupIds] = useState<number[]>(initial?.groupIds ?? []);
 
   const isCustomer = kind === "customer" || kind === "both";
+  const isVendor = kind === "vendor" || kind === "both";
+
+  const [payoutDestinationType, setPayoutDestinationType] = useState(initial?.payoutDestinationType || "");
+  const [payoutDestination, setPayoutDestination] = useState(initial?.payoutDestination || "");
+  const [payoutAccountNumber, setPayoutAccountNumber] = useState(initial?.payoutAccountNumber || "");
 
   // Depth-first order, subgroups directly under their parent — a flat list
   // sorted alphabetically would scatter a group's children away from it.
@@ -81,6 +89,9 @@ export function ContactForm({ initial, groups, groupsRequired = true }: { initia
           city: String(formData.get("city") || "") || undefined,
           notes: String(formData.get("notes") || "") || undefined,
           isWithholdingAgent: formData.get("isWithholdingAgent") === "on",
+          payoutDestinationType: isVendor && payoutDestinationType ? (payoutDestinationType as "phone" | "till" | "paybill") : null,
+          payoutDestination: isVendor ? payoutDestination.trim() || null : null,
+          payoutAccountNumber: isVendor && payoutDestinationType === "paybill" ? payoutAccountNumber.trim() || null : null,
           groupIds: isCustomer ? groupIds : [],
         });
         router.push(initial?.id ? `/contacts/${initial.id}` : "/contacts");
@@ -176,6 +187,41 @@ export function ContactForm({ initial, groups, groupsRequired = true }: { initia
         <input type="checkbox" name="isWithholdingAgent" defaultChecked={initial?.isWithholdingAgent} className="accent-[var(--color-accent-500)]" />
         Appointed KRA withholding agent (they deduct 2% VAT / WHT when paying you)
       </label>
+
+      {isVendor && (
+        <div className="col-span-2 rounded-xl border border-[var(--color-ink-200)] bg-[var(--color-ink-50)]/50 p-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="col-span-2 text-[12px] font-medium text-[var(--color-ink-700)]">
+            Payment details <span className="font-normal text-[var(--color-ink-400)]">(optional — autofills new bills/POs for this vendor)</span>
+          </div>
+          <label className="block">
+            <span className={labelCls}>Pay via</span>
+            <select value={payoutDestinationType} onChange={(e) => setPayoutDestinationType(e.target.value)} className={input}>
+              <option value="">Not set</option>
+              <option value="phone">Mobile number (B2C)</option>
+              <option value="till">Till number</option>
+              <option value="paybill">Paybill</option>
+            </select>
+          </label>
+          <label className="block">
+            <span className={labelCls}>
+              {payoutDestinationType === "till" ? "Till number" : payoutDestinationType === "paybill" ? "Paybill number" : "Mobile number"}
+            </span>
+            <input
+              value={payoutDestination}
+              onChange={(e) => setPayoutDestination(e.target.value)}
+              className={input}
+              placeholder={payoutDestinationType === "phone" || !payoutDestinationType ? "2547…" : "e.g. 123456"}
+              disabled={!payoutDestinationType}
+            />
+          </label>
+          {payoutDestinationType === "paybill" && (
+            <label className="block">
+              <span className={labelCls}>Account number</span>
+              <input value={payoutAccountNumber} onChange={(e) => setPayoutAccountNumber(e.target.value)} className={input} placeholder="Account / reference number" />
+            </label>
+          )}
+        </div>
+      )}
 
       {error && <div className="col-span-2 text-[13px] text-[var(--color-bad)]">{error}</div>}
 

@@ -156,6 +156,9 @@ async function _saveContact(data: {
   city?: string;
   notes?: string;
   isWithholdingAgent?: boolean;
+  payoutDestinationType?: "phone" | "till" | "paybill" | null;
+  payoutDestination?: string | null;
+  payoutAccountNumber?: string | null;
   /** One or more customer groups. Required (>=1) for customers; ignored for vendors. */
   groupIds?: number[];
 }) {
@@ -187,6 +190,9 @@ async function _saveContact(data: {
     city: data.city,
     notes: data.notes,
     isWithholdingAgent: data.isWithholdingAgent,
+    payoutDestinationType: data.payoutDestinationType || null,
+    payoutDestination: data.payoutDestination || null,
+    payoutAccountNumber: data.payoutAccountNumber || null,
     // Keep the legacy single-group column pointed at the first group for any
     // old read path; the membership table below is the source of truth.
     groupId: groupIds[0] ?? null,

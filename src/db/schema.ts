@@ -133,6 +133,12 @@ export const contacts = pgTable("contacts", {
   city: text("city"),
   notes: text("notes"),
   isWithholdingAgent: boolean("is_withholding_agent").notNull().default(false),
+  /** Vendor's default payout details — optional. Autofills the payout
+   *  destination fields on new bills/POs for this vendor so it doesn't have
+   *  to be retyped every time; still editable per-document. */
+  payoutDestinationType: text("payout_destination_type"), // phone | till | paybill
+  payoutDestination: text("payout_destination"),
+  payoutAccountNumber: text("payout_account_number"),
   /** Admin-defined customer segment. Required for new customers via the form;
    *  nullable so legacy/imported contacts stay valid as "Ungrouped". */
   groupId: integer("group_id"),

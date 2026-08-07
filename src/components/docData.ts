@@ -38,6 +38,16 @@ export async function editorOptions(side: "sale" | "purchase") {
     customDocumentColumnName: org.customDocumentColumnName,
     members: memberRows.map((m) => ({ id: m.id, label: m.name || m.email })),
     contacts: contactRows.map((c) => ({ id: c.id, label: c.displayName })),
+    // Purchase side only: vendor's saved default payout details, so the bill/
+    // PO form can autofill them instead of the accountant retyping the same
+    // M-Pesa number every time this vendor gets a bill.
+    vendorPayouts: side === "purchase"
+      ? Object.fromEntries(
+          contactRows
+            .filter((c) => c.payoutDestination)
+            .map((c) => [c.id, { type: c.payoutDestinationType, destination: c.payoutDestination, accountNumber: c.payoutAccountNumber }])
+        )
+      : {},
     customers: customerRows.map((c) => ({ id: c.id, label: c.displayName })),
     items: itemRows.map((i) => ({
       id: i.id,

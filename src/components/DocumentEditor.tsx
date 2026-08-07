@@ -79,6 +79,7 @@ export function DocumentEditor({
   bankAccounts,
   costCenters = [],
   warehouses = [],
+  vendorPayouts,
   backHref,
   detailHref,
   defaultContactId,
@@ -102,6 +103,10 @@ export function DocumentEditor({
   backHref: string;
   /** e.g. "/sales/invoices" — new doc id is appended */
   detailHref?: string;
+  /** Purchase side only: vendor id -> saved default payout details, keyed
+   *  from editorOptions("purchase"). Autofills the bill/PO destination
+   *  fields when a vendor with saved details is picked. */
+  vendorPayouts?: Record<number, { type: string | null; destination: string | null; accountNumber: string | null }>;
   /** preselect a customer/vendor (e.g. from the contact workspace) */
   defaultContactId?: number | null;
   /** Custom document column name, if any */
@@ -197,6 +202,21 @@ export function DocumentEditor({
 
   function update(i: number, patch: Partial<EditorLine>) {
     setLines((ls) => ls.map((l, j) => (j === i ? { ...l, ...patch } : l)));
+  }
+
+  function handleContactChange(id: number | "") {
+    setContactId(id);
+    // Only autofill an empty destination — never clobber something already
+    // typed in (e.g. picking a vendor, then realizing you need a different
+    // one-off destination for this particular bill).
+    if ((type === "bill" || type === "purchase_order") && id !== "" && !payoutDestination) {
+      const saved = vendorPayouts?.[id];
+      if (saved?.destination) {
+        setPayoutDestinationType((saved.type as "phone" | "till" | "paybill") || "phone");
+        setPayoutDestination(saved.destination);
+        setPayoutAccountNumber(saved.accountNumber || "");
+      }
+    }
   }
 
   function pickItem(i: number, itemId: number) {
@@ -303,7 +323,7 @@ export function DocumentEditor({
               className="mt-1"
               options={contacts}
               value={contactId}
-              onChange={setContactId}
+              onChange={handleContactChange}
               placeholder={isSale ? "Search customers…" : "Search vendors…"}
             />
           </label>

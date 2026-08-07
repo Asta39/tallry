@@ -185,6 +185,13 @@ export async function getReconciliationState(recId: number): Promise<Reconciliat
       ticked: t.reconciliationId === rec.id,
     }));
     const ticked = candidates.filter((c) => c.ticked).reduce((s, c) => s + c.amountCents, 0);
+    // The statement balance is opening balance + every transaction since —
+    // reconciledTotal only sums bankTransactions rows, which never include
+    // the account's own openingBalanceCents. Every real bank account here
+    // has a nonzero opening balance, so without this the difference could
+    // never reach zero: completing a reconciliation was permanently
+    // impossible, off by exactly the opening balance every time.
+    const openingBalanceCents = bank?.openingBalanceCents ?? 0;
     return {
       rec: {
         id: rec.id,
@@ -195,7 +202,7 @@ export async function getReconciliationState(recId: number): Promise<Reconciliat
       candidates,
       alreadyReconciledCents: already,
       tickedCents: ticked,
-      differenceCents: rec.statementBalanceCents - already - ticked,
+      differenceCents: rec.statementBalanceCents - openingBalanceCents - already - ticked,
       ledgerBalanceCents: Number(ledger?.v ?? 0),
       uncategorizedCount: Number(uncat?.n ?? 0),
     };

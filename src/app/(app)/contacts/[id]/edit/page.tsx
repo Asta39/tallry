@@ -36,6 +36,9 @@ export default async function EditContactPage({ params }: { params: Promise<{ id
           city: c.city,
           notes: c.notes,
           isWithholdingAgent: c.isWithholdingAgent,
+          payoutDestinationType: c.payoutDestinationType,
+          payoutDestination: c.payoutDestination,
+          payoutAccountNumber: c.payoutAccountNumber,
           groupIds: memberships.map((m) => m.id),
         }}
       />
