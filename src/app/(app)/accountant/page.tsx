@@ -7,6 +7,8 @@ import { db, accounts, bankAccounts, items } from "@/db";
 import { accountBalances } from "@/lib/reports";
 import { PageHeader, PrimaryLink } from "@/components/ui";
 import { ChartOfAccountsClient } from "./ChartOfAccountsClient";
+import { ExpenseClaimAccountBanner } from "./ExpenseClaimAccountBanner";
+import { previewExpenseClaimAccountDrift } from "@/lib/expense-claims";
 
 export const dynamic = "force-dynamic";
 
@@ -32,6 +34,7 @@ export default async function AccountantPage() {
   const balanceAdjustable: Record<number, boolean> = Object.fromEntries(
     all.map((a) => [a.id, !a.isSystem && !autoManagedIds.has(a.id)])
   );
+  const claimDrift = await previewExpenseClaimAccountDrift();
 
   return (
     <>
@@ -40,6 +43,7 @@ export default async function AccountantPage() {
         subtitle="Chart of accounts and the general ledger behind every number"
         action={<PrimaryLink href="/accountant/journals/new">+ Manual journal</PrimaryLink>}
       />
+      <ExpenseClaimAccountBanner count={claimDrift.count} totalCents={claimDrift.totalCents} />
       <div className="mb-4 flex flex-wrap gap-x-4 gap-y-2 text-[13px]">
         <Link href="/accountant/journals" className="text-[var(--color-accent-600)] font-medium">
           View journal entries →

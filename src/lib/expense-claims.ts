@@ -29,7 +29,14 @@ function generatePayoutToken(length = 16): string {
 }
 
 async function payableAccountId(): Promise<number> {
-  return ensureAccount("2100", "Staff Reimbursements Payable", "liability", "current_liability");
+  // "2340" — code "2100" is SYS.AP (real vendor Accounts Payable). Every
+  // expense claim was posting there instead: ensureAccount matches by code
+  // only, so a code collision silently returns the EXISTING account under
+  // its real name, ignoring the "Staff Reimbursements Payable" name passed
+  // here. That account already exists in the seeded COA at 2340 — this was
+  // just pointed at the wrong code, mixing employee reimbursement liability
+  // into vendor payable the entire time.
+  return ensureAccount("2340", "Staff Reimbursements Payable", "liability", "current_liability");
 }
 
 /** Picks the gateway to use for an automatic expense-claim payout. Orgs with
@@ -48,6 +55,55 @@ async function pickExpenseClaimGateway(orgId: number, preferredGatewayId: string
   }
   const [fallback] = await db.select().from(paymentGateways).where(and(eq(paymentGateways.orgId, orgId), eq(paymentGateways.enabled, true))).limit(1);
   return fallback;
+}
+
+/**
+ * One-time correction for the account-code bug above: any currently-approved
+ * (accrued but not yet paid) expense claim has its liability sitting in
+ * "2100 Accounts Payable" instead of "2340 Staff Reimbursements Payable" —
+ * already-paid claims net to zero in 2100 (the accrual and the payment leg
+ * cancel out), so only open claims need moving. Posts one reclass entry per
+ * org: DR 2100 · CR 2340 for the total, leaving the append-only ledger
+ * untouched otherwise.
+ */
+export async function previewExpenseClaimAccountDrift() {
+  return withOrg(async () => {
+    await requirePerm("accountant");
+    const orgId = currentOrgId();
+    const rows = await db.select({ amountCents: expenseClaims.amountCents }).from(expenseClaims).where(and(eq(expenseClaims.orgId, orgId), eq(expenseClaims.status, "approved")));
+    return { count: rows.length, totalCents: rows.reduce((s, r) => s + r.amountCents, 0) };
+  });
+}
+
+export async function reconcileExpenseClaimAccountAction(): Promise<{ success?: true; count?: number; error?: string }> {
+  try {
+    return await withOrg(async () => {
+      await requirePerm("accountant");
+      const orgId = currentOrgId();
+      const rows = await db.select({ amountCents: expenseClaims.amountCents }).from(expenseClaims).where(and(eq(expenseClaims.orgId, orgId), eq(expenseClaims.status, "approved")));
+      if (rows.length === 0) return { success: true, count: 0 };
+      const total = rows.reduce((s, r) => s + r.amountCents, 0);
+
+      const apAccountId = await ensureAccount("2100", "Accounts Payable", "liability", "accounts_payable");
+      const reimbAccountId = await payableAccountId();
+
+      await postEntry({
+        date: todayISO(),
+        memo: `Reclass: ${rows.length} open expense claim(s) moved from Accounts Payable to Staff Reimbursements Payable`,
+        sourceType: "expense_claim_account_reconciliation",
+        lines: [
+          { accountId: apAccountId, debitCents: total },
+          { accountId: reimbAccountId, creditCents: total },
+        ],
+      });
+
+      await logAudit({ action: "reconcile_account", module: "expense_claims", detail: `${fmtKES(total)} moved off Accounts Payable (${rows.length} claim(s))` });
+      revalidatePath("/accountant");
+      return { success: true, count: rows.length };
+    });
+  } catch (err: any) {
+    return { error: err?.message || "Failed to reconcile" };
+  }
 }
 
 export async function listExpenseAccounts() {
