@@ -55,6 +55,8 @@ export default async function SettingsPage() {
           accountantApprovalLimitCents: o.accountantApprovalLimitCents,
           approvalRequestPhone: o.approvalRequestPhone,
           accountantNotifyPhone: o.accountantNotifyPhone,
+          restrictIssuedInvoiceEdit: o.restrictIssuedInvoiceEdit,
+          issuedInvoiceEditRoles: o.issuedInvoiceEditRoles,
           expenseClaimPayoutLimitCents: o.expenseClaimPayoutLimitCents,
           expenseClaimPayoutGatewayId: o.expenseClaimPayoutGatewayId,
           billPayoutGatewayId: o.billPayoutGatewayId,

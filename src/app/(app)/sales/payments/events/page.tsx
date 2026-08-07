@@ -15,7 +15,7 @@ export default async function GatewayEventsPage() {
     .where(and(
       eq(paymentEvents.orgId, o.id),
       eq(paymentEvents.direction, "in"),
-      inArray(paymentEvents.status, ["unmatched", "amount_mismatch", "received", "failed"]),
+      inArray(paymentEvents.status, ["unmatched", "amount_mismatch", "received", "failed", "pending"]),
     ))
     .orderBy(desc(paymentEvents.id))
     .limit(200);

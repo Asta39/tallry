@@ -29,6 +29,9 @@ const statusStyles: Record<string, string> = {
   amount_mismatch: "bg-red-50 text-red-700",
   received: "bg-blue-50 text-blue-700",
   failed: "bg-red-50 text-red-600",
+  // STK push sent, webhook confirmation never arrived — money may or may not
+  // have actually moved; verify against the real M-Pesa message before applying.
+  pending: "bg-orange-50 text-orange-700",
 };
 
 function last9(p: string | null | undefined) {

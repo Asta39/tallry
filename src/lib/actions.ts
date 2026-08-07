@@ -26,6 +26,7 @@ import {
 } from "@/db";
 import { getGateway } from "@/lib/payments/gateway";
 import { notifyAccountantOfPayout } from "@/lib/payout-notify";
+import { canEditIssuedInvoice } from "@/lib/invoice-edit";
 import { eq, and, ne, desc, isNull, sql, inArray } from "drizzle-orm";
 import { currentOrgId, withOrg, seedOrgDefaults, orgContext } from "@/lib/org";
 import { revalidatePath as nextRevalidatePath } from "next/cache";
@@ -600,6 +601,58 @@ async function _saveDocument(data: {
     data.taxInclusive
   );
 
+  // Editing an issued (non-draft) invoice: previously hard-blocked outright.
+  // Now permitted — gated by org.restrictIssuedInvoiceEdit/issuedInvoiceEditRoles
+  // — but only while it's still "open" and has zero payments applied; anything
+  // with money against it or a reconciled bank entry stays void-and-reissue
+  // only, same as before. Reverses the existing posting and FIFO consumption
+  // up front (before lines are overwritten below), then re-posts fresh after
+  // the transaction commits.
+  let repostInvoiceId: number | null = null;
+  if (data.id) {
+    const [existingPre] = await db.select().from(documents).where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, data.id))).limit(1);
+    if (existingPre && existingPre.type === "invoice" && existingPre.status !== "draft") {
+      if (existingPre.status !== "open" || existingPre.paidCents > 0) {
+        throw new Error("Only an open, unpaid issued invoice can be edited — void and reissue for anything else");
+      }
+      if (ETIMS_ENABLED) {
+        throw new Error("Issued invoices can't be edited once fiscally signed — void and reissue instead");
+      }
+      const editAccess = await getAccess();
+      const editOrg = await getOrg();
+      if (!canEditIssuedInvoice(editAccess, editOrg)) {
+        throw new Error("You don't have permission to edit issued invoices");
+      }
+      if (existingPre.journalEntryId) {
+        const [mirrored] = await db
+          .select({ reconciliationId: bankTransactions.reconciliationId })
+          .from(bankTransactions)
+          .where(and(eq(bankTransactions.orgId, currentOrgId()), eq(bankTransactions.journalEntryId, existingPre.journalEntryId)))
+          .limit(1);
+        if (mirrored?.reconciliationId) {
+          throw new Error("This invoice's bank entry has already been reconciled — void and reissue instead");
+        }
+        await reverseEntry(existingPre.journalEntryId, todayISO(), `Reversed for edit: ${existingPre.number}`);
+      }
+      const oldLines = await db.select().from(documentLines).where(eq(documentLines.documentId, data.id));
+      for (const l of oldLines) {
+        if (l.itemId && l.cogsCents && l.qty > 0) {
+          await addLot({
+            itemId: l.itemId,
+            date: todayISO(),
+            qty: l.qty,
+            unitCostCents: Math.round(l.cogsCents / l.qty),
+            sourceType: "adjustment",
+            sourceId: data.id,
+            warehouseId: l.warehouseId ?? undefined,
+          });
+        }
+      }
+      await db.update(documents).set({ status: "draft" }).where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, data.id)));
+      repostInvoiceId = data.id;
+    }
+  }
+
   const docId = await db.transaction(async (tx) => {
     let savedDocId: number;
     if (data.id) {
@@ -732,6 +785,11 @@ async function _saveDocument(data: {
 
     return savedDocId;
   });
+
+  if (repostInvoiceId) {
+    // postInvoice sets status back to "open" itself once the fresh entry posts.
+    await postInvoice(repostInvoiceId);
+  }
 
   revalidatePath("/sales");
   revalidatePath("/purchases");
@@ -1225,6 +1283,8 @@ export async function saveOrgProfile(data: {
   accountantApprovalLimitCents?: number | null;
   approvalRequestPhone?: string;
   accountantNotifyPhone?: string;
+  restrictIssuedInvoiceEdit?: boolean;
+  issuedInvoiceEditRoles?: string;
   expenseClaimPayoutLimitCents?: number | null;
   expenseClaimPayoutGatewayId?: string | null;
   billPayoutGatewayId?: string | null;
@@ -1266,6 +1326,8 @@ export async function saveOrgProfile(data: {
         ...(data.accountantApprovalLimitCents !== undefined ? { accountantApprovalLimitCents: data.accountantApprovalLimitCents } : {}),
         ...(data.approvalRequestPhone !== undefined ? { approvalRequestPhone: data.approvalRequestPhone || null } : {}),
         ...(data.accountantNotifyPhone !== undefined ? { accountantNotifyPhone: data.accountantNotifyPhone || null } : {}),
+        ...(data.restrictIssuedInvoiceEdit !== undefined ? { restrictIssuedInvoiceEdit: data.restrictIssuedInvoiceEdit } : {}),
+        ...(data.issuedInvoiceEditRoles !== undefined ? { issuedInvoiceEditRoles: data.issuedInvoiceEditRoles } : {}),
         ...(data.expenseClaimPayoutLimitCents !== undefined ? { expenseClaimPayoutLimitCents: data.expenseClaimPayoutLimitCents } : {}),
         ...(data.expenseClaimPayoutGatewayId !== undefined ? { expenseClaimPayoutGatewayId: data.expenseClaimPayoutGatewayId || null } : {}),
         ...(data.billPayoutGatewayId !== undefined ? { billPayoutGatewayId: data.billPayoutGatewayId || null } : {}),
@@ -1301,6 +1363,8 @@ export async function saveOrgProfile(data: {
         ...(data.accountantApprovalLimitCents !== undefined ? { accountantApprovalLimitCents: data.accountantApprovalLimitCents } : {}),
         ...(data.approvalRequestPhone !== undefined ? { approvalRequestPhone: data.approvalRequestPhone || null } : {}),
         ...(data.accountantNotifyPhone !== undefined ? { accountantNotifyPhone: data.accountantNotifyPhone || null } : {}),
+        ...(data.restrictIssuedInvoiceEdit !== undefined ? { restrictIssuedInvoiceEdit: data.restrictIssuedInvoiceEdit } : {}),
+        ...(data.issuedInvoiceEditRoles !== undefined ? { issuedInvoiceEditRoles: data.issuedInvoiceEditRoles } : {}),
         ...(data.expenseClaimPayoutLimitCents !== undefined ? { expenseClaimPayoutLimitCents: data.expenseClaimPayoutLimitCents } : {}),
         ...(data.nextInvoiceNo !== undefined ? { nextInvoiceNo: data.nextInvoiceNo } : {}),
         ...(data.nextQuoteNo !== undefined ? { nextQuoteNo: data.nextQuoteNo } : {}),

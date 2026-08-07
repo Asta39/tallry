@@ -49,6 +49,7 @@ export function DocActions({
   preferredGatewayId,
   contactPhone,
   canApprove,
+  canEditIssuedInvoice,
   canPayout,
   poLines,
 }: {
@@ -68,6 +69,11 @@ export function DocActions({
   preferredGatewayId?: string | null;
   contactPhone?: string;
   canApprove?: boolean;
+  /** For invoices: whether the current viewer is allowed to edit this
+   *  specific issued (open, unpaid) invoice, per org.restrictIssuedInvoiceEdit
+   *  — computed server-side in DocDetail.tsx. Draft invoices ignore this
+   *  entirely (always editable by anyone who can reach this page). */
+  canEditIssuedInvoice?: boolean;
   /** Whether this viewer can actually send a gateway payout (server-side
    *  requirePerm("can_payout") check mirrored here) — without this, the
    *  button showed for everyone and only failed after they'd filled in the
@@ -156,7 +162,7 @@ export function DocActions({
         )}
         {(
           (doc.type === "quote" && ["draft", "open"].includes(doc.status)) ||
-          (doc.type === "invoice" && ["draft", "open", "partial"].includes(doc.status))
+          (doc.type === "invoice" && (doc.status === "draft" || (doc.status === "open" && doc.paidCents === 0 && canEditIssuedInvoice)))
         ) && (
           <button className={secondary} disabled={pending} onClick={() => router.push(`/sales/${doc.type === "quote" ? "quotes" : "invoices"}/${doc.id}/edit`)}>
             Edit

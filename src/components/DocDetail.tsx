@@ -2,6 +2,7 @@ import { db, documents, documentLines, contacts, payments, bankAccounts, payment
 import { and, eq } from "drizzle-orm";
 import { getOrg } from "@/lib/org";
 import { bankAccountLabel } from "@/lib/bank-label";
+import { canEditIssuedInvoice } from "@/lib/invoice-edit";
 import { getAccess } from "@/lib/access";
 import { notFound } from "next/navigation";
 import Link from "next/link";
@@ -105,6 +106,9 @@ export async function DocDetail({ id, printHref }: { id: number; printHref?: str
         accountantApprovalLimitCents: org.accountantApprovalLimitCents,
       })
     : !!access?.perms.has("accountant");
+  const canEditIssuedInvoiceNow = doc.type === "invoice" && doc.status === "open" && doc.paidCents === 0
+    ? canEditIssuedInvoice(access ? { isOwner: access.isOwner, role: access.role } : null, org)
+    : false;
 
   return (
     <>
@@ -213,6 +217,7 @@ export async function DocDetail({ id, printHref }: { id: number; printHref?: str
         preferredGatewayId={org.billPayoutGatewayId}
         contactPhone={contact?.phone || ""}
         canApprove={canApprove}
+        canEditIssuedInvoice={canEditIssuedInvoiceNow}
         poLines={doc.type === "purchase_order" ? lines.map((l) => ({ id: l.id, description: l.description, qty: l.qty, billedQty: l.billedQty })) : undefined}
       />
 

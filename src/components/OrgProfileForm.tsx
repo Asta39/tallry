@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useTransition, useRef } from "react";
+
+const ROLES = ["admin", "accountant", "sales", "hr", "inventory", "staff"] as const;
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { saveOrgProfile } from "@/lib/actions";
@@ -27,6 +29,8 @@ interface OrgData {
   accountantApprovalLimitCents?: number | null;
   approvalRequestPhone?: string | null;
   accountantNotifyPhone?: string | null;
+  restrictIssuedInvoiceEdit: boolean;
+  issuedInvoiceEditRoles?: string | null;
   expenseClaimPayoutLimitCents?: number | null;
   expenseClaimPayoutGatewayId?: string | null;
   billPayoutGatewayId?: string | null;
@@ -67,6 +71,14 @@ export function OrgProfileForm({ initial, gatewayOptions = [] }: { initial: OrgD
   );
   const [approvalRequestPhone, setApprovalRequestPhone] = useState(initial.approvalRequestPhone || "");
   const [accountantNotifyPhone, setAccountantNotifyPhone] = useState(initial.accountantNotifyPhone || "");
+  const [restrictIssuedInvoiceEdit, setRestrictIssuedInvoiceEdit] = useState(initial.restrictIssuedInvoiceEdit ?? false);
+  const [issuedInvoiceEditRoles, setIssuedInvoiceEditRoles] = useState<string[]>(() => {
+    try {
+      return JSON.parse(initial.issuedInvoiceEditRoles || "[]");
+    } catch {
+      return [];
+    }
+  });
   const [expenseClaimPayoutLimit, setExpenseClaimPayoutLimit] = useState(
     initial.expenseClaimPayoutLimitCents ? (initial.expenseClaimPayoutLimitCents / 100).toFixed(2) : "0"
   );
@@ -148,6 +160,8 @@ export function OrgProfileForm({ initial, gatewayOptions = [] }: { initial: OrgD
           accountantApprovalLimitCents: accountantApprovalLimit.trim() ? Math.round((Number(accountantApprovalLimit) || 0) * 100) : null,
           approvalRequestPhone: approvalRequestPhone || undefined,
           accountantNotifyPhone: accountantNotifyPhone || undefined,
+          restrictIssuedInvoiceEdit,
+          issuedInvoiceEditRoles: JSON.stringify(issuedInvoiceEditRoles),
           expenseClaimPayoutLimitCents: Math.round((Number(expenseClaimPayoutLimit) || 0) * 100),
           expenseClaimPayoutGatewayId: expenseClaimPayoutGatewayId || null,
           billPayoutGatewayId: billPayoutGatewayId || null,
@@ -394,6 +408,50 @@ export function OrgProfileForm({ initial, gatewayOptions = [] }: { initial: OrgD
               the amount, destination, and gateway reference. Lets the accountant verify money moved without calling to check.
             </div>
           </label>
+        </div>
+        <div className="mt-4 pt-4 hairline-t">
+          <label className="flex items-start gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={restrictIssuedInvoiceEdit}
+              onChange={(e) => setRestrictIssuedInvoiceEdit(e.target.checked)}
+              className="accent-[var(--color-accent-500)] mt-0.5"
+            />
+            <div>
+              <div className="text-[13px] font-medium text-[var(--color-ink-900)]">Restrict who can edit issued invoices</div>
+              <div className="text-[12px] text-[var(--color-ink-400)] mt-0.5 max-w-lg">
+                Off (default): anyone who can see an invoice can edit it while it's still open and has no payments against it.
+                On: only the owner and the roles you pick below can. Invoices that already have a payment, or aren't open, always
+                require void-and-reissue regardless of this setting.
+              </div>
+            </div>
+          </label>
+          {restrictIssuedInvoiceEdit && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {ROLES.filter((r) => r !== "admin").map((r) => {
+                const active = issuedInvoiceEditRoles.includes(r);
+                return (
+                  <button
+                    key={r}
+                    type="button"
+                    onClick={() =>
+                      setIssuedInvoiceEditRoles((prev) =>
+                        active ? prev.filter((x) => x !== r) : [...prev, r]
+                      )
+                    }
+                    className={`px-3 py-1.5 rounded-full text-[12.5px] font-medium border transition-colors capitalize ${
+                      active
+                        ? "bg-[var(--color-accent-500)] text-white border-[var(--color-accent-500)]"
+                        : "bg-white text-[var(--color-ink-600)] border-[var(--color-ink-200)] hover:bg-[var(--color-ink-50)]"
+                    }`}
+                  >
+                    {r}
+                  </button>
+                );
+              })}
+              <span className="text-[11px] text-[var(--color-ink-400)] self-center">Admin and the owner can always edit.</span>
+            </div>
+          )}
         </div>
         <div className="mt-4 pt-4 hairline-t">
           <label className="block">

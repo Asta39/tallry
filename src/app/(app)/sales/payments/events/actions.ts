@@ -13,7 +13,12 @@ import { sendPaymentReceiptSms } from "@/lib/sms/receipts";
 import { revalidatePath } from "next/cache";
 
 // Money actually arrived for these — they can be applied to an invoice.
-const APPLICABLE = ["unmatched", "amount_mismatch", "received"];
+// "pending" included: an STK push whose webhook never came back (Daraja/Kopo
+// Kopo callback delivery isn't 100% reliable) sat invisible forever — the
+// customer's money moved, but nothing in the app ever showed it needed
+// manual review. Letting these be applied here — after checking the real
+// M-Pesa message — is the "Stuck Payouts" pattern already used for outbound.
+const APPLICABLE = ["unmatched", "amount_mismatch", "received", "pending"];
 // Failed/cancelled attempts carry no money but can be dismissed from review.
 const DISMISSIBLE = [...APPLICABLE, "failed"];
 

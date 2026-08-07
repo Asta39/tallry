@@ -59,6 +59,15 @@ export const org = pgTable("org", {
    *  without phoning whoever paid it. Separate from approvalRequestPhone,
    *  which is for approval requests, not payout confirmations. */
   accountantNotifyPhone: text("accountant_notify_phone"),
+  /** Off (default) = anyone with invoices access can edit an issued invoice
+   *  (matches the behavior before this toggle existed... except editing was
+   *  actually hard-blocked entirely before this — see the fix that shipped
+   *  alongside this). On = only the roles in issuedInvoiceEditRoles (plus
+   *  the owner, always) can. */
+  restrictIssuedInvoiceEdit: boolean("restrict_issued_invoice_edit").notNull().default(false),
+  /** JSON array of role strings, e.g. ["admin","accountant"]. Only consulted
+   *  when restrictIssuedInvoiceEdit is on. */
+  issuedInvoiceEditRoles: text("issued_invoice_edit_roles"),
   /** When on, staff see a clock-in/out card on their dashboard. */
   timeTrackingEnabled: boolean("time_tracking_enabled").notNull().default(false),
   /** When on, every item must belong to an admin-managed item group. */
