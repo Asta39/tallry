@@ -13,6 +13,7 @@ import { PageHeader, StatusPill, TableCard, Th, Td } from "@/components/ui";
 import { BankImport } from "@/components/BankImport";
 import { MpesaImport } from "@/components/MpesaImport";
 import { Reconciliation } from "@/components/Reconciliation";
+import { AccountTransfer } from "@/components/AccountTransfer";
 import { bankReconciliations } from "@/db";
 import { BankingTransactionsClient } from "@/components/BankingTransactionsClient";
 import { MoneyAccountsClient } from "./MoneyAccountsClient";
@@ -93,6 +94,9 @@ export default async function BankingPage() {
         banks={banks.map((b) => ({ id: b.id, label: bankAccountLabel(b, o.mpesaTillGatewayId) }))}
         openRec={openRec ? { id: openRec.id } : null}
       />
+
+      <h3 className="text-[13.5px] font-semibold mt-6 mb-3 text-[var(--color-ink-600)]">Transfer between accounts</h3>
+      <AccountTransfer banks={banks.map((b) => ({ id: b.id, label: bankAccountLabel(b, o.mpesaTillGatewayId) }))} />
 
       <h2 className="text-[15px] font-semibold mt-8 mb-3">Import M-Pesa statement</h2>
       <MpesaImport banks={banks.map((b) => ({ id: b.id, label: bankAccountLabel(b, o.mpesaTillGatewayId) }))} />

@@ -284,6 +284,102 @@ export async function getOpenReconciliation(bankAccountId: number) {
 }
 
 /* =========================================================================
+ * Account transfers
+ * Pure balance-sheet move between two money accounts (Petty Cash, Main Bank,
+ * M-Pesa Till, or any other bank_accounts row) — DR destination · CR source,
+ * both at the accounts' real ledger accountId, so it never touches income or
+ * expense. Reconciled bank_transactions rows are never modified by this (or
+ * anything else): completing a reconciliation is the only thing that sets
+ * status='reconciled', and nothing here can un-set or edit a ticked row —
+ * a transfer just adds two new, unreconciled candidate lines to each
+ * account's own future reconciliation.
+ * ========================================================================= */
+
+export async function transferBetweenAccounts(data: {
+  date: string;
+  amountCents: number;
+  fromBankAccountId: number;
+  toBankAccountId: number;
+  reference?: string;
+  notes?: string;
+}): Promise<{ success?: true; error?: string }> {
+  try {
+    return await withOrg(async () => {
+      const orgId = currentOrgId();
+      if (!Number.isInteger(data.amountCents) || data.amountCents <= 0) throw new Error("Enter a valid amount");
+      if (data.fromBankAccountId === data.toBankAccountId) throw new Error("Source and destination must be different accounts");
+
+      const [fromAcct, toAcct] = await Promise.all([
+        db.select().from(bankAccounts).where(and(eq(bankAccounts.orgId, orgId), eq(bankAccounts.id, data.fromBankAccountId))).limit(1),
+        db.select().from(bankAccounts).where(and(eq(bankAccounts.orgId, orgId), eq(bankAccounts.id, data.toBankAccountId))).limit(1),
+      ]);
+      const from = fromAcct[0];
+      const to = toAcct[0];
+      if (!from) throw new Error("Source account not found");
+      if (!to) throw new Error("Destination account not found");
+
+      // Available balance: the source account's real ledger balance through
+      // today — the same "books' truth" the reconciliation screen shows,
+      // not just the sum of bank_transactions rows (which would miss the
+      // account's opening balance, same bug already fixed for reconciliation).
+      const { journalLines, journalEntries } = await import("@/db");
+      const [bal] = await db
+        .select({ v: sql<number>`coalesce(sum(${journalLines.debitCents} - ${journalLines.creditCents}), 0)` })
+        .from(journalLines)
+        .innerJoin(journalEntries, eq(journalLines.entryId, journalEntries.id))
+        .where(and(eq(journalLines.orgId, orgId), eq(journalLines.accountId, from.accountId), lte(journalEntries.date, data.date)));
+      const available = Number(bal?.v ?? 0);
+      if (data.amountCents > available) {
+        throw new Error(`Transfer exceeds ${from.name}'s available balance (${(available / 100).toFixed(2)} KES)`);
+      }
+
+      const memo = `Transfer ${from.name} → ${to.name}${data.reference ? ` · ${data.reference}` : ""}`;
+      const entryId = await postEntry({
+        date: data.date,
+        memo,
+        sourceType: "account_transfer",
+        lines: [
+          { accountId: to.accountId, debitCents: data.amountCents, memo: data.notes || undefined },
+          { accountId: from.accountId, creditCents: data.amountCents, memo: data.notes || undefined },
+        ],
+      });
+
+      await mirrorBankTxn({
+        bankAccountId: from.id,
+        date: data.date,
+        description: `Transfer to ${to.name}${data.reference ? ` · ${data.reference}` : ""}`,
+        amountCents: -data.amountCents,
+        journalEntryId: entryId,
+        externalRef: `transfer_out:${entryId}`,
+      });
+      await mirrorBankTxn({
+        bankAccountId: to.id,
+        date: data.date,
+        description: `Transfer from ${from.name}${data.reference ? ` · ${data.reference}` : ""}`,
+        amountCents: data.amountCents,
+        journalEntryId: entryId,
+        externalRef: `transfer_in:${entryId}`,
+      });
+
+      const { logAudit } = await import("./audit");
+      await logAudit({
+        action: "transfer",
+        module: "banking",
+        recordId: entryId,
+        recordLabel: `${from.name} → ${to.name}`,
+        detail: `${(data.amountCents / 100).toFixed(2)} KES${data.reference ? ` · Ref: ${data.reference}` : ""}${data.notes ? ` · ${data.notes}` : ""}`,
+      });
+
+      revalidatePath("/banking");
+      revalidatePath("/reports");
+      return { success: true };
+    });
+  } catch (err: any) {
+    return { error: err?.message || "Transfer failed" };
+  }
+}
+
+/* =========================================================================
  * Recurring templates
  * ========================================================================= */
 
