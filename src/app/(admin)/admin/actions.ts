@@ -8,6 +8,15 @@ import { eq } from "drizzle-orm";
 import { requireSuperAdmin } from "@/lib/super-admin";
 import { logAdminAction } from "@/lib/admin-audit";
 import { PLANS, PlanKey, subscriptionStatusForDate } from "@/lib/billing";
+import { runAndStoreAllOrgChecks } from "@/lib/ledger-integrity";
+
+export async function runLedgerIntegrityNow() {
+  const user = await requireSuperAdmin();
+  const result = await runAndStoreAllOrgChecks();
+  await logAdminAction({ actorEmail: user.email!, action: "ledger_integrity_run_now", detail: `${result.totalFindings} finding(s) across ${result.orgsChecked} org(s)` });
+  revalidatePath("/admin/ledger-integrity");
+  return result;
+}
 
 export async function stopImpersonating() {
   const user = await requireSuperAdmin();

@@ -847,3 +847,17 @@ ALTER TABLE org ADD COLUMN IF NOT EXISTS issued_invoice_edit_roles TEXT;
 ALTER TABLE contacts ADD COLUMN IF NOT EXISTS payout_destination_type TEXT;
 ALTER TABLE contacts ADD COLUMN IF NOT EXISTS payout_destination TEXT;
 ALTER TABLE contacts ADD COLUMN IF NOT EXISTS payout_account_number TEXT;
+
+CREATE TABLE IF NOT EXISTS ledger_integrity_findings (
+  id SERIAL PRIMARY KEY,
+  org_id INTEGER NOT NULL REFERENCES org(id),
+  check_key TEXT NOT NULL,
+  severity TEXT NOT NULL DEFAULT 'error',
+  message TEXT NOT NULL,
+  detail TEXT,
+  first_seen_at TEXT NOT NULL,
+  last_seen_at TEXT NOT NULL,
+  resolved_at TEXT
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_ledger_integrity_org_check ON ledger_integrity_findings(org_id, check_key);
+CREATE INDEX IF NOT EXISTS idx_ledger_integrity_unresolved ON ledger_integrity_findings(resolved_at);

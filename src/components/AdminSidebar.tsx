@@ -30,6 +30,7 @@ const groups = [
       { href: "/admin/payments", label: "M-Pesa Logs", icon: "💸" },
       { href: "/admin/subscriptions", label: "Subscriptions", icon: "💳" },
       { href: "/admin/cron", label: "Scheduled Jobs", icon: "⏱" },
+      { href: "/admin/ledger-integrity", label: "Ledger Integrity", icon: "⚖️" },
       { href: "/admin/audit", label: "Audit Log", icon: "📜" },
     ],
   },

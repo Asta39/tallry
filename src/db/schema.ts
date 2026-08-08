@@ -1189,3 +1189,25 @@ export const budgetLines = pgTable("budget_lines", {
   orgBudgetIdx: index("idx_budget_lines_budget").on(t.orgId, t.budgetId),
   budgetAccountMonthUnique: uniqueIndex("idx_budget_lines_unique").on(t.budgetId, t.accountId, t.month),
 }));
+
+/** One row per (org, named integrity check) — the ledger-integrity cron
+ *  upserts these every run so the super admin sees drift across every org's
+ *  books without having to manually audit each one, the way the expense-
+ *  claim account bug and its own broken reconciliation tool both had to be
+ *  found by hand this session. resolvedAt is cleared whenever the check
+ *  fails again and set the moment a run no longer reproduces it — so the
+ *  admin screen only ever shows what's currently wrong, not history noise. */
+export const ledgerIntegrityFindings = pgTable("ledger_integrity_findings", {
+  id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
+  checkKey: text("check_key").notNull(),
+  severity: text("severity").notNull().default("error"), // error | warning
+  message: text("message").notNull(),
+  detail: text("detail"),
+  firstSeenAt: text("first_seen_at").notNull(),
+  lastSeenAt: text("last_seen_at").notNull(),
+  resolvedAt: text("resolved_at"),
+}, (t) => ({
+  orgCheckUnique: uniqueIndex("idx_ledger_integrity_org_check").on(t.orgId, t.checkKey),
+  unresolvedIdx: index("idx_ledger_integrity_unresolved").on(t.resolvedAt),
+}));

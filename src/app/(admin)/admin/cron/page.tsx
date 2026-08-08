@@ -6,6 +6,7 @@ export const dynamic = "force-dynamic";
 const JOBS = [
   { key: "recurring", label: "Recurring Documents", desc: "Generates due recurring invoices, bills and expenses", cadence: "daily" },
   { key: "due-dates", label: "Due-Date Alerts", desc: "Notifies tenants about invoices due today / tomorrow / in 3 days", cadence: "daily" },
+  { key: "ledger-integrity", label: "Ledger Integrity", desc: "Audits every org's books for drift — trial balance, missing journal entries, AR/AP mismatches", cadence: "daily" },
 ];
 
 function hoursAgo(iso: string): number {
