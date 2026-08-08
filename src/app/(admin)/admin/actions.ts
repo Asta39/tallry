@@ -9,12 +9,34 @@ import { requireSuperAdmin } from "@/lib/super-admin";
 import { logAdminAction } from "@/lib/admin-audit";
 import { PLANS, PlanKey, subscriptionStatusForDate } from "@/lib/billing";
 import { runAndStoreAllOrgChecks } from "@/lib/ledger-integrity";
+import { runOrgBackup, runAllOrgBackups, getBackupDownloadUrl } from "@/lib/org-backup";
 
 export async function runLedgerIntegrityNow() {
   const user = await requireSuperAdmin();
   const result = await runAndStoreAllOrgChecks();
   await logAdminAction({ actorEmail: user.email!, action: "ledger_integrity_run_now", detail: `${result.totalFindings} finding(s) across ${result.orgsChecked} org(s)` });
   revalidatePath("/admin/ledger-integrity");
+  return result;
+}
+
+export async function runOrgBackupNow(orgId: number) {
+  const user = await requireSuperAdmin();
+  const result = await runOrgBackup(orgId);
+  await logAdminAction({ actorEmail: user.email!, action: "org_backup_run_now", targetType: "org", targetId: orgId, detail: `${result.rowTotal} row(s), ${result.bytes} bytes` });
+  revalidatePath("/admin/backups");
+  return result;
+}
+
+export async function downloadOrgBackupAction(path: string) {
+  await requireSuperAdmin();
+  return getBackupDownloadUrl(path);
+}
+
+export async function runAllOrgBackupsNow() {
+  const user = await requireSuperAdmin();
+  const result = await runAllOrgBackups();
+  await logAdminAction({ actorEmail: user.email!, action: "org_backup_run_all_now", detail: `${result.orgsBackedUp} backed up, ${result.failures.length} failed` });
+  revalidatePath("/admin/backups");
   return result;
 }
 

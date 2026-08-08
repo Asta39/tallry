@@ -31,6 +31,7 @@ const groups = [
       { href: "/admin/subscriptions", label: "Subscriptions", icon: "💳" },
       { href: "/admin/cron", label: "Scheduled Jobs", icon: "⏱" },
       { href: "/admin/ledger-integrity", label: "Ledger Integrity", icon: "⚖️" },
+      { href: "/admin/backups", label: "Org Backups", icon: "🗄️" },
       { href: "/admin/audit", label: "Audit Log", icon: "📜" },
     ],
   },
