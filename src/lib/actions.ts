@@ -1760,7 +1760,7 @@ async function executeBillGatewayPayout(orgId: number, docId: number, billPayout
     // Funds instead of the real till.
     const [mpesaBank] = await db.select({ id: bankAccounts.id }).from(bankAccounts).where(and(eq(bankAccounts.orgId, orgId), eq(bankAccounts.kind, "mpesa"), eq(bankAccounts.archived, false))).limit(1);
 
-    await _recordPayment({
+    const paymentId = await _recordPayment({
       direction: "out",
       documentId: doc.id,
       date: todayISO(),
@@ -1769,6 +1769,9 @@ async function executeBillGatewayPayout(orgId: number, docId: number, billPayout
       reference: result.providerRef,
       bankAccountId: mpesaBank?.id,
     });
+    // Kept so a later "disbursement actually failed" webhook can find and
+    // reverse this exact payment — see reverseFailedGatewayPayout in webhook.ts.
+    await db.update(paymentEvents).set({ paymentId }).where(eq(paymentEvents.id, placeholder.id));
 
     await logAudit({ action: "pay_approved_bill_remote", module: "bills", recordId: doc.id, recordLabel: doc.number, detail: `${fmtKES(outstanding)} via ${gwConfig.gatewayId}` });
     await notifyAccountantOfPayout(orgId, {

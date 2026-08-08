@@ -1,16 +1,19 @@
 import crypto from "crypto";
-import { db, paymentEvents, paymentGateways, documents, bankAccounts } from "@/db";
+import { db, paymentEvents, paymentGateways, documents, bankAccounts, bankTransactions, payments as paymentsTable, expenseClaims, org as orgTable } from "@/db";
 import { eq, and } from "drizzle-orm";
 import { getGateway, isInboundFailure, InboundPayment, GatewayId } from "./gateway";
 import { matchPayment } from "./match";
 import { recordPayment } from "@/lib/actions";
 import { sendPaymentReceipt } from "@/lib/email/receipts";
 import { sendPaymentReceiptSms } from "@/lib/sms/receipts";
-import { orgContext } from "@/lib/org";
-import { postEntry, acct } from "@/lib/posting";
+import { orgContext, currentOrgId } from "@/lib/org";
+import { postEntry, acct, reverseEntry, mirrorBankTxn } from "@/lib/posting";
 import { SYS } from "@/lib/coa";
 import { ensureExpandedChartOfAccounts } from "@/lib/org";
 import { notifyAccountantOfPayout } from "@/lib/payout-notify";
+import { shortRef } from "@/lib/payments/ref-format";
+import { getOrgSmsConfig, sendSms, normalizeKePhone } from "@/lib/sms";
+import { fmtKES, todayISO } from "@/lib/money";
 
 function timingSafeEqualStr(a: string, b: string): boolean {
   const ab = Buffer.from(a, "utf8");
@@ -78,15 +81,39 @@ export async function handleGatewayWebhook(req: Request, gatewayId: GatewayId): 
 
   if (isInboundFailure(inbound)) {
     // Customer cancelled / push failed — close the pending event if we have one.
-    await db.update(paymentEvents)
+    const [closedPending] = await db.update(paymentEvents)
       .set({ status: "failed", rawJson: JSON.stringify(inbound.raw) })
       .where(and(
         eq(paymentEvents.orgId, orgId),
         eq(paymentEvents.gatewayId, gatewayId),
         eq(paymentEvents.providerRef, inbound.requestRef),
         eq(paymentEvents.status, "pending"),
-      ));
-    return { kind: "processed", status: "failed" };
+      ))
+      .returning({ id: paymentEvents.id });
+    if (closedPending) return { kind: "processed", status: "failed" };
+
+    // Outbound payouts post immediately at request time (a "send_money
+    // accepted" response is not proof the money actually moved — the real
+    // outcome only arrives here). If Kopo Kopo/Daraja later reports this
+    // exact disbursement failed, the event row is already "applied" and the
+    // books already show it paid. Reverse it for real instead of leaving a
+    // bill/claim marked paid when the vendor never received anything —
+    // this is exactly what "Ref: FE65C1B8 ... but the money never arrived"
+    // looks like from the accountant's side.
+    if (inbound.requestRef) {
+      const [appliedRow] = await db.select().from(paymentEvents).where(and(
+        eq(paymentEvents.orgId, orgId),
+        eq(paymentEvents.gatewayId, gatewayId),
+        eq(paymentEvents.providerRef, inbound.requestRef),
+        eq(paymentEvents.status, "applied"),
+        eq(paymentEvents.direction, "out"),
+      )).limit(1);
+      if (appliedRow) {
+        await orgContext.run(orgId, () => reverseFailedGatewayPayout(appliedRow, inbound.raw));
+        return { kind: "processed", status: "failed" };
+      }
+    }
+    return { kind: "ignored" };
   }
 
   return orgContext.run(orgId, () => applyInbound(orgId, gatewayId, inbound));
@@ -141,8 +168,15 @@ async function applyInbound(orgId: number, gatewayId: GatewayId, inbound: Inboun
         eq(paymentEvents.providerRef, inbound.requestRef),
         eq(paymentEvents.status, "applied"),
       ))
-      .returning({ id: paymentEvents.id, accountRef: paymentEvents.accountRef, amountCents: paymentEvents.amountCents, payerPhone: paymentEvents.payerPhone });
+      .returning({ id: paymentEvents.id, accountRef: paymentEvents.accountRef, amountCents: paymentEvents.amountCents, payerPhone: paymentEvents.payerPhone, paymentId: paymentEvents.paymentId });
     if (applied) {
+      // The receipt/payment record was written at request time with the
+      // same placeholder ref — swap it for the real code too, so "Ref:" on
+      // the payment detail page and PDF receipt matches what's on the
+      // vendor's and accountant's phones instead of the internal request id.
+      if (applied.paymentId) {
+        await db.update(paymentsTable).set({ reference: shortRef(inbound.providerRef) }).where(and(eq(paymentsTable.orgId, orgId), eq(paymentsTable.id, applied.paymentId)));
+      }
       await notifyAccountantOfPayout(orgId, {
         label: applied.accountRef || "payout",
         amountCents: applied.amountCents,
@@ -291,6 +325,100 @@ async function applyInbound(orgId: number, gatewayId: GatewayId, inbound: Inboun
       .set({ status: "failed", matchedDocumentId: matchedInvoiceId })
       .where(eq(paymentEvents.id, claimed.id));
     return { kind: "processed", status: "failed" };
+  }
+}
+
+/**
+ * Undoes a gateway payout that was posted immediately at request time but
+ * later turned out to have actually failed at the provider (disbursement
+ * declined/errored, insufficient float, bad destination, etc.) — reverses
+ * the journal entry, restores the bill/claim to unpaid, and tells the
+ * accountant it needs to be re-sent. Must run inside the paying org's
+ * context. Best-effort per side: a reconciled bank line blocks the
+ * reversal (same rule voidDocument enforces) rather than corrupting a
+ * closed reconciliation — that case is flagged for manual handling instead.
+ */
+async function reverseFailedGatewayPayout(
+  row: typeof paymentEvents.$inferSelect,
+  raw: unknown
+) {
+  const orgId = currentOrgId();
+  const date = todayISO();
+  let label = row.accountRef || "payout";
+  let destination = row.payerPhone || "";
+  let reversed = false;
+  let manualNote = "";
+
+  try {
+    if (row.matchedExpenseClaimId) {
+      const [claim] = await db.select().from(expenseClaims).where(and(eq(expenseClaims.orgId, orgId), eq(expenseClaims.id, row.matchedExpenseClaimId))).limit(1);
+      if (claim && claim.status === "paid" && claim.paidJournalEntryId) {
+        await reverseEntry(claim.paidJournalEntryId, date, `Payout failed (Kopo Kopo/M-Pesa declined): ${claim.description}`);
+        await db.update(expenseClaims).set({ status: "approved", paidJournalEntryId: null, paidAt: null }).where(eq(expenseClaims.id, claim.id));
+        label = `expense claim (${claim.submittedByName})`;
+        destination = row.payerPhone || destination;
+        reversed = true;
+      } else {
+        manualNote = "Claim was not in a paid state to reverse — check it manually.";
+      }
+    } else if (row.matchedDocumentId && row.paymentId) {
+      const [payment] = await db.select().from(paymentsTable).where(and(eq(paymentsTable.orgId, orgId), eq(paymentsTable.id, row.paymentId))).limit(1);
+      const [doc] = await db.select().from(documents).where(and(eq(documents.orgId, orgId), eq(documents.id, row.matchedDocumentId))).limit(1);
+      if (payment?.journalEntryId && doc) {
+        const [reconciled] = await db
+          .select({ id: bankTransactions.id, reconciliationId: bankTransactions.reconciliationId })
+          .from(bankTransactions)
+          .where(and(
+            eq(bankTransactions.orgId, orgId),
+            eq(bankTransactions.journalEntryId, payment.journalEntryId),
+          ))
+          .limit(1);
+        if (reconciled?.reconciliationId) {
+          manualNote = "This payment's bank line is already reconciled — reverse it manually after reopening that reconciliation.";
+        } else {
+          const reversalEntryId = await reverseEntry(payment.journalEntryId, date, `Payout failed (Kopo Kopo/M-Pesa declined): ${doc.number}`);
+          const newPaidCents = Math.max(0, doc.paidCents - payment.amountCents);
+          const status = newPaidCents >= doc.totalCents ? "paid" : newPaidCents > 0 || doc.creditedCents > 0 ? "partial" : "open";
+          await db.update(documents).set({ paidCents: newPaidCents, status }).where(eq(documents.id, doc.id));
+          if (payment.bankAccountId) {
+            await mirrorBankTxn({
+              bankAccountId: payment.bankAccountId,
+              date,
+              description: `Payout reversed (failed) · ${doc.number}`,
+              amountCents: payment.amountCents,
+              journalEntryId: reversalEntryId,
+              externalRef: `payout_failed:${reversalEntryId}`,
+            });
+          }
+          label = `bill ${doc.number}`;
+          destination = row.payerPhone || destination;
+          reversed = true;
+        }
+      } else {
+        manualNote = "Could not find the original payment to reverse — check it manually.";
+      }
+    }
+  } catch (e) {
+    console.error("reverseFailedGatewayPayout failed for event", row.id, e);
+    manualNote = "Automatic reversal failed — check and correct this manually.";
+  }
+
+  await db.update(paymentEvents).set({ status: "failed", rawJson: JSON.stringify(raw) }).where(eq(paymentEvents.id, row.id));
+
+  // Distinct from notifyAccountantOfPayout's success template — this is
+  // urgent: money the books said was sent was NOT actually delivered.
+  try {
+    const [orgRow] = await db.select().from(orgTable).where(eq(orgTable.id, orgId)).limit(1);
+    if (orgRow?.accountantNotifyPhone) {
+      const recipient = normalizeKePhone(orgRow.accountantNotifyPhone);
+      const cfg = recipient ? await getOrgSmsConfig(orgId) : null;
+      if (recipient && cfg) {
+        const suffix = reversed ? "Reversed in the books — please re-send it." : manualNote || "Please check and correct this manually.";
+        await sendSms(cfg, recipient, `${orgRow.name || "Zeno"}: PAYOUT FAILED — ${fmtKES(row.amountCents)} for ${label} to ${destination} did NOT go through. ${suffix}`);
+      }
+    }
+  } catch (e) {
+    console.error("Failure-notify SMS failed", e);
   }
 }
 

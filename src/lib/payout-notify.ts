@@ -4,16 +4,7 @@ import { db, org } from "@/db";
 import { eq } from "drizzle-orm";
 import { getOrgSmsConfig, sendSms, normalizeKePhone } from "@/lib/sms";
 import { fmtKES } from "@/lib/money";
-
-/** Gateway provider refs are long UUIDs (Kopo Kopo) or verbose conversation
- *  ids (Daraja) — unreadable in an SMS. Compress to the last 8 alphanumeric
- *  characters, uppercased, as a short code the accountant can actually read
- *  back or note down; still specific enough per payout to be useful for a
- *  quick "does this match what I see" check. */
-function shortRef(providerRef: string): string {
-  const alnum = (providerRef || "").replace(/[^A-Za-z0-9]/g, "").toUpperCase();
-  return alnum.slice(-8) || providerRef;
-}
+import { shortRef } from "@/lib/payments/ref-format";
 
 /**
  * Texts org.accountantNotifyPhone a confirmation every time a bill or

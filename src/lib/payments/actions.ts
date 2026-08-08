@@ -159,7 +159,7 @@ export async function payOutAction(documentId: number, destination: string, dest
 
     const [mpesaBank] = await db.select({ id: bankAccounts.id }).from(bankAccounts).where(and(eq(bankAccounts.orgId, o.id), eq(bankAccounts.kind, "mpesa"), eq(bankAccounts.archived, false))).limit(1);
 
-    await recordPayment({
+    const paymentId = await recordPayment({
       direction: "out",
       documentId,
       date: new Date().toISOString().split("T")[0],
@@ -168,6 +168,9 @@ export async function payOutAction(documentId: number, destination: string, dest
       reference: result.providerRef,
       bankAccountId: mpesaBank?.id,
     });
+    // Kept so a later "disbursement actually failed" webhook can find and
+    // reverse this exact payment — see reverseFailedGatewayPayout in webhook.ts.
+    await db.update(paymentEvents).set({ paymentId }).where(eq(paymentEvents.id, placeholder.id));
 
     await notifyAccountantOfPayout(o.id, {
       label: `${doc.type} ${doc.number}`,
