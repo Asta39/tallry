@@ -1,4 +1,5 @@
 "use server";
+import crypto from "crypto";
 import { getAccess } from "@/lib/access";
 
 import {
@@ -1712,29 +1713,47 @@ async function executeBillGatewayPayout(orgId: number, docId: number, billPayout
       ? await db.select({ name: contacts.displayName }).from(contacts).where(and(eq(contacts.id, doc.contactId), eq(contacts.orgId, orgId))).limit(1)
       : [];
 
-    const result = await gateway.payOut({
-      destination: doc.payoutDestination,
-      destinationType: doc.payoutDestinationType as "phone" | "till" | "paybill",
-      accountNumber: doc.payoutAccountNumber || undefined,
-      amountCents: outstanding,
-      accountRef: doc.number,
-      payeeName: payee?.name || undefined,
-      reason: `Payout for bill ${doc.number}`,
-    });
-
-    await db.insert(paymentEvents).values({
+    // Placeholder inserted BEFORE the gateway call — if payOut() throws after
+    // Kopo Kopo already moved the money (e.g. our request times out reading
+    // the response), the old code left zero trace of the attempt. Now a
+    // "pending" row survives so the accountant can reconcile it against the
+    // confirmation SMS on their phone instead of the system showing nothing.
+    const tempRef = `pending:${crypto.randomUUID()}`;
+    const [placeholder] = await db.insert(paymentEvents).values({
       orgId,
       gatewayId: gwConfig.gatewayId,
-      providerRef: result.providerRef,
+      providerRef: tempRef,
       direction: "out",
       amountCents: outstanding,
       payerPhone: doc.payoutDestinationType === "phone" ? doc.payoutDestination : undefined,
       accountRef: doc.number,
-      status: "applied",
+      status: "pending",
       matchedDocumentId: doc.id,
-      rawJson: JSON.stringify({ payoutRef: result.providerRef, destination: doc.payoutDestination, destinationType: doc.payoutDestinationType, amountCents: outstanding }),
+      rawJson: JSON.stringify({ destination: doc.payoutDestination, destinationType: doc.payoutDestinationType, amountCents: outstanding }),
       createdAt: new Date().toISOString(),
-    }).onConflictDoNothing({ target: [paymentEvents.gatewayId, paymentEvents.providerRef] });
+    }).returning({ id: paymentEvents.id });
+
+    let result: Awaited<ReturnType<typeof gateway.payOut>>;
+    try {
+      result = await gateway.payOut({
+        destination: doc.payoutDestination,
+        destinationType: doc.payoutDestinationType as "phone" | "till" | "paybill",
+        accountNumber: doc.payoutAccountNumber || undefined,
+        amountCents: outstanding,
+        accountRef: doc.number,
+        payeeName: payee?.name || undefined,
+        reason: `Payout for bill ${doc.number}`,
+      });
+    } catch (e: any) {
+      await db.update(paymentEvents).set({ status: "failed", rawJson: JSON.stringify({ destination: doc.payoutDestination, destinationType: doc.payoutDestinationType, amountCents: outstanding, error: e?.message }) }).where(eq(paymentEvents.id, placeholder.id));
+      throw e;
+    }
+
+    await db.update(paymentEvents).set({
+      providerRef: result.providerRef,
+      status: "applied",
+      rawJson: JSON.stringify({ payoutRef: result.providerRef, destination: doc.payoutDestination, destinationType: doc.payoutDestinationType, amountCents: outstanding }),
+    }).where(eq(paymentEvents.id, placeholder.id));
 
     // Same reasoning as the M-Pesa till reconciliation engine: without an
     // explicit bankAccountId, postPayment() falls back to Undeposited
@@ -1758,6 +1777,7 @@ async function executeBillGatewayPayout(orgId: number, docId: number, billPayout
       destination: doc.payoutDestination,
       providerRef: result.providerRef,
       gatewayId: gwConfig.gatewayId,
+      confirmed: false,
     });
     return { success: true };
   } catch (err: any) {

@@ -1,5 +1,6 @@
 "use server";
 
+import crypto from "crypto";
 import { requirePerm } from "@/lib/guard";
 import { getGateway } from "@/lib/payments/gateway";
 import { db, documents, paymentGateways, paymentEvents, contacts, bankAccounts } from "@/db";
@@ -104,16 +105,43 @@ export async function payOutAction(documentId: number, destination: string, dest
       ? await db.select({ name: contacts.displayName, email: contacts.email }).from(contacts).where(and(eq(contacts.id, doc.contactId), eq(contacts.orgId, o.id)))
       : [];
 
-    const result = await gateway.payOut({
-      destination,
-      destinationType,
-      accountNumber: accountNumber?.trim() || undefined,
+    // Placeholder inserted BEFORE the gateway call — if payOut() throws after
+    // the provider already moved the money (e.g. our request times out
+    // reading the response), the old code left zero trace of the attempt.
+    // Now a "pending" row survives so it can be reconciled against the SMS
+    // confirmation on the recipient's/accountant's phone instead of the
+    // system silently showing nothing happened.
+    const tempRef = `pending:${crypto.randomUUID()}`;
+    const [placeholder] = await db.insert(paymentEvents).values({
+      orgId: o.id,
+      gatewayId,
+      providerRef: tempRef,
+      direction: "out",
       amountCents,
+      payerPhone: destinationType === "phone" ? destination : undefined,
       accountRef: doc.number,
-      payeeName: payee?.name || undefined,
-      payeeEmail: payee?.email || undefined,
-      reason: `Payout for ${doc.type} ${doc.number}`
-    });
+      status: "pending",
+      matchedDocumentId: documentId,
+      rawJson: JSON.stringify({ destination, destinationType, amountCents }),
+      createdAt: new Date().toISOString(),
+    }).returning({ id: paymentEvents.id });
+
+    let result: Awaited<ReturnType<typeof gateway.payOut>>;
+    try {
+      result = await gateway.payOut({
+        destination,
+        destinationType,
+        accountNumber: accountNumber?.trim() || undefined,
+        amountCents,
+        accountRef: doc.number,
+        payeeName: payee?.name || undefined,
+        payeeEmail: payee?.email || undefined,
+        reason: `Payout for ${doc.type} ${doc.number}`
+      });
+    } catch (e: any) {
+      await db.update(paymentEvents).set({ status: "failed", rawJson: JSON.stringify({ destination, destinationType, amountCents, error: e?.message }) }).where(eq(paymentEvents.id, placeholder.id));
+      throw e;
+    }
 
     // Recorded as already applied and posted immediately below, rather than
     // 'pending' waiting on the gateway's async settlement webhook — that
@@ -123,19 +151,11 @@ export async function payOutAction(documentId: number, destination: string, dest
     // actually wrong. The gateway call above already succeeded (or this
     // throws), so the accountant needs the balance to move now — same
     // reasoning as the expense-claim gateway payout path.
-    await db.insert(paymentEvents).values({
-      orgId: o.id,
-      gatewayId,
+    await db.update(paymentEvents).set({
       providerRef: result.providerRef,
-      direction: "out",
-      amountCents,
-      payerPhone: destinationType === "phone" ? destination : undefined,
-      accountRef: doc.number,
       status: "applied",
-      matchedDocumentId: documentId,
       rawJson: JSON.stringify({ payoutRef: result.providerRef, destination, destinationType, amountCents }),
-      createdAt: new Date().toISOString(),
-    }).onConflictDoNothing({ target: [paymentEvents.gatewayId, paymentEvents.providerRef] });
+    }).where(eq(paymentEvents.id, placeholder.id));
 
     const [mpesaBank] = await db.select({ id: bankAccounts.id }).from(bankAccounts).where(and(eq(bankAccounts.orgId, o.id), eq(bankAccounts.kind, "mpesa"), eq(bankAccounts.archived, false))).limit(1);
 
@@ -155,6 +175,7 @@ export async function payOutAction(documentId: number, destination: string, dest
       destination,
       providerRef: result.providerRef,
       gatewayId,
+      confirmed: false,
     });
 
     return { success: true };

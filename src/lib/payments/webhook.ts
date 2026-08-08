@@ -10,6 +10,7 @@ import { orgContext } from "@/lib/org";
 import { postEntry, acct } from "@/lib/posting";
 import { SYS } from "@/lib/coa";
 import { ensureExpandedChartOfAccounts } from "@/lib/org";
+import { notifyAccountantOfPayout } from "@/lib/payout-notify";
 
 function timingSafeEqualStr(a: string, b: string): boolean {
   const ab = Buffer.from(a, "utf8");
@@ -118,6 +119,38 @@ async function applyInbound(orgId: number, gatewayId: GatewayId, inbound: Inboun
     if (row) {
       claimed = row;
       pendingAmountCents = row.amountCents;
+    }
+  }
+
+  // 1b. Outbound payouts are posted immediately at request time (see the
+  //     "immediate posting" comments at every payOut() call site) — by the
+  //     time this webhook lands, the event row is already 'applied', not
+  //     'pending', so the match above never fires for it. What's still
+  //     missing at request time is the REAL Kopo Kopo/M-Pesa transaction
+  //     code: providerRef was set to Kopo Kopo's internal request id (the
+  //     only thing available synchronously), while the actual code the
+  //     recipient's SMS shows only arrives here. Swap it in now and re-notify
+  //     the accountant with the real code instead of the placeholder one —
+  //     nothing about the posted ledger entry changes.
+  if (!claimed && direction === "out" && inbound.requestRef) {
+    const [applied] = await db.update(paymentEvents)
+      .set({ providerRef: inbound.providerRef, rawJson: JSON.stringify(inbound.raw) })
+      .where(and(
+        eq(paymentEvents.orgId, orgId),
+        eq(paymentEvents.gatewayId, gatewayId),
+        eq(paymentEvents.providerRef, inbound.requestRef),
+        eq(paymentEvents.status, "applied"),
+      ))
+      .returning({ id: paymentEvents.id, accountRef: paymentEvents.accountRef, amountCents: paymentEvents.amountCents, payerPhone: paymentEvents.payerPhone });
+    if (applied) {
+      await notifyAccountantOfPayout(orgId, {
+        label: applied.accountRef || "payout",
+        amountCents: applied.amountCents,
+        destination: applied.payerPhone || "",
+        providerRef: inbound.providerRef,
+        gatewayId,
+      }).catch(() => null);
+      return { kind: "processed", status: "applied" };
     }
   }
 

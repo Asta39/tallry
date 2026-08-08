@@ -25,7 +25,20 @@ function shortRef(providerRef: string): string {
  */
 export async function notifyAccountantOfPayout(
   orgId: number,
-  params: { label: string; amountCents: number; destination: string; providerRef: string; gatewayId: string }
+  params: {
+    label: string;
+    amountCents: number;
+    destination: string;
+    providerRef: string;
+    gatewayId: string;
+    /** Both gateways only hand back their own internal request id at payout
+     *  time — the real transaction code (what actually shows up on the
+     *  recipient's phone) only arrives later via webhook. Pass false for the
+     *  immediate post-payout text so it doesn't quote that meaningless
+     *  internal id as if it were the real reference; the webhook handler
+     *  sends a follow-up with confirmed: true once the real code lands. */
+    confirmed?: boolean;
+  }
 ) {
   try {
     const [orgRow] = await db.select().from(org).where(eq(org.id, orgId)).limit(1);
@@ -36,11 +49,11 @@ export async function notifyAccountantOfPayout(
     if (!cfg) return;
 
     const gatewayName = params.gatewayId === "mpesa_daraja" ? "M-Pesa" : params.gatewayId === "kopokopo" ? "Kopo Kopo" : params.gatewayId;
-    await sendSms(
-      cfg,
-      recipient,
-      `${orgRow.name || "Zeno"}: ${fmtKES(params.amountCents)} paid out to ${params.destination} for ${params.label} via ${gatewayName}. Ref: ${shortRef(params.providerRef)}`
-    );
+    const confirmed = params.confirmed ?? true;
+    const message = confirmed
+      ? `${orgRow.name || "Zeno"}: ${fmtKES(params.amountCents)} paid out to ${params.destination} for ${params.label} via ${gatewayName}. Ref: ${shortRef(params.providerRef)}`
+      : `${orgRow.name || "Zeno"}: ${fmtKES(params.amountCents)} sent to ${params.destination} for ${params.label} via ${gatewayName}. Confirming reference shortly.`;
+    await sendSms(cfg, recipient, message);
   } catch (e) {
     console.error("notifyAccountantOfPayout failed", e);
   }

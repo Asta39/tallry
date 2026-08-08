@@ -467,34 +467,54 @@ async function executeGatewayPayoutForClaim(
   amountCents: number,
   accountNumber: string | undefined
 ) {
-  const result = await gateway.payOut({
-    destination,
-    destinationType,
-    accountNumber: accountNumber?.trim() || undefined,
+  // Placeholder row inserted BEFORE the gateway call, not after — if payOut()
+  // throws mid-flight (e.g. our request reaches Kopo Kopo and the money
+  // actually moves, but the response times out before we read it), the old
+  // code left zero trace: no row, no way to know a payout was attempted. Now
+  // there's always a "pending" row to reconcile against the SMS the claimant
+  // or accountant actually received on their phone, instead of the system
+  // silently showing nothing happened.
+  const tempRef = `pending:${crypto.randomUUID()}`;
+  const [placeholder] = await db.insert(paymentEvents).values({
+    orgId,
+    gatewayId,
+    providerRef: tempRef,
+    direction: "out",
     amountCents,
+    payerPhone: destinationType === "phone" ? destination : undefined,
     accountRef: `EXPCLAIM-${claim.id}`,
-    payeeName: claim.submittedByName,
-    reason: `Reimbursement: ${claim.description}`,
-  });
+    status: "pending",
+    matchedExpenseClaimId: claim.id,
+    rawJson: JSON.stringify({ destination, destinationType, amountCents }),
+    createdAt: new Date().toISOString(),
+  }).returning({ id: paymentEvents.id });
+
+  let result: Awaited<ReturnType<PaymentGateway["payOut"]>>;
+  try {
+    result = await gateway.payOut({
+      destination,
+      destinationType,
+      accountNumber: accountNumber?.trim() || undefined,
+      amountCents,
+      accountRef: `EXPCLAIM-${claim.id}`,
+      payeeName: claim.submittedByName,
+      reason: `Reimbursement: ${claim.description}`,
+    });
+  } catch (e: any) {
+    await db.update(paymentEvents).set({ status: "failed", rawJson: JSON.stringify({ destination, destinationType, amountCents, error: e?.message }) }).where(eq(paymentEvents.id, placeholder.id));
+    throw e;
+  }
 
   // Recorded as already applied and posted immediately below — the
   // accountant needs the ledger balance to move the moment the payout is
   // sent, not whenever the gateway's async webhook callback eventually
   // lands. (If that webhook does arrive later, applyExpenseClaimGatewayPayout
   // will find the claim no longer "approved" and no-op harmlessly.)
-  await db.insert(paymentEvents).values({
-    orgId,
-    gatewayId,
+  await db.update(paymentEvents).set({
     providerRef: result.providerRef,
-    direction: "out",
-    amountCents,
-    payerPhone: destinationType === "phone" ? destination : undefined,
-    accountRef: `EXPCLAIM-${claim.id}`,
     status: "applied",
-    matchedExpenseClaimId: claim.id,
     rawJson: JSON.stringify({ payoutRef: result.providerRef, destination, destinationType, amountCents }),
-    createdAt: new Date().toISOString(),
-  }).onConflictDoNothing({ target: [paymentEvents.gatewayId, paymentEvents.providerRef] });
+  }).where(eq(paymentEvents.id, placeholder.id));
 
   await applyExpenseClaimGatewayPayout(claim.id, amountCents, gatewayId);
 
@@ -504,6 +524,7 @@ async function executeGatewayPayoutForClaim(
     destination,
     providerRef: result.providerRef,
     gatewayId,
+    confirmed: false,
   });
 }
 
