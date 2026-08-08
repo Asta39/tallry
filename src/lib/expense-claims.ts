@@ -7,7 +7,7 @@ import { eq, and, desc, or, isNull } from "drizzle-orm";
 import { withOrg, currentOrgId, getOrg, orgContext } from "@/lib/org";
 import { requirePerm } from "@/lib/guard";
 import { getAccess } from "@/lib/access";
-import { postEntry, mirrorBankTxn, acct } from "@/lib/posting";
+import { postEntry, mirrorBankTxn, acct, reverseEntry } from "@/lib/posting";
 import { SYS } from "@/lib/coa";
 import { ensureAccount } from "@/lib/phase-a-actions";
 import { nowISO, todayISO, fmtKES } from "@/lib/money";
@@ -231,6 +231,15 @@ export async function submitExpenseClaimAction(data: {
       createdAt: nowISO(),
     }).returning();
 
+    // The liability is real the moment the claim is submitted — the expense
+    // was already incurred by the employee — so it belongs in the books
+    // (DR category · CR Staff Reimbursements Payable) right away, not only
+    // once someone gets around to clicking Approve. "Approve" is purely
+    // authorization to pay it out; "Reject" reverses this same entry (see
+    // rejectClaimInternal) rather than leaving the claim in limbo with no
+    // ledger trace, per the accountant's explicit correction.
+    await postClaimAccrual(claim);
+
     // Over-limit claims from anyone but the owner/admin need the admin's
     // sign-off before an accountant can even approve them — routed by SMS
     // right away, at submission, rather than waiting for an accountant to
@@ -247,14 +256,14 @@ export async function submitExpenseClaimAction(data: {
   });
 }
 
-/** Post the accrual journal (DR category · CR Staff Reimbursements Payable)
- *  and flip the claim to "approved". Shared by the direct-approve path and
- *  the admin-approval-token path (respondToExpenseClaimPayoutApprovalAction),
- *  since an over-limit claim reaches "approved" via either route. */
-async function accrueClaim(claim: typeof expenseClaims.$inferSelect, reviewerName: string): Promise<number> {
+/** Posts the accrual journal (DR category · CR Staff Reimbursements Payable)
+ *  at submission time and records the entry on the claim. Called once, from
+ *  submitExpenseClaimAction — approving/rejecting afterward never posts a
+ *  second entry, only a reversal (see rejectClaimInternal) or nothing at all. */
+async function postClaimAccrual(claim: typeof expenseClaims.$inferSelect): Promise<number> {
   const payable = await payableAccountId();
   const entryId = await postEntry({
-    date: todayISO(),
+    date: claim.date,
     memo: `Expense claim: ${claim.description} (${claim.submittedByName})`,
     sourceType: "expense_claim",
     sourceId: claim.id,
@@ -263,11 +272,27 @@ async function accrueClaim(claim: typeof expenseClaims.$inferSelect, reviewerNam
       { accountId: payable, creditCents: claim.amountCents },
     ],
   });
+  await db.update(expenseClaims).set({ journalEntryId: entryId }).where(eq(expenseClaims.id, claim.id));
+  return entryId;
+}
+
+/** Flips an already-accrued claim to "approved" — the accrual journal was
+ *  already posted at submission (postClaimAccrual), so approving is pure
+ *  authorization to pay it out, not a second posting. Shared by the direct-
+ *  approve path and the admin-approval-token path
+ *  (respondToExpenseClaimPayoutApprovalAction), since an over-limit claim
+ *  reaches "approved" via either route. */
+async function approveClaimStatus(claim: typeof expenseClaims.$inferSelect, reviewerName: string): Promise<void> {
+  // Safety net for any claim submitted before accrual-at-submission shipped
+  // (so it has no journalEntryId yet) — post it now rather than silently
+  // skipping the entry the accountant is relying on being there.
+  if (!claim.journalEntryId) {
+    await postClaimAccrual(claim);
+  }
 
   await db.update(expenseClaims).set({
     status: "approved",
     reviewedByName: reviewerName,
-    journalEntryId: entryId,
     reviewedAt: nowISO(),
   }).where(eq(expenseClaims.id, claim.id));
 
@@ -279,8 +304,27 @@ async function accrueClaim(claim: typeof expenseClaims.$inferSelect, reviewerNam
   await db.update(expenseClaimPayoutApprovals)
     .set({ revoked: true })
     .where(and(eq(expenseClaimPayoutApprovals.claimId, claim.id), eq(expenseClaimPayoutApprovals.revoked, false), isNull(expenseClaimPayoutApprovals.decision)));
+}
 
-  return entryId;
+/** Rejects a still-pending claim: reverses the accrual entry posted at
+ *  submission (DR payable · CR category — the exact opposite of the
+ *  original, so it "means nothing to the books" net-net) and flips status
+ *  to "rejected". Shared by the direct-reject path and the admin-approval-
+ *  token path so an over-limit claim rejected either way reverses correctly. */
+async function rejectClaimInternal(claim: typeof expenseClaims.$inferSelect, reviewerName: string, note?: string): Promise<void> {
+  if (claim.journalEntryId) {
+    await reverseEntry(claim.journalEntryId, todayISO(), `Expense claim rejected: ${claim.description} (${claim.submittedByName})`);
+  }
+  await db.update(expenseClaims).set({
+    status: "rejected",
+    reviewedByName: reviewerName,
+    reviewNote: note?.trim() || null,
+    reviewedAt: nowISO(),
+  }).where(eq(expenseClaims.id, claim.id));
+
+  await db.update(expenseClaimPayoutApprovals)
+    .set({ revoked: true })
+    .where(and(eq(expenseClaimPayoutApprovals.claimId, claim.id), eq(expenseClaimPayoutApprovals.revoked, false), isNull(expenseClaimPayoutApprovals.decision)));
 }
 
 /** Best-effort auto-pay right after a claim is accrued: sends the reimbursement
@@ -335,7 +379,7 @@ export async function approveExpenseClaimAction(id: number) {
         throw new Error(`This claim is over the ${fmtKES(limit)} limit and needs admin approval — it was already sent for approval when submitted.`);
       }
 
-      await accrueClaim(claim, access?.memberName || "Owner");
+      await approveClaimStatus(claim, access?.memberName || "Owner");
     } catch (e) {
       await db.update(expenseClaims).set({ status: "pending" }).where(and(eq(expenseClaims.id, id), eq(expenseClaims.status, "approving")));
       throw e;
@@ -358,21 +402,21 @@ export async function rejectExpenseClaimAction(id: number, note: string) {
     const access = await getAccess();
     const orgId = currentOrgId();
 
+    // Atomic claim, same pattern as approve — a rejection reverses the
+    // accrual entry, so two concurrent rejects must not both post a reversal.
     const [claim] = await db
       .update(expenseClaims)
-      .set({
-        status: "rejected",
-        reviewedByName: access?.memberName || "Owner",
-        reviewNote: note || null,
-        reviewedAt: nowISO(),
-      })
+      .set({ status: "rejecting" })
       .where(and(eq(expenseClaims.id, id), eq(expenseClaims.orgId, orgId), eq(expenseClaims.status, "pending")))
       .returning();
     if (!claim) throw new Error("Claim already reviewed");
 
-    await db.update(expenseClaimPayoutApprovals)
-      .set({ revoked: true })
-      .where(and(eq(expenseClaimPayoutApprovals.claimId, id), eq(expenseClaimPayoutApprovals.revoked, false), isNull(expenseClaimPayoutApprovals.decision)));
+    try {
+      await rejectClaimInternal(claim, access?.memberName || "Owner", note);
+    } catch (e) {
+      await db.update(expenseClaims).set({ status: "pending" }).where(and(eq(expenseClaims.id, id), eq(expenseClaims.status, "rejecting")));
+      throw e;
+    }
 
     revalidatePath("/expense-claims");
     return { success: true };
@@ -668,10 +712,11 @@ async function respondInOrgContext(
       // The claim reaches this point either already "approved" (a payout
       // that itself exceeded the limit, requested from the Pay button), or
       // still "pending" (an over-limit claim whose approval step itself was
-      // routed to the admin) — accrue it first in the latter case so a
-      // single admin tap both approves and pays.
+      // routed to the admin) — approve it first in the latter case so a
+      // single admin tap both approves and pays. The accrual journal was
+      // already posted at submission time either way.
       if (claim.status === "pending") {
-        await accrueClaim(claim, row.requestedByName || "Admin");
+        await approveClaimStatus(claim, row.requestedByName || "Admin");
       } else if (claim.status !== "approved") {
         throw new Error(`This claim is no longer payable (status: ${claim.status})`);
       }
@@ -693,6 +738,12 @@ async function respondInOrgContext(
         row.amountCents,
         row.accountNumber || undefined
       );
+    } else if (claim.status === "pending") {
+      // Admin declining an over-limit claim (the approval step itself was
+      // routed to them) rejects the underlying claim too, reversing the
+      // accrual — otherwise the claim sat "pending" forever with no way for
+      // the accountant to know the admin had already said no.
+      await rejectClaimInternal(claim, row.requestedByName || "Admin", note);
     }
 
     await db.update(expenseClaimPayoutApprovals).set({
