@@ -1,7 +1,7 @@
 "use server";
 
 import crypto from "crypto";
-import { db, expenseClaims, accounts, bankAccounts, org, paymentGateways, paymentEvents, expenseClaimPayoutApprovals, payments } from "@/db";
+import { db, expenseClaims, accounts, bankAccounts, org, paymentGateways, paymentEvents, expenseClaimPayoutApprovals, payments, journalLines } from "@/db";
 import { nextNumber } from "@/lib/actions";
 import { eq, and, desc, or, isNull } from "drizzle-orm";
 import { withOrg, currentOrgId, getOrg, orgContext } from "@/lib/org";
@@ -58,19 +58,38 @@ async function pickExpenseClaimGateway(orgId: number, preferredGatewayId: string
 }
 
 /**
- * One-time correction for the account-code bug above: any currently-approved
- * (accrued but not yet paid) expense claim has its liability sitting in
- * "2100 Accounts Payable" instead of "2340 Staff Reimbursements Payable" —
- * already-paid claims net to zero in 2100 (the accrual and the payment leg
- * cancel out), so only open claims need moving. Posts one reclass entry per
- * org: DR 2100 · CR 2340 for the total, leaving the append-only ledger
- * untouched otherwise.
+ * Finds still-open expense claims (pending/approved — not yet paid, not
+ * rejected) whose OWN accrual entry actually posted a credit to "2100
+ * Accounts Payable" — i.e. really is misposted, not just "currently
+ * approved". The original version of this check queried every approved
+ * claim regardless of which account its accrual landed in; once the
+ * underlying account-code bug got fixed, clicking "Fix now" on a day that
+ * still had one genuinely-misposted claim would ALSO sweep up every other
+ * approved claim that was already correctly posted to 2340, reclassifying
+ * money that was never in 2100 to begin with — a real double-count that
+ * left 2340 overstated and 2100 with a residual balance that should've
+ * been zero. This precise, entry-level check can't repeat that mistake.
  */
+async function findMispostedClaims(orgId: number) {
+  const apAccountId = await ensureAccount("2100", "Accounts Payable", "liability", "accounts_payable");
+  const rows = await db
+    .select({ id: expenseClaims.id, amountCents: expenseClaims.amountCents })
+    .from(expenseClaims)
+    .innerJoin(journalLines, eq(journalLines.entryId, expenseClaims.journalEntryId))
+    .where(and(
+      eq(expenseClaims.orgId, orgId),
+      or(eq(expenseClaims.status, "pending"), eq(expenseClaims.status, "approved")),
+      eq(journalLines.orgId, orgId),
+      eq(journalLines.accountId, apAccountId),
+    ));
+  return rows;
+}
+
 export async function previewExpenseClaimAccountDrift() {
   return withOrg(async () => {
     await requirePerm("accountant");
     const orgId = currentOrgId();
-    const rows = await db.select({ amountCents: expenseClaims.amountCents }).from(expenseClaims).where(and(eq(expenseClaims.orgId, orgId), eq(expenseClaims.status, "approved")));
+    const rows = await findMispostedClaims(orgId);
     return { count: rows.length, totalCents: rows.reduce((s, r) => s + r.amountCents, 0) };
   });
 }
@@ -80,7 +99,7 @@ export async function reconcileExpenseClaimAccountAction(): Promise<{ success?: 
     return await withOrg(async () => {
       await requirePerm("accountant");
       const orgId = currentOrgId();
-      const rows = await db.select({ amountCents: expenseClaims.amountCents }).from(expenseClaims).where(and(eq(expenseClaims.orgId, orgId), eq(expenseClaims.status, "approved")));
+      const rows = await findMispostedClaims(orgId);
       if (rows.length === 0) return { success: true, count: 0 };
       const total = rows.reduce((s, r) => s + r.amountCents, 0);
 
