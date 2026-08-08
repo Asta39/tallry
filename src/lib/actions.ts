@@ -508,7 +508,7 @@ async function _saveItem(data: {
   return itemId!;
 }
 
-async function _adjustStock(itemId: number, qtyDelta: number, unitCostCents: number, reason: string) {
+async function _adjustStock(itemId: number, qtyDelta: number, unitCostCents: number, reason: string, reasonType?: "shrinkage" | "used_in_production") {
   const value = Math.round(Math.abs(qtyDelta) * unitCostCents);
   if (qtyDelta > 0) {
     await addLot({ itemId, date: todayISO(), qty: qtyDelta, unitCostCents, sourceType: "adjustment" });
@@ -529,13 +529,21 @@ async function _adjustStock(itemId: number, qtyDelta: number, unitCostCents: num
   } else if (qtyDelta < 0) {
     const cogs = await consumeFifo(itemId, -qtyDelta);
     if (cogs > 0) {
+      // "used_in_production" — material consumed to fulfill a custom job whose
+      // sale was invoiced as a generic labor/service line with no item link,
+      // so FIFO never auto-consumed it at invoice time. That's a real cost of
+      // the sale and belongs in COGS, not Inventory Adjustments (which is
+      // meant for shrinkage/damage/count corrections — mixing the two would
+      // misstate both). Defaults to shrinkage for backward compatibility with
+      // existing callers.
+      const debitAccount = reasonType === "used_in_production" ? SYS.COGS : SYS.INVENTORY_ADJ;
       await postEntry({
         date: todayISO(),
         memo: `Stock adjustment (−): ${reason}`,
         sourceType: "inventory_adjustment",
         sourceId: itemId,
         lines: [
-          { accountId: await acct(SYS.INVENTORY_ADJ), debitCents: cogs },
+          { accountId: await acct(debitAccount), debitCents: cogs },
           { accountId: await acct(SYS.INVENTORY), creditCents: cogs },
         ],
       });
@@ -1455,8 +1463,8 @@ export async function createItemFromLine(data: {
     return id;
   });
 }
-export async function adjustStock(itemId: number, qtyDelta: number, unitCostCents: number, reason: string) {
-  const result = await withOrg(() => _adjustStock(itemId, qtyDelta, unitCostCents, reason));
+export async function adjustStock(itemId: number, qtyDelta: number, unitCostCents: number, reason: string, reasonType?: "shrinkage" | "used_in_production") {
+  const result = await withOrg(() => _adjustStock(itemId, qtyDelta, unitCostCents, reason, reasonType));
   const [item] = await db.select({ name: items.name }).from(items).where(eq(items.id, itemId)).limit(1);
   await logAudit({
     action: "adjust",
