@@ -10,8 +10,21 @@ import {
   payExpenseClaimAction,
   payExpenseClaimGatewayAction,
 } from "@/lib/expense-claims";
+import { scanReceiptAction, getReceiptViewUrlAction, type ScannedReceiptFields } from "@/lib/receipts/scan";
 import { parseKES } from "@/lib/money";
 import { useRealtimeTable } from "@/lib/realtime/useRealtimeTable";
+
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      resolve(result.split(",")[1] || "");
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
 
 type Claim = {
   id: number;
@@ -24,6 +37,7 @@ type Claim = {
   reviewNote: string | null;
   categoryAccountId: number;
   payoutPhone: string | null;
+  receiptUrl: string | null;
 };
 
 // Raw Postgres Realtime payload shape — column names, not the camelCase
@@ -41,6 +55,7 @@ type RawClaimRow = {
   review_note: string | null;
   category_account_id: number;
   payout_phone: string | null;
+  receipt_url: string | null;
 };
 
 function toClaim(row: RawClaimRow): Claim {
@@ -55,7 +70,32 @@ function toClaim(row: RawClaimRow): Claim {
     reviewNote: row.review_note,
     categoryAccountId: row.category_account_id,
     payoutPhone: row.payout_phone,
+    receiptUrl: row.receipt_url,
   };
+}
+
+function ViewReceiptLink({ receiptUrl }: { receiptUrl: string | null }) {
+  const [pending, start] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  if (!receiptUrl) return null;
+  return (
+    <button
+      type="button"
+      disabled={pending}
+      onClick={() =>
+        start(async () => {
+          setError(null);
+          const res = await getReceiptViewUrlAction(receiptUrl);
+          if (typeof res === "string") window.open(res, "_blank");
+          else setError(res.error);
+        })
+      }
+      className="text-[11.5px] text-[var(--color-accent-600)] hover:underline disabled:opacity-60"
+    >
+      {pending ? "Opening…" : "View receipt"}
+      {error && <span className="block text-[var(--color-bad)]">{error}</span>}
+    </button>
+  );
 }
 
 function upsert(list: Claim[], claim: Claim): Claim[] {
@@ -82,6 +122,44 @@ function SubmitForm({ categoryAccounts }: { categoryAccounts: { id: number; code
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
+  const [scanning, setScanning] = useState(false);
+  const [scanError, setScanError] = useState<string | null>(null);
+  const [receiptPath, setReceiptPath] = useState<string | null>(null);
+  const [receiptPreview, setReceiptPreview] = useState<string | null>(null);
+  const [scanned, setScanned] = useState<ScannedReceiptFields | null>(null);
+
+  const [date, setDate] = useState(todayISO());
+  const [description, setDescription] = useState("");
+  const [amount, setAmount] = useState("");
+
+  async function handlePhoto(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setScanError(null);
+    setScanned(null);
+    setReceiptPreview(URL.createObjectURL(file));
+    setScanning(true);
+    try {
+      const base64 = await fileToBase64(file);
+      const res = await scanReceiptAction(base64, file.type);
+      if ("error" in res) {
+        setScanError(res.error);
+        return;
+      }
+      setReceiptPath(res.receiptPath);
+      setScanned(res.fields);
+      // Prefill — the claimant sees exactly what the model found and can
+      // correct any of it before submitting; nothing here is locked.
+      if (res.fields.date) setDate(res.fields.date);
+      if (res.fields.description) setDescription(res.fields.description);
+      if (res.fields.totalCents) setAmount((res.fields.totalCents / 100).toFixed(2));
+    } catch (e: any) {
+      setScanError(e?.message || "Could not scan this receipt");
+    } finally {
+      setScanning(false);
+    }
+  }
+
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
@@ -97,6 +175,7 @@ function SubmitForm({ categoryAccounts }: { categoryAccounts: { id: number; code
           description: String(fd.get("description") || ""),
           amountCents: Math.round(amountKes * 100),
           payoutPhone: String(fd.get("payoutPhone") || "") || undefined,
+          receiptUrl: receiptPath || undefined,
         });
         setSuccess(true);
         form.reset();
@@ -112,10 +191,37 @@ function SubmitForm({ categoryAccounts }: { categoryAccounts: { id: number; code
   return (
     <form onSubmit={handleSubmit} className="card p-5 space-y-3">
       <h2 className="text-[14px] font-semibold">Submit a claim</h2>
+
+      <label className="block">
+        <span className="text-[12px] font-medium text-[var(--color-ink-600)]">
+          Photograph the receipt <span className="font-normal text-[var(--color-ink-400)]">(optional — auto-fills the fields below)</span>
+        </span>
+        <div className="mt-1 flex items-center gap-3">
+          {receiptPreview && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={receiptPreview} alt="Receipt preview" className="h-14 w-14 rounded-lg object-cover border border-[var(--color-ink-200)]" />
+          )}
+          <input
+            type="file"
+            accept="image/*"
+            capture="environment"
+            onChange={handlePhoto}
+            className="text-[12.5px] file:mr-3 file:rounded-lg file:border-0 file:bg-[var(--color-ink-100)] file:px-3 file:py-1.5 file:text-[12.5px] file:font-medium"
+          />
+        </div>
+        {scanning && <div className="mt-1 text-[12px] text-[var(--color-ink-400)]">Reading receipt…</div>}
+        {scanError && <div className="mt-1 text-[12px] text-[var(--color-bad)]">{scanError}</div>}
+        {scanned && !scanning && (scanned.totalCents || scanned.vendorName) && (
+          <div className="mt-1 text-[12px] text-[var(--color-good)]">
+            Filled in from the receipt{scanned.vendorName ? ` (${scanned.vendorName})` : ""} — check the fields below before submitting.
+          </div>
+        )}
+      </label>
+
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <label className="block">
           <span className="text-[12px] font-medium text-[var(--color-ink-600)]">Date</span>
-          <input type="date" name="date" defaultValue={todayISO()} className={inputCls + " mt-1"} required />
+          <input type="date" name="date" value={date} onChange={(e) => setDate(e.target.value)} className={inputCls + " mt-1"} required />
         </label>
         <label className="block">
           <span className="text-[12px] font-medium text-[var(--color-ink-600)]">Category <span className="text-[var(--color-bad)]">*</span></span>
@@ -129,12 +235,12 @@ function SubmitForm({ categoryAccounts }: { categoryAccounts: { id: number; code
       </div>
       <label className="block">
         <span className="text-[12px] font-medium text-[var(--color-ink-600)]">Description</span>
-        <input type="text" name="description" placeholder="e.g. Fuel for client visit, Nairobi–Nakuru" className={inputCls + " mt-1"} required />
+        <input type="text" name="description" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="e.g. Fuel for client visit, Nairobi–Nakuru" className={inputCls + " mt-1"} required />
       </label>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <label className="block">
           <span className="text-[12px] font-medium text-[var(--color-ink-600)]">Amount (KES)</span>
-          <input type="number" name="amount" step="0.01" min="0.01" placeholder="0.00" className={inputCls + " mt-1"} required />
+          <input type="number" name="amount" value={amount} onChange={(e) => setAmount(e.target.value)} step="0.01" min="0.01" placeholder="0.00" className={inputCls + " mt-1"} required />
         </label>
         <label className="block">
           <span className="text-[12px] font-medium text-[var(--color-ink-600)]">M-Pesa number to reimburse to <span className="text-[var(--color-bad)]">*</span></span>
@@ -168,6 +274,7 @@ function MyClaimsTable({ claims }: { claims: Claim[] }) {
                 {c.status === "rejected" && c.reviewNote && (
                   <div className="text-[11.5px] text-[var(--color-bad)] mt-0.5">Reason: {c.reviewNote}</div>
                 )}
+                <ViewReceiptLink receiptUrl={c.receiptUrl} />
               </td>
               <td className="px-3 py-2.5"><StatusBadge status={c.status} /></td>
               <td className="px-5 py-2.5 text-right font-medium tnum">{fmtKES(c.amountCents)}</td>
@@ -371,6 +478,7 @@ function ReviewSection({ pending, banks, isOwnerOrAdmin, awaitingIds }: { pendin
               <td className="px-3 py-2.5">
                 <div>{c.description}</div>
                 <div className="text-[11px] text-[var(--color-ink-400)]">{c.submittedByName}</div>
+                <ViewReceiptLink receiptUrl={c.receiptUrl} />
               </td>
               <td className="px-3 py-2.5 text-right font-medium tnum">{fmtKES(c.amountCents)}</td>
               <td className="px-5 py-2.5 text-right">
