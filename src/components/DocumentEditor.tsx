@@ -15,6 +15,7 @@ type ItemOption = {
   purchaseCostCents: number;
   taxClass: string;
   unit: string;
+  trackInventory: boolean;
 };
 
 interface EditorLine {
@@ -253,7 +254,8 @@ export function DocumentEditor({
               itemGroupId: l.newItemGroupId,
             });
           }
-          if ((type === "bill" || type === "expense" || type === "purchase_order") && !l.accountId) {
+          const lineTrackedItem = itemId ? items.find((it) => it.id === itemId) : null;
+          if ((type === "bill" || type === "expense" || type === "purchase_order") && !l.accountId && !lineTrackedItem?.trackInventory) {
             throw new Error(`Pick a category for "${l.description.trim() || "a line"}"`);
           }
           if ((type === "bill" || type === "expense" || type === "purchase_order") && costCenters.length > 0 && !l.costCenterId) {
@@ -636,20 +638,40 @@ export function DocumentEditor({
                   </td>
                   {(type === "bill" || type === "expense" || type === "purchase_order") && (
                     <td className="px-1 py-2">
-                      <select
-                        className={cellCls}
-                        value={l.accountId ?? ""}
-                        onChange={(e) =>
-                          update(i, { accountId: e.target.value ? Number(e.target.value) : null })
+                      {(() => {
+                        const trackedItem = l.itemId ? items.find((it) => it.id === l.itemId) : null;
+                        if (trackedItem?.trackInventory && (type === "bill" || type === "purchase_order")) {
+                          // Whatever category is picked here is silently
+                          // overridden to Inventory Asset at posting time for
+                          // tracked items (addLot() always runs, so the ledger
+                          // must match it or quantity and value drift apart) —
+                          // showing a live picker that gets ignored is exactly
+                          // what caused "converting to a bill doesn't affect
+                          // COGS" reports. Make the real behavior visible
+                          // instead of silently discarding the selection.
+                          return (
+                            <div className="text-[11.5px] text-[var(--color-ink-500)] px-1 py-1.5" title="This item is inventory-tracked — its cost posts to Inventory Asset now and moves to Cost of Goods Sold automatically when it's sold (or via Items → Adjust Stock → Used in production).">
+                              Inventory Asset
+                            </div>
+                          );
                         }
-                      >
-                        <option value="">Select category…</option>
-                        {expenseAccounts?.map((a) => (
-                          <option key={a.id} value={a.id}>
-                            {a.label}
-                          </option>
-                        ))}
-                      </select>
+                        return (
+                          <select
+                            className={cellCls}
+                            value={l.accountId ?? ""}
+                            onChange={(e) =>
+                              update(i, { accountId: e.target.value ? Number(e.target.value) : null })
+                            }
+                          >
+                            <option value="">Select category…</option>
+                            {expenseAccounts?.map((a) => (
+                              <option key={a.id} value={a.id}>
+                                {a.label}
+                              </option>
+                            ))}
+                          </select>
+                        );
+                      })()}
                     </td>
                   )}
                   {costCenters.length > 0 && (

@@ -248,6 +248,15 @@ export async function postBill(docId: number): Promise<number> {
           sourceId: doc.id,
           warehouseId: l.warehouseId ?? undefined,
         });
+        // The line's own accountId can carry a category the user picked in
+        // the editor (or a stale one from before this override existed) that
+        // has nothing to do with where the money actually posts — spend-by-
+        // category reports read documentLines.accountId directly, so a
+        // mismatch here silently misreports Inventory Asset spend as
+        // whatever category was selected. Keep it truthful.
+        if (l.accountId !== debitAccount) {
+          await db.update(documentLines).set({ accountId: debitAccount }).where(and(eq(documentLines.orgId, currentOrgId()), eq(documentLines.id, l.id)));
+        }
       }
     }
     post.push({ accountId: debitAccount, debitCents: l.netCents, memo: l.description, costCenterId: l.costCenterId });
