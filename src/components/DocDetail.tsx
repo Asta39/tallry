@@ -209,6 +209,9 @@ export async function DocDetail({ id, printHref }: { id: number; printHref?: str
           status: doc.status,
           totalCents: doc.totalCents,
           paidCents: doc.paidCents,
+          payoutDestinationType: doc.payoutDestinationType,
+          payoutDestination: doc.payoutDestination,
+          payoutAccountNumber: doc.payoutAccountNumber,
         }}
         bankAccounts={banks.map((b) => ({ id: b.id, label: bankAccountLabel(b, org.mpesaTillGatewayId), kind: b.kind }))}
         canPayout={!!access?.perms.has("can_payout")}

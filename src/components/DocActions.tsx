@@ -59,6 +59,9 @@ export function DocActions({
     status: string;
     totalCents: number;
     paidCents: number;
+    payoutDestinationType?: string | null;
+    payoutDestination?: string | null;
+    payoutAccountNumber?: string | null;
   };
   bankAccounts: { id: number; label: string; kind?: string }[];
   printHref?: string;
@@ -104,10 +107,17 @@ export function DocActions({
   const [gwId, setGwId] = useState(
     () => gateways?.find((g) => g.id === preferredGatewayId)?.id || gateways?.[0]?.id || ""
   );
-  const [gwPhone, setGwPhone] = useState(contactPhone || "");
+  // The vendor's payout destination captured at bill creation (itself
+  // autofilled from the vendor's saved payout details, and carried over
+  // from a converted PO) takes priority — falling back to the vendor's
+  // generic phone number meant this modal always ignored it and made the
+  // admin retype the till/paybill/number that was already on file.
+  const [gwPhone, setGwPhone] = useState(doc.payoutDestination || contactPhone || "");
   const [gwAmount, setGwAmount] = useState(((doc.totalCents - doc.paidCents) / 100).toFixed(2));
-  const [gwDestType, setGwDestType] = useState<"phone" | "till" | "paybill">("phone");
-  const [gwAccountNo, setGwAccountNo] = useState("");
+  const [gwDestType, setGwDestType] = useState<"phone" | "till" | "paybill">(
+    (doc.payoutDestinationType as "phone" | "till" | "paybill" | null) || "phone"
+  );
+  const [gwAccountNo, setGwAccountNo] = useState(doc.payoutAccountNumber || "");
 
   // PO → bill conversion (partial receipt)
   const [showConvertPo, setShowConvertPo] = useState(false);
