@@ -169,8 +169,13 @@ export async function activeAdminApprovalClaimIds() {
 }
 
 export async function reviewedExpenseClaims() {
+  // No cap — at this org's claim volume (dozens/day), a hard limit(50) here
+  // was silently dropping recently-paid claims off the History screen the
+  // moment 50 newer approved/paid claims accumulated, making a real, fully
+  // paid claim look like it "disappeared" even though nothing was wrong
+  // with it. Ordering by date keeps the most relevant ones first regardless.
   return withOrg(() =>
-    db.select().from(expenseClaims).where(and(eq(expenseClaims.orgId, currentOrgId()), or(eq(expenseClaims.status, "approved"), eq(expenseClaims.status, "paid")))).orderBy(desc(expenseClaims.createdAt)).limit(50)
+    db.select().from(expenseClaims).where(and(eq(expenseClaims.orgId, currentOrgId()), or(eq(expenseClaims.status, "approved"), eq(expenseClaims.status, "paid")))).orderBy(desc(expenseClaims.createdAt))
   );
 }
 
@@ -853,7 +858,7 @@ export async function applyExpenseClaimGatewayPayout(claimId: number, amountCent
       direction: "out",
       date,
       amountCents,
-      method: "mpesa",
+      method: gatewayId === "mpesa_daraja" ? "mpesa" : "kopokopo",
       bankAccountId: mpesaBank?.id,
       reference: `Expense claim reimbursement via ${gatewayId} · ${claim.submittedByName} · ${claim.description}`,
       journalEntryId: entryId,
