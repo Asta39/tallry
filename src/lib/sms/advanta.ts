@@ -13,6 +13,10 @@ export async function sendViaAdvanta(
   }
 
   try {
+    // Without a timeout, one slow/hanging Advanta response stalls whatever
+    // called sendSms indefinitely — a real problem for the payout
+    // reconciliation loop, which sends one of these per confirmed payout in
+    // sequence and would otherwise never finish (or time out the whole cron).
     const res = await fetch(ADVANTA_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -23,6 +27,7 @@ export async function sendViaAdvanta(
         mobile: phone,
         message,
       }),
+      signal: AbortSignal.timeout(15000),
     });
 
     const text = await res.text();

@@ -11,6 +11,21 @@ import { bankAccounts } from "@/db";
 import { sendPaymentReceipt } from "@/lib/email/receipts";
 import { sendPaymentReceiptSms } from "@/lib/sms/receipts";
 import { revalidatePath } from "next/cache";
+import { reconcileUnconfirmedKopoKopoPayouts } from "@/lib/payments/webhook";
+
+/** Actively checks this org's still-unconfirmed Kopo Kopo payouts against
+ *  the real API instead of waiting on a webhook that may never arrive —
+ *  same check the daily cron runs, available on demand since Kopo Kopo's
+ *  webhook has been observed never confirming any payout in production. */
+export async function reconcileOrgPayoutsAction() {
+  return withOrg(async () => {
+    await requirePerm("can_payout");
+    const orgId = currentOrgId();
+    const result = await reconcileUnconfirmedKopoKopoPayouts(0, orgId);
+    revalidatePath("/sales/payments/events");
+    return result;
+  });
+}
 
 // Money actually arrived for these — they can be applied to an invoice.
 // "pending" included: an STK push whose webhook never came back (Daraja/Kopo

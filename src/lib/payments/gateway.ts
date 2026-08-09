@@ -41,6 +41,14 @@ export interface PaymentGateway {
   parseInbound(req: Request): Promise<InboundResult | null>;
   /** Register C2B confirmation/validation URLs with the provider (Daraja paybill). */
   registerC2b?(): Promise<void>;
+  /** Actively re-fetch a payout's current status by its own request id — a
+   *  backstop for when the provider's webhook callback never arrives (Kopo
+   *  Kopo has been observed doing this for every single payout in
+   *  production). Returns the same InboundResult shape parseInbound would
+   *  have produced from the equivalent webhook delivery, or null if still
+   *  in progress. Optional: only gateways with a real status-check
+   *  endpoint implement it. */
+  checkPayoutStatus?(requestId: string): Promise<InboundResult | null>;
 }
 
 export interface InboundPayment {

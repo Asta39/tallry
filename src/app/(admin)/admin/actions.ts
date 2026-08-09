@@ -10,6 +10,15 @@ import { logAdminAction } from "@/lib/admin-audit";
 import { PLANS, PlanKey, subscriptionStatusForDate } from "@/lib/billing";
 import { runAndStoreAllOrgChecks } from "@/lib/ledger-integrity";
 import { runOrgBackup, runAllOrgBackups, getBackupDownloadUrl } from "@/lib/org-backup";
+import { reconcileUnconfirmedKopoKopoPayouts } from "@/lib/payments/webhook";
+
+export async function reconcilePayoutsNow() {
+  const user = await requireSuperAdmin();
+  const result = await reconcileUnconfirmedKopoKopoPayouts();
+  await logAdminAction({ actorEmail: user.email!, action: "reconcile_payouts_run_now", detail: `${result.checked} checked, ${result.confirmed} confirmed, ${result.reversed} reversed` });
+  revalidatePath("/admin/cron");
+  return result;
+}
 
 export async function runLedgerIntegrityNow() {
   const user = await requireSuperAdmin();

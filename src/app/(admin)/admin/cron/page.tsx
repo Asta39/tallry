@@ -8,6 +8,7 @@ const JOBS = [
   { key: "due-dates", label: "Due-Date Alerts", desc: "Notifies tenants about invoices due today / tomorrow / in 3 days", cadence: "daily" },
   { key: "ledger-integrity", label: "Ledger Integrity", desc: "Audits every org's books for drift — trial balance, missing journal entries, AR/AP mismatches", cadence: "daily" },
   { key: "org-backups", label: "Org Backups", desc: "Snapshots every org-scoped table to private storage, prunes beyond 30 kept", cadence: "daily" },
+  { key: "reconcile-payouts", label: "Reconcile Payouts", desc: "Actively checks Kopo Kopo for the real status of payouts whose webhook confirmation never arrived", cadence: "daily" },
 ];
 
 function hoursAgo(iso: string): number {

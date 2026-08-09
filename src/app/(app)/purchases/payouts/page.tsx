@@ -4,6 +4,7 @@ import { db, paymentEvents, documents, expenseClaims } from "@/db";
 import { eq, and, desc, inArray } from "drizzle-orm";
 import { PageHeader } from "@/components/ui";
 import { PayoutsClient } from "./PayoutsClient";
+import { ReconcileButton } from "./ReconcileButton";
 
 export const dynamic = "force-dynamic";
 
@@ -51,6 +52,7 @@ export default async function StuckPayoutsPage() {
       <PageHeader
         title="Stuck Payouts"
         subtitle="Gateway payouts that haven't received a confirmation callback. Check the gateway's own dashboard before confirming — this records exactly what was originally requested."
+        action={<ReconcileButton />}
       />
       <PayoutsClient rows={rows} />
     </>

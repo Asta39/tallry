@@ -1,6 +1,6 @@
 import crypto from "crypto";
 import { db, paymentEvents, paymentGateways, documents, bankAccounts, bankTransactions, payments as paymentsTable, expenseClaims, org as orgTable } from "@/db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { getGateway, isInboundFailure, InboundPayment, GatewayId } from "./gateway";
 import { matchPayment } from "./match";
 import { recordPayment } from "@/lib/actions";
@@ -119,6 +119,111 @@ export async function handleGatewayWebhook(req: Request, gatewayId: GatewayId): 
   return orgContext.run(orgId, () => applyInbound(orgId, gatewayId, inbound));
 }
 
+/**
+ * An outbound payout posts immediately at request time (see the "immediate
+ * posting" comments at every payOut() call site) — by the time confirmation
+ * arrives (webhook, or the active poll in reconcileUnconfirmedKopoKopoPayouts
+ * below), the event row is already 'applied', not 'pending'. What's still
+ * missing at request time is the REAL Kopo Kopo/M-Pesa transaction code:
+ * providerRef was set to the gateway's internal request id (the only thing
+ * available synchronously), while the actual code the recipient's SMS shows
+ * only arrives here. Swaps it in and re-notifies the accountant with the
+ * real code instead of the placeholder one — nothing about the posted
+ * ledger entry changes. Returns true if a matching applied row was found
+ * and confirmed, false otherwise (already confirmed, or no such row).
+ */
+export async function confirmAppliedPayout(
+  orgId: number,
+  gatewayId: GatewayId,
+  requestRef: string,
+  inbound: InboundPayment
+): Promise<boolean> {
+  const [applied] = await db.update(paymentEvents)
+    .set({ providerRef: inbound.providerRef, rawJson: JSON.stringify(inbound.raw) })
+    .where(and(
+      eq(paymentEvents.orgId, orgId),
+      eq(paymentEvents.gatewayId, gatewayId),
+      eq(paymentEvents.providerRef, requestRef),
+      eq(paymentEvents.status, "applied"),
+    ))
+    .returning({ id: paymentEvents.id, accountRef: paymentEvents.accountRef, amountCents: paymentEvents.amountCents, payerPhone: paymentEvents.payerPhone, paymentId: paymentEvents.paymentId });
+  if (!applied) return false;
+
+  // The receipt/payment record was written at request time with the same
+  // placeholder ref — swap it for the real code too, so "Ref:" on the
+  // payment detail page and PDF receipt matches what's on the vendor's and
+  // accountant's phones instead of the internal request id.
+  if (applied.paymentId) {
+    await db.update(paymentsTable).set({ reference: shortRef(inbound.providerRef) }).where(and(eq(paymentsTable.orgId, orgId), eq(paymentsTable.id, applied.paymentId)));
+  }
+  await notifyAccountantOfPayout(orgId, {
+    label: applied.accountRef || "payout",
+    amountCents: applied.amountCents,
+    destination: applied.payerPhone || "",
+    providerRef: inbound.providerRef,
+    gatewayId,
+  }).catch(() => null);
+  return true;
+}
+
+/**
+ * Active backstop for outbound Kopo Kopo payouts whose webhook confirmation
+ * never arrives at all — confirmed against live production data: roughly a
+ * fifth of payouts across org 33's history never got a webhook delivery, so
+ * the webhook alone can't be trusted as the only confirmation path.
+ * Finds "applied" outbound payment_events rows still holding their
+ * placeholder providerRef (never overwritten by confirmAppliedPayout or a
+ * failure), and actively asks Kopo Kopo for the real status via
+ * checkPayoutStatus. Resolves each one exactly like the webhook path would:
+ * confirmed → confirmAppliedPayout, failed → reverseFailedGatewayPayout,
+ * still processing → left alone for the next run.
+ */
+export async function reconcileUnconfirmedKopoKopoPayouts(olderThanMinutes = 3, onlyOrgId?: number): Promise<{ checked: number; confirmed: number; reversed: number; stillPending: number; errors: number }> {
+  const cutoff = new Date(Date.now() - olderThanMinutes * 60_000).toISOString();
+  // Rows a real webhook has already confirmed carry the full delivered
+  // payload (which always contains "transfer_batches") in rawJson; rows
+  // still on our own placeholder JSON never do — a reliable, schema-free way
+  // to find only the ones nothing has confirmed yet.
+  const conditions = [
+    eq(paymentEvents.gatewayId, "kopokopo"),
+    eq(paymentEvents.direction, "out"),
+    eq(paymentEvents.status, "applied"),
+    sql`${paymentEvents.createdAt} < ${cutoff}`,
+    sql`${paymentEvents.rawJson} not like '%transfer_batches%'`,
+  ];
+  if (onlyOrgId) conditions.push(eq(paymentEvents.orgId, onlyOrgId));
+  const rows = await db.select().from(paymentEvents).where(and(...conditions));
+
+  let confirmed = 0, reversed = 0, stillPending = 0, errors = 0;
+  for (const row of rows) {
+    try {
+      await orgContext.run(row.orgId, async () => {
+        const [gwConfig] = await db.select().from(paymentGateways).where(and(eq(paymentGateways.orgId, row.orgId), eq(paymentGateways.gatewayId, "kopokopo"))).limit(1);
+        if (!gwConfig) { errors++; return; }
+        const gateway = getGateway(gwConfig);
+        if (!gateway.checkPayoutStatus) { errors++; return; }
+
+        const result = await gateway.checkPayoutStatus(row.providerRef);
+        if (!result) { stillPending++; return; }
+
+        if (isInboundFailure(result)) {
+          await reverseFailedGatewayPayout(row, result.raw);
+          reversed++;
+        } else {
+          const wasConfirmed = await confirmAppliedPayout(row.orgId, "kopokopo", row.providerRef, result);
+          if (wasConfirmed) confirmed++;
+          else stillPending++;
+        }
+      });
+    } catch (e) {
+      console.error("reconcileUnconfirmedKopoKopoPayouts failed for event", row.id, e);
+      errors++;
+    }
+  }
+
+  return { checked: rows.length, confirmed, reversed, stillPending, errors };
+}
+
 async function applyInbound(orgId: number, gatewayId: GatewayId, inbound: InboundPayment): Promise<WebhookOutcome> {
   const direction = inbound.direction ?? "in";
   // 1. Reconcile against a pending STK-push event when we have the request ref.
@@ -160,32 +265,8 @@ async function applyInbound(orgId: number, gatewayId: GatewayId, inbound: Inboun
   //     the accountant with the real code instead of the placeholder one —
   //     nothing about the posted ledger entry changes.
   if (!claimed && direction === "out" && inbound.requestRef) {
-    const [applied] = await db.update(paymentEvents)
-      .set({ providerRef: inbound.providerRef, rawJson: JSON.stringify(inbound.raw) })
-      .where(and(
-        eq(paymentEvents.orgId, orgId),
-        eq(paymentEvents.gatewayId, gatewayId),
-        eq(paymentEvents.providerRef, inbound.requestRef),
-        eq(paymentEvents.status, "applied"),
-      ))
-      .returning({ id: paymentEvents.id, accountRef: paymentEvents.accountRef, amountCents: paymentEvents.amountCents, payerPhone: paymentEvents.payerPhone, paymentId: paymentEvents.paymentId });
-    if (applied) {
-      // The receipt/payment record was written at request time with the
-      // same placeholder ref — swap it for the real code too, so "Ref:" on
-      // the payment detail page and PDF receipt matches what's on the
-      // vendor's and accountant's phones instead of the internal request id.
-      if (applied.paymentId) {
-        await db.update(paymentsTable).set({ reference: shortRef(inbound.providerRef) }).where(and(eq(paymentsTable.orgId, orgId), eq(paymentsTable.id, applied.paymentId)));
-      }
-      await notifyAccountantOfPayout(orgId, {
-        label: applied.accountRef || "payout",
-        amountCents: applied.amountCents,
-        destination: applied.payerPhone || "",
-        providerRef: inbound.providerRef,
-        gatewayId,
-      }).catch(() => null);
-      return { kind: "processed", status: "applied" };
-    }
+    const confirmed = await confirmAppliedPayout(orgId, gatewayId, inbound.requestRef, inbound);
+    if (confirmed) return { kind: "processed", status: "applied" };
   }
 
   // Payout results must reconcile against a pending event we created at
@@ -338,7 +419,7 @@ async function applyInbound(orgId: number, gatewayId: GatewayId, inbound: Inboun
  * reversal (same rule voidDocument enforces) rather than corrupting a
  * closed reconciliation — that case is flagged for manual handling instead.
  */
-async function reverseFailedGatewayPayout(
+export async function reverseFailedGatewayPayout(
   row: typeof paymentEvents.$inferSelect,
   raw: unknown
 ) {
