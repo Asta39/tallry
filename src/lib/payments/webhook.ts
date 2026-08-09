@@ -306,7 +306,7 @@ async function applyInbound(orgId: number, gatewayId: GatewayId, inbound: Inboun
       documentId: matchedInvoiceId,
       amountCents: amountToRecord,
       method: gatewayId === "mpesa_daraja" ? "mpesa" : "kopokopo",
-      reference: inbound.providerRef,
+      reference: shortRef(inbound.providerRef),
       date: new Date().toISOString().split("T")[0],
       direction,
       bankAccountId: mpesaBank?.id,

@@ -8,6 +8,7 @@ import { eq, and } from "drizzle-orm";
 import { getOrg } from "@/lib/org";
 import { recordPayment } from "@/lib/actions";
 import { notifyAccountantOfPayout } from "@/lib/payout-notify";
+import { shortRef } from "@/lib/payments/ref-format";
 
 function isNextRedirect(err: any): boolean {
   return typeof err?.digest === "string" && err.digest.startsWith("NEXT_REDIRECT");
@@ -165,7 +166,9 @@ export async function payOutAction(documentId: number, destination: string, dest
       date: new Date().toISOString().split("T")[0],
       amountCents,
       method: gatewayId === "mpesa_daraja" ? "mpesa" : "kopokopo",
-      reference: result.providerRef,
+      // Kopo Kopo/Daraja provider refs are long UUIDs/conversation ids — not
+      // what shows up on the payer's phone. Same short form used in the SMS.
+      reference: shortRef(result.providerRef),
       bankAccountId: mpesaBank?.id,
     });
     // Kept so a later "disbursement actually failed" webhook can find and

@@ -27,6 +27,7 @@ import {
 } from "@/db";
 import { getGateway } from "@/lib/payments/gateway";
 import { notifyAccountantOfPayout } from "@/lib/payout-notify";
+import { shortRef } from "@/lib/payments/ref-format";
 import { canEditIssuedInvoice } from "@/lib/invoice-edit";
 import { eq, and, ne, desc, isNull, sql, inArray } from "drizzle-orm";
 import { currentOrgId, withOrg, seedOrgDefaults, orgContext } from "@/lib/org";
@@ -1774,7 +1775,7 @@ async function executeBillGatewayPayout(orgId: number, docId: number, billPayout
       date: todayISO(),
       amountCents: outstanding,
       method: gwConfig.gatewayId === "mpesa_daraja" ? "mpesa" : "kopokopo",
-      reference: result.providerRef,
+      reference: shortRef(result.providerRef),
       bankAccountId: mpesaBank?.id,
     });
     // Kept so a later "disbursement actually failed" webhook can find and

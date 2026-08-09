@@ -205,6 +205,18 @@ export function DocumentEditor({
     setLines((ls) => ls.map((l, j) => (j === i ? { ...l, ...patch } : l)));
   }
 
+  function moveLine(from: number, to: number) {
+    if (from === to) return;
+    setLines((ls) => {
+      const next = [...ls];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      return next;
+    });
+  }
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+
   function handleContactChange(id: number | "") {
     setContactId(id);
     // Only autofill an empty destination — never clobber something already
@@ -541,8 +553,39 @@ export function DocumentEditor({
             {lines.map((l, i) => {
               const t = totals.lines[parsedLines.findIndex((_, pi) => pi === i)] ?? null;
               return (
-                <tr key={i} className="hairline-t align-top">
-                  <td className="px-2 py-3.5 text-[13px] tnum text-[var(--color-ink-400)]">{i + 1}</td>
+                <tr
+                  key={i}
+                  className={`hairline-t align-top ${dragOverIndex === i && dragIndex !== null && dragIndex !== i ? "bg-[var(--color-accent-50,#f0f5ff)]" : ""}`}
+                  onDragOver={(e) => {
+                    if (dragIndex === null) return;
+                    e.preventDefault();
+                    if (dragOverIndex !== i) setDragOverIndex(i);
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    if (dragIndex !== null) moveLine(dragIndex, i);
+                    setDragIndex(null);
+                    setDragOverIndex(null);
+                  }}
+                >
+                  <td
+                    className="px-2 py-3.5 text-[13px] tnum text-[var(--color-ink-400)] cursor-grab active:cursor-grabbing select-none"
+                    draggable
+                    onDragStart={(e) => {
+                      setDragIndex(i);
+                      e.dataTransfer.effectAllowed = "move";
+                    }}
+                    onDragEnd={() => {
+                      setDragIndex(null);
+                      setDragOverIndex(null);
+                    }}
+                    title="Drag to reorder"
+                  >
+                    <span className="inline-flex items-center gap-1.5">
+                      <span className="text-[var(--color-ink-300)]">⠿</span>
+                      {i + 1}
+                    </span>
+                  </td>
                   <td className="px-3 py-2">
                     {items.length > 0 && (
                       <SearchableSelect
