@@ -22,6 +22,7 @@ export default async function NewExpensePage() {
         warehouses={opts.warehouses}
         expenseAccounts={opts.expenseAccounts}
         bankAccounts={opts.bankAccounts}
+        vendorPayouts={opts.vendorPayouts}
         backHref="/purchases/expenses"
         detailHref="/purchases/expenses"
       />

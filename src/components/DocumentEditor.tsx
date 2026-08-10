@@ -121,6 +121,12 @@ export function DocumentEditor({
 
   const isSale = type === "invoice" || type === "quote" || type === "credit_note";
   const isExpense = type === "expense";
+  // Bills/POs are paid later, via gateway, straight to this destination —
+  // mandatory. Expenses are paid immediately from the "Paid from" account
+  // selected below; the destination here is just for the record (matching a
+  // vendor's saved payout details) and to autofill it on any bill/PO raised
+  // for the same vendor later, so it stays optional.
+  const isSpendGatewayRequired = type === "bill" || type === "purchase_order";
   const [contactId, setContactId] = useState<number | "">(
     initialData?.contactId ?? (defaultContactId && contacts.some((c) => c.id === defaultContactId) ? defaultContactId : "")
   );
@@ -222,7 +228,7 @@ export function DocumentEditor({
     // Only autofill an empty destination — never clobber something already
     // typed in (e.g. picking a vendor, then realizing you need a different
     // one-off destination for this particular bill).
-    if ((type === "bill" || type === "purchase_order") && id !== "" && !payoutDestination) {
+    if ((type === "bill" || type === "purchase_order" || type === "expense") && id !== "" && !payoutDestination) {
       const saved = vendorPayouts?.[id];
       if (saved?.destination) {
         setPayoutDestinationType((saved.type as "phone" | "till" | "paybill") || "phone");
@@ -296,9 +302,9 @@ export function DocumentEditor({
           taxInclusive,
           notes: notes || undefined,
           billNumber: billNumber || undefined,
-          payoutDestinationType: type === "bill" || type === "purchase_order" ? payoutDestinationType : undefined,
-          payoutDestination: type === "bill" || type === "purchase_order" ? payoutDestination || undefined : undefined,
-          payoutAccountNumber: (type === "bill" || type === "purchase_order") && payoutDestinationType === "paybill" ? payoutAccountNumber || undefined : undefined,
+          payoutDestinationType: type === "bill" || type === "purchase_order" || type === "expense" ? payoutDestinationType : undefined,
+          payoutDestination: type === "bill" || type === "purchase_order" || type === "expense" ? payoutDestination || undefined : undefined,
+          payoutAccountNumber: (type === "bill" || type === "purchase_order" || type === "expense") && payoutDestinationType === "paybill" ? payoutAccountNumber || undefined : undefined,
           paidFromBankAccountId: paidFrom === "" ? null : paidFrom,
           customerContactId: isSpend && customerContactId !== "" ? Number(customerContactId) : null,
           relatedInvoiceId: isSpend && relatedInvoiceId !== "" ? Number(relatedInvoiceId) : null,
@@ -377,11 +383,11 @@ export function DocumentEditor({
             <input className={inputCls + " mt-1"} value={billNumber} onChange={(e) => setBillNumber(e.target.value)} placeholder="optional" />
           </label>
         )}
-        {(type === "bill" || type === "purchase_order") && (
+        {(type === "bill" || type === "purchase_order" || type === "expense") && (
           <>
             <label className="block">
               <span className="text-[12px] font-medium text-[var(--color-ink-600)]">
-                Pay this vendor via <span className="text-[var(--color-bad)]">*</span>
+                Paid this vendor via{isSpendGatewayRequired ? <span className="text-[var(--color-bad)]"> *</span> : <span className="font-normal text-[var(--color-ink-400)]"> (optional — for the record)</span>}
               </span>
               <select
                 className={inputCls + " mt-1"}
@@ -396,27 +402,27 @@ export function DocumentEditor({
             <label className="block">
               <span className="text-[12px] font-medium text-[var(--color-ink-600)]">
                 {payoutDestinationType === "phone" ? "Vendor's M-Pesa number" : payoutDestinationType === "till" ? "Till number" : "Paybill number"}
-                {" "}<span className="text-[var(--color-bad)]">*</span>
+                {isSpendGatewayRequired && <span className="text-[var(--color-bad)]"> *</span>}
               </span>
               <input
                 className={inputCls + " mt-1"}
                 value={payoutDestination}
                 onChange={(e) => setPayoutDestination(e.target.value)}
                 placeholder={payoutDestinationType === "phone" ? "2547…" : "e.g. 123456"}
-                required
+                required={isSpendGatewayRequired}
               />
             </label>
             {payoutDestinationType === "paybill" && (
               <label className="block">
                 <span className="text-[12px] font-medium text-[var(--color-ink-600)]">
-                  Account number <span className="text-[var(--color-bad)]">*</span>
+                  Account number{isSpendGatewayRequired && <span className="text-[var(--color-bad)]"> *</span>}
                 </span>
                 <input
                   className={inputCls + " mt-1"}
                   value={payoutAccountNumber}
                   onChange={(e) => setPayoutAccountNumber(e.target.value)}
                   placeholder="Account / reference number"
-                  required
+                  required={isSpendGatewayRequired}
                 />
               </label>
             )}
