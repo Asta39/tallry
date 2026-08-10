@@ -185,13 +185,19 @@ export async function getReconciliationState(recId: number): Promise<Reconciliat
       ticked: t.reconciliationId === rec.id,
     }));
     const ticked = candidates.filter((c) => c.ticked).reduce((s, c) => s + c.amountCents, 0);
-    // The statement balance is opening balance + every transaction since —
-    // reconciledTotal only sums bankTransactions rows, which never include
-    // the account's own openingBalanceCents. Every real bank account here
-    // has a nonzero opening balance, so without this the difference could
-    // never reach zero: completing a reconciliation was permanently
-    // impossible, off by exactly the opening balance every time.
-    const openingBalanceCents = bank?.openingBalanceCents ?? 0;
+    // Setting a bank account's opening balance (setMoneyAccountOpeningBalance
+    // in actions.ts) posts a real journal entry AND mirrors it into
+    // bank_transactions as an ordinary tickable row (external_ref
+    // "opening_balance:<id>") — so it's already counted once, correctly,
+    // inside `already`/`ticked` above, exactly like any other transaction.
+    // An earlier version of this function ALSO subtracted the account's own
+    // openingBalanceCents field as a separate term on top of that, double-
+    // counting it — which meant the difference could only ever reach zero if
+    // the accountant entered a statement balance inflated by the opening
+    // balance a second time. Confirmed against a real completed session
+    // (org 33, Main Bank Account): the opening-balance row was ticked as
+    // part of the session like everything else, and statementBalanceCents
+    // only matched once the double subtraction was removed.
     return {
       rec: {
         id: rec.id,
@@ -202,7 +208,7 @@ export async function getReconciliationState(recId: number): Promise<Reconciliat
       candidates,
       alreadyReconciledCents: already,
       tickedCents: ticked,
-      differenceCents: rec.statementBalanceCents - openingBalanceCents - already - ticked,
+      differenceCents: rec.statementBalanceCents - already - ticked,
       ledgerBalanceCents: Number(ledger?.v ?? 0),
       uncategorizedCount: Number(uncat?.n ?? 0),
     };
