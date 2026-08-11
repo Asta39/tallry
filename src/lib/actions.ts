@@ -1259,6 +1259,94 @@ async function _setMoneyAccountOpeningBalance(data: {
   });
 }
 
+async function ensureContactOpeningBalanceAccess() {
+  const access = await getAccess();
+  if (!access || (!access.isOwner && !["admin", "accountant"].includes(access.role))) {
+    throw new Error("Only admins and accountants can set a customer/vendor's brought-forward balance");
+  }
+}
+
+/** Balance brought forward from a previous system (e.g. an old CRM), as of a
+ *  chosen date. Posts DR/CR Accounts Receivable or Payable against "Opening
+ *  Balance Adjustments" — never against Sales/COGS — so it never inflates
+ *  current-period revenue, and mirrors _setMoneyAccountOpeningBalance's
+ *  reversible, re-editable pattern (edit again = reverse old entry, post new
+ *  one). Tags the AR/AP line with contactId so it's traceable per-contact
+ *  and shows up correctly in that contact's statement/ledger drill-down. */
+async function _setContactOpeningBalance(data: {
+  contactId: number;
+  openingBalanceCents: number;
+  openingBalanceDate: string;
+  memo?: string;
+}) {
+  await ensureContactOpeningBalanceAccess();
+  const orgId = currentOrgId();
+  const [contact] = await db
+    .select()
+    .from(contacts)
+    .where(and(eq(contacts.orgId, orgId), eq(contacts.id, data.contactId)))
+    .limit(1);
+  if (!contact) throw new Error("Contact not found");
+  if (!data.openingBalanceDate) throw new Error("Opening balance date is required");
+
+  const isPayable = contact.kind === "vendor";
+  const subledgerAccountId = await acct(isPayable ? SYS.AP : SYS.AR);
+  const openingBalanceAccountId = await acct(SYS.OPENING_BALANCE);
+
+  if (contact.openingBalanceEntryId) {
+    await reverseEntry(
+      contact.openingBalanceEntryId,
+      contact.openingBalanceDate || data.openingBalanceDate,
+      `Reverse opening balance for ${contact.displayName}`
+    );
+  }
+
+  let openingEntryId: number | null = null;
+  if (data.openingBalanceCents !== 0) {
+    openingEntryId = await postEntry({
+      date: data.openingBalanceDate,
+      memo: (data.memo || `Balance brought forward for ${contact.displayName}`).trim(),
+      sourceType: "contact_opening_balance",
+      sourceId: contact.id,
+      lines: buildBalanceAdjustmentLines({
+        accountId: subledgerAccountId,
+        accountType: isPayable ? "liability" : "asset",
+        offsetAccountId: openingBalanceAccountId,
+        deltaCents: data.openingBalanceCents,
+      }).map((line) => (line.accountId === subledgerAccountId ? { ...line, contactId: contact.id, memo: contact.displayName } : line)),
+    });
+  }
+
+  await db
+    .update(contacts)
+    .set({
+      openingBalanceCents: data.openingBalanceCents,
+      openingBalanceDate: data.openingBalanceCents !== 0 ? data.openingBalanceDate : null,
+      openingBalanceEntryId: openingEntryId,
+    })
+    .where(and(eq(contacts.orgId, orgId), eq(contacts.id, contact.id)));
+
+  revalidatePath(`/contacts/${contact.id}`);
+  await logAudit({
+    action: "update",
+    module: "contacts",
+    recordId: contact.id,
+    recordLabel: contact.displayName,
+    detail:
+      data.openingBalanceCents === 0
+        ? "Cleared brought-forward balance"
+        : `Set brought-forward balance to ${fmtKES(data.openingBalanceCents)} on ${data.openingBalanceDate}`,
+  });
+}
+
+export async function setContactOpeningBalanceAction(
+  data: Parameters<typeof _setContactOpeningBalance>[0]
+) {
+  return withOrg(async () => {
+    await _setContactOpeningBalance(data);
+  });
+}
+
 /* ---------------- Manual journals ---------------- */
 
 async function _createManualJournal(data: {

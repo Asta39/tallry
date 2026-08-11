@@ -15,6 +15,7 @@ import { withOrg } from "@/lib/org";
 import { resolvePeriod } from "@/lib/report-period";
 import { ReportFilters } from "@/components/ReportFilters";
 import { ClientPortalTab } from "@/components/ClientPortalTab";
+import { ContactOpeningBalanceCard } from "@/components/ContactOpeningBalanceCard";
 
 export const dynamic = "force-dynamic";
 
@@ -122,12 +123,15 @@ export default async function ContactDetail({
   const contactPayments = await db.select().from(payments).where(and(eq(payments.orgId, o.id), eq(payments.contactId, cid), paymentStaffScope));
   const [portalUser] = await db.select().from(portalUsers).where(and(eq(portalUsers.orgId, o.id), eq(portalUsers.contactId, cid))).limit(1);
 
-  const owedToYou = allDocs
-    .filter((d) => d.type === "invoice" && ["open", "partial"].includes(d.status))
-    .reduce((s, d) => s + d.totalCents - d.paidCents, 0);
-  const youOwe = allDocs
-    .filter((d) => d.type === "bill" && ["open", "partial"].includes(d.status))
-    .reduce((s, d) => s + d.totalCents - d.paidCents, 0);
+  const isPayableContact = c.kind === "vendor";
+  const owedToYou =
+    allDocs
+      .filter((d) => d.type === "invoice" && ["open", "partial"].includes(d.status))
+      .reduce((s, d) => s + d.totalCents - d.paidCents, 0) + (isPayableContact ? 0 : c.openingBalanceCents);
+  const youOwe =
+    allDocs
+      .filter((d) => d.type === "bill" && ["open", "partial"].includes(d.status))
+      .reduce((s, d) => s + d.totalCents - d.paidCents, 0) + (isPayableContact ? c.openingBalanceCents : 0);
   const lifetime = allDocs
     .filter((d) => d.type === "invoice" && !["draft", "void"].includes(d.status))
     .reduce((s, d) => s + d.totalCents, 0);
@@ -241,6 +245,19 @@ export default async function ContactDetail({
                 <StatCard label="You owe them" cents={youOwe} />
                 <StatCard label="Lifetime sales" cents={lifetime} tone="good" />
               </div>
+
+              {viewAll && (
+                <div className="mt-4">
+                  <ContactOpeningBalanceCard
+                    contactId={cid}
+                    displayName={c.displayName}
+                    isPayable={isPayableContact}
+                    openingBalanceCents={c.openingBalanceCents}
+                    openingBalanceDate={c.openingBalanceDate}
+                  />
+                </div>
+              )}
+
               <h2 className="text-[15px] font-semibold mt-6 mb-3">Recent documents</h2>
               {allDocs.length === 0 ? (
                 <div className="card px-5 py-8 text-center text-[13px] text-[var(--color-ink-400)]">Nothing yet.</div>
@@ -319,7 +336,15 @@ export default async function ContactDetail({
             </>
           )}
 
-          {tab === "statement" && <StatementTab contact={c} docs={allDocs} pays={contactPayments} />}
+          {tab === "statement" && (
+            <StatementTab
+              contact={c}
+              docs={allDocs}
+              pays={contactPayments}
+              openingBalanceCents={c.openingBalanceCents}
+              openingBalanceDate={c.openingBalanceDate}
+            />
+          )}
 
           {tab === "notes" && (
             <>

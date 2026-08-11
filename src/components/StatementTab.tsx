@@ -6,20 +6,34 @@ export function StatementTab({
   docs,
   pays,
   portalSlug,
+  openingBalanceCents,
+  openingBalanceDate,
 }: {
   contact: any;
   docs: any[];
   pays: any[];
   portalSlug?: string;
+  openingBalanceCents?: number;
+  openingBalanceDate?: string | null;
 }) {
   // Build a chronological ledger
   const ledger: {
     id: string;
     date: string;
-    type: "invoice" | "payment";
+    type: "invoice" | "payment" | "opening_balance";
     description: string;
     amountCents: number;
   }[] = [];
+
+  if (openingBalanceCents && openingBalanceDate) {
+    ledger.push({
+      id: "opening-balance",
+      date: openingBalanceDate,
+      type: "opening_balance",
+      description: "Balance brought forward",
+      amountCents: openingBalanceCents,
+    });
+  }
 
   for (const d of docs) {
     if (d.type === "invoice" && !["draft", "void"].includes(d.status)) {
@@ -43,11 +57,11 @@ export function StatementTab({
     });
   }
 
-  // Sort by date, then by type (invoice first, then payment if same date)
+  // Sort by date, then by type (opening balance, then invoice, then payment if same date)
+  const typeOrder = { opening_balance: 0, invoice: 1, payment: 2 };
   ledger.sort((a, b) => {
     if (a.date !== b.date) return a.date.localeCompare(b.date);
-    if (a.type === b.type) return 0;
-    return a.type === "invoice" ? -1 : 1;
+    return typeOrder[a.type] - typeOrder[b.type];
   });
 
   let runningBalance = 0;

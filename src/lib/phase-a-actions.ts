@@ -18,6 +18,7 @@ import { withOrg, currentOrgId, getOrg } from "./org";
 import { getAccess } from "./access";
 import { nowISO, todayISO } from "./money";
 import { postEntry, acct, mirrorBankTxn } from "./posting";
+import { buildBalanceAdjustmentLines } from "./account-balance-adjustments";
 import { SYS } from "./coa";
 import { saveDocument, issueDocument, type DocLineInput } from "./actions";
 import { advance, dueRuns, addDays, type Frequency } from "./recurring";
@@ -212,6 +213,67 @@ export async function getReconciliationState(recId: number): Promise<Reconciliat
       ledgerBalanceCents: Number(ledger?.v ?? 0),
       uncategorizedCount: Number(uncat?.n ?? 0),
     };
+  });
+}
+
+/**
+ * Records the leftover statement/books gap as a single dated adjustment,
+ * when there's nothing left to tick or categorize but the difference still
+ * isn't zero — e.g. a transaction the bank statement shows that was never
+ * entered at all, or an entry error from an earlier period. Posts to
+ * "Opening Balance Adjustments" (the same technical clearing account used
+ * for money-account opening balances) rather than silently forcing the
+ * reconciliation closed, so the accountant sees a flagged, traceable entry
+ * to investigate later instead of a black-box "it balances now".
+ */
+export async function recordReconciliationAdjustment(recId: number, memo: string) {
+  return withOrg(async () => {
+    const orgId = currentOrgId();
+    const [rec] = await db
+      .select()
+      .from(bankReconciliations)
+      .where(and(eq(bankReconciliations.orgId, orgId), eq(bankReconciliations.id, recId), eq(bankReconciliations.status, "in_progress")))
+      .limit(1);
+    if (!rec) throw new Error("Reconciliation not found or already closed");
+    const state = await getReconciliationState(recId);
+    if (!state) throw new Error("Reconciliation not found");
+    if (state.differenceCents === 0) throw new Error("Nothing to adjust — the difference is already zero");
+    if (state.candidates.some((c) => !c.ticked) || state.uncategorizedCount > 0) {
+      throw new Error("Tick or categorize every known transaction first — only record an adjustment once nothing else is left to explain the gap");
+    }
+
+    const [bank] = await db.select().from(bankAccounts).where(and(eq(bankAccounts.orgId, orgId), eq(bankAccounts.id, rec.bankAccountId))).limit(1);
+    if (!bank) throw new Error("Bank account not found");
+
+    const suspenseAccountId = await acct(SYS.OPENING_BALANCE);
+    const adjustmentCents = state.differenceCents;
+    const entryId = await postEntry({
+      date: rec.statementDate,
+      memo: (memo || "Reconciliation adjustment — unexplained statement gap").trim(),
+      sourceType: "reconciliation_adjustment",
+      sourceId: rec.id,
+      lines: buildBalanceAdjustmentLines({
+        accountId: bank.accountId,
+        accountType: "asset",
+        offsetAccountId: suspenseAccountId,
+        deltaCents: adjustmentCents,
+      }),
+    });
+
+    await db.insert(bankTransactions).values({
+      orgId,
+      bankAccountId: bank.id,
+      date: rec.statementDate,
+      description: `Reconciliation adjustment · ${memo || "unexplained gap, flagged for follow-up"}`,
+      amountCents: adjustmentCents,
+      status: "categorized",
+      categoryAccountId: suspenseAccountId,
+      journalEntryId: entryId,
+      reconciliationId: rec.id,
+      createdAt: nowISO(),
+    });
+
+    revalidatePath("/banking");
   });
 }
 
@@ -709,6 +771,15 @@ export async function getStatementData(contactId: number, from: string, to: stri
 
     type Ev = { date: string; ref: string; description: string; d: number; c: number };
     const events: Ev[] = [
+      ...(contact.openingBalanceCents !== 0 && contact.openingBalanceDate
+        ? [{
+            date: contact.openingBalanceDate,
+            ref: "OB",
+            description: "Balance brought forward",
+            d: contact.kind === "vendor" ? 0 : contact.openingBalanceCents,
+            c: contact.kind === "vendor" ? contact.openingBalanceCents : 0,
+          }]
+        : []),
       ...docs
         .filter((x) => x.type === "invoice")
         .map((x) => ({ date: x.date, ref: x.number, description: "Invoice", d: x.totalCents, c: 0 })),

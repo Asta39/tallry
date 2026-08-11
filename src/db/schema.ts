@@ -143,6 +143,15 @@ export const contacts = pgTable("contacts", {
    *  nullable so legacy/imported contacts stay valid as "Ungrouped". */
   groupId: integer("group_id"),
   archived: boolean("archived").notNull().default(false),
+  /** Balance brought forward from a previous system, as of a chosen date —
+   *  posts a real journal entry (DR/CR Accounts Receivable or Payable
+   *  against "Opening Balance Adjustments", never revenue/expense) so the
+   *  balance sheet and this contact's statement are correct without
+   *  fabricating a backdated invoice/bill history. Mirrors the bank-account
+   *  opening-balance pattern in _setMoneyAccountOpeningBalance. */
+  openingBalanceCents: money("opening_balance_cents").notNull().default(0),
+  openingBalanceDate: text("opening_balance_date"),
+  openingBalanceEntryId: integer("opening_balance_entry_id"),
   createdAt: text("created_at").notNull(),
 }, (t) => ({
   orgKindIdx: index("idx_contacts_org").on(t.orgId, t.kind),

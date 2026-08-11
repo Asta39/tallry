@@ -61,6 +61,15 @@ export async function GET(
 
   type Ev = { date: string; ref: string; description: string; d: number; c: number };
   const events: Ev[] = [
+    ...(contact.openingBalanceCents !== 0 && contact.openingBalanceDate
+      ? [{
+          date: contact.openingBalanceDate,
+          ref: "OB",
+          description: "Balance brought forward",
+          d: contact.kind === "vendor" ? 0 : contact.openingBalanceCents,
+          c: contact.kind === "vendor" ? contact.openingBalanceCents : 0,
+        }]
+      : []),
     ...docs
       .filter((x) => x.type === "invoice")
       .map((x) => ({ date: x.date, ref: x.number, description: "Invoice", d: x.totalCents, c: 0 })),

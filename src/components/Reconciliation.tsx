@@ -9,6 +9,7 @@ import {
   tickReconTxn,
   completeReconciliation,
   cancelReconciliation,
+  recordReconciliationAdjustment,
   type ReconciliationState,
 } from "@/lib/phase-a-actions";
 
@@ -30,6 +31,8 @@ export function Reconciliation({
   const [done, setDone] = useState(false);
   const [state, setState] = useState<ReconciliationState | null>(null);
   const [expanded, setExpanded] = useState(!!openRec);
+  const [adjustMemo, setAdjustMemo] = useState("");
+  const [showAdjustForm, setShowAdjustForm] = useState(false);
 
   // start form
   const [bankId, setBankId] = useState<number>(banks[0]?.id ?? 0);
@@ -94,6 +97,21 @@ export function Reconciliation({
         router.refresh();
       } catch (e) {
         setError(e instanceof Error ? e.message : "Could not complete");
+      }
+    });
+  }
+
+  function recordAdjustment() {
+    if (!state) return;
+    setError(null);
+    start(async () => {
+      try {
+        await recordReconciliationAdjustment(state.rec.id, adjustMemo);
+        setShowAdjustForm(false);
+        setAdjustMemo("");
+        await refresh(state.rec.id);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Could not record adjustment");
       }
     });
   }
@@ -208,6 +226,52 @@ export function Reconciliation({
               statement date {state.uncategorizedCount > 1 ? "are" : "is"} not booked yet — categorize
               {state.uncategorizedCount > 1 ? " them" : " it"} in the Transactions list below first, then
               {state.uncategorizedCount > 1 ? " they" : " it"} will appear here.
+            </div>
+          )}
+
+          {state.differenceCents !== 0 && state.uncategorizedCount === 0 && state.candidates.every((c) => c.ticked) && (
+            <div className="mt-3 rounded-lg bg-[#fdf2f1] border border-[#c0392b]/30 px-3 py-3 text-[12.5px] text-[#8a2e24]">
+              <div className="font-medium">
+                Where this gap is coming from: every known transaction is ticked, but books ({fmtKES(state.ledgerBalanceCents)}) still
+                don&apos;t match the statement ({fmtKES(state.rec.statementBalanceCents)}) — a difference of {fmtKES(state.differenceCents)}.
+              </div>
+              <div className="mt-1.5">
+                This usually means either (a) the real statement has a transaction that was never entered into Zeno at all — check the statement
+                for anything missing from the Transactions list below and add it, or (b) the statement closing balance typed in above is wrong —
+                double-check it against the paper/PDF statement.
+              </div>
+              {!showAdjustForm ? (
+                <button
+                  type="button"
+                  onClick={() => setShowAdjustForm(true)}
+                  className="mt-2 rounded-md border border-[#c0392b]/40 bg-white text-[#8a2e24] text-[12px] font-medium px-3 py-1.5 hover:bg-red-50"
+                >
+                  Can&apos;t find it — record as an adjustment to investigate later
+                </button>
+              ) : (
+                <div className="mt-2 flex items-end gap-2 flex-wrap">
+                  <label className="block">
+                    <span className="text-[11px] text-[#8a2e24]">Note for the accountant</span>
+                    <input
+                      value={adjustMemo}
+                      onChange={(e) => setAdjustMemo(e.target.value)}
+                      placeholder="e.g. bank charge seen on statement, not yet found in records"
+                      className="block mt-1 rounded-md border border-[#c0392b]/40 bg-white px-3 py-1.5 text-[12.5px] w-72"
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    onClick={recordAdjustment}
+                    disabled={pending}
+                    className="rounded-md bg-[#c0392b] hover:bg-[#a5311f] disabled:opacity-50 text-white text-[12px] font-medium px-3 py-1.5"
+                  >
+                    {pending ? "Recording…" : `Record ${fmtKES(state.differenceCents, { signed: true })} adjustment`}
+                  </button>
+                  <button type="button" onClick={() => setShowAdjustForm(false)} className="text-[12px] text-[#8a2e24] hover:underline">
+                    Cancel
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
