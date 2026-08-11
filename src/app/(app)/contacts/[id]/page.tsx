@@ -79,6 +79,11 @@ export default async function ContactDetail({
 
   const access = await getAccessCached();
   const viewAll = !access || canViewAllData(access);
+  // Balance-brought-forward is org financial data, not a "my assigned docs"
+  // concern — accountants can always see/manage it regardless of the doc/
+  // payment staff-segregation setting above (matches setContactOpeningBalanceAction's
+  // own access check in actions.ts, which already allows accountants).
+  const canManageOpeningBalance = !access || access.isOwner || access.role === "admin" || access.role === "accountant";
   const docStaffScope = !viewAll
     ? exists(
         db
@@ -246,7 +251,7 @@ export default async function ContactDetail({
                 <StatCard label="Lifetime sales" cents={lifetime} tone="good" />
               </div>
 
-              {viewAll && (
+              {canManageOpeningBalance && (
                 <div className="mt-4">
                   <ContactOpeningBalanceCard
                     contactId={cid}
