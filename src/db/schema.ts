@@ -255,6 +255,14 @@ export const items = pgTable("items", {
   salesAccountId: integer("sales_account_id"),
   purchaseAccountId: integer("purchase_account_id"),
   trackInventory: boolean("track_inventory").notNull().default(false),
+  /** How this item's qty is entered, when it's not just a plain count —
+   *  "length" (a single number, e.g. meters off a roll) or "area" (width ×
+   *  height entered separately, multiplied into one qty). Null = plain
+   *  count, the default for most items. Purely a data-entry convenience:
+   *  the stored qty/unit is identical either way, this only changes which
+   *  input(s) the UI shows when entering it (opening stock, BOM lines,
+   *  invoice/bill lines). */
+  measurementType: text("measurement_type"), // null | length | area
   reorderLevel: doublePrecision("reorder_level").notNull().default(0),
   archived: boolean("archived").notNull().default(false),
 }, (t) => ({

@@ -36,6 +36,7 @@ export default async function NewItemPage() {
       reorderLevel: Number(formData.get("reorderLevel") || 0),
       openingQty: Number(formData.get("openingQty") || 0),
       openingUnitCostCents: parseKES(String(formData.get("openingCost") || "0")) || 0,
+      measurementType: (formData.get("measurementType") || null) as "length" | "area" | null,
     });
     redirect("/items");
   }
@@ -69,6 +70,14 @@ export default async function NewItemPage() {
         <label className="block">
           <span className={label}>Unit</span>
           <input name="unit" defaultValue="unit" className={input} placeholder="pc, kg, hour…" />
+        </label>
+        <label className="block">
+          <span className={label}>Measured by</span>
+          <select name="measurementType" className={input} defaultValue="">
+            <option value="">Plain count (default)</option>
+            <option value="length">Length — one number, e.g. meters off a roll</option>
+            <option value="area">Area — width × height entered separately</option>
+          </select>
         </label>
         <label className="block">
           <span className={label}>Selling price (KSh)</span>

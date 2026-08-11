@@ -409,6 +409,7 @@ async function _saveItem(data: {
   reorderLevel: number;
   openingQty?: number;
   openingUnitCostCents?: number;
+  measurementType?: "length" | "area" | null;
 }) {
   const orgId = currentOrgId();
   const itemGroupId = await validateItemGroup(orgId, data.itemGroupId, data.kind);
@@ -466,6 +467,7 @@ async function _saveItem(data: {
         taxClass: data.taxClass,
         trackInventory: data.trackInventory,
         reorderLevel: data.reorderLevel,
+        measurementType: data.measurementType || null,
       })
       .where(and(eq(items.orgId, currentOrgId()), eq(items.id, data.id)));
   } else {
@@ -483,6 +485,7 @@ async function _saveItem(data: {
         taxClass: data.taxClass,
         trackInventory: data.trackInventory,
         reorderLevel: data.reorderLevel,
+        measurementType: data.measurementType || null,
         salesAccountId: salesAcc?.id,
       })
       .returning();

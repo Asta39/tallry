@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { setItemBomAction } from "@/lib/item-bom";
+import { DimensionQtyInput } from "@/components/DimensionQtyInput";
 
 type Row = { componentItemId: number | ""; qtyPerUnit: string; wasteQtyPerUnit: string };
 
@@ -16,7 +17,7 @@ export function ItemBomEditor({
 }: {
   parentItemId: number;
   parentName: string;
-  options: { id: number; name: string }[];
+  options: { id: number; name: string; unit?: string; measurementType?: string | null }[];
   initialRows: { componentItemId: number; qtyPerUnit: number; wasteQtyPerUnit: number }[];
 }) {
   const [rows, setRows] = useState<Row[]>(
@@ -86,30 +87,45 @@ export function ItemBomEditor({
               </tr>
             </thead>
             <tbody>
-              {rows.map((r, i) => (
-                <tr key={i} className="hairline-t">
-                  <td className="px-2.5 py-1.5">
-                    <select
-                      className={inputCls}
-                      value={r.componentItemId}
-                      onChange={(e) => updateRow(i, { componentItemId: e.target.value ? Number(e.target.value) : "" })}
-                    >
-                      {options.map((o) => (
-                        <option key={o.id} value={o.id}>{o.name}</option>
-                      ))}
-                    </select>
-                  </td>
-                  <td className="px-2.5 py-1.5">
-                    <input className={inputCls + " text-right"} value={r.qtyPerUnit} onChange={(e) => updateRow(i, { qtyPerUnit: e.target.value })} />
-                  </td>
-                  <td className="px-2.5 py-1.5">
-                    <input className={inputCls + " text-right"} value={r.wasteQtyPerUnit} onChange={(e) => updateRow(i, { wasteQtyPerUnit: e.target.value })} />
-                  </td>
-                  <td className="px-1 py-1.5">
-                    <button type="button" onClick={() => removeRow(i)} className="text-[var(--color-ink-300)] hover:text-[var(--color-bad)] text-[15px]" aria-label="Remove component">×</button>
-                  </td>
-                </tr>
-              ))}
+              {rows.map((r, i) => {
+                const component = options.find((o) => o.id === r.componentItemId);
+                return (
+                  <tr key={i} className="hairline-t">
+                    <td className="px-2.5 py-1.5">
+                      <select
+                        className={inputCls}
+                        value={r.componentItemId}
+                        onChange={(e) => updateRow(i, { componentItemId: e.target.value ? Number(e.target.value) : "" })}
+                      >
+                        {options.map((o) => (
+                          <option key={o.id} value={o.id}>{o.name}</option>
+                        ))}
+                      </select>
+                    </td>
+                    <td className="px-2.5 py-1.5">
+                      <DimensionQtyInput
+                        measurementType={component?.measurementType}
+                        unit={component?.unit}
+                        value={r.qtyPerUnit}
+                        onChange={(v) => updateRow(i, { qtyPerUnit: v })}
+                        compact
+                      />
+                    </td>
+                    <td className="px-2.5 py-1.5">
+                      <DimensionQtyInput
+                        measurementType={component?.measurementType}
+                        unit={component?.unit}
+                        value={r.wasteQtyPerUnit}
+                        onChange={(v) => updateRow(i, { wasteQtyPerUnit: v })}
+                        compact
+                      />
+                    </td>
+                    <td className="px-1 py-1.5">
+                      <button type="button" onClick={() => removeRow(i)} className="text-[var(--color-ink-300)] hover:text-[var(--color-bad)] text-[15px]" aria-label="Remove component">×</button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

@@ -6,6 +6,7 @@ import { computeDocument, TAX_CLASSES, type TaxClass } from "@/lib/tax";
 import { fmtKES, parseKES, todayISO } from "@/lib/money";
 import { upsertDocumentAction, createItemFromLine, listCustomerInvoices, type DocLineInput } from "@/lib/actions";
 import { SearchableSelect } from "@/components/SearchableSelect";
+import { DimensionQtyInput } from "@/components/DimensionQtyInput";
 
 type Option = { id: number; label: string };
 type ItemOption = {
@@ -16,6 +17,7 @@ type ItemOption = {
   taxClass: string;
   unit: string;
   trackInventory: boolean;
+  measurementType?: string | null;
 };
 
 interface EditorLine {
@@ -729,11 +731,27 @@ export function DocumentEditor({
                     )}
                   </td>
                   <td className="px-1 py-2">
-                    <input
-                      className={cellCls + " text-right"}
-                      value={l.qty}
-                      onChange={(e) => update(i, { qty: e.target.value })}
-                    />
+                    {(() => {
+                      const pickedItem = l.itemId ? items.find((it) => it.id === l.itemId) : null;
+                      if (pickedItem?.measurementType === "area") {
+                        return (
+                          <DimensionQtyInput
+                            measurementType="area"
+                            unit={pickedItem.unit}
+                            value={l.qty}
+                            onChange={(v) => update(i, { qty: v })}
+                            compact
+                          />
+                        );
+                      }
+                      return (
+                        <input
+                          className={cellCls + " text-right"}
+                          value={l.qty}
+                          onChange={(e) => update(i, { qty: e.target.value })}
+                        />
+                      );
+                    })()}
                   </td>
                   <td className="px-1 py-2">
                     <input

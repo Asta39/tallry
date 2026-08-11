@@ -888,3 +888,5 @@ CREATE INDEX IF NOT EXISTS idx_item_boms_org_parent ON item_boms(org_id, parent_
 
 ALTER TABLE org ADD COLUMN IF NOT EXISTS bom_enabled BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE org ADD COLUMN IF NOT EXISTS block_insufficient_stock BOOLEAN NOT NULL DEFAULT FALSE;
+
+ALTER TABLE items ADD COLUMN IF NOT EXISTS measurement_type TEXT;

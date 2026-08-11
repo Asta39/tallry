@@ -64,6 +64,7 @@ export default async function EditItemPage({ params }: { params: Promise<{ id: s
       taxClass: String(formData.get("taxClass") || "B16"),
       trackInventory: formData.get("trackInventory") === "on",
       reorderLevel: Number(formData.get("reorderLevel") || 0),
+      measurementType: (formData.get("measurementType") || null) as "length" | "area" | null,
     });
     redirect("/items");
   }
@@ -104,6 +105,14 @@ export default async function EditItemPage({ params }: { params: Promise<{ id: s
         <label className="block">
           <span className={label}>Unit</span>
           <input name="unit" defaultValue={row.unit} className={input} placeholder="pc, kg, hour…" />
+        </label>
+        <label className="block">
+          <span className={label}>Measured by</span>
+          <select name="measurementType" className={input} defaultValue={row.measurementType ?? ""}>
+            <option value="">Plain count (default)</option>
+            <option value="length">Length — one number, e.g. meters off a roll</option>
+            <option value="area">Area — width × height entered separately</option>
+          </select>
         </label>
         <label className="block">
           <span className={label}>Selling price (KSh)</span>

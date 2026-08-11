@@ -31,7 +31,7 @@ export async function listBomComponentOptions(parentItemId: number) {
   return withOrg(async () => {
     const orgId = currentOrgId();
     return db
-      .select({ id: items.id, name: items.name })
+      .select({ id: items.id, name: items.name, unit: items.unit, measurementType: items.measurementType })
       .from(items)
       .where(and(eq(items.orgId, orgId), eq(items.trackInventory, true), eq(items.archived, false), ne(items.id, parentItemId)))
       .orderBy(items.name);
