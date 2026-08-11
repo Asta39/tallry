@@ -865,3 +865,5 @@ CREATE INDEX IF NOT EXISTS idx_ledger_integrity_unresolved ON ledger_integrity_f
 ALTER TABLE contacts ADD COLUMN IF NOT EXISTS opening_balance_cents BIGINT NOT NULL DEFAULT 0;
 ALTER TABLE contacts ADD COLUMN IF NOT EXISTS opening_balance_date TEXT;
 ALTER TABLE contacts ADD COLUMN IF NOT EXISTS opening_balance_entry_id INTEGER;
+
+ALTER TABLE team_announcements ADD COLUMN IF NOT EXISTS color TEXT NOT NULL DEFAULT 'blue';

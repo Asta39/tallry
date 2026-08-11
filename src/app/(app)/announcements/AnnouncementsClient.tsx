@@ -4,15 +4,19 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createAnnouncementAction, deleteAnnouncementAction, togglePinAnnouncementAction } from "@/lib/announcements";
 import { PrimaryButton, EmptyState } from "@/components/ui";
+import { ANNOUNCEMENT_COLORS } from "@/components/TeamAnnouncementBanner";
 
 export interface AnnouncementRow {
   id: number;
   title: string;
   body: string;
   pinned: boolean;
+  color: string;
   createdByName: string;
   createdAt: string;
 }
+
+const COLOR_KEYS = Object.keys(ANNOUNCEMENT_COLORS);
 
 export function AnnouncementsClient({ canPost, rows }: { canPost: boolean; rows: AnnouncementRow[] }) {
   const router = useRouter();
@@ -21,6 +25,7 @@ export function AnnouncementsClient({ canPost, rows }: { canPost: boolean; rows:
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [pinned, setPinned] = useState(false);
+  const [color, setColor] = useState("blue");
   const [error, setError] = useState<string | null>(null);
 
   const input =
@@ -30,14 +35,14 @@ export function AnnouncementsClient({ canPost, rows }: { canPost: boolean; rows:
   function submit() {
     setError(null);
     start(async () => {
-      try {
-        await createAnnouncementAction({ title, body, pinned });
-        setTitle(""); setBody(""); setPinned(false);
-        setShowForm(false);
-        router.refresh();
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Could not post");
+      const res = await createAnnouncementAction({ title, body, pinned, color });
+      if (res?.error) {
+        setError(res.error);
+        return;
       }
+      setTitle(""); setBody(""); setPinned(false); setColor("blue");
+      setShowForm(false);
+      router.refresh();
     });
   }
 
@@ -63,8 +68,29 @@ export function AnnouncementsClient({ canPost, rows }: { canPost: boolean; rows:
           </label>
           <label className="flex items-center gap-2">
             <input type="checkbox" checked={pinned} onChange={(e) => setPinned(e.target.checked)} className="accent-[var(--color-accent-500)]" />
-            <span className="text-[12.5px] text-[var(--color-ink-600)]">Pin to top</span>
+            <span className="text-[12.5px] text-[var(--color-ink-600)]">Pin to the top of everyone&apos;s screen</span>
           </label>
+          <div>
+            <span className={label}>Banner color</span>
+            <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+              {COLOR_KEYS.map((key) => {
+                const c = ANNOUNCEMENT_COLORS[key];
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    title={c.label}
+                    onClick={() => setColor(key)}
+                    className={`w-7 h-7 rounded-full ${c.bar} flex items-center justify-center ring-2 ring-offset-2 transition-shadow ${
+                      color === key ? "ring-[var(--color-ink-900)]" : "ring-transparent"
+                    }`}
+                  >
+                    {color === key && <span className={`text-[11px] ${c.text}`}>✓</span>}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
           {error && <div className="text-[12.5px] text-[var(--color-bad)]">{error}</div>}
           <PrimaryButton onClick={submit} disabled={pending}>
             {pending ? "Posting…" : "Post announcement"}
@@ -81,6 +107,7 @@ export function AnnouncementsClient({ canPost, rows }: { canPost: boolean; rows:
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
+                    <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${(ANNOUNCEMENT_COLORS[r.color] || ANNOUNCEMENT_COLORS.blue).bar}`} />
                     {r.pinned && <span className="text-[11px] font-semibold text-[var(--color-accent-600)] uppercase tracking-wide">Pinned</span>}
                     <h3 className="text-[15px] font-semibold text-[var(--color-ink-900)]">{r.title}</h3>
                   </div>

@@ -25,6 +25,7 @@ export default async function AnnouncementsPage() {
           title: r.title,
           body: r.body,
           pinned: r.pinned,
+          color: r.color,
           createdByName: r.createdByName,
           createdAt: r.createdAt,
         }))}

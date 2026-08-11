@@ -20,15 +20,21 @@ export async function listAnnouncements() {
   });
 }
 
-export async function createAnnouncementAction(data: { title: string; body: string; pinned?: boolean }) {
+export async function createAnnouncementAction(data: { title: string; body: string; pinned?: boolean; color?: string }) {
   return withOrg(async () => {
     await requirePerm("announcements");
     const access = await getAccess();
+    // Thrown Server Action errors were surfacing to the client as Next's
+    // generic "Server Components render error" instead of the actual
+    // validation message (and only on the failing/empty-input path — the
+    // success path never threw, so it always looked fine) — return a typed
+    // {error} result instead, same pattern already used by the working
+    // super-admin announcement action.
     if (!access?.isOwner && access?.role !== "admin") {
-      throw new Error("Only admins can post announcements");
+      return { error: "Only admins can post announcements" };
     }
-    if (!data.title.trim()) throw new Error("Give the announcement a title");
-    if (!data.body.trim()) throw new Error("Write something in the announcement");
+    if (!data.title.trim()) return { error: "Give the announcement a title" };
+    if (!data.body.trim()) return { error: "Write something in the announcement" };
 
     const orgId = currentOrgId();
     await db.insert(teamAnnouncements).values({
@@ -36,6 +42,7 @@ export async function createAnnouncementAction(data: { title: string; body: stri
       title: data.title.trim(),
       body: data.body.trim(),
       pinned: data.pinned ?? false,
+      color: data.color || "blue",
       createdByName: access?.memberName || "Owner",
       createdAt: nowISO(),
     });

@@ -553,6 +553,7 @@ export const teamAnnouncements = pgTable("team_announcements", {
   title: text("title").notNull(),
   body: text("body").notNull(),
   pinned: boolean("pinned").notNull().default(false),
+  color: text("color").notNull().default("blue"), // banner color: blue | red | amber | green | purple | teal | pink | slate
   createdByName: text("created_by_name").notNull(),
   createdAt: text("created_at").notNull(),
 }, (t) => ({

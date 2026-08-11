@@ -10,9 +10,10 @@ import { ImpersonationBanner } from "@/components/ImpersonationBanner";
 import { AiAssistantPill } from "@/components/AiAssistantPill";
 import { getEntitlements } from "@/lib/billing-server";
 import { getDailyBrief } from "@/lib/ai/brief";
-import { db, announcements } from "@/db";
-import { eq, desc } from "drizzle-orm";
+import { db, announcements, teamAnnouncements } from "@/db";
+import { eq, desc, and } from "drizzle-orm";
 import Link from "next/link";
+import { TeamAnnouncementBanner } from "@/components/TeamAnnouncementBanner";
 
 const roleLabels: Record<string, string> = {
   admin: "Admin",
@@ -50,9 +51,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         : ents.plan === "standard"
           ? "Standard Plan"
           : "Business Plan";
-  const [announcement, brief] = await Promise.all([
+  const [announcement, brief, pinnedTeamAnnouncements] = await Promise.all([
     db.select().from(announcements).where(eq(announcements.active, true)).orderBy(desc(announcements.createdAt)).limit(1).then((r) => r[0]),
     getDailyBrief(access).catch(() => null),
+    db
+      .select({ id: teamAnnouncements.id, title: teamAnnouncements.title, body: teamAnnouncements.body, color: teamAnnouncements.color })
+      .from(teamAnnouncements)
+      .where(and(eq(teamAnnouncements.orgId, access.orgId), eq(teamAnnouncements.pinned, true)))
+      .orderBy(desc(teamAnnouncements.createdAt)),
   ]);
 
   return (
@@ -64,6 +70,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <span className="truncate">{announcement.message}</span>
         </div>
       )}
+      <TeamAnnouncementBanner announcements={pinnedTeamAnnouncements} />
       {isImpersonating && <ImpersonationBanner orgName={access.orgRow.name} />}
       <div className="flex min-h-screen" style={access.orgRow.brandColor ? { "--color-brand": access.orgRow.brandColor } as React.CSSProperties : undefined}>
         <InstallPrompt />

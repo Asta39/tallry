@@ -1,7 +1,7 @@
 "use server";
 
-import { db, documents, documentLines, accounts, costCenters } from "@/db";
-import { and, eq, inArray, isNull, ne } from "drizzle-orm";
+import { db, documents, documentLines, accounts, costCenters, items } from "@/db";
+import { and, eq, inArray, isNull, ne, or } from "drizzle-orm";
 import { withOrg, currentOrgId } from "@/lib/org";
 import { requirePerm } from "@/lib/guard";
 import { postEntry, acct } from "@/lib/posting";
@@ -32,12 +32,21 @@ export async function listUncategorizedLines() {
       })
       .from(documentLines)
       .innerJoin(documents, eq(documents.id, documentLines.documentId))
+      .leftJoin(items, eq(items.id, documentLines.itemId))
       .where(and(
         eq(documents.orgId, orgId),
         isNull(documentLines.accountId),
         inArray(documents.type, ["invoice", "bill", "expense"]),
         ne(documents.status, "draft"),
         ne(documents.status, "void"),
+        // Tracked-inventory lines never actually land on the generic
+        // fallback account — postBill/postExpense silently overrides them
+        // to Inventory Asset regardless of accountId. Offering one here lets
+        // the accountant "reclass" it off a fallback it was never posted to,
+        // crediting that fallback into a bogus negative balance while
+        // overstating whatever account they pick (this produced org 33's
+        // impossible negative Miscellaneous Expenses balance).
+        or(isNull(documentLines.itemId), eq(items.trackInventory, false)),
       ))
       .orderBy(documents.date);
     return rows;
@@ -81,13 +90,16 @@ export async function reclassLineAction(lineId: number, newAccountId: number, ne
           docNumber: documents.number,
           netCents: documentLines.netCents,
           accountId: documentLines.accountId,
+          trackInventory: items.trackInventory,
         })
         .from(documentLines)
         .innerJoin(documents, eq(documents.id, documentLines.documentId))
+        .leftJoin(items, eq(items.id, documentLines.itemId))
         .where(and(eq(documents.orgId, orgId), eq(documentLines.id, lineId)))
         .limit(1);
       if (!row) throw new Error("Line not found");
       if (row.accountId) throw new Error("This line already has a category");
+      if (row.trackInventory) throw new Error("Tracked-inventory lines post to Inventory Asset automatically — they were never on the fallback account, so there's nothing to reclass");
 
       const [target] = await db.select().from(accounts).where(and(eq(accounts.orgId, orgId), eq(accounts.id, newAccountId))).limit(1);
       if (!target) throw new Error("Account not found");
