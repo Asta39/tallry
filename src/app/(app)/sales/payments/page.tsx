@@ -1,10 +1,11 @@
 import { requirePerm } from "@/lib/guard";
 import { getOrg } from "@/lib/org";
-import { db, payments, documents, contacts, paymentEvents } from "@/db";
-import { eq, and, desc, inArray, count } from "drizzle-orm";
+import { db, payments, documents, contacts, paymentEvents, documentAssignments, journalEntries, expenseClaims } from "@/db";
+import { eq, and, desc, inArray, count, exists, or } from "drizzle-orm";
 import { PageHeader, TableCard, Th, Td } from "@/components/ui";
 import { fmtKES } from "@/lib/money";
 import Link from "next/link";
+import { getAccessCached, canViewAllData } from "@/lib/access";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +19,35 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
   // into two explicit tabs, each filtered by payments.direction.
   const direction: "in" | "out" = tab === "made" ? "out" : "in";
 
+  const access = await getAccessCached();
+  const viewAll = !access || canViewAllData(access);
+
+  // Staff without org-wide visibility only see payments against documents
+  // assigned to them, or (for expense-claim reimbursements, which carry no
+  // documentId) reimbursements they personally submitted — matched via the
+  // journal entry the payout posted (source_type 'expense_claim_payment').
+  const staffScope = !viewAll
+    ? or(
+        exists(
+          db
+            .select()
+            .from(documentAssignments)
+            .where(and(eq(documentAssignments.documentId, payments.documentId), eq(documentAssignments.memberId, access!.memberId!)))
+        ),
+        exists(
+          db
+            .select()
+            .from(journalEntries)
+            .innerJoin(expenseClaims, eq(expenseClaims.id, journalEntries.sourceId))
+            .where(and(
+              eq(journalEntries.id, payments.journalEntryId),
+              eq(journalEntries.sourceType, "expense_claim_payment"),
+              eq(expenseClaims.memberId, access!.memberId!)
+            ))
+        )
+      )
+    : undefined;
+
   const rows = await db
     .select({
       payment: payments,
@@ -26,7 +56,7 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
       contactName: contacts.displayName,
     })
     .from(payments)
-    .where(and(eq(payments.orgId, o.id), eq(payments.direction, direction)))
+    .where(and(eq(payments.orgId, o.id), eq(payments.direction, direction), staffScope))
     // Left join: expense-claim reimbursements aren't linked to a `documents`
     // row at all (they settle a liability account, not an invoice/bill), so
     // an inner join here silently dropped every one of them from this list.

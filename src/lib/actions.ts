@@ -949,7 +949,7 @@ async function _convertQuoteToInvoice(quoteId: number): Promise<number> {
     .where(and(eq(documents.orgId, orgId), eq(documents.id, quoteId), eq(documents.type, "quote"), inArray(documents.status, ["open", "accepted"])))
     .returning();
   if (!quote) throw new Error("This quote was already converted to an invoice");
-  const lines = await db.select().from(documentLines).where(eq(documentLines.documentId, quoteId));
+  const lines = await db.select().from(documentLines).where(eq(documentLines.documentId, quoteId)).orderBy(documentLines.position);
   let invoiceId: number;
   try {
     invoiceId = await _convertQuoteToInvoiceInner(quote, lines);
@@ -1921,7 +1921,8 @@ async function _convertPoToBill(poId: number, lineQtys?: Record<number, number>)
     const poLines = await db
       .select()
       .from(documentLines)
-      .where(and(eq(documentLines.orgId, orgId), eq(documentLines.documentId, poId)));
+      .where(and(eq(documentLines.orgId, orgId), eq(documentLines.documentId, poId)))
+      .orderBy(documentLines.position);
 
     const toBill: { line: typeof poLines[number]; qty: number }[] = [];
     for (const l of poLines) {

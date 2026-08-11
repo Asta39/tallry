@@ -1,9 +1,10 @@
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, exists, or } from "drizzle-orm";
 import { requirePerm } from "@/lib/guard";
 import { getOrg } from "@/lib/org";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { db, contacts, documents, activities, deals, payments, portalUsers, customerGroups, contactGroupMemberships } from "@/db";
+import { db, contacts, documents, activities, deals, payments, portalUsers, customerGroups, contactGroupMemberships, documentAssignments, journalEntries, expenseClaims } from "@/db";
+import { getAccessCached, canViewAllData } from "@/lib/access";
 import { fmtKES, todayISO } from "@/lib/money";
 import { addActivity } from "@/lib/actions";
 import { PageHeader, StatusPill, StatCard, TableCard, Th, Td, PrimaryLink } from "@/components/ui";
@@ -75,10 +76,42 @@ export default async function ContactDetail({
   const tab = visibleTabs.some((t) => t.key === tabParam) ? tabParam! : "overview";
   const period = resolvePeriod(sp);
 
+  const access = await getAccessCached();
+  const viewAll = !access || canViewAllData(access);
+  const docStaffScope = !viewAll
+    ? exists(
+        db
+          .select()
+          .from(documentAssignments)
+          .where(and(eq(documentAssignments.documentId, documents.id), eq(documentAssignments.memberId, access!.memberId!)))
+      )
+    : undefined;
+  const paymentStaffScope = !viewAll
+    ? or(
+        exists(
+          db
+            .select()
+            .from(documentAssignments)
+            .where(and(eq(documentAssignments.documentId, payments.documentId), eq(documentAssignments.memberId, access!.memberId!)))
+        ),
+        exists(
+          db
+            .select()
+            .from(journalEntries)
+            .innerJoin(expenseClaims, eq(expenseClaims.id, journalEntries.sourceId))
+            .where(and(
+              eq(journalEntries.id, payments.journalEntryId),
+              eq(journalEntries.sourceType, "expense_claim_payment"),
+              eq(expenseClaims.memberId, access!.memberId!)
+            ))
+        )
+      )
+    : undefined;
+
   const allDocs = await db
     .select()
     .from(documents)
-    .where(and(eq(documents.orgId, o.id), eq(documents.contactId, cid)))
+    .where(and(eq(documents.orgId, o.id), eq(documents.contactId, cid), docStaffScope))
     .orderBy(desc(documents.date), desc(documents.id));
   const acts = await db
     .select()
@@ -86,7 +119,7 @@ export default async function ContactDetail({
     .where(and(eq(activities.orgId, o.id), eq(activities.contactId, cid)))
     .orderBy(desc(activities.createdAt));
   const contactDeals = await db.select().from(deals).where(and(eq(deals.orgId, o.id), eq(deals.contactId, cid)));
-  const contactPayments = await db.select().from(payments).where(and(eq(payments.orgId, o.id), eq(payments.contactId, cid)));
+  const contactPayments = await db.select().from(payments).where(and(eq(payments.orgId, o.id), eq(payments.contactId, cid), paymentStaffScope));
   const [portalUser] = await db.select().from(portalUsers).where(and(eq(portalUsers.orgId, o.id), eq(portalUsers.contactId, cid))).limit(1);
 
   const owedToYou = allDocs
