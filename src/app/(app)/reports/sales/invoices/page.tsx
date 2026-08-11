@@ -65,18 +65,18 @@ export default async function InvoicesReportPage({
         <PageHeader title="Invoices Report" subtitle="Detailed breakdown of all generated invoices" />
 
         <div className="flex items-center gap-3">
-          <PdfLinks report="invoices" from={fromDate} to={toDate} />
+          <PdfLinks report="invoices" from={fromDate} to={toDate} staff={staffName} />
         </div>
       </div>
 
       <ReportFilters preset={preset} from={fromDate} to={toDate} staff={staff} staffName={staffName} />
 
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
-        <StatCard label="Draft" cents={draftCents} />
-        <StatCard label="Awaiting payment" cents={awaitingCents} tone={awaitingCents > 0 ? "warn" : "neutral"} />
-        <StatCard label="Partial" hint="remaining balance" cents={partialCents} tone={partialCents > 0 ? "warn" : "neutral"} />
-        <StatCard label="Overdue" hint="remaining balance" cents={overdueCents} tone={overdueCents > 0 ? "bad" : "good"} />
-        <StatCard label="Paid" cents={collectedCents} tone="good" />
+        <StatCard compact label="Draft" cents={draftCents} />
+        <StatCard compact label="Awaiting payment" cents={awaitingCents} tone={awaitingCents > 0 ? "warn" : "neutral"} />
+        <StatCard compact label="Partial" hint="remaining balance" cents={partialCents} tone={partialCents > 0 ? "warn" : "neutral"} />
+        <StatCard compact label="Overdue" hint="remaining balance" cents={overdueCents} tone={overdueCents > 0 ? "bad" : "good"} />
+        <StatCard compact label="Paid" cents={collectedCents} tone="good" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">

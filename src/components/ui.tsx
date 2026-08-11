@@ -120,12 +120,17 @@ export function StatCard({
   cents,
   emptyHint,
   tone = "neutral",
+  compact,
 }: {
   label: string;
   hint?: string;
   cents?: number;
   emptyHint?: string;
   tone?: "neutral" | "good" | "bad" | "warn";
+  /** For dense grids (4+ cards per row) where money-lg's vw-based clamp
+   *  doesn't know the card is narrower than the viewport and overflows —
+   *  a smaller, wrapping size that always fits its own card instead. */
+  compact?: boolean;
 }) {
   const toneClass =
     tone === "good"
@@ -135,13 +140,16 @@ export function StatCard({
       : tone === "warn"
       ? "text-[var(--color-warn)]"
       : "";
+  const amountClass = compact
+    ? "text-[19px] font-semibold tracking-tight tnum mt-1 break-words"
+    : "money-lg mt-1";
   return (
     <div className="card px-5 py-4">
       <div className="text-[12.5px] text-[var(--color-ink-600)]">{label}</div>
       {cents !== undefined ? (
-        <div className={`money-lg mt-1 ${toneClass}`}>{fmtKES(cents)}</div>
+        <div className={`${amountClass} ${toneClass}`}>{fmtKES(cents)}</div>
       ) : (
-        <div className={`money-lg mt-1 text-[var(--color-ink-300)]`}>---</div>
+        <div className={`${amountClass} text-[var(--color-ink-300)]`}>---</div>
       )}
       {(hint || emptyHint) && (
         <div className="text-[11.5px] text-[var(--color-ink-400)] mt-0.5">

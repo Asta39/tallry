@@ -34,12 +34,13 @@ export function CsvLink({ report, from, to }: { report: string; from: string; to
   );
 }
 
-export function PdfLinks({ report, from, to, asOf, accountId }: { report: string; from?: string; to?: string; asOf?: string; accountId?: string }) {
+export function PdfLinks({ report, from, to, asOf, accountId, staff }: { report: string; from?: string; to?: string; asOf?: string; accountId?: string; staff?: string }) {
   const params = new URLSearchParams();
   if (from) params.set("from", from);
   if (to) params.set("to", to);
   if (asOf) params.set("asOf", asOf);
   if (accountId) params.set("accountId", accountId);
+  if (staff) params.set("staff", staff);
 
   const qs = params.toString() ? `?${params.toString()}` : "";
   const base = `/api/pdf/report/${report}${qs}`;

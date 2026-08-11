@@ -39,6 +39,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       const from = searchParams.get("from") || `${new Date().getFullYear()}-01-01`;
       const to = searchParams.get("to") || todayISO();
       const accountId = searchParams.get("accountId");
+      const staff = searchParams.get("staff") || undefined;
 
       let title = "Report";
       let subtitle = "";
@@ -349,7 +350,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
       } else if (type === "invoices") {
         title = "Invoices Report";
-        subtitle = `From ${from} to ${to}`;
+        subtitle = `From ${from} to ${to}${staff ? ` · Staff: ${staff}` : ""}`;
         columns = [
           { header: "Date", align: "left", widthPct: 15 },
           { header: "Invoice #", align: "left", widthPct: 15 },
@@ -358,7 +359,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
           { header: "Balance", align: "right", widthPct: 15 },
           { header: "Total", align: "right", widthPct: 15 },
         ];
-        const data = await invoicesReport(from, to);
+        const data = await invoicesReport(from, to, staff);
         data.forEach(r => rows.push({
           id: r.id.toString(),
           cells: [r.date, r.number, r.customerName || "-", r.status, fmtKES(r.balanceCents), fmtKES(r.totalCents)]
