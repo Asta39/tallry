@@ -183,7 +183,7 @@ export function DocListClient({
                 </Td>
                 <Td right>{fmtKES(d.totalCents)}</Td>
                 <Td right className="font-medium">
-                  {["open", "partial"].includes(d.status) ? fmtKES(d.totalCents - d.paidCents) : "—"}
+                  {["open", "partial"].includes(d.status) ? fmtKES(d.totalCents - d.paidCents - (d.creditedCents ?? 0)) : "—"}
                 </Td>
               </tr>
             ))}

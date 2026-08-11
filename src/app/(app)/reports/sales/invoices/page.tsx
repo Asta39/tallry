@@ -1,13 +1,14 @@
 export const dynamic = "force-dynamic";
 
 import Link from "next/link";
-import { PageHeader } from "@/components/ui";
+import { PageHeader, StatCard } from "@/components/ui";
 import { invoicesReport, reportStaffNames } from "@/lib/reports";
 import { withOrg } from "@/lib/org";
 import { PdfLinks } from "@/components/reportShared";
 import { ReportFilters } from "@/components/ReportFilters";
 import { ReportChart } from "@/components/ReportCharts";
 import { resolvePeriod } from "@/lib/report-period";
+import { todayISO } from "@/lib/money";
 
 export default async function InvoicesReportPage({
   searchParams,
@@ -38,6 +39,20 @@ export default async function InvoicesReportPage({
   const invoicedCents = invoices.reduce((s, i) => s + i.totalCents, 0);
   const outstandingCents = invoices.reduce((s, i) => s + i.balanceCents, 0);
 
+  // KPI cards — same "how much is actually owed" semantics as the main
+  // Invoices list (DocList.tsx): Partial/Overdue show the remaining balance,
+  // not the invoice's full original total. `invoices` is already filtered
+  // to the selected staff member above, so these figures — and the whole
+  // page — automatically scope to just that person when a filter is picked.
+  const today = todayISO();
+  const draftCents = invoices.filter((i) => i.status === "draft").reduce((s, i) => s + i.totalCents, 0);
+  const awaitingCents = invoices.filter((i) => i.status === "open").reduce((s, i) => s + i.balanceCents, 0);
+  const partialCents = invoices.filter((i) => i.status === "partial").reduce((s, i) => s + i.balanceCents, 0);
+  const overdueCents = invoices
+    .filter((i) => (i.status === "open" || i.status === "partial") && i.dueDate && i.dueDate < today)
+    .reduce((s, i) => s + i.balanceCents, 0);
+  const collectedCents = invoices.filter((i) => i.status === "paid").reduce((s, i) => s + i.totalCents, 0);
+
   return (
     <div className="pb-10 pt-2">
       <div className="flex items-center gap-4 mb-6">
@@ -55,6 +70,14 @@ export default async function InvoicesReportPage({
       </div>
 
       <ReportFilters preset={preset} from={fromDate} to={toDate} staff={staff} staffName={staffName} />
+
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+        <StatCard label="Draft" cents={draftCents} />
+        <StatCard label="Awaiting payment" cents={awaitingCents} tone={awaitingCents > 0 ? "warn" : "neutral"} />
+        <StatCard label="Partial" hint="remaining balance" cents={partialCents} tone={partialCents > 0 ? "warn" : "neutral"} />
+        <StatCard label="Overdue" hint="remaining balance" cents={overdueCents} tone={overdueCents > 0 ? "bad" : "good"} />
+        <StatCard label="Paid" cents={collectedCents} tone="good" />
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         <ReportChart title="Invoiced per day" kind="line" data={trend} />

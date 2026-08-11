@@ -76,12 +76,17 @@ export async function DocList({
     if (r.status === "open") {
       stats.pending += amt;
       outstandingTotal += (amt - r.paid - r.credited);
-      if (r.overdue) stats.overdue += amt;
+      if (r.overdue) stats.overdue += (amt - r.paid - r.credited);
     }
     if (r.status === "partial") {
-      stats.partial += amt;
+      // The "Partial" and "Overdue" cards are meant to answer "how much is
+      // still owed" — summing the full original totals (amt) instead of the
+      // remaining balance overstated them by whatever had already been paid
+      // (e.g. showed KSh 2,200 on a KSh 2,200 invoice with KSh 2,000 already
+      // paid, when only KSh 200 is actually left).
+      stats.partial += (amt - r.paid - r.credited);
       outstandingTotal += (amt - r.paid - r.credited);
-      if (r.overdue) stats.overdue += amt;
+      if (r.overdue) stats.overdue += (amt - r.paid - r.credited);
     }
     if (r.status === "paid") stats.paid += amt;
   }

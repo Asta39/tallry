@@ -686,6 +686,7 @@ export async function invoicesReport(fromDate: string, toDate: string, staffName
     .select({
       id: documents.id,
       date: documents.date,
+      dueDate: documents.dueDate,
       number: documents.number,
       status: documents.status,
       totalCents: documents.totalCents,
@@ -703,6 +704,7 @@ export async function invoicesReport(fromDate: string, toDate: string, staffName
   return rows.map(r => ({
     id: r.id,
     date: r.date,
+    dueDate: r.dueDate,
     number: r.number,
     status: r.status,
     totalCents: Number(r.totalCents),
