@@ -88,6 +88,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
         taxCents: l.taxCents,
         grossCents: l.grossCents,
         customColumnValue: l.customColumnValue,
+        isHeading: l.isHeading,
       })),
       qrDataUrl,
     });

@@ -247,7 +247,7 @@ export async function DocDetail({ id, printHref }: { id: number; printHref?: str
           </thead>
           <tbody>
             {(() => {
-              if (org.customDocumentColumnName) {
+              if (org.customDocumentColumnName && !lines.some((l) => l.isHeading)) {
                 const grouped = new Map<string, typeof lines>();
                 for (const l of lines) {
                   const cat = l.customColumnValue || "Uncategorized";
@@ -286,21 +286,34 @@ export async function DocDetail({ id, printHref }: { id: number; printHref?: str
                 return <>{elements}</>;
               }
 
-              return lines.map((l, i) => (
-                <tr key={l.id} className="hairline-t">
-                  <Td className="text-[var(--color-ink-400)]">{i + 1}</Td>
-                  <Td><LineDescription itemName={l.itemName} description={l.description} /></Td>
-                  <Td right>{l.qty}</Td>
-                  <Td right>{fmtKES(l.unitPriceCents)}</Td>
-                  <Td className="text-[var(--color-ink-400)]">
-                    {TAX_CLASSES[l.taxClass as TaxClass]?.label ?? l.taxClass}
-                  </Td>
-                  {showPosting && <Td className="text-[var(--color-ink-500)]">{("accountId" in l && l.accountId) ? accountsById[l.accountId] ?? "—" : "—"}</Td>}
-                  {showPosting && <Td className="text-[var(--color-ink-500)]">{("costCenterId" in l && l.costCenterId) ? costCentersById[l.costCenterId] ?? "—" : "—"}</Td>}
-                  <Td right>{fmtKES(l.netCents)}</Td>
-                  <Td right className="font-medium">{fmtKES(l.grossCents)}</Td>
-                </tr>
-              ));
+              let seq = 0;
+              return lines.map((l, i) => {
+                if (l.isHeading) {
+                  return (
+                    <tr key={l.id} className="hairline-t bg-[var(--color-ink-50)]">
+                      <td colSpan={showPosting ? 9 : 7} className="px-4 py-2 text-[13px] font-semibold text-[var(--color-ink-900)]">
+                        {l.description}
+                      </td>
+                    </tr>
+                  );
+                }
+                seq++;
+                return (
+                  <tr key={l.id} className="hairline-t">
+                    <Td className="text-[var(--color-ink-400)]">{seq}</Td>
+                    <Td><LineDescription itemName={l.itemName} description={l.description} /></Td>
+                    <Td right>{l.qty}</Td>
+                    <Td right>{fmtKES(l.unitPriceCents)}</Td>
+                    <Td className="text-[var(--color-ink-400)]">
+                      {TAX_CLASSES[l.taxClass as TaxClass]?.label ?? l.taxClass}
+                    </Td>
+                    {showPosting && <Td className="text-[var(--color-ink-500)]">{("accountId" in l && l.accountId) ? accountsById[l.accountId] ?? "—" : "—"}</Td>}
+                    {showPosting && <Td className="text-[var(--color-ink-500)]">{("costCenterId" in l && l.costCenterId) ? costCentersById[l.costCenterId] ?? "—" : "—"}</Td>}
+                    <Td right>{fmtKES(l.netCents)}</Td>
+                    <Td right className="font-medium">{fmtKES(l.grossCents)}</Td>
+                  </tr>
+                );
+              });
             })()}
           </tbody>
         </table>

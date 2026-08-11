@@ -36,6 +36,7 @@ export async function listUncategorizedLines() {
       .where(and(
         eq(documents.orgId, orgId),
         isNull(documentLines.accountId),
+        eq(documentLines.isHeading, false),
         inArray(documents.type, ["invoice", "bill", "expense"]),
         ne(documents.status, "draft"),
         ne(documents.status, "void"),

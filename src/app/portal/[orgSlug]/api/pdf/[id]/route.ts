@@ -42,7 +42,8 @@ export async function GET(
     .select({ line: documentLines, itemName: items.name })
     .from(documentLines)
     .leftJoin(items, eq(documentLines.itemId, items.id))
-    .where(and(eq(documentLines.orgId, o.id), eq(documentLines.documentId, doc.id)));
+    .where(and(eq(documentLines.orgId, o.id), eq(documentLines.documentId, doc.id)))
+    .orderBy(documentLines.position);
   const lines = lineRows.map((r) => ({ ...r.line, itemName: r.itemName }));
 
   const [contact] = await db

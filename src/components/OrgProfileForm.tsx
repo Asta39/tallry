@@ -37,6 +37,8 @@ interface OrgData {
   timeTrackingEnabled: boolean;
   itemGroupsEnabled: boolean;
   customerGroupsEnabled: boolean;
+  bomEnabled: boolean;
+  blockInsufficientStock: boolean;
   nextInvoiceNo?: number | null;
   nextQuoteNo?: number | null;
   userId?: string | null;
@@ -87,6 +89,8 @@ export function OrgProfileForm({ initial, gatewayOptions = [] }: { initial: OrgD
   const [timeTrackingEnabled, setTimeTrackingEnabled] = useState(initial.timeTrackingEnabled);
   const [itemGroupsEnabled, setItemGroupsEnabled] = useState(initial.itemGroupsEnabled);
   const [customerGroupsEnabled, setCustomerGroupsEnabled] = useState(initial.customerGroupsEnabled);
+  const [bomEnabled, setBomEnabled] = useState(initial.bomEnabled);
+  const [blockInsufficientStock, setBlockInsufficientStock] = useState(initial.blockInsufficientStock);
 
   const fileRef = useRef<HTMLInputElement>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(initial.logoUrl || null);
@@ -168,6 +172,8 @@ export function OrgProfileForm({ initial, gatewayOptions = [] }: { initial: OrgD
           timeTrackingEnabled,
           itemGroupsEnabled,
           customerGroupsEnabled,
+          bomEnabled,
+          blockInsufficientStock,
           nextInvoiceNo: Number(nextInvoiceNo) || 1,
           nextQuoteNo: Number(nextQuoteNo) || 1,
         });
@@ -532,6 +538,34 @@ export function OrgProfileForm({ initial, gatewayOptions = [] }: { initial: OrgD
             <div className="text-[13px] font-medium text-[var(--color-ink-900)]">Require customer groups for every customer</div>
             <div className="text-[12px] text-[var(--color-ink-400)] mt-0.5 max-w-lg">
               When enabled (default), every customer must belong to at least one customer group before they can be saved. Turn this off if your organization doesn&apos;t need customer segmentation.
+            </div>
+          </div>
+        </label>
+        <label className="flex items-start gap-3 cursor-pointer mt-4 pt-4 hairline-t">
+          <input
+            type="checkbox"
+            checked={bomEnabled}
+            onChange={(e) => setBomEnabled(e.target.checked)}
+            className="accent-[var(--color-accent-500)] mt-0.5"
+          />
+          <div>
+            <div className="text-[13px] font-medium text-[var(--color-ink-900)]">Bill of Materials (products made from components)</div>
+            <div className="text-[12px] text-[var(--color-ink-400)] mt-0.5 max-w-lg">
+              Off by default. When enabled, adds a Bill of Materials section to the item form — mark a product as made from other tracked-inventory items (e.g. board + sticker), so selling it deducts each component's stock at its own FIFO cost instead of the product's own (it carries none).
+            </div>
+          </div>
+        </label>
+        <label className="flex items-start gap-3 cursor-pointer mt-4 pt-4 hairline-t">
+          <input
+            type="checkbox"
+            checked={blockInsufficientStock}
+            onChange={(e) => setBlockInsufficientStock(e.target.checked)}
+            className="accent-[var(--color-accent-500)] mt-0.5"
+          />
+          <div>
+            <div className="text-[13px] font-medium text-[var(--color-ink-900)]">Block sales when stock is insufficient</div>
+            <div className="text-[12px] text-[var(--color-ink-400)] mt-0.5 max-w-lg">
+              Off by default (today, a sale silently goes through even with no stock left, costed at the last known price). When enabled, an invoice is refused if a tracked item — or, for a Bill of Materials product, any of its components — doesn't have enough stock on hand.
             </div>
           </div>
         </label>

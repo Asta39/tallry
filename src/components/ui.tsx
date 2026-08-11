@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useFormStatus } from "react-dom";
 import { fmtKES } from "@/lib/money";
+import { BackButton } from "@/components/BackButton";
 
 export function PageHeader({
   title,
@@ -15,11 +16,14 @@ export function PageHeader({
 }) {
   return (
     <div className="flex items-end justify-between mb-6">
-      <div>
-        <h1 className="text-[22px] font-semibold tracking-tight">{title}</h1>
-        {subtitle && (
-          <p className="text-[13px] text-[var(--color-ink-400)] mt-0.5">{subtitle}</p>
-        )}
+      <div className="flex items-start gap-1">
+        <BackButton />
+        <div>
+          <h1 className="text-[22px] font-semibold tracking-tight">{title}</h1>
+          {subtitle && (
+            <p className="text-[13px] text-[var(--color-ink-400)] mt-0.5">{subtitle}</p>
+          )}
+        </div>
       </div>
       {action}
     </div>

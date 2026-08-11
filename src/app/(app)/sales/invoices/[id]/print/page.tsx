@@ -22,7 +22,8 @@ export default async function PrintInvoice({ params }: { params: Promise<{ id: s
     .select({ line: documentLines, itemName: items.name })
     .from(documentLines)
     .leftJoin(items, eq(documentLines.itemId, items.id))
-    .where(eq(documentLines.documentId, doc.id));
+    .where(eq(documentLines.documentId, doc.id))
+    .orderBy(documentLines.position);
   const lines = lineRows.map((r) => ({ ...r.line, itemName: r.itemName }));
   const customer = doc.contactId
     ? (await db.select().from(contacts).where(and(eq(contacts.orgId, o.id), eq(contacts.id, doc.contactId))).limit(1))[0]
@@ -84,18 +85,31 @@ export default async function PrintInvoice({ params }: { params: Promise<{ id: s
             </tr>
           </thead>
           <tbody>
-            {lines.map((l, i) => (
-              <tr key={l.id} className="border-b border-gray-200">
-                <td className="py-2 pr-2 text-gray-500">{i + 1}</td>
-                <td className="py-2 pr-2"><LineDescription itemName={l.itemName} description={l.description} /></td>
-                <td className="py-2 px-2 text-right">{l.qty}</td>
-                <td className="py-2 px-2 text-right">{fmtKES(l.unitPriceCents)}</td>
-                <td className="py-2 px-2 text-center">
-                  {TAX_CLASSES[l.taxClass as TaxClass]?.etimsCode ?? ""} ({(l.taxRateBp / 100).toFixed(0)}%)
-                </td>
-                <td className="py-2 pl-2 text-right">{fmtKES(l.grossCents)}</td>
-              </tr>
-            ))}
+            {(() => {
+              let seq = 0;
+              return lines.map((l, i) => {
+                if (l.isHeading) {
+                  return (
+                    <tr key={l.id} className="border-b border-gray-200 bg-gray-50">
+                      <td colSpan={6} className="py-2 px-2 font-semibold">{l.description}</td>
+                    </tr>
+                  );
+                }
+                seq++;
+                return (
+                  <tr key={l.id} className="border-b border-gray-200">
+                    <td className="py-2 pr-2 text-gray-500">{seq}</td>
+                    <td className="py-2 pr-2"><LineDescription itemName={l.itemName} description={l.description} /></td>
+                    <td className="py-2 px-2 text-right">{l.qty}</td>
+                    <td className="py-2 px-2 text-right">{fmtKES(l.unitPriceCents)}</td>
+                    <td className="py-2 px-2 text-center">
+                      {TAX_CLASSES[l.taxClass as TaxClass]?.etimsCode ?? ""} ({(l.taxRateBp / 100).toFixed(0)}%)
+                    </td>
+                    <td className="py-2 pl-2 text-right">{fmtKES(l.grossCents)}</td>
+                  </tr>
+                );
+              });
+            })()}
           </tbody>
         </table>
 

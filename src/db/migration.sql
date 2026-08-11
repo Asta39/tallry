@@ -870,3 +870,21 @@ ALTER TABLE team_announcements ADD COLUMN IF NOT EXISTS color TEXT NOT NULL DEFA
 
 ALTER TABLE org ADD COLUMN IF NOT EXISTS show_collected_this_year_card BOOLEAN NOT NULL DEFAULT TRUE;
 ALTER TABLE org ADD COLUMN IF NOT EXISTS show_invoice_collection_totals BOOLEAN NOT NULL DEFAULT TRUE;
+
+ALTER TABLE document_lines ADD COLUMN IF NOT EXISTS is_heading BOOLEAN NOT NULL DEFAULT FALSE;
+
+ALTER TABLE document_lines ADD COLUMN IF NOT EXISTS bom_consumption_json TEXT;
+
+CREATE TABLE IF NOT EXISTS item_boms (
+  id SERIAL PRIMARY KEY,
+  org_id INTEGER NOT NULL REFERENCES org(id),
+  parent_item_id INTEGER NOT NULL,
+  component_item_id INTEGER NOT NULL,
+  qty_per_unit DOUBLE PRECISION NOT NULL DEFAULT 1,
+  waste_qty_per_unit DOUBLE PRECISION NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_item_boms_org_parent ON item_boms(org_id, parent_item_id);
+
+ALTER TABLE org ADD COLUMN IF NOT EXISTS bom_enabled BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE org ADD COLUMN IF NOT EXISTS block_insufficient_stock BOOLEAN NOT NULL DEFAULT FALSE;

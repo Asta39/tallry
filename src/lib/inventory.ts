@@ -1,6 +1,6 @@
-import { db, stockLots, warehouses, items } from "@/db";
+import { db, stockLots, warehouses, items, itemBoms } from "@/db";
 import { currentOrgId } from "@/lib/org";
-import { eq, and, gt, asc, sql } from "drizzle-orm";
+import { eq, and, gt, asc, sql, inArray } from "drizzle-orm";
 
 /** The org's default warehouse — single-location orgs never need to think about warehouses at all. */
 const defaultWarehouseCache = new Map<number, number>();
@@ -93,6 +93,134 @@ export async function consumeFifo(itemId: number, qty: number, warehouseId?: num
     if (remaining > 0) cogs += Math.round(remaining * lastCost);
     return cogs;
   });
+}
+
+export interface BomComponentConsumption {
+  componentItemId: number;
+  usedQty: number;
+  usedCostCents: number;
+  wasteQty: number;
+  wasteCostCents: number;
+}
+
+export interface SaleConsumption {
+  /** Cost of the actual product sold — COGS. Excludes waste. */
+  cogsCents: number;
+  /** Unusable offcut/scrap consumed alongside it — posted separately. */
+  wasteCents: number;
+  /** Null when this was a plain (non-kit) item — reversal restores the item's
+   *  own stock directly. Set when a kit's components were consumed instead —
+   *  reversal must restore each component individually. */
+  bomBreakdown: BomComponentConsumption[] | null;
+}
+
+/**
+ * Sells `qty` of an item. If it has Bill of Materials rows (a "kit"), consumes
+ * each component's own FIFO stock (qty × recipe qty, plus qty × waste qty as
+ * a separate consumption) instead of the kit item's own stock — it has none.
+ * Otherwise behaves exactly like a plain consumeFifo call. Two separate
+ * consumeFifo calls per component (used, then waste) rather than one
+ * combined call + a proportional cost split — this way each portion gets its
+ * own correct FIFO-ordered cost instead of an averaged approximation, and
+ * physically consumes the same lots in the same order either way.
+ */
+export async function consumeForSale(itemId: number, qty: number, warehouseId?: number): Promise<SaleConsumption> {
+  const orgId = currentOrgId();
+  const bomRows = await db.select().from(itemBoms).where(and(eq(itemBoms.orgId, orgId), eq(itemBoms.parentItemId, itemId)));
+
+  if (bomRows.length === 0) {
+    const cogsCents = await consumeFifo(itemId, qty, warehouseId);
+    return { cogsCents, wasteCents: 0, bomBreakdown: null };
+  }
+
+  let cogsCents = 0;
+  let wasteCents = 0;
+  const bomBreakdown: BomComponentConsumption[] = [];
+  for (const row of bomRows) {
+    const usedQty = qty * row.qtyPerUnit;
+    const wasteQty = qty * row.wasteQtyPerUnit;
+    const usedCostCents = usedQty > 0 ? await consumeFifo(row.componentItemId, usedQty, warehouseId) : 0;
+    const wasteCostCents = wasteQty > 0 ? await consumeFifo(row.componentItemId, wasteQty, warehouseId) : 0;
+    cogsCents += usedCostCents;
+    wasteCents += wasteCostCents;
+    bomBreakdown.push({ componentItemId: row.componentItemId, usedQty, usedCostCents, wasteQty, wasteCostCents });
+  }
+  return { cogsCents, wasteCents, bomBreakdown };
+}
+
+/** Reverses a consumeForSale() call — restores whatever stock it consumed,
+ *  at the exact cost it was consumed at, whether that was the item's own
+ *  stock or (for a kit) each component's. */
+export async function restoreSaleConsumption(itemId: number, qty: number, date: string, sourceId: number, warehouseId: number | undefined, bomBreakdown: BomComponentConsumption[] | null, plainCostCents: number) {
+  if (!bomBreakdown) {
+    if (qty > 0) {
+      await addLot({ itemId, date, qty, unitCostCents: Math.round(plainCostCents / qty), sourceType: "adjustment", sourceId, warehouseId });
+    }
+    return;
+  }
+  for (const c of bomBreakdown) {
+    if (c.usedQty > 0) {
+      await addLot({ itemId: c.componentItemId, date, qty: c.usedQty, unitCostCents: Math.round(c.usedCostCents / c.usedQty), sourceType: "adjustment", sourceId, warehouseId });
+    }
+    if (c.wasteQty > 0) {
+      await addLot({ itemId: c.componentItemId, date, qty: c.wasteQty, unitCostCents: Math.round(c.wasteCostCents / c.wasteQty), sourceType: "adjustment", sourceId, warehouseId });
+    }
+  }
+}
+
+/** Expands a set of {itemId, qty} sale lines into total required qty per
+ *  tracked-inventory item (kits expanded into their components, plain
+ *  tracked items counted directly), then checks each against real stock on
+ *  hand. Used to refuse a sale up front — before any FIFO consumption
+ *  actually runs — when the org has blockInsufficientStock on. */
+export async function checkStockAvailability(
+  saleLines: { itemId: number; qty: number; warehouseId?: number }[]
+): Promise<{ itemId: number; itemName: string; requiredQty: number; availableQty: number }[]> {
+  const orgId = currentOrgId();
+  const itemIds = [...new Set(saleLines.map((l) => l.itemId))];
+  if (itemIds.length === 0) return [];
+
+  const bomRows = await db.select().from(itemBoms).where(and(eq(itemBoms.orgId, orgId), inArray(itemBoms.parentItemId, itemIds)));
+  const bomByParent = new Map<number, typeof bomRows>();
+  for (const row of bomRows) {
+    if (!bomByParent.has(row.parentItemId)) bomByParent.set(row.parentItemId, []);
+    bomByParent.get(row.parentItemId)!.push(row);
+  }
+  const itemRows = await db.select({ id: items.id, trackInventory: items.trackInventory }).from(items).where(and(eq(items.orgId, orgId), inArray(items.id, itemIds)));
+  const trackedById = new Map(itemRows.map((r) => [r.id, r.trackInventory]));
+
+  // required[warehouseId][itemId] = qty
+  const required = new Map<number, Map<number, number>>();
+  const wid = await defaultWarehouseId();
+  for (const l of saleLines) {
+    const w = l.warehouseId ?? wid;
+    const bom = bomByParent.get(l.itemId);
+    if (bom && bom.length > 0) {
+      for (const row of bom) {
+        const need = l.qty * (row.qtyPerUnit + row.wasteQtyPerUnit);
+        if (need <= 0) continue;
+        if (!required.has(w)) required.set(w, new Map());
+        const m = required.get(w)!;
+        m.set(row.componentItemId, (m.get(row.componentItemId) ?? 0) + need);
+      }
+    } else if (trackedById.get(l.itemId)) {
+      if (!required.has(w)) required.set(w, new Map());
+      const m = required.get(w)!;
+      m.set(l.itemId, (m.get(l.itemId) ?? 0) + l.qty);
+    }
+  }
+
+  const shortfalls: { itemId: number; itemName: string; requiredQty: number; availableQty: number }[] = [];
+  for (const [w, m] of required.entries()) {
+    for (const [checkItemId, requiredQty] of m.entries()) {
+      const available = await stockOnHand(checkItemId, w);
+      if (available < requiredQty - 1e-9) {
+        const [item] = await db.select({ name: items.name }).from(items).where(and(eq(items.orgId, orgId), eq(items.id, checkItemId))).limit(1);
+        shortfalls.push({ itemId: checkItemId, itemName: item?.name ?? `Item #${checkItemId}`, requiredQty, availableQty: available });
+      }
+    }
+  }
+  return shortfalls;
 }
 
 export async function stockOnHand(itemId: number, warehouseId?: number): Promise<number> {

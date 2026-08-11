@@ -52,6 +52,15 @@ export const org = pgTable("org", {
    *  lets an admin hide these totals from staff even when they can otherwise
    *  see org-wide data. */
   showInvoiceCollectionTotals: boolean("show_invoice_collection_totals").notNull().default(true),
+  /** Manufacturing / Bill of Materials — off by default, most orgs resell
+   *  items as-is rather than building products from components. Gates the
+   *  BOM tab on the item form. */
+  bomEnabled: boolean("bom_enabled").notNull().default(false),
+  /** Refuse to post a sale when a tracked component (direct or via a kit's
+   *  BOM) doesn't have enough stock on hand, instead of silently going
+   *  negative at the last known cost. Off by default — some orgs sell ahead
+   *  of stock intentionally and true up later. */
+  blockInsufficientStock: boolean("block_insufficient_stock").notNull().default(false),
   /** Books lock: journal entries dated on/before this date are rejected. */
   lockDate: text("lock_date"),
   /** When on, posting a bill requires an accountant/admin to approve it first. */
@@ -253,6 +262,27 @@ export const items = pgTable("items", {
   groupIdx: index("idx_items_group").on(t.orgId, t.itemGroupId),
 }));
 
+/** Bill of Materials — what tracked-inventory components a finished/kit item
+ *  is made from, and how much of each one unit of sale consumes. A parent
+ *  item with rows here is a "kit": it carries no stock of its own — selling
+ *  it consumes its components' FIFO stock instead (see consumeForSale in
+ *  posting.ts). qtyPerUnit is the material actually in the product;
+ *  wasteQtyPerUnit is unusable offcut/scrap consumed alongside it (e.g. a
+ *  sticker roll's trimmed edge) — physically consumed the same way, but
+ *  posted to a separate Production Waste expense account so it's visible
+ *  instead of silently inflating the product's own cost. */
+export const itemBoms = pgTable("item_boms", {
+  id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
+  parentItemId: integer("parent_item_id").notNull(),
+  componentItemId: integer("component_item_id").notNull(),
+  qtyPerUnit: doublePrecision("qty_per_unit").notNull().default(1),
+  wasteQtyPerUnit: doublePrecision("waste_qty_per_unit").notNull().default(0),
+  createdAt: text("created_at").notNull(),
+}, (t) => ({
+  orgParentIdx: index("idx_item_boms_org_parent").on(t.orgId, t.parentItemId),
+}));
+
 /** Admin-created item segments — can be enforced org-wide for inventory hygiene and reporting. */
 export const itemGroups = pgTable("item_groups", {
   id: serial("id").primaryKey(),
@@ -406,11 +436,24 @@ export const documentLines = pgTable("document_lines", {
   accountId: integer("account_id"), // income/expense account override
   cogsCents: money("cogs_cents").notNull().default(0), // FIFO cost consumed (audit)
   position: integer("position").notNull().default(0),
+  /** Section heading row — description holds the heading text, everything
+   *  else stays zero. Purely presentational: contributes nothing to totals/
+   *  VAT (computeDocument sums qty×price, which is 0 here), never has an
+   *  itemId/accountId, and posting.ts skips it like any other zero-amount
+   *  line — no changes needed there. */
+  isHeading: boolean("is_heading").notNull().default(false),
   customColumnValue: text("custom_column_value"),
   costCenterId: integer("cost_center_id"), // optional dimension tag, flows into the posted journal line
   warehouseId: integer("warehouse_id"), // stock location for tracked items; null = org's default warehouse
   /** Purchase-order lines only: running total already billed via convertPoToBill, enabling partial receipt/billing. */
   billedQty: doublePrecision("billed_qty").notNull().default(0),
+  /** Sold item's Bill of Materials FIFO consumption, JSON-encoded:
+   *  [{componentItemId, usedQty, usedCostCents, wasteQty, wasteCostCents}, ...].
+   *  Null for a normal (non-kit) line. Lets voidDocument restore the exact
+   *  component lots/costs consumed instead of the wrong thing (there's no
+   *  stock on the kit item itself to restore — the real consumption happened
+   *  on its components). */
+  bomConsumptionJson: text("bom_consumption_json"),
 }, (t) => ({
   orgDocIdx: index("idx_document_lines_org").on(t.orgId, t.documentId),
 }));

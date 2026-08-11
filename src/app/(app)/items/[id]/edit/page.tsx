@@ -10,6 +10,8 @@ import { TAX_CLASSES } from "@/lib/tax";
 import { listItemGroups } from "@/lib/item-groups";
 import { listItemTypes } from "@/lib/item-types";
 import { ItemKindGroupFields } from "@/components/ItemKindGroupFields";
+import { ItemBomEditor } from "@/components/ItemBomEditor";
+import { listItemBom, listBomComponentOptions } from "@/lib/item-bom";
 import { PageHeader } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
@@ -32,6 +34,10 @@ export default async function EditItemPage({ params }: { params: Promise<{ id: s
   ]);
   const row = item[0];
   if (!row) notFound();
+
+  const [bomRows, bomOptions] = o.bomEnabled
+    ? await Promise.all([listItemBom(itemId), listBomComponentOptions(itemId)])
+    : [[], []];
 
   const groupsRequired = o.itemGroupsEnabled;
   const noGroupsYetWarning = groupsRequired && groups.length === 0;
@@ -143,6 +149,13 @@ export default async function EditItemPage({ params }: { params: Promise<{ id: s
           <Link href="/items" className="text-[13px] text-[var(--color-ink-400)] self-center">Cancel</Link>
         </div>
       </form>
+
+      {o.bomEnabled && (
+        <div className="card p-6 max-w-2xl mt-5">
+          <h2 className="text-[15px] font-semibold mb-1">Bill of Materials</h2>
+          <ItemBomEditor parentItemId={itemId} parentName={row.name} options={bomOptions} initialRows={bomRows} />
+        </div>
+      )}
     </>
   );
 }

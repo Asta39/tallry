@@ -39,6 +39,7 @@ export interface PdfLine {
   taxCents: number;
   grossCents: number;
   customColumnValue?: string | null;
+  isHeading?: boolean;
 }
 
 export interface PdfDoc {
@@ -514,7 +515,7 @@ export function DocumentPdf({
             );
           })()}
           {(() => {
-            if (org.customDocumentColumnName) {
+            if (org.customDocumentColumnName && !lines.some((l) => l.isHeading)) {
               const grouped = new Map<string, typeof lines>();
               for (const l of lines) {
                 const cat = l.customColumnValue || "Uncategorized";
@@ -554,18 +555,29 @@ export function DocumentPdf({
               return <>{elements}</>;
             }
 
-            return lines.map((l, i) => (
-              <View style={s.tr} key={i} wrap={false}>
-                <Text style={s.cNum}>{i + 1}</Text>
-                <DescCell line={l} s={s} />
-                <Text style={s.cQty}>{l.qty}</Text>
-                <Text style={s.cPrice}>{fmtKES(l.unitPriceCents)}</Text>
-                <Text style={s.cVat}>
-                  {TAX_CLASSES[l.taxClass as TaxClass]?.etimsCode ?? ""} ({(l.taxRateBp / 100).toFixed(0)}%)
-                </Text>
-                <Text style={s.cAmount}>{fmtKES(l.grossCents)}</Text>
-              </View>
-            ));
+            let seq = 0;
+            return lines.map((l, i) => {
+              if (l.isHeading) {
+                return (
+                  <View key={i} style={[s.tr, { backgroundColor: "#f5f5f7", borderBottom: "0.5px solid #d2d2d7" }]} wrap={false}>
+                    <Text style={{ width: "100%", fontSize: 9, fontWeight: "bold", paddingHorizontal: 6, paddingVertical: 4 }}>{l.description}</Text>
+                  </View>
+                );
+              }
+              seq++;
+              return (
+                <View style={s.tr} key={i} wrap={false}>
+                  <Text style={s.cNum}>{seq}</Text>
+                  <DescCell line={l} s={s} />
+                  <Text style={s.cQty}>{l.qty}</Text>
+                  <Text style={s.cPrice}>{fmtKES(l.unitPriceCents)}</Text>
+                  <Text style={s.cVat}>
+                    {TAX_CLASSES[l.taxClass as TaxClass]?.etimsCode ?? ""} ({(l.taxRateBp / 100).toFixed(0)}%)
+                  </Text>
+                  <Text style={s.cAmount}>{fmtKES(l.grossCents)}</Text>
+                </View>
+              );
+            });
           })()}
         </View>
 

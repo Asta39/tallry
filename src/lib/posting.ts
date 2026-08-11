@@ -8,12 +8,13 @@ import {
   bankAccounts,
   bankTransactions,
   items,
+  org as orgTable,
   payments as paymentsTable,
 } from "@/db";
 import { eq, and, sql } from "drizzle-orm";
 import { currentOrgId } from "@/lib/org";
 import { SYS } from "./coa";
-import { addLot, consumeFifo } from "./inventory";
+import { addLot, consumeFifo, consumeForSale, restoreSaleConsumption, checkStockAvailability, type BomComponentConsumption } from "./inventory";
 import { nowISO } from "./money";
 
 /**
@@ -41,6 +42,24 @@ export async function acct(code: string): Promise<number> {
   if (!row) throw new Error(`System account ${code} missing — run db:seed`);
   codeCache.set(key, row.id);
   return row.id;
+}
+
+/** Like acct(), but creates the account (as a system account) if it's
+ *  missing instead of throwing — for accounts introduced after an org was
+ *  first seeded, so existing orgs don't need a backfill migration. */
+async function ensureAccountId(code: string, name: string, type: "asset" | "liability" | "equity" | "income" | "expense", subtype: string): Promise<number> {
+  const orgId = currentOrgId();
+  const key = `${orgId}:${code}`;
+  const hit = codeCache.get(key);
+  if (hit) return hit;
+  const [row] = await db.select().from(accounts).where(and(eq(accounts.orgId, orgId), eq(accounts.code, code))).limit(1);
+  if (row) {
+    codeCache.set(key, row.id);
+    return row.id;
+  }
+  const [created] = await db.insert(accounts).values({ orgId, code, name, type, subtype, isSystem: true }).returning();
+  codeCache.set(key, created.id);
+  return created.id;
 }
 
 export async function postEntry(params: {
@@ -131,9 +150,23 @@ async function getDocWithLines(docId: number) {
   return { doc, lines };
 }
 
-/** Invoice: DR AR gross · CR Sales net + VAT Output; FIFO COGS for tracked items. */
+/** Invoice: DR AR gross · CR Sales net + VAT Output; FIFO COGS for tracked
+ *  items, or (for a kit with a Bill of Materials) FIFO COGS of its
+ *  components + a separate Production Waste line for scrap. */
 export async function postInvoice(docId: number): Promise<number> {
   const { doc, lines } = await getDocWithLines(docId);
+
+  const [orgRow] = await db.select().from(orgTable).where(eq(orgTable.id, currentOrgId())).limit(1);
+  if (orgRow?.blockInsufficientStock) {
+    const shortfalls = await checkStockAvailability(
+      lines.filter((l) => l.itemId).map((l) => ({ itemId: l.itemId!, qty: l.qty, warehouseId: l.warehouseId ?? undefined }))
+    );
+    if (shortfalls.length > 0) {
+      const detail = shortfalls.map((s) => `${s.itemName}: need ${s.requiredQty}, only ${s.availableQty} in stock`).join("; ");
+      throw new Error(`Not enough stock to complete this sale — ${detail}`);
+    }
+  }
+
   const post: PostLine[] = [
     {
       accountId: await acct(SYS.AR),
@@ -152,16 +185,29 @@ export async function postInvoice(docId: number): Promise<number> {
     if (l.taxCents > 0) {
       post.push({ accountId: await acct(SYS.VAT_OUTPUT), creditCents: l.taxCents });
     }
-    // FIFO cost of goods for inventory-tracked items
+    // FIFO cost of goods for inventory-tracked items (or a kit's components)
     if (l.itemId) {
       const [item] = await db.select().from(items).where(and(eq(items.orgId, currentOrgId()), eq(items.id, l.itemId))).limit(1);
-      if (item?.trackInventory) {
-        const cogs = await consumeFifo(l.itemId, l.qty, l.warehouseId ?? undefined);
-        if (cogs > 0) {
-          post.push({ accountId: await acct(SYS.COGS), debitCents: cogs, memo: l.description });
-          post.push({ accountId: await acct(SYS.INVENTORY), creditCents: cogs });
-          await db.update(documentLines).set({ cogsCents: cogs }).where(and(eq(documentLines.orgId, currentOrgId()), eq(documentLines.id, l.id)));
+      const { cogsCents, wasteCents, bomBreakdown } = await consumeForSale(l.itemId, l.qty, l.warehouseId ?? undefined);
+      // Plain (non-kit) items only actually consumed stock when trackInventory
+      // is on — consumeForSale still ran consumeFifo unconditionally above for
+      // simplicity, so undo a non-tracked plain item's phantom "consumption"
+      // by simply not posting/persisting it (its FIFO call was a no-op: it
+      // has no lots, so cost comes back 0 either way).
+      if (bomBreakdown || item?.trackInventory) {
+        if (cogsCents > 0) {
+          post.push({ accountId: await acct(SYS.COGS), debitCents: cogsCents, memo: l.description });
         }
+        if (wasteCents > 0) {
+          post.push({ accountId: await ensureAccountId(SYS.PRODUCTION_WASTE, "Production Waste", "expense", "other_expense"), debitCents: wasteCents, memo: `Waste — ${l.description}` });
+        }
+        if (cogsCents + wasteCents > 0) {
+          post.push({ accountId: await acct(SYS.INVENTORY), creditCents: cogsCents + wasteCents });
+        }
+        await db.update(documentLines).set({
+          cogsCents,
+          bomConsumptionJson: bomBreakdown ? JSON.stringify(bomBreakdown) : null,
+        }).where(and(eq(documentLines.orgId, currentOrgId()), eq(documentLines.id, l.id)));
       }
     }
   }
@@ -474,15 +520,8 @@ export async function voidDocument(docId: number, date: string): Promise<void> {
     const { lines } = await getDocWithLines(docId);
     for (const l of lines) {
       if (l.itemId && l.cogsCents && l.qty > 0) {
-        await addLot({
-          itemId: l.itemId,
-          date,
-          qty: l.qty,
-          unitCostCents: Math.round(l.cogsCents / l.qty),
-          sourceType: "adjustment",
-          sourceId: doc.id,
-          warehouseId: l.warehouseId ?? undefined,
-        });
+        const bomBreakdown: BomComponentConsumption[] | null = l.bomConsumptionJson ? JSON.parse(l.bomConsumptionJson) : null;
+        await restoreSaleConsumption(l.itemId, l.qty, date, doc.id, l.warehouseId ?? undefined, bomBreakdown, l.cogsCents);
       }
     }
   } else if (doc.type === "bill") {

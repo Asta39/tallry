@@ -313,7 +313,8 @@ export async function getInvoiceWithBillableExpenses(docId: number, orgId: numbe
     .select({ line: documentLines, itemName: items.name })
     .from(documentLines)
     .leftJoin(items, eq(documentLines.itemId, items.id))
-    .where(and(eq(documentLines.orgId, orgId), eq(documentLines.documentId, docId)));
+    .where(and(eq(documentLines.orgId, orgId), eq(documentLines.documentId, docId)))
+    .orderBy(documentLines.position);
 
   const baseLines = lineRows.map((r) => ({ ...r.line, itemName: r.itemName }));
 
@@ -375,6 +376,7 @@ export async function getInvoiceWithBillableExpenses(docId: number, orgId: numbe
       grossCents: exp.totalCents,
       customColumnValue: null,
       billedQty: 0,
+      isHeading: false,
     };
   });
 
@@ -566,6 +568,8 @@ export interface DocLineInput {
   customColumnValue?: string | null;
   costCenterId?: number | null;
   warehouseId?: number | null;
+  /** Section heading row — see documentLines.isHeading in schema.ts. */
+  isHeading?: boolean;
 }
 
 async function _saveDocument(data: {
@@ -773,6 +777,7 @@ async function _saveDocument(data: {
           customColumnValue: l.customColumnValue || null,
           costCenterId: l.costCenterId || null,
           warehouseId: l.warehouseId || null,
+          isHeading: l.isHeading ?? false,
         };
       })
     );
@@ -1407,6 +1412,8 @@ export async function saveOrgProfile(data: {
   timeTrackingEnabled?: boolean;
   itemGroupsEnabled?: boolean;
   customerGroupsEnabled?: boolean;
+  bomEnabled?: boolean;
+  blockInsufficientStock?: boolean;
   nextInvoiceNo?: number;
   nextQuoteNo?: number;
 }) {
@@ -1450,6 +1457,8 @@ export async function saveOrgProfile(data: {
         ...(data.timeTrackingEnabled !== undefined ? { timeTrackingEnabled: data.timeTrackingEnabled } : {}),
         ...(data.itemGroupsEnabled !== undefined ? { itemGroupsEnabled: data.itemGroupsEnabled } : {}),
         ...(data.customerGroupsEnabled !== undefined ? { customerGroupsEnabled: data.customerGroupsEnabled } : {}),
+        ...(data.bomEnabled !== undefined ? { bomEnabled: data.bomEnabled } : {}),
+        ...(data.blockInsufficientStock !== undefined ? { blockInsufficientStock: data.blockInsufficientStock } : {}),
         ...(data.nextInvoiceNo !== undefined ? { nextInvoiceNo: data.nextInvoiceNo } : {}),
         ...(data.nextQuoteNo !== undefined ? { nextQuoteNo: data.nextQuoteNo } : {}),
       })
@@ -1487,6 +1496,8 @@ export async function saveOrgProfile(data: {
         ...(data.timeTrackingEnabled !== undefined ? { timeTrackingEnabled: data.timeTrackingEnabled } : {}),
         ...(data.itemGroupsEnabled !== undefined ? { itemGroupsEnabled: data.itemGroupsEnabled } : {}),
         ...(data.customerGroupsEnabled !== undefined ? { customerGroupsEnabled: data.customerGroupsEnabled } : {}),
+        ...(data.bomEnabled !== undefined ? { bomEnabled: data.bomEnabled } : {}),
+        ...(data.blockInsufficientStock !== undefined ? { blockInsufficientStock: data.blockInsufficientStock } : {}),
       })
       .returning();
     await seedOrgDefaults(saved.id);

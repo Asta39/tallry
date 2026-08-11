@@ -63,6 +63,8 @@ export default async function SettingsPage() {
           timeTrackingEnabled: o.timeTrackingEnabled,
           itemGroupsEnabled: o.itemGroupsEnabled,
           customerGroupsEnabled: o.customerGroupsEnabled,
+          bomEnabled: o.bomEnabled,
+          blockInsufficientStock: o.blockInsufficientStock,
           nextInvoiceNo: o.nextInvoiceNo,
           nextQuoteNo: o.nextQuoteNo,
           userId: o.userId,

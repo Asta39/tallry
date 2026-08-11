@@ -31,6 +31,9 @@ interface EditorLine {
   warehouseId: number | null;
   addToItems: boolean;
   newItemGroupId: number | null;
+  /** Section heading row — groups the items listed under it. Contributes
+   *  nothing to totals (qty/price stay 0), never has an item/account. */
+  isHeading?: boolean;
 }
 
 const emptyLine = (): EditorLine => ({
@@ -46,6 +49,12 @@ const emptyLine = (): EditorLine => ({
   warehouseId: null,
   addToItems: false,
   newItemGroupId: null,
+});
+
+const emptyHeading = (): EditorLine => ({
+  ...emptyLine(),
+  qty: "0",
+  isHeading: true,
 });
 
 export interface EditorInitialData {
@@ -177,18 +186,19 @@ export function DocumentEditor({
   const parsedLines: DocLineInput[] = useMemo(
     () =>
       lines
-        .filter((l) => l.description || l.itemId || parseKES(l.price) > 0)
+        .filter((l) => l.isHeading || l.description || l.itemId || parseKES(l.price) > 0)
         .map((l) => ({
-          itemId: l.itemId,
-          description: l.description || "Item",
-          qty: Number(l.qty) || 1,
-          unitPriceCents: Number.isNaN(parseKES(l.price)) ? 0 : parseKES(l.price),
-          discountPct: Number(l.discountPct) || 0,
+          itemId: l.isHeading ? null : l.itemId,
+          description: l.description || (l.isHeading ? "Section" : "Item"),
+          qty: l.isHeading ? 0 : Number(l.qty) || 1,
+          unitPriceCents: l.isHeading ? 0 : (Number.isNaN(parseKES(l.price)) ? 0 : parseKES(l.price)),
+          discountPct: l.isHeading ? 0 : Number(l.discountPct) || 0,
           taxClass: l.taxClass,
-          accountId: l.accountId,
+          accountId: l.isHeading ? null : l.accountId,
           customColumnValue: l.customColumnValue || undefined,
-          costCenterId: l.costCenterId,
-          warehouseId: l.warehouseId,
+          costCenterId: l.isHeading ? null : l.costCenterId,
+          warehouseId: l.isHeading ? null : l.warehouseId,
+          isHeading: l.isHeading ?? false,
         })),
     [lines]
   );
@@ -258,7 +268,23 @@ export function DocumentEditor({
       try {
         const finalLines: DocLineInput[] = [];
         for (const l of lines) {
-          if (!(l.description || l.itemId || parseKES(l.price) > 0)) continue;
+          if (!(l.isHeading || l.description || l.itemId || parseKES(l.price) > 0)) continue;
+          if (l.isHeading) {
+            if (!l.description.trim()) throw new Error("Give every category heading a name");
+            finalLines.push({
+              itemId: null,
+              description: l.description.trim(),
+              qty: 0,
+              unitPriceCents: 0,
+              discountPct: 0,
+              taxClass: l.taxClass,
+              accountId: null,
+              costCenterId: null,
+              warehouseId: null,
+              isHeading: true,
+            });
+            continue;
+          }
           let itemId = l.itemId;
           const priceCents = Number.isNaN(parseKES(l.price)) ? 0 : parseKES(l.price);
           if (l.addToItems && !itemId && l.description.trim()) {
@@ -329,6 +355,15 @@ export function DocumentEditor({
     "w-full rounded-lg border border-[var(--color-ink-200)] bg-white px-3 py-2 text-[13px] outline-none focus:border-[var(--color-accent-500)] focus:ring-2 focus:ring-[var(--color-accent-100)]";
   const cellCls =
     "w-full rounded-md border border-transparent hover:border-[var(--color-ink-200)] focus:border-[var(--color-accent-500)] bg-transparent px-2 py-1.5 text-[13px] outline-none";
+
+  // Item/desc, Qty, Price, Disc%, [custom col], VAT, [category], [cost center], [warehouse], Amount —
+  // everything between the drag/# column and the remove column, spanned by a heading row.
+  const middleColSpan =
+    5 +
+    (customDocumentColumnName ? 1 : 0) +
+    (type === "bill" || type === "expense" || type === "purchase_order" ? 1 : 0) +
+    (costCenters.length > 0 ? 1 : 0) +
+    (warehouses.length > 0 ? 1 : 0);
 
   return (
     <div className="space-y-5">
@@ -558,6 +593,59 @@ export function DocumentEditor({
           <tbody>
             {lines.map((l, i) => {
               const t = totals.lines[parsedLines.findIndex((_, pi) => pi === i)] ?? null;
+              if (l.isHeading) {
+                return (
+                  <tr
+                    key={i}
+                    className={`hairline-t align-top bg-[var(--color-ink-50)] ${dragOverIndex === i && dragIndex !== null && dragIndex !== i ? "bg-[var(--color-accent-50,#f0f5ff)]" : ""}`}
+                    onDragOver={(e) => {
+                      if (dragIndex === null) return;
+                      e.preventDefault();
+                      if (dragOverIndex !== i) setDragOverIndex(i);
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      if (dragIndex !== null) moveLine(dragIndex, i);
+                      setDragIndex(null);
+                      setDragOverIndex(null);
+                    }}
+                  >
+                    <td
+                      className="px-2 py-2.5 text-[13px] tnum text-[var(--color-ink-400)] cursor-grab active:cursor-grabbing select-none"
+                      draggable
+                      onDragStart={(e) => {
+                        setDragIndex(i);
+                        e.dataTransfer.effectAllowed = "move";
+                      }}
+                      onDragEnd={() => {
+                        setDragIndex(null);
+                        setDragOverIndex(null);
+                      }}
+                      title="Drag to reorder"
+                    >
+                      <span className="text-[var(--color-ink-300)]">⠿</span>
+                    </td>
+                    <td className="px-3 py-2" colSpan={middleColSpan}>
+                      <input
+                        className={cellCls + " font-semibold uppercase tracking-wide text-[11.5px] text-[var(--color-ink-600)]"}
+                        placeholder="Category heading, e.g. Signage materials"
+                        value={l.description}
+                        onChange={(e) => update(i, { description: e.target.value })}
+                      />
+                    </td>
+                    <td className="pr-2 py-3">
+                      <button
+                        type="button"
+                        onClick={() => setLines((ls) => ls.filter((_, j) => j !== i))}
+                        className="text-[var(--color-ink-200)] hover:text-[var(--color-bad)] text-[15px]"
+                        aria-label="Remove heading"
+                      >
+                        ×
+                      </button>
+                    </td>
+                  </tr>
+                );
+              }
               return (
                 <tr
                   key={i}
@@ -776,6 +864,13 @@ export function DocumentEditor({
             className="text-[13px] font-medium text-[var(--color-accent-600)] hover:text-[var(--color-accent-700)]"
           >
             + Add custom line
+          </button>
+          <button
+            type="button"
+            onClick={() => setLines((ls) => [...ls, emptyHeading()])}
+            className="text-[13px] font-medium text-[var(--color-ink-500)] hover:text-[var(--color-ink-800)]"
+          >
+            + Add category heading
           </button>
           {items.length > 0 && (
             <SearchableSelect

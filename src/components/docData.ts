@@ -103,6 +103,7 @@ export async function fetchInitialData(docId: number) {
       warehouseId: l.warehouseId,
       addToItems: false,
       newItemGroupId: null,
+      isHeading: l.isHeading,
     }))
   };
 }
