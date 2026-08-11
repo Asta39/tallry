@@ -18,6 +18,7 @@ export const SYS = {
   COGS: "5000",
   INVENTORY_ADJ: "5100",
   PRODUCTION_WASTE: "5200",
+  KOPOKOPO_FEE: "6910",
   OPENING_BALANCE: "3900",
   RETAINED: "3200",
   OWNER_EQUITY: "3000",
@@ -103,4 +104,5 @@ export const SEED_ACCOUNTS: AccountSeed[] = [
   { code: "6170", name: "Printing & Promotional Materials", type: "expense", subtype: "expense", description: "Printing receipt books, branded delivery notes, banners, cards, and company profiles." },
   { code: "6180", name: "Security & Janitorial Services", type: "expense", subtype: "expense", description: "Outsourced premises security guards, alarm monitoring, and professional cleaning services." },
   { code: "6900", name: "Miscellaneous Operational Expenses", type: "expense", subtype: "expense", description: "Minor operational expenses that do not fall cleanly into existing expense categories." },
+  { code: "6910", name: "Kopo Kopo Transaction Fees", type: "expense", subtype: "expense", description: "Flat per-transaction fee Kopo Kopo/M-Pesa till deducts from every payment sent or received through it, posted automatically alongside each such payment.", system: true },
 ];

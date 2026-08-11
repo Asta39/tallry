@@ -7,7 +7,7 @@ import { eq, and, desc, or, isNull, notExists } from "drizzle-orm";
 import { withOrg, currentOrgId, getOrg, orgContext } from "@/lib/org";
 import { requirePerm } from "@/lib/guard";
 import { getAccess } from "@/lib/access";
-import { postEntry, mirrorBankTxn, acct, reverseEntry } from "@/lib/posting";
+import { postEntry, mirrorBankTxn, acct, reverseEntry, postKopoKopoFee } from "@/lib/posting";
 import { SYS } from "@/lib/coa";
 import { ensureAccount } from "@/lib/phase-a-actions";
 import { nowISO, todayISO, fmtKES } from "@/lib/money";
@@ -876,6 +876,17 @@ export async function applyExpenseClaimGatewayPayout(claimId: number, amountCent
       paidJournalEntryId: entryId,
       paidAt: nowISO(),
     }).where(eq(expenseClaims.id, claimId));
+
+    if (gatewayId === "kopokopo" && mpesaBank) {
+      await postKopoKopoFee({
+        bankId: mpesaBank.id,
+        bankAccountId: mpesaBank.accountId,
+        date,
+        sourceType: "expense_claim_payment",
+        sourceId: claim.id,
+        memo: `Reimbursement · ${claim.submittedByName}`,
+      });
+    }
 
     await db.insert(payments).values({
       orgId,

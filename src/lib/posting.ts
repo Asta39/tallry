@@ -413,6 +413,48 @@ export async function mirrorBankTxn(params: {
   });
 }
 
+/** Flat per-transaction fee Kopo Kopo/M-Pesa-till-via-Kopo-Kopo charges,
+ *  deducted from the org's own bank statement on every single payment that
+ *  moves through it — in or out — regardless of the payment's own amount. */
+const KOPOKOPO_FEE_CENTS = 5000;
+
+/** True when a payment actually rode over Kopo Kopo and so really did incur
+ *  the flat fee: either it's tagged method "kopokopo" directly (gateway
+ *  payments/payouts), or it landed in an M-Pesa till the org has flagged as
+ *  settling through Kopo Kopo (org.mpesaTillGatewayId) even when recorded
+ *  manually/via CSV with method "mpesa". */
+export async function isKopoKopoRouted(method: string, bank: { kind: string } | null): Promise<boolean> {
+  if (method === "kopokopo") return true;
+  if (!bank || bank.kind !== "mpesa") return false;
+  const [orgRow] = await db.select({ mpesaTillGatewayId: orgTable.mpesaTillGatewayId }).from(orgTable).where(eq(orgTable.id, currentOrgId())).limit(1);
+  return orgRow?.mpesaTillGatewayId === "kopokopo";
+}
+
+/** Posts the flat Kopo Kopo transaction fee against whichever bank account
+ *  actually moved the money — DR the fee expense, CR the bank (a real
+ *  extra deduction the statement will show either way, in or out). */
+export async function postKopoKopoFee(params: { bankId: number; bankAccountId: number; date: string; sourceType: string; sourceId: number; memo: string }) {
+  const feeAccountId = await ensureAccountId(SYS.KOPOKOPO_FEE, "Kopo Kopo Transaction Fees", "expense", "expense");
+  const entryId = await postEntry({
+    date: params.date,
+    memo: `Kopo Kopo transaction fee — ${params.memo}`,
+    sourceType: params.sourceType,
+    sourceId: params.sourceId,
+    lines: [
+      { accountId: feeAccountId, debitCents: KOPOKOPO_FEE_CENTS },
+      { accountId: params.bankAccountId, creditCents: KOPOKOPO_FEE_CENTS },
+    ],
+  });
+  await mirrorBankTxn({
+    bankAccountId: params.bankId,
+    date: params.date,
+    description: `Kopo Kopo transaction fee · ${params.memo}`,
+    amountCents: -KOPOKOPO_FEE_CENTS,
+    journalEntryId: entryId,
+    externalRef: `kkfee:${params.sourceType}:${params.sourceId}`,
+  });
+}
+
 /**
  * Customer payment: DR bank (net received) + WHT Receivable (withheld) · CR AR (gross).
  * Vendor payment: DR AP · CR bank.
@@ -471,6 +513,17 @@ export async function postPayment(paymentId: number): Promise<number> {
       journalEntryId: entryId,
       externalRef: `pmt:${p.id}`,
     });
+
+    if (await isKopoKopoRouted(p.method, bank)) {
+      await postKopoKopoFee({
+        bankId: bank.id,
+        bankAccountId: bank.accountId,
+        date: p.date,
+        sourceType: p.direction === "in" ? "customer_payment" : "vendor_payment",
+        sourceId: p.id,
+        memo: `Payment ${p.number}`,
+      });
+    }
   }
 
   if (p.documentId) {
