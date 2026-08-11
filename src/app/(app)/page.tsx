@@ -28,6 +28,7 @@ export default async function Dashboard({
     const access = await getAccessCached();
     const viewAll = access ? canViewAllData(access) : true;
     const ownOnly = !!access && !viewAll && access.perms.has("dashboard_metrics") && !!access.memberId;
+    const isOwnerOrAdmin = !access || access.isOwner || access.role === "admin";
 
     const recentDocsWhere = [
       eq(documents.orgId, o.id),
@@ -132,7 +133,9 @@ export default async function Dashboard({
                 tone={memberStats.overdueReceivablesCents > 0 ? "warn" : "neutral"}
               />
               <StatCard label="Overdue" hint="on your invoices" cents={memberStats.overdueReceivablesCents} tone={memberStats.overdueReceivablesCents > 0 ? "warn" : "good"} />
-              <StatCard label="Collected this year" hint="payments on your invoices" cents={memberStats.collectedThisYearCents} tone="good" />
+              {o.showCollectedThisYearCard && (
+                <StatCard label="Collected this year" hint="payments on your invoices" cents={memberStats.collectedThisYearCents} tone="good" />
+              )}
               <StatCard label="Your bills to pay" hint="assigned bills & expenses" cents={memberStats.payablesCents} />
             </>
           ) : stats ? (
@@ -159,7 +162,7 @@ export default async function Dashboard({
 
         {/* Invoice & quote overview — yearly money breakdown is admin-only */}
         <div className="mt-4">
-          <DocOverview data={overview} year={year} years={years} showBreakdown={viewAll} />
+          <DocOverview data={overview} year={year} years={years} showBreakdown={viewAll && (isOwnerOrAdmin || o.showInvoiceCollectionTotals)} />
         </div>
 
         {/* Chart (company-wide, hidden in own-metrics view) + calendar */}

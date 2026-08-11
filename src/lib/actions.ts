@@ -1497,6 +1497,29 @@ export async function saveOrgProfile(data: {
   revalidatePath("/");
 }
 
+/** Admin-only, org-wide toggles for what staff see on the home dashboard —
+ *  lives on the Staff & Roles page since it's about staff visibility, not
+ *  general org profile settings. */
+export async function setDashboardVisibilityAction(data: {
+  showCollectedThisYearCard?: boolean;
+  showInvoiceCollectionTotals?: boolean;
+}) {
+  const access = await getAccess();
+  if (!access || (!access.isOwner && access.role !== "admin")) {
+    throw new Error("Only admins can change staff dashboard visibility");
+  }
+  await db
+    .update(org)
+    .set({
+      ...(data.showCollectedThisYearCard !== undefined ? { showCollectedThisYearCard: data.showCollectedThisYearCard } : {}),
+      ...(data.showInvoiceCollectionTotals !== undefined ? { showInvoiceCollectionTotals: data.showInvoiceCollectionTotals } : {}),
+    })
+    .where(eq(org.id, access.orgId));
+  await logAudit({ action: "update", module: "settings", recordLabel: "Staff dashboard visibility" });
+  revalidatePath("/staff");
+  revalidatePath("/");
+}
+
 export async function getTaxClasses() {
   return TAX_CLASSES;
 }

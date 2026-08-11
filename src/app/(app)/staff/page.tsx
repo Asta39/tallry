@@ -1,11 +1,12 @@
 import { redirect } from "next/navigation";
-import { db, members, employees } from "@/db";
+import { db, members, employees, org } from "@/db";
 import { eq } from "drizzle-orm";
 import { getAccess, MODULES, rolePermMap, getAllRoles } from "@/lib/access";
 import { PageHeader } from "@/components/ui";
 import { AddStaffForm, StaffList, PermissionMatrix, CreateRoleForm } from "@/components/StaffManager";
 import { UpgradePrompt } from "@/components/UpgradePrompt";
 import { getEntitlements } from "@/lib/billing-server";
+import { DashboardVisibilityToggles } from "@/components/DashboardVisibilityToggles";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +16,7 @@ export default async function StaffPage() {
   if (access.role !== "admin") redirect("/");
 
   const entitlements = await getEntitlements(access.orgId);
+  const [orgRow] = await db.select().from(org).where(eq(org.id, access.orgId)).limit(1);
   const staff = await db.select().from(members).where(eq(members.orgId, access.orgId));
   const allEmployees = await db.select().from(employees).where(eq(employees.orgId, access.orgId));
   
@@ -67,6 +69,12 @@ export default async function StaffPage() {
         Admins always see everything.
       </p>
       <PermissionMatrix key={editableRoles.join(",")} roles={editableRoles} modules={MODULES} matrix={matrix} />
+
+      <h2 className="text-[15px] font-semibold mt-8 mb-3">Staff home dashboard</h2>
+      <DashboardVisibilityToggles
+        showCollectedThisYearCard={orgRow?.showCollectedThisYearCard ?? true}
+        showInvoiceCollectionTotals={orgRow?.showInvoiceCollectionTotals ?? true}
+      />
     </>
   );
 }

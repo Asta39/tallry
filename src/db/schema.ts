@@ -45,6 +45,13 @@ export const org = pgTable("org", {
   paymentInfoText: text("payment_info_text"),
   termsText: text("terms_text"),
   dataSegregation: boolean("data_segregation").notNull().default(false),
+  /** Staff home dashboard "Collected this year" stat card — admin-controlled, org-wide. */
+  showCollectedThisYearCard: boolean("show_collected_this_year_card").notNull().default(true),
+  /** Invoice & quote overview's yearly money breakdown (outstanding/past due/paid
+   *  totals for the year) — separate from showBreakdown's own-vs-org-wide gate,
+   *  lets an admin hide these totals from staff even when they can otherwise
+   *  see org-wide data. */
+  showInvoiceCollectionTotals: boolean("show_invoice_collection_totals").notNull().default(true),
   /** Books lock: journal entries dated on/before this date are rejected. */
   lockDate: text("lock_date"),
   /** When on, posting a bill requires an accountant/admin to approve it first. */

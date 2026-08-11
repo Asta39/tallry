@@ -867,3 +867,6 @@ ALTER TABLE contacts ADD COLUMN IF NOT EXISTS opening_balance_date TEXT;
 ALTER TABLE contacts ADD COLUMN IF NOT EXISTS opening_balance_entry_id INTEGER;
 
 ALTER TABLE team_announcements ADD COLUMN IF NOT EXISTS color TEXT NOT NULL DEFAULT 'blue';
+
+ALTER TABLE org ADD COLUMN IF NOT EXISTS show_collected_this_year_card BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE org ADD COLUMN IF NOT EXISTS show_invoice_collection_totals BOOLEAN NOT NULL DEFAULT TRUE;

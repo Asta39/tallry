@@ -98,7 +98,16 @@ export async function quoteConversion(months = 6) {
   const series = range.map((m) => {
     const inMonth = rows.filter((r) => r.month === m.key);
     const total = inMonth.reduce((s, r) => s + Number(r.count), 0);
-    const accepted = inMonth.find((r) => r.status === "accepted")?.count || 0;
+    // A quote actually converts to an invoice via convertQuoteToInvoice(),
+    // which sets its status to "converted" — "accepted" is only the
+    // pre-conversion "client said yes" state and never changes once a
+    // quote is converted (_convertQuoteToInvoiceInner overwrites it to
+    // "converted" as the terminal state). Counting "accepted" here meant
+    // every org's actually-converted quotes were invisible to this metric,
+    // permanently showing 0% conversion regardless of real activity.
+    const accepted =
+      (inMonth.find((r) => r.status === "accepted")?.count || 0) +
+      (inMonth.find((r) => r.status === "converted")?.count || 0);
     return { label: m.label, rate: total > 0 ? Math.round((Number(accepted) / total) * 100) : 0, total, accepted: Number(accepted) };
   });
   const totalAll = series.reduce((s, m) => s + m.total, 0);
