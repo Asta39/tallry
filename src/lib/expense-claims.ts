@@ -1,9 +1,9 @@
 "use server";
 
 import crypto from "crypto";
-import { db, expenseClaims, accounts, bankAccounts, org, paymentGateways, paymentEvents, expenseClaimPayoutApprovals, payments, journalLines } from "@/db";
+import { db, expenseClaims, accounts, bankAccounts, org, paymentGateways, paymentEvents, expenseClaimPayoutApprovals, payments, journalLines, journalEntries } from "@/db";
 import { nextNumber } from "@/lib/actions";
-import { eq, and, desc, or, isNull } from "drizzle-orm";
+import { eq, and, desc, or, isNull, notExists } from "drizzle-orm";
 import { withOrg, currentOrgId, getOrg, orgContext } from "@/lib/org";
 import { requirePerm } from "@/lib/guard";
 import { getAccess } from "@/lib/access";
@@ -81,6 +81,24 @@ async function findMispostedClaims(orgId: number) {
       or(eq(expenseClaims.status, "pending"), eq(expenseClaims.status, "approved")),
       eq(journalLines.orgId, orgId),
       eq(journalLines.accountId, apAccountId),
+      // The claim's OWN accrual entry (journalEntryId) never changes once
+      // posted, so re-querying it always finds the same AP line — even
+      // after "Fix now" has already posted a compensating reclass for this
+      // claim. Without this exclusion, every click re-reclassified the same
+      // claims again, debiting Accounts Payable repeatedly for money that
+      // had already been moved out, driving it into a false negative
+      // balance (confirmed on org 33: one KSh 400 claim reclassified 4
+      // times → AP short by KSh 1,600 that was never really there).
+      notExists(
+        db
+          .select()
+          .from(journalEntries)
+          .where(and(
+            eq(journalEntries.orgId, orgId),
+            eq(journalEntries.sourceType, "expense_claim_account_reconciliation"),
+            eq(journalEntries.sourceId, expenseClaims.id),
+          ))
+      ),
     ));
   return rows;
 }
@@ -106,15 +124,22 @@ export async function reconcileExpenseClaimAccountAction(): Promise<{ success?: 
       const apAccountId = await ensureAccount("2100", "Accounts Payable", "liability", "accounts_payable");
       const reimbAccountId = await payableAccountId();
 
-      await postEntry({
-        date: todayISO(),
-        memo: `Reclass: ${rows.length} open expense claim(s) moved from Accounts Payable to Staff Reimbursements Payable`,
-        sourceType: "expense_claim_account_reconciliation",
-        lines: [
-          { accountId: apAccountId, debitCents: total },
-          { accountId: reimbAccountId, creditCents: total },
-        ],
-      });
+      // One entry per claim, tagged with sourceId = claim.id, so
+      // findMispostedClaims can permanently exclude a claim once it's been
+      // reclassified — otherwise its original (never-changing) accrual
+      // entry keeps matching on every future run of this action.
+      for (const row of rows) {
+        await postEntry({
+          date: todayISO(),
+          memo: `Reclass: expense claim #${row.id} moved from Accounts Payable to Staff Reimbursements Payable`,
+          sourceType: "expense_claim_account_reconciliation",
+          sourceId: row.id,
+          lines: [
+            { accountId: apAccountId, debitCents: row.amountCents },
+            { accountId: reimbAccountId, creditCents: row.amountCents },
+          ],
+        });
+      }
 
       await logAudit({ action: "reconcile_account", module: "expense_claims", detail: `${fmtKES(total)} moved off Accounts Payable (${rows.length} claim(s))` });
       revalidatePath("/accountant");
