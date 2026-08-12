@@ -3,7 +3,7 @@ import { requirePerm } from "@/lib/guard";
 import { getOrg } from "@/lib/org";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { db, contacts, documents, activities, deals, payments, portalUsers, customerGroups, contactGroupMemberships, documentAssignments, journalEntries, expenseClaims } from "@/db";
+import { db, contacts, documents, activities, deals, payments, portalUsers, customerGroups, contactGroupMemberships, documentAssignments, journalEntries, expenseClaims, bankAccounts } from "@/db";
 import { getAccessCached, canViewAllData } from "@/lib/access";
 import { fmtKES, todayISO } from "@/lib/money";
 import { addActivity } from "@/lib/actions";
@@ -84,6 +84,9 @@ export default async function ContactDetail({
   // payment staff-segregation setting above (matches setContactOpeningBalanceAction's
   // own access check in actions.ts, which already allows accountants).
   const canManageOpeningBalance = !access || access.isOwner || access.role === "admin" || access.role === "accountant";
+  const moneyAccounts = canManageOpeningBalance
+    ? await db.select({ id: bankAccounts.id, name: bankAccounts.name }).from(bankAccounts).where(and(eq(bankAccounts.orgId, o.id), eq(bankAccounts.archived, false)))
+    : [];
   const docStaffScope = !viewAll
     ? exists(
         db
@@ -280,6 +283,7 @@ export default async function ContactDetail({
                     isPayable={isPayableContact}
                     openingBalanceCents={c.openingBalanceCents}
                     openingBalanceDate={c.openingBalanceDate}
+                    bankAccounts={moneyAccounts}
                   />
                 </div>
               )}

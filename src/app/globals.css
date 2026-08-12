@@ -93,6 +93,15 @@ html {
 }
 .tnum { font-variant-numeric: tabular-nums; }
 
+/* Privacy blur — toggled by BlurToggleWrapper, scoped to whichever screen
+   opts in (e.g. Bank & M-Pesa) rather than the whole app. */
+.blur-scope[data-blurred="1"] .money-lg,
+.blur-scope[data-blurred="1"] .tnum {
+  filter: blur(6px);
+  user-select: none;
+  transition: filter 0.15s;
+}
+
 /* Translucent sidebar chrome */
 .sidebar-chrome {
   background: rgba(245, 245, 247, 0.85);

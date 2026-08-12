@@ -43,6 +43,9 @@ import {
   reverseEntry,
   voidDocument,
   acct,
+  mirrorBankTxn,
+  isKopoKopoRouted,
+  postKopoKopoFee,
 } from "./posting";
 import { addLot, consumeFifo, stockOnHand } from "./inventory";
 import { SYS } from "./coa";
@@ -1365,6 +1368,123 @@ export async function setContactOpeningBalanceAction(
   return withOrg(async () => {
     await _setContactOpeningBalance(data);
   });
+}
+
+/**
+ * Records a payment against a contact's balance brought forward (partial or
+ * full) — the lump sum itself isn't a document, so it can never be paid off
+ * through the normal invoice/bill payment flow. Posts DR bank/CR AR (a
+ * customer paying down what they owed) or DR AP/CR bank (paying a vendor
+ * down), reduces the tracked openingBalanceCents by exactly what was paid,
+ * and records an ordinary `payments` row so it shows up in Payments
+ * Received/Made like any other payment — same ledger shape postPayment()
+ * already uses for a real invoice/bill, just without a documentId.
+ */
+async function _payContactOpeningBalance(data: {
+  contactId: number;
+  amountCents: number;
+  date: string;
+  method: string;
+  bankAccountId?: number | null;
+  reference?: string;
+}): Promise<number> {
+  const access = await getAccess();
+  if (!access || (!access.isOwner && !["admin", "accountant"].includes(access.role))) {
+    throw new Error("Only admins and accountants can record a payment against a brought-forward balance");
+  }
+  const orgId = currentOrgId();
+  const [contact] = await db.select().from(contacts).where(and(eq(contacts.orgId, orgId), eq(contacts.id, data.contactId))).limit(1);
+  if (!contact) throw new Error("Contact not found");
+  if (!Number.isInteger(data.amountCents) || data.amountCents <= 0) throw new Error("Enter an amount greater than zero");
+  if (data.amountCents > contact.openingBalanceCents) {
+    throw new Error(`Amount exceeds the remaining brought-forward balance (${fmtKES(contact.openingBalanceCents)})`);
+  }
+
+  const isPayable = contact.kind === "vendor";
+  const bank = data.bankAccountId
+    ? (await db.select().from(bankAccounts).where(and(eq(bankAccounts.orgId, orgId), eq(bankAccounts.id, data.bankAccountId))).limit(1))[0]
+    : null;
+  const bankCoaId = bank ? bank.accountId : await acct(SYS.UNDEPOSITED);
+  const subledgerAccountId = await acct(isPayable ? SYS.AP : SYS.AR);
+
+  const entryId = await postEntry({
+    date: data.date,
+    memo: `Balance brought forward ${isPayable ? "paid" : "received"} · ${contact.displayName}`,
+    sourceType: "contact_opening_balance_payment",
+    sourceId: contact.id,
+    lines: isPayable
+      ? [
+          { accountId: subledgerAccountId, debitCents: data.amountCents, contactId: contact.id },
+          { accountId: bankCoaId, creditCents: data.amountCents },
+        ]
+      : [
+          { accountId: bankCoaId, debitCents: data.amountCents },
+          { accountId: subledgerAccountId, creditCents: data.amountCents, contactId: contact.id },
+        ],
+  });
+
+  if (bank) {
+    await mirrorBankTxn({
+      bankAccountId: bank.id,
+      date: data.date,
+      description: `Balance b/f ${isPayable ? "paid" : "received"} · ${contact.displayName}${data.reference ? ` · ${data.reference}` : ""}`,
+      amountCents: isPayable ? -data.amountCents : data.amountCents,
+      journalEntryId: entryId,
+      externalRef: `ob_pmt:${entryId}`,
+    });
+    if (isPayable && (await isKopoKopoRouted(data.method, bank))) {
+      await postKopoKopoFee({
+        bankId: bank.id,
+        bankAccountId: bank.accountId,
+        date: data.date,
+        sourceType: "contact_opening_balance_payment",
+        sourceId: entryId,
+        memo: `Balance b/f paid · ${contact.displayName}`,
+      });
+    }
+  }
+
+  const newOpeningBalanceCents = contact.openingBalanceCents - data.amountCents;
+  await db
+    .update(contacts)
+    .set({
+      openingBalanceCents: newOpeningBalanceCents,
+      ...(newOpeningBalanceCents === 0 ? { openingBalanceDate: null } : {}),
+    })
+    .where(and(eq(contacts.orgId, orgId), eq(contacts.id, contact.id)));
+
+  await db.insert(payments).values({
+    orgId,
+    number: await nextNumber("payment"),
+    direction: isPayable ? "out" : "in",
+    contactId: contact.id,
+    documentId: null,
+    date: data.date,
+    amountCents: data.amountCents,
+    method: data.method,
+    bankAccountId: data.bankAccountId ?? null,
+    reference: data.reference,
+    journalEntryId: entryId,
+    createdAt: nowISO(),
+  });
+
+  await logAudit({
+    action: "update",
+    module: "contacts",
+    recordId: contact.id,
+    recordLabel: contact.displayName,
+    detail: `${isPayable ? "Paid" : "Received"} ${fmtKES(data.amountCents)} against brought-forward balance — ${fmtKES(newOpeningBalanceCents)} remaining`,
+  });
+  revalidatePath(`/contacts/${contact.id}`);
+  revalidatePath("/sales/payments");
+  revalidatePath("/");
+  return entryId;
+}
+
+export async function payContactOpeningBalanceAction(
+  data: Parameters<typeof _payContactOpeningBalance>[0]
+) {
+  return withOrg(() => _payContactOpeningBalance(data));
 }
 
 /* ---------------- Manual journals ---------------- */

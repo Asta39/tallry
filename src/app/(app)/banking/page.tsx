@@ -17,6 +17,7 @@ import { AccountTransfer } from "@/components/AccountTransfer";
 import { bankReconciliations } from "@/db";
 import { BankingTransactionsClient } from "@/components/BankingTransactionsClient";
 import { MoneyAccountsClient } from "./MoneyAccountsClient";
+import { BlurToggleWrapper } from "@/components/BlurToggleWrapper";
 
 export const dynamic = "force-dynamic";
 
@@ -75,7 +76,7 @@ export default async function BankingPage() {
   }
 
   return (
-    <>
+    <BlurToggleWrapper storageKey="blur-banking">
       <PageHeader title="Bank & M-Pesa" subtitle="Your money accounts, per the ledger" />
 
       <MoneyAccountsClient
@@ -190,6 +191,6 @@ export default async function BankingPage() {
           </div>
         </details>
       )}
-    </>
+    </BlurToggleWrapper>
   );
 }
