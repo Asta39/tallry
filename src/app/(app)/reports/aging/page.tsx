@@ -42,6 +42,19 @@ export default async function AgingPage() {
           </div>
         ))}
       </div>
+      {data.openingBalancesCents > 0 && (
+        <div className="mb-4 rounded-lg border border-[var(--color-ink-200)] bg-[var(--color-ink-50)] px-4 py-3">
+          <div className="text-[12.5px] font-medium text-[var(--color-ink-700)]">
+            Includes {fmtKES(data.openingBalancesCents)} brought forward from a previous system — folded into "Not yet due" above
+            (real money owed, per the ledger, but not tied to a specific invoice/due date).
+          </div>
+          <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-[12px] text-[var(--color-ink-500)]">
+            {data.openingBalanceContacts.map((c) => (
+              <span key={c.id}>{c.displayName}: {fmtKES(c.openingBalanceCents)}{c.openingBalanceDate ? ` (as of ${c.openingBalanceDate})` : ""}</span>
+            ))}
+          </div>
+        </div>
+      )}
       {data.rows.length > 0 && (
         <TableCard>
           <thead className="hairline-b">

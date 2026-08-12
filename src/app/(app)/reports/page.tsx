@@ -28,6 +28,7 @@ const reports = [
     items: [
       { href: "/reports/balance-sheet", title: "Balance Sheet", body: "What you own vs what you owe, right now." },
       { href: "/reports/aging", title: "Aged Receivables (Aging)", body: "Unpaid invoices and bills, bucketed by lateness." },
+      { href: "/reports/debtors", title: "Debtors", body: "Every customer with a balance outstanding, per sales agent, in one list." },
     ],
   },
   {

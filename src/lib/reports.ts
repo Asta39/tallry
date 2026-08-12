@@ -3,6 +3,7 @@ import { currentOrgId } from "@/lib/org";
 import { and, eq, gte, lte, inArray, sql, exists, isNull } from "drizzle-orm";
 import { acct } from "./posting";
 import { SYS } from "./coa";
+import { todayISO } from "./money";
 
 /**
  * Reporting queries — all derived from the ledger (journal lines), never from
@@ -254,7 +255,107 @@ export async function aging(type: "invoice" | "bill", asOf: string) {
     buckets[bucket] += balance;
     return { ...d, balanceCents: balance, daysOverdue: Math.max(0, days), bucket };
   });
-  return { rows, buckets, total: Object.values(buckets).reduce((a, b) => a + b, 0) };
+
+  // Balance brought forward (contacts.openingBalanceCents) posts a real
+  // journal entry against AR/AP — see setContactOpeningBalanceAction — but
+  // deliberately isn't a document (no fabricated backdated invoice/bill),
+  // so it was invisible here and in dashboardStats' receivables/payables
+  // figure (which just reads this total). That left the ledger's real AR/AP
+  // balance permanently higher than what Aging/the dashboard showed, by
+  // exactly the sum of unpaid opening balances — confirmed live on org 33,
+  // where 3 customers' opening balances (KSh 2,184,046.67 combined) were
+  // the entire gap between the trial balance and this report.
+  const wantedKind = type === "invoice" ? ["customer", "both"] : ["vendor", "both"];
+  const openingBalanceContacts = await db
+    .select({ id: contacts.id, displayName: contacts.displayName, openingBalanceCents: contacts.openingBalanceCents, openingBalanceDate: contacts.openingBalanceDate })
+    .from(contacts)
+    .where(and(eq(contacts.orgId, currentOrgId()), inArray(contacts.kind, wantedKind), sql`${contacts.openingBalanceCents} != 0`));
+  const openingBalancesCents = openingBalanceContacts.reduce((s, c) => s + c.openingBalanceCents, 0);
+  buckets.current += openingBalancesCents;
+
+  return {
+    rows,
+    buckets,
+    total: Object.values(buckets).reduce((a, b) => a + b, 0),
+    openingBalancesCents,
+    openingBalanceContacts,
+  };
+}
+
+/**
+ * All debtors (customers with an outstanding balance) in one place — every
+ * open/partial invoice's balance PLUS any unpaid balance brought forward
+ * from a previous system, grouped per customer, with which sales agent(s)
+ * created their invoices. Optional staffName narrows to invoices created by
+ * that one agent (opening balances have no agent, so they're excluded from
+ * a staff-filtered view — they're the org's own historical debt, not any
+ * one agent's sale).
+ */
+export async function debtorsReport(staffName?: string) {
+  const today = todayISO();
+  const ar = await aging("invoice", today);
+
+  const byContact = new Map<number, {
+    contactId: number;
+    customerName: string;
+    totalOwedCents: number;
+    oldestDaysOverdue: number;
+    invoiceCount: number;
+    agents: Set<string>;
+    hasOpeningBalance: boolean;
+  }>();
+
+  const contactRows = await db.select({ id: contacts.id, displayName: contacts.displayName }).from(contacts).where(eq(contacts.orgId, currentOrgId()));
+  const nameById = new Map(contactRows.map((c) => [c.id, c.displayName]));
+
+  for (const row of ar.rows) {
+    if (!row.contactId) continue;
+    if (staffName && row.createdByName !== staffName) continue;
+    const existing = byContact.get(row.contactId) ?? {
+      contactId: row.contactId,
+      customerName: nameById.get(row.contactId) ?? "—",
+      totalOwedCents: 0,
+      oldestDaysOverdue: 0,
+      invoiceCount: 0,
+      agents: new Set<string>(),
+      hasOpeningBalance: false,
+    };
+    existing.totalOwedCents += row.balanceCents;
+    existing.oldestDaysOverdue = Math.max(existing.oldestDaysOverdue, row.daysOverdue);
+    existing.invoiceCount += 1;
+    if (row.createdByName) existing.agents.add(row.createdByName);
+    byContact.set(row.contactId, existing);
+  }
+
+  // Opening balances aren't tied to any sales agent — only fold them in for
+  // the unfiltered (all agents) view, so a staff-filtered debtors list stays
+  // exactly "what this agent is owed", not inflated by historical debt.
+  if (!staffName) {
+    for (const c of ar.openingBalanceContacts) {
+      const existing = byContact.get(c.id) ?? {
+        contactId: c.id,
+        customerName: c.displayName,
+        totalOwedCents: 0,
+        oldestDaysOverdue: 0,
+        invoiceCount: 0,
+        agents: new Set<string>(),
+        hasOpeningBalance: false,
+      };
+      existing.totalOwedCents += c.openingBalanceCents;
+      existing.hasOpeningBalance = true;
+      byContact.set(c.id, existing);
+    }
+  }
+
+  const debtors = [...byContact.values()]
+    .filter((d) => d.totalOwedCents > 0)
+    .map((d) => ({ ...d, agents: [...d.agents] }))
+    .sort((a, b) => b.totalOwedCents - a.totalOwedCents);
+
+  return {
+    debtors,
+    totalOwedCents: debtors.reduce((s, d) => s + d.totalOwedCents, 0),
+  };
 }
 
 /** Dashboard rollups. */
