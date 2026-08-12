@@ -66,8 +66,8 @@ export async function GET(
           date: contact.openingBalanceDate,
           ref: "OB",
           description: "Balance brought forward",
-          d: contact.kind === "vendor" ? 0 : contact.openingBalanceCents,
-          c: contact.kind === "vendor" ? contact.openingBalanceCents : 0,
+          d: contact.openingBalanceCents,
+          c: 0,
         }]
       : []),
     ...docs

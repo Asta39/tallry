@@ -16,11 +16,20 @@ export function StatementTab({
   openingBalanceCents?: number;
   openingBalanceDate?: string | null;
 }) {
+  // Vendors owe THIS org via bills, not invoices — filtering only
+  // type==="invoice" and subtracting every payment regardless of direction
+  // meant a vendor-kind contact's statement was silently empty (no bills
+  // ever matched) or, for a "both" contact, actively wrong (an outbound
+  // payment to them would incorrectly subtract from what THEY owe
+  // this org). "Both" nets both relationships into one running balance.
+  const isCustomer = contact.kind === "customer" || contact.kind === "both";
+  const isVendor = contact.kind === "vendor" || contact.kind === "both";
+
   // Build a chronological ledger
   const ledger: {
     id: string;
     date: string;
-    type: "invoice" | "payment" | "opening_balance";
+    type: "invoice" | "bill" | "payment" | "opening_balance";
     description: string;
     amountCents: number;
   }[] = [];
@@ -36,7 +45,7 @@ export function StatementTab({
   }
 
   for (const d of docs) {
-    if (d.type === "invoice" && !["draft", "void"].includes(d.status)) {
+    if (isCustomer && d.type === "invoice" && !["draft", "void"].includes(d.status)) {
       ledger.push({
         id: `doc-${d.id}`,
         date: d.date,
@@ -45,9 +54,19 @@ export function StatementTab({
         amountCents: d.totalCents,
       });
     }
+    if (isVendor && d.type === "bill" && !["draft", "void"].includes(d.status)) {
+      ledger.push({
+        id: `doc-${d.id}`,
+        date: d.date,
+        type: "bill",
+        description: `Bill ${d.number}`,
+        amountCents: d.totalCents,
+      });
+    }
   }
 
   for (const p of pays) {
+    if ((p.direction === "in" && !isCustomer) || (p.direction === "out" && !isVendor)) continue;
     ledger.push({
       id: `pay-${p.id}`,
       date: p.date,
@@ -58,7 +77,7 @@ export function StatementTab({
   }
 
   // Sort by date, then by type (opening balance, then invoice, then payment if same date)
-  const typeOrder = { opening_balance: 0, invoice: 1, payment: 2 };
+  const typeOrder = { opening_balance: 0, invoice: 1, bill: 1, payment: 2 };
   ledger.sort((a, b) => {
     if (a.date !== b.date) return a.date.localeCompare(b.date);
     return typeOrder[a.type] - typeOrder[b.type];
@@ -93,7 +112,7 @@ export function StatementTab({
 
       {ledgerWithBalance.length === 0 ? (
         <div className="card px-5 py-10 text-center text-[13px] text-[var(--color-ink-400)]">
-          No invoices or payments to show.
+          No {isCustomer && isVendor ? "invoices, bills or payments" : isVendor ? "bills or payments" : "invoices or payments"} to show.
         </div>
       ) : (
         <TableCard>

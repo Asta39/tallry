@@ -119,6 +119,24 @@ export default async function ContactDetail({
     .from(documents)
     .where(and(eq(documents.orgId, o.id), eq(documents.contactId, cid), docStaffScope))
     .orderBy(desc(documents.date), desc(documents.id));
+
+  // Statement tab specifically: an accountant needs the client's real,
+  // complete account statement (customer or vendor) to be trustworthy —
+  // a statement quietly missing invoices/payments another staff member
+  // created is worse than no statement at all. Owner/admin already see
+  // everything via viewAll; this only changes anything for an accountant
+  // under data segregation, who otherwise gets the same assigned-docs-only
+  // view as regular staff on every other tab (deliberately unchanged here —
+  // this widening is scoped to the statement alone).
+  const needsFullStatement = !viewAll && canManageOpeningBalance;
+  const statementDocs = needsFullStatement
+    ? await db
+        .select()
+        .from(documents)
+        .where(and(eq(documents.orgId, o.id), eq(documents.contactId, cid)))
+        .orderBy(desc(documents.date), desc(documents.id))
+    : allDocs;
+
   const acts = await db
     .select()
     .from(activities)
@@ -126,6 +144,9 @@ export default async function ContactDetail({
     .orderBy(desc(activities.createdAt));
   const contactDeals = await db.select().from(deals).where(and(eq(deals.orgId, o.id), eq(deals.contactId, cid)));
   const contactPayments = await db.select().from(payments).where(and(eq(payments.orgId, o.id), eq(payments.contactId, cid), paymentStaffScope));
+  const statementPayments = needsFullStatement
+    ? await db.select().from(payments).where(and(eq(payments.orgId, o.id), eq(payments.contactId, cid)))
+    : contactPayments;
   const [portalUser] = await db.select().from(portalUsers).where(and(eq(portalUsers.orgId, o.id), eq(portalUsers.contactId, cid))).limit(1);
 
   const isPayableContact = c.kind === "vendor";
@@ -344,8 +365,8 @@ export default async function ContactDetail({
           {tab === "statement" && (
             <StatementTab
               contact={c}
-              docs={allDocs}
-              pays={contactPayments}
+              docs={statementDocs}
+              pays={statementPayments}
               openingBalanceCents={c.openingBalanceCents}
               openingBalanceDate={c.openingBalanceDate}
             />

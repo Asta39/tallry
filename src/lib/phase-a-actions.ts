@@ -751,33 +751,56 @@ export async function getStatementData(contactId: number, from: string, to: stri
     if (!contact) throw new Error("Contact not found");
     const o = await getOrg();
 
-    const docs = await db
-      .select()
-      .from(documents)
-      .where(
-        and(
-          eq(documents.orgId, orgId),
-          eq(documents.contactId, contactId),
-          inArray(documents.type, ["invoice", "credit_note"]),
-          inArray(documents.status, ["open", "partial", "paid", "written_off"])
-        )
-      );
-    const pays = await db
-      .select()
-      .from(payments)
-      .where(
-        and(eq(payments.orgId, orgId), eq(payments.contactId, contactId), eq(payments.direction, "in"))
-      );
+    // Vendors owe THIS org, via bills, not invoices — a vendor-kind (or
+    // "both") contact previously got an invoice/credit-note-only, inbound-
+    // payment-only statement, which meant their bills and every payment OUT
+    // to them were silently missing (an empty or wildly wrong statement).
+    // "Both" combines everything into one running balance — the net
+    // position across both relationships, same model the on-screen
+    // StatementTab already uses.
+    const isCustomer = contact.kind === "customer" || contact.kind === "both";
+    const isVendor = contact.kind === "vendor" || contact.kind === "both";
+    const wantedDocTypes = [
+      ...(isCustomer ? ["invoice", "credit_note"] : []),
+      ...(isVendor ? ["bill"] : []),
+    ];
+    const docs = wantedDocTypes.length
+      ? await db
+          .select()
+          .from(documents)
+          .where(
+            and(
+              eq(documents.orgId, orgId),
+              eq(documents.contactId, contactId),
+              inArray(documents.type, wantedDocTypes),
+              inArray(documents.status, ["open", "partial", "paid", "written_off"])
+            )
+          )
+      : [];
+    const wantedDirections = [...(isCustomer ? ["in"] : []), ...(isVendor ? ["out"] : [])];
+    const pays = wantedDirections.length
+      ? await db
+          .select()
+          .from(payments)
+          .where(
+            and(eq(payments.orgId, orgId), eq(payments.contactId, contactId), inArray(payments.direction, wantedDirections))
+          )
+      : [];
 
     type Ev = { date: string; ref: string; description: string; d: number; c: number };
     const events: Ev[] = [
+      // "d" grows the running balance (what's owed, either direction),
+      // "c" shrinks it — matches how invoices/bills (d) and payments/credit
+      // notes (c) are tagged below, so opening balance sits consistently on
+      // the same side as the document type it's standing in for (an
+      // invoice-shaped debt for a customer, a bill-shaped one for a vendor).
       ...(contact.openingBalanceCents !== 0 && contact.openingBalanceDate
         ? [{
             date: contact.openingBalanceDate,
             ref: "OB",
             description: "Balance brought forward",
-            d: contact.kind === "vendor" ? 0 : contact.openingBalanceCents,
-            c: contact.kind === "vendor" ? contact.openingBalanceCents : 0,
+            d: contact.openingBalanceCents,
+            c: 0,
           }]
         : []),
       ...docs
@@ -786,6 +809,9 @@ export async function getStatementData(contactId: number, from: string, to: stri
       ...docs
         .filter((x) => x.type === "credit_note")
         .map((x) => ({ date: x.date, ref: x.number, description: "Credit note", d: 0, c: x.totalCents })),
+      ...docs
+        .filter((x) => x.type === "bill")
+        .map((x) => ({ date: x.date, ref: x.number, description: "Bill", d: x.totalCents, c: 0 })),
       ...pays.map((p) => ({
         date: p.date,
         ref: p.number,
