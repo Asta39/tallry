@@ -49,6 +49,11 @@ export interface PaymentGateway {
    *  in progress. Optional: only gateways with a real status-check
    *  endpoint implement it. */
   checkPayoutStatus?(requestId: string): Promise<InboundResult | null>;
+  /** Same idea as checkPayoutStatus, for an inbound STK/incoming-payment
+   *  request instead of an outbound payout — the webhook path for these is
+   *  equally unreliable. Optional: only gateways with a real status-check
+   *  endpoint implement it. */
+  checkIncomingPaymentStatus?(requestId: string): Promise<InboundResult | null>;
 }
 
 export interface InboundPayment {

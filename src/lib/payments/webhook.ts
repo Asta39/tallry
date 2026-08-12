@@ -221,6 +221,70 @@ export async function reconcileUnconfirmedKopoKopoPayouts(olderThanMinutes = 3, 
     }
   }
 
+  const inboundResult = await reconcileUnconfirmedKopoKopoIncomingPayments(olderThanMinutes, onlyOrgId);
+  return {
+    checked: rows.length + inboundResult.checked,
+    confirmed: confirmed + inboundResult.confirmed,
+    reversed: reversed + inboundResult.reversed,
+    stillPending: stillPending + inboundResult.stillPending,
+    errors: errors + inboundResult.errors,
+  };
+}
+
+/**
+ * Active backstop for STK push requests whose "incoming_payment" webhook
+ * never arrives — same unreliable-webhook problem the payout reconciler
+ * above solves, on the inbound side. Confirmed live against a real stuck
+ * event (org 33): the customer had genuinely paid — Kopo Kopo's own API
+ * showed status "Success" with a real M-Pesa receipt — a full day before
+ * anyone noticed nothing had been recorded, because nothing was ever
+ * polling for it; only the outbound direction had this backstop. Reuses
+ * applyInbound() so a resolved payment goes through the exact same
+ * matching/rounding/recordPayment/receipt path a real webhook delivery
+ * would have taken.
+ */
+export async function reconcileUnconfirmedKopoKopoIncomingPayments(olderThanMinutes = 3, onlyOrgId?: number): Promise<{ checked: number; confirmed: number; reversed: number; stillPending: number; errors: number }> {
+  const cutoff = new Date(Date.now() - olderThanMinutes * 60_000).toISOString();
+  const conditions = [
+    eq(paymentEvents.gatewayId, "kopokopo"),
+    eq(paymentEvents.direction, "in"),
+    eq(paymentEvents.status, "pending"),
+    sql`${paymentEvents.createdAt} < ${cutoff}`,
+  ];
+  if (onlyOrgId) conditions.push(eq(paymentEvents.orgId, onlyOrgId));
+  const rows = await db.select().from(paymentEvents).where(and(...conditions));
+
+  let confirmed = 0, reversed = 0, stillPending = 0, errors = 0;
+  for (const row of rows) {
+    try {
+      await orgContext.run(row.orgId, async () => {
+        const [gwConfig] = await db.select().from(paymentGateways).where(and(eq(paymentGateways.orgId, row.orgId), eq(paymentGateways.gatewayId, "kopokopo"))).limit(1);
+        if (!gwConfig) { errors++; return; }
+        const gateway = getGateway(gwConfig);
+        if (!gateway.checkIncomingPaymentStatus) { errors++; return; }
+
+        const result = await gateway.checkIncomingPaymentStatus(row.providerRef);
+        if (!result) { stillPending++; return; }
+
+        if (isInboundFailure(result)) {
+          const [closed] = await db.update(paymentEvents)
+            .set({ status: "failed", rawJson: JSON.stringify(result.raw) })
+            .where(and(eq(paymentEvents.id, row.id), eq(paymentEvents.status, "pending")))
+            .returning({ id: paymentEvents.id });
+          if (closed) reversed++;
+          else stillPending++;
+        } else {
+          const outcome = await applyInbound(row.orgId, "kopokopo", result);
+          if (outcome.kind === "processed" && outcome.status === "applied") confirmed++;
+          else stillPending++;
+        }
+      });
+    } catch (e) {
+      console.error("reconcileUnconfirmedKopoKopoIncomingPayments failed for event", row.id, e);
+      errors++;
+    }
+  }
+
   return { checked: rows.length, confirmed, reversed, stillPending, errors };
 }
 
@@ -361,6 +425,20 @@ async function applyInbound(orgId: number, gatewayId: GatewayId, inbound: Inboun
         .limit(1);
       if (doc) {
         const balanceCents = doc.totalCents - doc.paidCents - doc.creditedCents;
+        // Already fully settled (paid elsewhere — a manual entry, a
+        // different gateway confirmation, or a genuine retry) — recording
+        // this on top would double-count real money as a phantom
+        // overpayment. Confirmed live: the STK reconciliation backstop hit
+        // exactly this for org 33/INV-1985 — the accountant had already
+        // recorded the same M-Pesa receipt manually while waiting for
+        // detection that never came, then this caught up and applied it a
+        // second time. Flag for manual review instead of blindly posting.
+        if (balanceCents <= 0) {
+          await db.update(paymentEvents)
+            .set({ status: "amount_mismatch", rawJson: JSON.stringify({ raw: inbound.raw, note: `Invoice already fully paid (balance ${balanceCents} cents) — not auto-recorded, check for a duplicate before applying manually.` }) })
+            .where(eq(paymentEvents.id, claimed.id));
+          return { kind: "processed", status: "amount_mismatch" };
+        }
         const diff = inbound.amountCents - balanceCents;
         // Cap at 99 cents — a whole-shilling rounding artifact is at most
         // that; anything larger is a real under/overpayment and must show up

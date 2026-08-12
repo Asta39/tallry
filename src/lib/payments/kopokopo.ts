@@ -96,6 +96,30 @@ function parseSendMoneyBody(body: any): InboundResult | null {
   return null;
 }
 
+/** Same shape whether it arrives as an "incoming_payment" webhook delivery
+ *  or as the response to GET on the resource's own self link — confirmed
+ *  identical against the live API. Shared by parseInbound (webhook path)
+ *  and checkIncomingPaymentStatus (active poll path), same reasoning as
+ *  parseSendMoneyBody above for payouts. */
+function parseIncomingPaymentBody(body: any): InboundResult | null {
+  const attrs = body.data?.attributes || {};
+  const resource = attrs.event?.resource;
+  const requestRef = body.data?.id;
+  if (attrs.status !== "Success" || !resource) {
+    return requestRef ? { failed: true as const, requestRef, raw: body } : null;
+  }
+  return {
+    providerRef: resource.reference,
+    amountCents: Math.round(Number(resource.amount) * 100),
+    payerPhone: resource.sender_phone_number,
+    payerName: [resource.sender_first_name, resource.sender_last_name].filter(Boolean).join(" ") || undefined,
+    accountRef: attrs.metadata?.accountRef,
+    requestRef,
+    paidAt: resource.origination_time || new Date().toISOString(),
+    raw: body,
+  };
+}
+
 export function getKopoKopoGateway(orgConfig: GatewayOrgConfig): PaymentGateway {
   const config = decryptConfig(orgConfig.configJson);
   const baseUrl = orgConfig.environment === "production" ? PROD_BASE : SANDBOX_BASE;
@@ -282,22 +306,7 @@ export function getKopoKopoGateway(orgConfig: GatewayOrgConfig): PaymentGateway 
       // STK push / payout status callbacks use the data.type envelope
       // (unlike webhook subscriptions which use topic).
       if (body.data?.type === "incoming_payment") {
-        const attrs = body.data.attributes || {};
-        const resource = attrs.event?.resource;
-        const requestRef = body.data.id;
-        if (attrs.status !== "Success" || !resource) {
-          return requestRef ? { failed: true as const, requestRef, raw: body } : null;
-        }
-        return {
-          providerRef: resource.reference,
-          amountCents: Math.round(Number(resource.amount) * 100),
-          payerPhone: resource.sender_phone_number,
-          payerName: [resource.sender_first_name, resource.sender_last_name].filter(Boolean).join(" ") || undefined,
-          accountRef: attrs.metadata?.accountRef,
-          requestRef,
-          paidAt: resource.origination_time || new Date().toISOString(),
-          raw: body,
-        };
+        return parseIncomingPaymentBody(body);
       }
 
       if (body.data?.type === "payment") {
@@ -381,6 +390,25 @@ export function getKopoKopoGateway(orgConfig: GatewayOrgConfig): PaymentGateway 
       if (!res.ok) throw await describeFailure(res, "Kopo Kopo payout status check failed");
       const body = await res.json();
       return parseSendMoneyBody(body);
+    },
+
+    // Active backstop for STK push requests whose "incoming_payment" webhook
+    // never arrives — confirmed directly against a real stuck production
+    // event (org 33, requestRef 1ed63259-...): the customer had genuinely
+    // paid (M-Pesa receipt UHBIA2IVYO, status "Success") a full day earlier,
+    // Kopo Kopo's own dashboard showed it received, and the callback_url was
+    // registered correctly — the webhook simply never landed. GET on the
+    // same resource id returns the identical envelope the webhook would
+    // have delivered, verified live before shipping this.
+    async checkIncomingPaymentStatus(requestId: string): Promise<InboundResult | null> {
+      const token = await getAccessToken();
+      const res = await fetch(`${baseUrl}/api/v1/incoming_payments/${requestId}`, {
+        headers: { Authorization: `Bearer ${token}`, "User-Agent": USER_AGENT, Accept: "application/json" },
+        signal: AbortSignal.timeout(15000),
+      });
+      if (!res.ok) throw await describeFailure(res, "Kopo Kopo incoming payment status check failed");
+      const body = await res.json();
+      return parseIncomingPaymentBody(body);
     },
   };
 }
