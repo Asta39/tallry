@@ -514,12 +514,18 @@ export async function postPayment(paymentId: number): Promise<number> {
       externalRef: `pmt:${p.id}`,
     });
 
-    if (await isKopoKopoRouted(p.method, bank)) {
+    // Kopo Kopo's flat fee only applies to money paid OUT through it (bill/
+    // PO/expense-claim payouts) — money received from a customer never
+    // incurs it, that's charged on the till side of a completely separate
+    // Kopo Kopo account, not this org's. Scoping this to direction "out"
+    // corrects an earlier version that wrongly charged it on invoice
+    // payments received too.
+    if (p.direction === "out" && (await isKopoKopoRouted(p.method, bank))) {
       await postKopoKopoFee({
         bankId: bank.id,
         bankAccountId: bank.accountId,
         date: p.date,
-        sourceType: p.direction === "in" ? "customer_payment" : "vendor_payment",
+        sourceType: "vendor_payment",
         sourceId: p.id,
         memo: `Payment ${p.number}`,
       });

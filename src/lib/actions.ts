@@ -600,6 +600,11 @@ async function _saveDocument(data: {
   saveAsTemplate?: boolean;
   createdByName?: string;
   createdByRole?: string;
+  /** Credit notes only — the invoice this credit note is against, tagged
+   *  for lineage (same field _createCreditNoteFromInvoice sets when it
+   *  copies an invoice's lines wholesale) even when the credit note is
+   *  built freehand for a partial amount instead. Only applied on create. */
+  sourceInvoiceId?: number;
   lines: DocLineInput[];
 }): Promise<number> {
   // Cost attribution only applies to money going out. Silently drop it on sales
@@ -817,6 +822,13 @@ async function _saveDocument(data: {
           }))
         );
       }
+    }
+
+    if (!data.id && data.type === "credit_note" && data.sourceInvoiceId) {
+      await tx
+        .update(documents)
+        .set({ sourceDocId: data.sourceInvoiceId })
+        .where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, savedDocId)));
     }
 
     return savedDocId;

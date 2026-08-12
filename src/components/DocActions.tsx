@@ -223,18 +223,29 @@ export function DocActions({
           </button>
         )}
         {doc.type === "invoice" && ["open", "partial", "paid"].includes(doc.status) && (
-          <button
-            className={secondary}
-            disabled={pending}
-            onClick={() =>
-              start(async () => {
-                const id = await createCreditNoteFromInvoice(doc.id);
-                router.push(`/sales/credit-notes/${id}`);
-              })
-            }
-          >
-            Create credit note
-          </button>
+          <>
+            <button
+              className={secondary}
+              disabled={pending}
+              title="Copies every line at its full amount"
+              onClick={() =>
+                start(async () => {
+                  const id = await createCreditNoteFromInvoice(doc.id);
+                  router.push(`/sales/credit-notes/${id}`);
+                })
+              }
+            >
+              Full credit note
+            </button>
+            <button
+              className={secondary}
+              disabled={pending}
+              title="Pick your own lines/amount, linked back to this invoice"
+              onClick={() => router.push(`/sales/credit-notes/new?invoice=${doc.id}`)}
+            >
+              Partial credit note →
+            </button>
+          </>
         )}
         {doc.type === "purchase_order" && ["open", "partial"].includes(doc.status) && (
           <button className={secondary} disabled={pending} onClick={() => setShowConvertPo((v) => !v)}>

@@ -98,6 +98,8 @@ export function DocumentEditor({
   customDocumentColumnName,
   members,
   initialData,
+  sourceInvoiceId,
+  defaultNotes,
 }: {
   type: "invoice" | "quote" | "credit_note" | "bill" | "expense" | "purchase_order";
   contacts: Option[];
@@ -125,6 +127,13 @@ export function DocumentEditor({
   customDocumentColumnName?: string | null;
   members?: Option[];
   initialData?: EditorInitialData;
+  /** Credit notes only — tags lineage back to a specific invoice without
+   *  copying its lines (unlike the "Full credit note" button, which copies
+   *  everything at full amount via createCreditNoteFromInvoice). Lets staff
+   *  build a partial-amount credit note freehand while still linking it to
+   *  the invoice it's against. Only applied when creating a new document. */
+  sourceInvoiceId?: number;
+  defaultNotes?: string;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -144,7 +153,7 @@ export function DocumentEditor({
   const [date, setDate] = useState(initialData?.date ?? todayISO());
   const [dueDate, setDueDate] = useState(initialData?.dueDate ?? "");
   const [taxInclusive, setTaxInclusive] = useState(initialData?.taxInclusive ?? false);
-  const [notes, setNotes] = useState(initialData?.notes ?? "");
+  const [notes, setNotes] = useState(initialData?.notes ?? defaultNotes ?? "");
   const [billNumber, setBillNumber] = useState(initialData?.billNumber ?? "");
   const [payoutDestinationType, setPayoutDestinationType] = useState<"phone" | "till" | "paybill">(initialData?.payoutDestinationType ?? "phone");
   const [payoutDestination, setPayoutDestination] = useState(initialData?.payoutDestination ?? "");
@@ -341,6 +350,7 @@ export function DocumentEditor({
           isTemplate: initialData?.isTemplate,
           saveAsTemplate,
           issue: issue && !isAlreadyIssued,
+          sourceInvoiceId: type === "credit_note" && !initialData?.id ? sourceInvoiceId : undefined,
           lines: finalLines,
         });
         if (res.error || !res.id) throw new Error(res.error || "Could not save document");
