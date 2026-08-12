@@ -14,6 +14,9 @@ import { db, announcements, teamAnnouncements } from "@/db";
 import { eq, desc, and } from "drizzle-orm";
 import Link from "next/link";
 import { TeamAnnouncementBanner } from "@/components/TeamAnnouncementBanner";
+import { BlurProvider } from "@/components/BlurContext";
+import { BlurToggleSwitch } from "@/components/BlurToggleSwitch";
+import { BlurScope } from "@/components/BlurScope";
 
 const roleLabels: Record<string, string> = {
   admin: "Admin",
@@ -84,13 +87,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           timeTrackingEnabled={access.orgRow.timeTrackingEnabled}
           topOffsetClass={announcement ? "top-9" : "top-0"}
         />
+        <BlurProvider>
         <main className="flex-1 min-w-0 flex flex-col h-screen overflow-y-auto">
           {announcement && <div className="h-9 md:hidden shrink-0 no-print" />}
           <div className="h-[76px] md:hidden shrink-0 no-print" />
           <div className="sticky top-[76px] md:top-0 z-30 bg-white/80 backdrop-blur-md border-b border-[var(--color-ink-100)] px-4 py-3 md:py-0 md:px-8 md:h-14 flex items-center justify-between no-print gap-4">
-            <div className="flex-1 hidden md:block max-w-[150px]">
-              <Link 
-                href="/settings/billing" 
+            <div className="flex-1 hidden md:flex items-center gap-3 max-w-[150px]">
+              <Link
+                href="/settings/billing"
                 className={`inline-flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-full transition-colors ${
                   ents.status === "expired"
                     ? "bg-red-50 text-red-700 hover:bg-red-100"
@@ -105,19 +109,22 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               <div className="flex-1 min-w-0">
                 <GlobalSearch />
               </div>
+              <BlurToggleSwitch />
               <NotificationBell orgId={access.orgId} memberId={access.memberId} variant="inline" />
             </div>
             <div className="hidden md:block flex-1 max-w-md mx-auto">
               <GlobalSearch />
             </div>
-            <div className="flex-1 hidden md:flex justify-end max-w-[150px]">
+            <div className="flex-1 hidden md:flex items-center justify-end gap-3 max-w-[150px]">
+              <BlurToggleSwitch />
               <NotificationBell orgId={access.orgId} memberId={access.memberId} />
             </div>
           </div>
           <div className="px-4 py-6 md:px-8 md:py-7 max-w-[1200px] w-full mx-auto flex-1 flex flex-col">
-            {children}
+            <BlurScope>{children}</BlurScope>
           </div>
         </main>
+        </BlurProvider>
       </div>
       <AiAssistantPill initialBriefCount={brief?.count ?? 0} brandColor={access.orgRow.brandColor} />
     </>
