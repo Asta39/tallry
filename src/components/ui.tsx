@@ -97,15 +97,26 @@ const pillLabels: Record<string, string> = {
   pending_approval: "Awaiting approval",
 };
 
-export function StatusPill({ status, overdue }: { status: string; overdue?: boolean }) {
+// Credit notes aren't paid by the customer — they're a credit balance the
+// customer draws down against future invoices, so the invoice-oriented
+// "Awaiting payment"/"Partly paid"/"Paid" labels are backwards for them.
+const creditNotePillLabels: Record<string, string> = {
+  open: "Available",
+  partial: "Partly applied",
+  paid: "Fully applied",
+  overdue: "Available",
+};
+
+export function StatusPill({ status, overdue, docType }: { status: string; overdue?: boolean; docType?: string }) {
   const s = overdue && (status === "open" || status === "partial") ? "overdue" : status;
+  const labels = docType === "credit_note" ? creditNotePillLabels : pillLabels;
   return (
     <span
       className={`inline-block rounded-full px-2.5 py-0.5 text-[11px] font-medium ${
         pillStyles[s] ?? pillStyles.draft
       }`}
     >
-      {pillLabels[s] ?? s}
+      {labels[s] ?? pillLabels[s] ?? s}
     </span>
   );
 }
