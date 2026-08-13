@@ -21,6 +21,7 @@ export function DocListClient({
   basePath,
   isTemplate,
   currentPage,
+  showPaidCard = true,
 }: {
   orgId: number;
   type: string;
@@ -30,6 +31,7 @@ export function DocListClient({
   basePath: string;
   isTemplate?: boolean;
   currentPage: number;
+  showPaidCard?: boolean;
 }) {
   const today = todayISO();
   const router = useRouter();
@@ -105,7 +107,7 @@ export function DocListClient({
           { label: "Pending", value: stats.pending, key: "open", color: "text-blue-600" },
           { label: "Partial", value: stats.partial, key: "partial", color: "text-orange-500" },
           { label: "Overdue", value: stats.overdue, key: "overdue", color: "text-red-600" },
-          { label: "Paid", value: stats.paid, key: "paid", color: "text-green-600" },
+          ...(showPaidCard ? [{ label: "Paid", value: stats.paid, key: "paid", color: "text-green-600" }] : []),
         ].map((s) => (
           <div
             key={s.key}
@@ -117,7 +119,7 @@ export function DocListClient({
             <div className="text-[10px] sm:text-[11px] uppercase tracking-wider text-[var(--color-ink-500)] font-medium mb-1 truncate">
               {s.label}
             </div>
-            <div className={`text-base sm:text-lg font-bold truncate ${s.color}`} title={fmtKES(s.value)}>
+            <div className={`stat-figure text-base sm:text-lg font-bold truncate ${s.color}`} title={fmtKES(s.value)}>
               {fmtKES(s.value)}
             </div>
           </div>

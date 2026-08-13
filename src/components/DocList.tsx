@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { db, documents, contacts, documentAssignments } from "@/db";
+import { db, documents, contacts, documentAssignments, org as orgTable } from "@/db";
 import { and, desc, eq, exists, or, ilike, sql } from "drizzle-orm";
 import { getAccessCached, canViewAllData } from "@/lib/access";
 import { fmtKES, todayISO } from "@/lib/money";
@@ -34,6 +34,12 @@ export async function DocList({
   if (!access) return null;
   const orgId = access.orgId;
   const viewAll = canViewAllData(access);
+  // Same admin-controlled visibility as the staff home dashboard's
+  // "Collected this year" card — hides how much money has actually been
+  // collected from staff who can't see org-wide data, while owner/admin
+  // always see it.
+  const [orgRow] = await db.select({ showCollectedThisYearCard: orgTable.showCollectedThisYearCard }).from(orgTable).where(eq(orgTable.id, orgId)).limit(1);
+  const showPaidCard = viewAll || (orgRow?.showCollectedThisYearCard ?? true);
 
   const baseWhere = and(
     eq(documents.orgId, orgId),
@@ -162,6 +168,7 @@ export async function DocList({
           basePath={basePath}
           isTemplate={isTemplate}
           currentPage={page}
+          showPaidCard={showPaidCard}
         />
       )}
     </>

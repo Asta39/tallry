@@ -74,7 +74,7 @@ export function ContactOpeningBalanceCard({
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="text-[12.5px] text-[var(--color-ink-600)]">Balance brought forward</div>
-            <div className="money-lg mt-1">{fmtKES(openingBalanceCents)}</div>
+            <div className="stat-figure money-lg mt-1">{fmtKES(openingBalanceCents)}</div>
             <div className="text-[11.5px] text-[var(--color-ink-400)] mt-0.5">
               {openingBalanceDate ? `As of ${openingBalanceDate}` : "Not set — import from a previous system if this contact carries a balance"}
             </div>

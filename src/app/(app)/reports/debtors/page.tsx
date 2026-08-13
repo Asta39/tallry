@@ -48,7 +48,7 @@ export default async function DebtorsPage({
         <div className="text-[12.5px] text-[var(--color-ink-600)]">
           {staffName ? `Owed on ${staffName}'s invoices` : "Total owed by all debtors"}
         </div>
-        <div className="money-lg mt-1">{fmtKES(totalOwedCents)}</div>
+        <div className="stat-figure money-lg mt-1">{fmtKES(totalOwedCents)}</div>
       </div>
 
       {debtors.length === 0 ? (

@@ -141,8 +141,8 @@ export function StatCard({
       ? "text-[var(--color-warn)]"
       : "";
   const amountClass = compact
-    ? "text-[19px] font-semibold tracking-tight tnum mt-1 break-words"
-    : "money-lg mt-1";
+    ? "stat-figure text-[19px] font-semibold tracking-tight tnum mt-1 break-words"
+    : "stat-figure money-lg mt-1";
   return (
     <div className="card px-5 py-4">
       <div className="text-[12.5px] text-[var(--color-ink-600)]">{label}</div>

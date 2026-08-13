@@ -57,7 +57,7 @@ export function MoneyAccountsClient({ banks }: { banks: MoneyAccount[] }) {
             <div className="flex items-start justify-between gap-3">
               <div>
                 <div className="text-[12.5px] text-[var(--color-ink-600)]">{b.name}</div>
-                <div className="money-lg mt-1">{fmtKES(b.balanceCents)}</div>
+                <div className="stat-figure money-lg mt-1">{fmtKES(b.balanceCents)}</div>
                 <div className="text-[11px] uppercase tracking-wide text-[var(--color-ink-400)] mt-0.5">{b.kind}</div>
               </div>
               {["bank", "mpesa"].includes(b.kind) && (

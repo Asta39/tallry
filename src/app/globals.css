@@ -93,10 +93,11 @@ html {
 }
 .tnum { font-variant-numeric: tabular-nums; }
 
-/* Privacy blur — toggled by BlurToggleWrapper, scoped to whichever screen
-   opts in (e.g. Bank & M-Pesa) rather than the whole app. */
-.blur-scope[data-blurred="1"] .money-lg,
-.blur-scope[data-blurred="1"] .tnum {
+/* Privacy blur — toggled by the app-wide switch in the top bar. Scoped to
+   .stat-figure only (the headline number on a KPI/summary card) — NOT every
+   .money-lg/.tnum, which also covers individual document rows, the
+   calendar, etc. and would blur things nobody asked to hide. */
+.blur-scope[data-blurred="1"] .stat-figure {
   filter: blur(6px);
   user-select: none;
   transition: filter 0.15s;
