@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { and, eq } from "drizzle-orm";
-import { db, items } from "@/db";
+import { and, eq, inArray } from "drizzle-orm";
+import { db, items, accounts } from "@/db";
 import { requirePerm } from "@/lib/guard";
 import { getOrg } from "@/lib/org";
 import { saveItem } from "@/lib/actions";
@@ -39,6 +39,12 @@ export default async function EditItemPage({ params }: { params: Promise<{ id: s
     ? await Promise.all([listItemBom(itemId), listBomComponentOptions(itemId)])
     : [[], []];
 
+  const expenseAccounts = await db
+    .select({ id: accounts.id, code: accounts.code, name: accounts.name })
+    .from(accounts)
+    .where(and(eq(accounts.orgId, o.id), inArray(accounts.type, ["expense"]), eq(accounts.archived, false)))
+    .orderBy(accounts.code);
+
   const groupsRequired = o.itemGroupsEnabled;
   const noGroupsYetWarning = groupsRequired && groups.length === 0;
   // Defensive: an item's kind could predate the type that named it (legacy
@@ -65,6 +71,7 @@ export default async function EditItemPage({ params }: { params: Promise<{ id: s
       trackInventory: formData.get("trackInventory") === "on",
       reorderLevel: Number(formData.get("reorderLevel") || 0),
       measurementType: (formData.get("measurementType") || null) as "length" | "area" | null,
+      purchaseAccountId: formData.get("purchaseAccountId") ? Number(formData.get("purchaseAccountId")) : null,
     });
     redirect("/items");
   }
@@ -121,6 +128,18 @@ export default async function EditItemPage({ params }: { params: Promise<{ id: s
         <label className="block">
           <span className={label}>Buying cost (KSh)</span>
           <input name="purchaseCost" defaultValue={(row.purchaseCostCents / 100).toFixed(2)} className={input} />
+        </label>
+        <label className="block col-span-2">
+          <span className={label}>Default category on bills/expenses/POs</span>
+          <select name="purchaseAccountId" className={input} defaultValue={row.purchaseAccountId ?? ""}>
+            <option value="">No default — pick it on each line</option>
+            {expenseAccounts.map((a) => (
+              <option key={a.id} value={a.id}>{a.code} · {a.name}</option>
+            ))}
+          </select>
+          <p className="text-[11px] text-[var(--color-ink-400)] mt-1">
+            Auto-fills the category whenever this item is picked on a bill, expense, or purchase order.
+          </p>
         </label>
         <label className="block col-span-2">
           <span className={label}>Description</span>

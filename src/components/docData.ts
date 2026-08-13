@@ -58,6 +58,7 @@ export async function editorOptions(side: "sale" | "purchase") {
       unit: i.unit,
       trackInventory: i.trackInventory,
       measurementType: i.measurementType,
+      purchaseAccountId: i.purchaseAccountId,
     })),
     itemGroups: itemGroupRows.map((g) => ({ id: g.id, label: g.name })),
     itemGroupsRequired: org.itemGroupsEnabled,

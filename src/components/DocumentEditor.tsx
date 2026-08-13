@@ -18,6 +18,10 @@ type ItemOption = {
   unit: string;
   trackInventory: boolean;
   measurementType?: string | null;
+  /** Default bill/expense/PO category — auto-fills the line's category
+   *  when this item is picked, so it isn't left blank (and blocking save)
+   *  for something the item itself already knows the answer to. */
+  purchaseAccountId?: number | null;
 };
 
 interface EditorLine {
@@ -262,11 +266,17 @@ export function DocumentEditor({
   function pickItem(i: number, itemId: number) {
     const it = items.find((x) => x.id === itemId);
     if (!it) return;
+    const isSpendDoc = type === "bill" || type === "expense" || type === "purchase_order";
     update(i, {
       itemId,
       description: it.name,
       price: ((isSale ? it.salePriceCents : it.purchaseCostCents || it.salePriceCents) / 100).toFixed(2),
       taxClass: (it.taxClass as TaxClass) ?? "B16",
+      // Auto-fill the category from the item's own saved default — without
+      // this, picking an item on a bill/expense/PO auto-filled everything
+      // EXCEPT category, which then blocked saving with "pick a category"
+      // for something the item already had an answer for.
+      ...(isSpendDoc && !it.trackInventory ? { accountId: it.purchaseAccountId ?? null } : {}),
     });
   }
 

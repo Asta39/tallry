@@ -9,6 +9,8 @@ import { listItemGroups } from "@/lib/item-groups";
 import { listItemTypes } from "@/lib/item-types";
 import { ItemKindGroupFields } from "@/components/ItemKindGroupFields";
 import Link from "next/link";
+import { db, accounts } from "@/db";
+import { and, eq, inArray } from "drizzle-orm";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +21,11 @@ const label = "text-[12px] font-medium text-[var(--color-ink-600)]";
 export default async function NewItemPage() {
   await requirePerm("items");
   const [o, groups, types] = await Promise.all([getOrg(), listItemGroups(), listItemTypes()]);
+  const expenseAccounts = await db
+    .select({ id: accounts.id, code: accounts.code, name: accounts.name })
+    .from(accounts)
+    .where(and(eq(accounts.orgId, o.id), inArray(accounts.type, ["expense"]), eq(accounts.archived, false)))
+    .orderBy(accounts.code);
   const groupsRequired = o.itemGroupsEnabled;
   const noGroupsYetWarning = groupsRequired && groups.length === 0;
   async function create(formData: FormData) {
@@ -37,6 +44,7 @@ export default async function NewItemPage() {
       openingQty: Number(formData.get("openingQty") || 0),
       openingUnitCostCents: parseKES(String(formData.get("openingCost") || "0")) || 0,
       measurementType: (formData.get("measurementType") || null) as "length" | "area" | null,
+      purchaseAccountId: formData.get("purchaseAccountId") ? Number(formData.get("purchaseAccountId")) : null,
     });
     redirect("/items");
   }
@@ -86,6 +94,18 @@ export default async function NewItemPage() {
         <label className="block">
           <span className={label}>Buying cost (KSh)</span>
           <input name="purchaseCost" className={input} placeholder="0.00" />
+        </label>
+        <label className="block col-span-2">
+          <span className={label}>Default category on bills/expenses/POs</span>
+          <select name="purchaseAccountId" className={input} defaultValue="">
+            <option value="">No default — pick it on each line</option>
+            {expenseAccounts.map((a) => (
+              <option key={a.id} value={a.id}>{a.code} · {a.name}</option>
+            ))}
+          </select>
+          <p className="text-[11px] text-[var(--color-ink-400)] mt-1">
+            Auto-fills the category whenever this item is picked on a bill, expense, or purchase order — skip if this item's cost varies by category.
+          </p>
         </label>
         <label className="block col-span-2">
           <span className={label}>VAT treatment</span>

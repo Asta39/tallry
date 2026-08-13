@@ -413,6 +413,11 @@ async function _saveItem(data: {
   openingQty?: number;
   openingUnitCostCents?: number;
   measurementType?: "length" | "area" | null;
+  /** Default expense/COGS category for this item's bill/expense/PO lines —
+   *  auto-fills the line's category when the item is picked, so staff
+   *  aren't left staring at "pick a category" for something the item
+   *  itself already knows the answer to every single time it's bought. */
+  purchaseAccountId?: number | null;
 }) {
   const orgId = currentOrgId();
   const itemGroupId = await validateItemGroup(orgId, data.itemGroupId, data.kind);
@@ -471,6 +476,7 @@ async function _saveItem(data: {
         trackInventory: data.trackInventory,
         reorderLevel: data.reorderLevel,
         measurementType: data.measurementType || null,
+        purchaseAccountId: data.purchaseAccountId || null,
       })
       .where(and(eq(items.orgId, currentOrgId()), eq(items.id, data.id)));
   } else {
@@ -489,6 +495,7 @@ async function _saveItem(data: {
         trackInventory: data.trackInventory,
         reorderLevel: data.reorderLevel,
         measurementType: data.measurementType || null,
+        purchaseAccountId: data.purchaseAccountId || null,
         salesAccountId: salesAcc?.id,
       })
       .returning();
