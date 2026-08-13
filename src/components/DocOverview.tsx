@@ -103,17 +103,17 @@ export function DocOverview({
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div className="rounded-lg border border-[var(--color-ink-100)] px-4 py-3">
             <div className="text-[12px] font-medium" style={{ color: C.amber }}>Outstanding invoices</div>
-            <div className="text-[17px] font-semibold tnum mt-0.5">{fmtKES(data.outstandingCents)}</div>
+            <div className="stat-figure text-[17px] font-semibold tnum mt-0.5">{fmtKES(data.outstandingCents)}</div>
           </div>
           <div className="rounded-lg border border-[var(--color-ink-100)] px-4 py-3">
             <div className="text-[12px] font-medium text-[var(--color-ink-600)]">Past due invoices</div>
-            <div className="text-[17px] font-semibold tnum mt-0.5" style={{ color: data.pastDueCents > 0 ? C.red : undefined }}>
+            <div className="stat-figure text-[17px] font-semibold tnum mt-0.5" style={{ color: data.pastDueCents > 0 ? C.red : undefined }}>
               {fmtKES(data.pastDueCents)}
             </div>
           </div>
           <div className="rounded-lg border border-[var(--color-ink-100)] px-4 py-3">
             <div className="text-[12px] font-medium" style={{ color: C.green }}>Paid invoices</div>
-            <div className="text-[17px] font-semibold tnum mt-0.5">{fmtKES(data.paidCents)}</div>
+            <div className="stat-figure text-[17px] font-semibold tnum mt-0.5">{fmtKES(data.paidCents)}</div>
           </div>
         </div>
       </div>

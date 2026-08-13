@@ -47,6 +47,42 @@ export async function createEmployeeAction(formData: FormData) {
   revalidatePath("/payroll/employees");
 }
 
+export async function updateEmployeeAction(employeeId: number, formData: FormData) {
+  await requirePerm("payroll");
+  const o = await getOrg();
+
+  const name = formData.get("name") as string;
+  const kraPin = formData.get("kraPin") as string;
+  const nssfNumber = formData.get("nssfNumber") as string;
+  const shifNumber = formData.get("shifNumber") as string;
+  const basicSalary = parseFloat(formData.get("basicSalary") as string);
+  const basicSalaryCents = Math.round(basicSalary * 100);
+
+  if (!name?.trim()) {
+    throw new Error("Employee name is required");
+  }
+  if (!Number.isFinite(basicSalary) || basicSalaryCents < 0) {
+    throw new Error("Enter a valid basic salary");
+  }
+  if (kraPin?.trim() && !/^[A-Za-z]\d{9}[A-Za-z]$/.test(kraPin.trim())) {
+    throw new Error("KRA PIN format looks wrong (e.g. A123456789Z) — leave it blank if you don't have it yet");
+  }
+
+  await db
+    .update(employees)
+    .set({
+      name: name.trim(),
+      kraPin: kraPin?.trim() || null,
+      nssfNumber: nssfNumber?.trim() || null,
+      shifNumber: shifNumber?.trim() || null,
+      basicSalaryCents,
+    })
+    .where(and(eq(employees.id, employeeId), eq(employees.orgId, o.id)));
+
+  revalidatePath(`/payroll/employees/${employeeId}`);
+  revalidatePath("/payroll/employees");
+}
+
 export async function toggleEmployeeStatusAction(employeeId: number, isActive: boolean) {
   const access = await getAccess();
   if (!access || access.role !== "admin") {

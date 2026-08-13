@@ -5,9 +5,11 @@ import { and, eq, desc } from "drizzle-orm";
 import { getOrg } from "@/lib/org";
 import { requirePerm } from "@/lib/guard";
 import { notFound } from "next/navigation";
-import { PageHeader, TableCard, Th, Td, PrimaryLink } from "@/components/ui";
+import { PageHeader, TableCard, Th, Td, StatCard } from "@/components/ui";
 import { fmtKES } from "@/lib/money";
 import Link from "next/link";
+import { ToggleEmployeeStatusButton } from "../ToggleEmployeeStatusButton";
+import { EditEmployeeModal } from "./EditEmployeeModal";
 
 export default async function EmployeeDetailPage(props: { params: Promise<{ id: string }> }) {
   await requirePerm("payroll");
@@ -44,141 +46,144 @@ export default async function EmployeeDetailPage(props: { params: Promise<{ id: 
     ))
     .orderBy(desc(payrollRuns.month));
 
+  const activeLoanBalance = loans.filter((l) => l.status === "active").reduce((s, l) => s + l.balanceCents, 0);
+
   return (
-    <div className="max-w-4xl mx-auto space-y-8">
-      <div className="flex items-center justify-between">
-        <PageHeader 
-          title={employee.name}
-          subtitle={`Employee Profile & History`}
-        />
-        <a 
-          href={`/api/pdf/employee/${employee.id}?download=1`}
-          target="_blank"
-          className="inline-flex items-center gap-2 bg-white border border-[var(--color-ink-200)] text-[var(--color-ink-700)] hover:bg-[var(--color-ink-50)] px-3 py-1.5 rounded-lg text-[13px] font-medium shadow-sm transition-colors"
-        >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-          </svg>
-          Export Profile PDF
-        </a>
+    <>
+      <PageHeader
+        title={employee.name}
+        subtitle="Employee profile & history"
+        action={
+          <div className="flex items-center gap-2">
+            <EditEmployeeModal
+              employeeId={employee.id}
+              name={employee.name}
+              basicSalaryCents={employee.basicSalaryCents}
+              kraPin={employee.kraPin}
+              nssfNumber={employee.nssfNumber}
+              shifNumber={employee.shifNumber}
+            />
+            <a
+              href={`/api/pdf/employee/${employee.id}?download=1`}
+              target="_blank"
+              className="rounded-lg border border-[var(--color-ink-200)] bg-white hover:bg-[var(--color-ink-50)] text-[13px] font-medium px-4 py-2"
+            >
+              Export PDF
+            </a>
+          </div>
+        }
+      />
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+        <StatCard label="Basic salary" cents={employee.basicSalaryCents} />
+        <StatCard label="Active loan balance" cents={activeLoanBalance} tone={activeLoanBalance > 0 ? "warn" : "neutral"} />
+        <div className="card px-5 py-4">
+          <div className="text-[12.5px] text-[var(--color-ink-600)]">Status</div>
+          <div className="mt-2">
+            <ToggleEmployeeStatusButton employeeId={employee.id} isActive={employee.isActive} />
+          </div>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-white rounded-xl border border-[var(--color-ink-200)] p-6 shadow-sm">
-          <h3 className="text-[13px] font-semibold text-[var(--color-ink-900)] mb-4">Employee Details</h3>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="card p-5">
+          <h2 className="text-[13.5px] font-semibold mb-4">Statutory identifiers</h2>
           <dl className="space-y-3 text-[13px]">
             <div className="flex justify-between">
-              <dt className="text-[var(--color-ink-500)]">Basic Salary</dt>
-              <dd className="font-medium">{fmtKES(employee.basicSalaryCents)}</dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-[var(--color-ink-500)]">Status</dt>
-              <dd>
-                {employee.isActive ? (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                    Active
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
-                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                    Suspended
-                  </span>
-                )}
-              </dd>
-            </div>
-            <div className="flex justify-between">
               <dt className="text-[var(--color-ink-500)]">KRA PIN</dt>
-              <dd className="font-mono text-[var(--color-ink-700)]">{employee.kraPin || "Not provided"}</dd>
+              <dd className="font-mono text-[var(--color-ink-800)]">{employee.kraPin || "Not provided"}</dd>
             </div>
             <div className="flex justify-between">
               <dt className="text-[var(--color-ink-500)]">NSSF No.</dt>
-              <dd className="font-mono text-[var(--color-ink-700)]">{employee.nssfNumber || "Not provided"}</dd>
+              <dd className="font-mono text-[var(--color-ink-800)]">{employee.nssfNumber || "Not provided"}</dd>
             </div>
             <div className="flex justify-between">
               <dt className="text-[var(--color-ink-500)]">SHIF No.</dt>
-              <dd className="font-mono text-[var(--color-ink-700)]">{employee.shifNumber || "Not provided"}</dd>
+              <dd className="font-mono text-[var(--color-ink-800)]">{employee.shifNumber || "Not provided"}</dd>
             </div>
             <div className="flex justify-between">
               <dt className="text-[var(--color-ink-500)]">Registered</dt>
-              <dd className="text-[var(--color-ink-700)]">{employee.createdAt.slice(0, 10)}</dd>
+              <dd className="text-[var(--color-ink-800)]">{employee.createdAt.slice(0, 10)}</dd>
             </div>
           </dl>
         </div>
 
-        <div className="space-y-6">
-          <div>
-            <h3 className="text-[13px] font-semibold text-[var(--color-ink-900)] mb-3">Active Loans</h3>
-            {loans.length === 0 ? (
-              <div className="bg-white rounded-xl border border-[var(--color-ink-200)] p-4 text-center text-[12px] text-[var(--color-ink-500)]">
-                No loans on record.
-              </div>
-            ) : (
-              <TableCard>
-                <thead className="hairline-b">
-                  <tr>
-                    <Th>Issue Date</Th>
-                    <Th>Principal</Th>
-                    <Th>Balance</Th>
-                    <Th>Status</Th>
+        <div>
+          <h2 className="text-[13.5px] font-semibold mb-3">Active loans</h2>
+          {loans.length === 0 ? (
+            <div className="card px-5 py-8 text-center text-[13px] text-[var(--color-ink-400)]">
+              No loans on record.
+            </div>
+          ) : (
+            <TableCard>
+              <thead className="hairline-b">
+                <tr>
+                  <Th>Issue date</Th>
+                  <Th right>Principal</Th>
+                  <Th right>Balance</Th>
+                  <Th>Status</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {loans.map((loan) => (
+                  <tr key={loan.id} className="hairline-t hover:bg-[var(--color-ink-50)]/60">
+                    <Td>
+                      <Link href={`/payroll/loans/${loan.id}`} className="font-medium text-[var(--color-accent-600)] hover:underline">
+                        {loan.createdAt.slice(0, 10)}
+                      </Link>
+                    </Td>
+                    <Td right>{fmtKES(loan.principalCents)}</Td>
+                    <Td right className="font-medium">{fmtKES(loan.balanceCents)}</Td>
+                    <Td>
+                      <span
+                        className={`inline-flex px-2 py-0.5 rounded-full text-[11px] font-medium border ${
+                          loan.status === "active"
+                            ? "bg-amber-50 text-amber-700 border-amber-200"
+                            : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                        }`}
+                      >
+                        {loan.status === "active" ? "Active" : "Cleared"}
+                      </span>
+                    </Td>
                   </tr>
-                </thead>
-                <tbody>
-                  {loans.map(loan => (
-                    <tr key={loan.id} className="hairline-t hover:bg-[var(--color-ink-50)]/60">
-                      <Td>
-                        <Link href={`/payroll/loans/${loan.id}`} className="text-[var(--color-accent-600)] hover:underline">
-                          {loan.createdAt.slice(0, 10)}
-                        </Link>
-                      </Td>
-                      <Td>{fmtKES(loan.principalCents)}</Td>
-                      <Td>{fmtKES(loan.balanceCents)}</Td>
-                      <Td>
-                        {loan.status === "active" ? 
-                          <span className="badge badge-warning badge-sm">Active</span> : 
-                          <span className="badge badge-success badge-sm">Cleared</span>
-                        }
-                      </Td>
-                    </tr>
-                  ))}
-                </tbody>
-              </TableCard>
-            )}
-          </div>
-
-          <div>
-            <h3 className="text-[13px] font-semibold text-[var(--color-ink-900)] mb-3">Recent Payslips</h3>
-            {payslips.length === 0 ? (
-              <div className="bg-white rounded-xl border border-[var(--color-ink-200)] p-4 text-center text-[12px] text-[var(--color-ink-500)]">
-                No payslips generated yet.
-              </div>
-            ) : (
-              <TableCard>
-                <thead className="hairline-b">
-                  <tr>
-                    <Th>Month</Th>
-                    <Th>Gross Pay</Th>
-                    <Th>Action</Th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {payslips.map(ps => (
-                    <tr key={ps.runId} className="hairline-t hover:bg-[var(--color-ink-50)]/60">
-                      <Td className="font-medium">{ps.month}</Td>
-                      <Td>{fmtKES(ps.grossPay)}</Td>
-                      <Td>
-                        <Link href={`/payroll/runs/${ps.runId}`} className="text-[12px] text-[var(--color-accent-600)] hover:underline font-medium">
-                          View Run &rarr;
-                        </Link>
-                      </Td>
-                    </tr>
-                  ))}
-                </tbody>
-              </TableCard>
-            )}
-          </div>
+                ))}
+              </tbody>
+            </TableCard>
+          )}
         </div>
       </div>
-    </div>
+
+      <div className="mt-6">
+        <h2 className="text-[13.5px] font-semibold mb-3">Recent payslips</h2>
+        {payslips.length === 0 ? (
+          <div className="card px-5 py-8 text-center text-[13px] text-[var(--color-ink-400)]">
+            No payslips generated yet.
+          </div>
+        ) : (
+          <TableCard>
+            <thead className="hairline-b">
+              <tr>
+                <Th>Month</Th>
+                <Th right>Gross pay</Th>
+                <Th></Th>
+              </tr>
+            </thead>
+            <tbody>
+              {payslips.map((ps) => (
+                <tr key={ps.runId} className="hairline-t hover:bg-[var(--color-ink-50)]/60">
+                  <Td className="font-medium">{ps.month}</Td>
+                  <Td right>{fmtKES(ps.grossPay)}</Td>
+                  <Td right>
+                    <Link href={`/payroll/runs/${ps.runId}`} className="text-[12.5px] font-medium text-[var(--color-accent-600)] hover:underline">
+                      View run →
+                    </Link>
+                  </Td>
+                </tr>
+              ))}
+            </tbody>
+          </TableCard>
+        )}
+      </div>
+    </>
   );
 }
