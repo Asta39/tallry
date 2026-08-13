@@ -966,6 +966,15 @@ async function _convertQuoteToInvoice(quoteId: number): Promise<number> {
   // "accepted" instead of requiring it, so an accepted quote (the normal,
   // expected case) could never actually be converted; it always failed with
   // "already converted" even on the very first attempt.
+  // Captured BEFORE the claim below — .returning() on that UPDATE reflects
+  // the row AFTER it's applied (status already "converting"), so reading
+  // the restore value from there was a no-op that permanently stranded a
+  // quote in "converting" forever the moment anything downstream threw
+  // (confirmed live: the same bug in _convertPoToBill left a real PO stuck
+  // exactly this way, unrenderable and unbillable, with no way back).
+  const [before] = await db.select({ status: documents.status }).from(documents).where(and(eq(documents.orgId, orgId), eq(documents.id, quoteId))).limit(1);
+  const originalStatus = before?.status ?? "open";
+
   const [quote] = await db
     .update(documents)
     .set({ status: "converting" })
@@ -979,7 +988,7 @@ async function _convertQuoteToInvoice(quoteId: number): Promise<number> {
   } catch (e) {
     // Restore whatever status it actually held (open or accepted) rather than
     // hardcoding "open", which would silently discard an acceptance on failure.
-    await db.update(documents).set({ status: quote.status }).where(and(eq(documents.orgId, orgId), eq(documents.id, quoteId), eq(documents.status, "converting")));
+    await db.update(documents).set({ status: originalStatus }).where(and(eq(documents.orgId, orgId), eq(documents.id, quoteId), eq(documents.status, "converting")));
     throw e;
   }
   return invoiceId;
@@ -2162,6 +2171,16 @@ async function _createCreditNoteFromInvoice(invoiceId: number): Promise<number> 
  */
 async function _convertPoToBill(poId: number, lineQtys?: Record<number, number>): Promise<number> {
   const orgId = currentOrgId();
+  // Captured BEFORE the claim below — .returning() on that UPDATE reflects
+  // the row AFTER it's applied (status already "converting"), so the catch
+  // block's restore used to read this same already-mutated value and write
+  // "converting" right back — a no-op that permanently stranded the PO the
+  // moment anything downstream threw (confirmed live: org 33's PO-0036,
+  // unrenderable and unbillable, with billedQty never incremented since the
+  // final status-set line never ran either).
+  const [before] = await db.select({ status: documents.status }).from(documents).where(and(eq(documents.orgId, orgId), eq(documents.id, poId))).limit(1);
+  const originalStatus = before?.status ?? "open";
+
   // Atomic claim: a PO can be claimed from "open" (nothing billed yet) or "partial"
   // (some already billed) — but not from "closed" (fully billed) or mid-claim by
   // a concurrent request, closing the original "no guard at all" bug.
@@ -2258,7 +2277,7 @@ async function _convertPoToBill(poId: number, lineQtys?: Record<number, number>)
     revalidatePath("/purchases");
     return billId;
   } catch (e) {
-    await db.update(documents).set({ status: po.status }).where(and(eq(documents.orgId, orgId), eq(documents.id, poId), eq(documents.status, "converting")));
+    await db.update(documents).set({ status: originalStatus }).where(and(eq(documents.orgId, orgId), eq(documents.id, poId), eq(documents.status, "converting")));
     throw e;
   }
 }
