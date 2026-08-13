@@ -713,6 +713,12 @@ export const fixedAssets = pgTable("fixed_assets", {
   usefulLifeMonths: integer("useful_life_months").notNull(),
   depreciationMethod: text("depreciation_method").notNull().default("straight_line"),
   status: text("status").notNull().default("active"), // active | disposed
+  /** Set when the purchase itself was recorded here (DR asset · CR bank) —
+   *  null means the asset was registered without posting a purchase entry,
+   *  e.g. because it was already recorded via a bill elsewhere and this
+   *  registration exists purely to track depreciation. */
+  paidFromBankAccountId: integer("paid_from_bank_account_id"),
+  purchaseJournalEntryId: integer("purchase_journal_entry_id"),
   createdAt: text("created_at").notNull(),
 });
 
@@ -804,6 +810,14 @@ export const loanLedger = pgTable("loan_ledger", {
   installmentCents: money("installment_cents").notNull(),
   type: text("type").notNull().default("amortizing"), // amortizing, recurring_fixed
   status: text("status").notNull().default("active"), // active, paid, paused
+  /** Disbursement — DR Accounts Receivable (1200) · CR this bank/cash
+   *  account. Recovery already credited AR on every payroll deduction (see
+   *  payroll/runs/actions.ts) with no corresponding debit ever posted here,
+   *  which meant recovering a staff loan quietly drove AR negative forever.
+   *  Null when a loan predates this (or was deliberately not disbursed
+   *  through the org's own books — e.g. a pre-existing balance). */
+  disbursedFromBankAccountId: integer("disbursed_from_bank_account_id"),
+  disbursementJournalEntryId: integer("disbursement_journal_entry_id"),
   createdAt: text("created_at").notNull(),
 });
 

@@ -1,6 +1,6 @@
 import { requirePerm } from "@/lib/guard";
 import { getOrg } from "@/lib/org";
-import { db, accounts } from "@/db";
+import { db, accounts, bankAccounts } from "@/db";
 import { and, eq } from "drizzle-orm";
 import { PageHeader } from "@/components/ui";
 import { createAssetAction } from "../actions";
@@ -12,8 +12,11 @@ export default async function NewAssetPage() {
   const o = await getOrg();
 
   // Load all accounts to let the user map the asset, accumulated depreciation, and expense accounts
-  const allAccounts = await db.select().from(accounts).where(and(eq(accounts.orgId, o.id), eq(accounts.archived, false)));
-  
+  const [allAccounts, banks] = await Promise.all([
+    db.select().from(accounts).where(and(eq(accounts.orgId, o.id), eq(accounts.archived, false))),
+    db.select().from(bankAccounts).where(and(eq(bankAccounts.orgId, o.id), eq(bankAccounts.archived, false))),
+  ]);
+
   const assetAccounts = allAccounts.filter(a => a.type === "asset");
   const expenseAccounts = allAccounts.filter(a => a.type === "expense");
 
@@ -50,6 +53,17 @@ export default async function NewAssetPage() {
               <label className="label">Salvage / Residual Value (KES)</label>
               <input name="salvageValue" type="number" step="0.01" min="0" className="input input-bordered w-full" defaultValue="0" />
               <div className="text-xs text-base-content/50 mt-1">Value at the end of its useful life</div>
+            </div>
+
+            <div className="col-span-2">
+              <label className="label">Paid from</label>
+              <select name="paidFromBankAccountId" className="select select-bordered w-full" defaultValue="">
+                <option value="">Don't record the purchase — I've already booked it another way</option>
+                {banks.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+              </select>
+              <div className="text-xs text-base-content/50 mt-1">
+                Pick the account this was actually paid from to record the purchase itself (debits the asset account, credits this account). Leave as "already booked" if this asset's purchase was already recorded via a bill/expense elsewhere — picking a bank here on top of that would double-count it.
+              </div>
             </div>
           </div>
 

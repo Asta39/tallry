@@ -1,7 +1,7 @@
 import { requirePerm } from "@/lib/guard";
 import { getOrg } from "@/lib/org";
-import { db, employees } from "@/db";
-import { eq } from "drizzle-orm";
+import { db, employees, bankAccounts } from "@/db";
+import { and, eq } from "drizzle-orm";
 import { PageHeader, PrimaryButton } from "@/components/ui";
 import { createLoanAction } from "../actions";
 
@@ -11,7 +11,10 @@ export default async function NewLoanPage() {
   await requirePerm("payroll");
   const o = await getOrg();
 
-  const staff = await db.select().from(employees).where(eq(employees.orgId, o.id));
+  const [staff, banks] = await Promise.all([
+    db.select().from(employees).where(eq(employees.orgId, o.id)),
+    db.select().from(bankAccounts).where(and(eq(bankAccounts.orgId, o.id), eq(bankAccounts.archived, false))),
+  ]);
 
   return (
     <>
@@ -48,6 +51,19 @@ export default async function NewLoanPage() {
                 <option value="amortizing">Amortizing (Reducing Balance)</option>
                 <option value="recurring_fixed">Recurring Fixed</option>
               </select>
+            </div>
+
+            <div className="col-span-2">
+              <label className="block text-[11.5px] font-medium text-[var(--color-ink-500)] mb-1">Disbursed from</label>
+              <select name="disbursedFromBankAccountId" className="w-full rounded-lg border border-[var(--color-ink-200)] bg-white px-3 py-1.5 text-[13px] outline-none focus:border-[var(--color-accent-500)] focus:ring-2 focus:ring-[var(--color-accent-100)]" defaultValue="">
+                <option value="">Don't record the disbursement — this is a pre-existing balance</option>
+                {banks.map((b) => (
+                  <option key={b.id} value={b.id}>{b.name}</option>
+                ))}
+              </select>
+              <p className="text-[11px] text-[var(--color-ink-400)] mt-1">
+                Records the cash actually paid out (debits Accounts Receivable, credits this account) — repayments already reduce Accounts Receivable via payroll deductions, so this is what balances it out.
+              </p>
             </div>
           </div>
 

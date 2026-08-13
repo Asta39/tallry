@@ -890,3 +890,9 @@ ALTER TABLE org ADD COLUMN IF NOT EXISTS bom_enabled BOOLEAN NOT NULL DEFAULT FA
 ALTER TABLE org ADD COLUMN IF NOT EXISTS block_insufficient_stock BOOLEAN NOT NULL DEFAULT FALSE;
 
 ALTER TABLE items ADD COLUMN IF NOT EXISTS measurement_type TEXT;
+
+ALTER TABLE fixed_assets ADD COLUMN IF NOT EXISTS paid_from_bank_account_id INTEGER;
+ALTER TABLE fixed_assets ADD COLUMN IF NOT EXISTS purchase_journal_entry_id INTEGER;
+
+ALTER TABLE loan_ledger ADD COLUMN IF NOT EXISTS disbursed_from_bank_account_id INTEGER;
+ALTER TABLE loan_ledger ADD COLUMN IF NOT EXISTS disbursement_journal_entry_id INTEGER;

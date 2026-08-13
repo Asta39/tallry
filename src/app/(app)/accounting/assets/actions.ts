@@ -43,12 +43,34 @@ export async function createAssetAction(formData: FormData) {
   const purchaseCostCents = Math.round(parseFloat(formData.get("purchaseCost") as string) * 100);
   const salvageValueCents = Math.round(parseFloat(formData.get("salvageValue") as string || "0") * 100);
   const usefulLifeMonths = parseInt(formData.get("usefulLifeMonths") as string, 10);
+  const paidFromBankAccountId = formData.get("paidFromBankAccountId") ? parseInt(formData.get("paidFromBankAccountId") as string, 10) : null;
 
   if (!name || !assetAccountId || !depreciationAccountId || !expenseAccountId || !purchaseDate || purchaseCostCents <= 0 || usefulLifeMonths <= 0) {
     throw new Error("Missing or invalid required fields");
   }
 
-  await db.insert(fixedAssets).values({
+  // Records the purchase itself — DR the fixed asset account, CR the bank/
+  // M-Pesa account it was paid from — so registering an asset actually
+  // moves money in the books instead of just seeding depreciation tracking
+  // with no corresponding cash entry anywhere.
+  let purchaseJournalEntryId: number | null = null;
+  let bank: { id: number; accountId: number } | undefined;
+  if (paidFromBankAccountId) {
+    const [b] = await db.select().from(bankAccounts).where(and(eq(bankAccounts.orgId, o.id), eq(bankAccounts.id, paidFromBankAccountId))).limit(1);
+    if (!b) throw new Error("Bank/M-Pesa account not found");
+    bank = b;
+    purchaseJournalEntryId = await postEntry({
+      date: purchaseDate,
+      memo: `Purchase of fixed asset: ${name}`,
+      sourceType: "asset_purchase",
+      lines: [
+        { accountId: assetAccountId, debitCents: purchaseCostCents },
+        { accountId: bank.accountId, creditCents: purchaseCostCents },
+      ],
+    });
+  }
+
+  const [created] = await db.insert(fixedAssets).values({
     orgId: o.id,
     name,
     assetAccountId,
@@ -59,8 +81,21 @@ export async function createAssetAction(formData: FormData) {
     salvageValueCents,
     usefulLifeMonths,
     depreciationMethod: "straight_line",
+    paidFromBankAccountId,
+    purchaseJournalEntryId,
     createdAt: new Date().toISOString(),
-  });
+  }).returning();
+
+  if (bank && purchaseJournalEntryId) {
+    await mirrorBankTxn({
+      bankAccountId: bank.id,
+      date: purchaseDate,
+      description: `Asset purchase: ${name}`,
+      amountCents: -purchaseCostCents,
+      journalEntryId: purchaseJournalEntryId,
+      externalRef: `assetpurchase:${created.id}`,
+    });
+  }
 
   revalidatePath("/accounting/assets");
   redirect("/accounting/assets");
