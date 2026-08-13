@@ -117,7 +117,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             </div>
             <div className="flex-1 hidden md:flex items-center justify-end gap-3 max-w-[240px]">
               <BlurToggleSwitch withLabel />
-              <NotificationBell orgId={access.orgId} memberId={access.memberId} />
+              <NotificationBell orgId={access.orgId} memberId={access.memberId} variant="inline" />
             </div>
           </div>
           <div className="px-4 py-6 md:px-8 md:py-7 max-w-[1200px] w-full mx-auto flex-1 flex flex-col">
