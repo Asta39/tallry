@@ -444,12 +444,17 @@ async function _saveItem(data: {
   if (data.id) {
     const [existing] = await db.select().from(items).where(and(eq(items.orgId, orgId), eq(items.id, data.id))).limit(1);
     if (existing && existing.trackInventory !== data.trackInventory) {
-      const onHand = await stockOnHand(data.id);
-      if (existing.trackInventory && !data.trackInventory && onHand !== 0) {
-        throw new Error(`Can't stop tracking inventory while ${onHand} units are still on hand — adjust stock to zero first`);
-      }
-      if (!existing.trackInventory && data.trackInventory) {
-        throw new Error("Turning on inventory tracking for an existing item needs an opening-stock adjustment afterward — use Stock Adjust to record what's on hand");
+      // Turning tracking OFF while units are on hand would silently drop
+      // that stock from every valuation/aging report, so that's still
+      // blocked. Turning tracking ON is safe to allow outright: an item
+      // that's never been tracked has no FIFO lots, so onHand is always 0 —
+      // there's nothing to lose. The item just starts showing a "Stock
+      // Adjust" control (ItemsTable.tsx) to record what's actually on hand.
+      if (existing.trackInventory && !data.trackInventory) {
+        const onHand = await stockOnHand(data.id);
+        if (onHand !== 0) {
+          throw new Error(`Can't stop tracking inventory while ${onHand} units are still on hand — adjust stock to zero first`);
+        }
       }
     }
   }
