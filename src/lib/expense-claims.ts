@@ -3,7 +3,7 @@
 import crypto from "crypto";
 import { db, expenseClaims, accounts, bankAccounts, org, paymentGateways, paymentEvents, expenseClaimPayoutApprovals, payments, journalLines, journalEntries } from "@/db";
 import { nextNumber } from "@/lib/actions";
-import { eq, and, desc, or, isNull, notExists } from "drizzle-orm";
+import { eq, and, desc, or, isNull, notExists, gte, lte } from "drizzle-orm";
 import { withOrg, currentOrgId, getOrg, orgContext } from "@/lib/org";
 import { requirePerm } from "@/lib/guard";
 import { getAccess } from "@/lib/access";
@@ -198,9 +198,12 @@ export async function activeAdminApprovalClaimIds() {
  * by staff member and by category, so the accountant can see at a glance
  * who's owed what without opening each claim individually.
  */
-export async function pettyExpenseSummary() {
+export async function pettyExpenseSummary(range?: { from?: string; to?: string }) {
   return withOrg(async () => {
     const orgId = currentOrgId();
+    const conds = [eq(expenseClaims.orgId, orgId)];
+    if (range?.from) conds.push(gte(expenseClaims.date, range.from));
+    if (range?.to) conds.push(lte(expenseClaims.date, range.to));
     const claims = await db
       .select({
         id: expenseClaims.id,
@@ -217,7 +220,7 @@ export async function pettyExpenseSummary() {
       })
       .from(expenseClaims)
       .leftJoin(accounts, eq(accounts.id, expenseClaims.categoryAccountId))
-      .where(eq(expenseClaims.orgId, orgId))
+      .where(and(...conds))
       .orderBy(desc(expenseClaims.date));
 
     type StaffRow = { key: string; submittedByName: string; pendingCents: number; approvedUnpaidCents: number; paidCents: number; totalCents: number; count: number };

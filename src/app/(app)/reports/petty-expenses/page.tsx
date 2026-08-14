@@ -1,15 +1,43 @@
 import { requirePerm } from "@/lib/guard";
 import { withOrg } from "@/lib/org";
 import { pettyExpenseSummary } from "@/lib/expense-claims";
-import { fmtKES } from "@/lib/money";
+import { fmtKES, todayISO } from "@/lib/money";
 import { PageHeader, TableCard, Th, Td, StatusPill } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
-export default async function PettyExpensesPage() {
-  await requirePerm("reports");
+type Period = "day" | "week" | "month" | "all";
 
-  const { claims, byStaff, byCategory, readyToReimburseCents } = await withOrg(() => pettyExpenseSummary());
+function rangeFor(period: Period, today: string): { from?: string; to?: string } {
+  if (period === "all") return {};
+  const d = new Date(today + "T00:00:00Z");
+  if (period === "day") return { from: today, to: today };
+  if (period === "week") {
+    // Monday-start week containing today.
+    const dow = d.getUTCDay(); // 0 = Sunday
+    const back = dow === 0 ? 6 : dow - 1;
+    const monday = new Date(d);
+    monday.setUTCDate(d.getUTCDate() - back);
+    return { from: monday.toISOString().slice(0, 10), to: today };
+  }
+  // month
+  return { from: today.slice(0, 8) + "01", to: today };
+}
+
+export default async function PettyExpensesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ period?: string }>;
+}) {
+  await requirePerm("reports");
+  const { period: periodParam } = await searchParams;
+  const period: Period = periodParam === "day" || periodParam === "week" || periodParam === "month" ? periodParam : "all";
+
+  const range = rangeFor(period, todayISO());
+  const { claims, byStaff, byCategory, readyToReimburseCents } = await withOrg(() => pettyExpenseSummary(range));
+
+  const periodLabel: Record<Period, string> = { day: "Today", week: "This week", month: "This month", all: "All time" };
+  const tabs: Period[] = ["day", "week", "month", "all"];
 
   return (
     <>
@@ -17,6 +45,22 @@ export default async function PettyExpensesPage() {
         title="Petty Expenses"
         subtitle="Staff expense claims rolled up by person and category, for easy reimbursement"
       />
+
+      <div className="flex gap-2 mb-6">
+        {tabs.map((p) => (
+          <a
+            key={p}
+            href={p === "all" ? "/reports/petty-expenses" : `/reports/petty-expenses?period=${p}`}
+            className={`px-3.5 py-1.5 rounded-full text-[12.5px] font-medium border transition-colors ${
+              period === p
+                ? "bg-[var(--color-accent-500)] text-white border-[var(--color-accent-500)]"
+                : "bg-white text-[var(--color-ink-600)] border-[var(--color-ink-200)] hover:border-[var(--color-ink-400)]"
+            }`}
+          >
+            {periodLabel[p]}
+          </a>
+        ))}
+      </div>
 
       <div className="card px-5 py-4 mb-6 inline-block">
         <div className="text-[12.5px] text-[var(--color-ink-600)]">Approved, not yet paid out</div>
