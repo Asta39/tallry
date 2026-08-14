@@ -1,9 +1,9 @@
 "use server";
 
 import crypto from "crypto";
-import { db, expenseClaims, accounts, bankAccounts, org, paymentGateways, paymentEvents, expenseClaimPayoutApprovals, payments, journalLines, journalEntries } from "@/db";
+import { db, expenseClaims, accounts, bankAccounts, bankTransactions, org, paymentGateways, paymentEvents, expenseClaimPayoutApprovals, payments, journalLines, journalEntries } from "@/db";
 import { nextNumber } from "@/lib/actions";
-import { eq, and, desc, or, isNull, notExists, gte, lte } from "drizzle-orm";
+import { eq, and, desc, or, isNull, notExists, gte, lte, inArray } from "drizzle-orm";
 import { withOrg, currentOrgId, getOrg, orgContext } from "@/lib/org";
 import { requirePerm } from "@/lib/guard";
 import { getAccess } from "@/lib/access";
@@ -194,62 +194,132 @@ export async function activeAdminApprovalClaimIds() {
 }
 
 /**
- * Petty-expense reimbursement report: every claim (any status), rolled up
- * by staff member and by category, so the accountant can see at a glance
- * who's owed what without opening each claim individually.
+ * Petty-cash report: every transaction that actually moved through a "cash"
+ * kind bank account (Petty Cash), not just rows in the expense_claims table
+ * — a bill paid straight out of petty cash, a stock-take adjustment, or a
+ * reconciliation correction all touch the same physical cash and belong
+ * here too. Rows that trace back to a staff expense-claim payout (matched
+ * by the "expclaim:<id>" externalRef mirrorBankTxn() stamps on them) are
+ * attributed to that staff member and their claim's category; everything
+ * else is grouped as unattributed petty-cash spend under its own category.
  */
 export async function pettyExpenseSummary(range?: { from?: string; to?: string }) {
   return withOrg(async () => {
     const orgId = currentOrgId();
-    const conds = [eq(expenseClaims.orgId, orgId)];
-    if (range?.from) conds.push(gte(expenseClaims.date, range.from));
-    if (range?.to) conds.push(lte(expenseClaims.date, range.to));
-    const claims = await db
+
+    const cashBanks = await db
+      .select({ id: bankAccounts.id })
+      .from(bankAccounts)
+      .where(and(eq(bankAccounts.orgId, orgId), eq(bankAccounts.kind, "cash")));
+    const cashBankIds = cashBanks.map((b) => b.id);
+
+    if (cashBankIds.length === 0) {
+      return { activity: [], byStaff: [], byCategory: [], readyToReimburseCents: 0, totalOutCents: 0, totalInCents: 0 };
+    }
+
+    const conds = [eq(bankTransactions.orgId, orgId), inArray(bankTransactions.bankAccountId, cashBankIds)];
+    if (range?.from) conds.push(gte(bankTransactions.date, range.from));
+    if (range?.to) conds.push(lte(bankTransactions.date, range.to));
+
+    const txns = await db
       .select({
-        id: expenseClaims.id,
-        memberId: expenseClaims.memberId,
-        submittedByName: expenseClaims.submittedByName,
-        date: expenseClaims.date,
-        categoryAccountId: expenseClaims.categoryAccountId,
+        id: bankTransactions.id,
+        date: bankTransactions.date,
+        description: bankTransactions.description,
+        amountCents: bankTransactions.amountCents,
+        categoryAccountId: bankTransactions.categoryAccountId,
         categoryCode: accounts.code,
         categoryName: accounts.name,
-        description: expenseClaims.description,
-        amountCents: expenseClaims.amountCents,
-        status: expenseClaims.status,
-        paidAt: expenseClaims.paidAt,
+        externalRef: bankTransactions.externalRef,
       })
-      .from(expenseClaims)
-      .leftJoin(accounts, eq(accounts.id, expenseClaims.categoryAccountId))
+      .from(bankTransactions)
+      .leftJoin(accounts, eq(accounts.id, bankTransactions.categoryAccountId))
       .where(and(...conds))
-      .orderBy(desc(expenseClaims.date));
+      .orderBy(desc(bankTransactions.date));
 
-    type StaffRow = { key: string; submittedByName: string; pendingCents: number; approvedUnpaidCents: number; paidCents: number; totalCents: number; count: number };
+    // Pull the claims behind any "expclaim:<id>" rows in one batch so each
+    // outflow can be attributed to who actually spent it and what it was for.
+    const claimIds = txns
+      .map((t) => t.externalRef?.match(/^expclaim:(\d+)$/)?.[1])
+      .filter((x): x is string => !!x)
+      .map(Number);
+    const linkedClaims = claimIds.length
+      ? await db
+          .select({
+            id: expenseClaims.id,
+            memberId: expenseClaims.memberId,
+            submittedByName: expenseClaims.submittedByName,
+            categoryAccountId: expenseClaims.categoryAccountId,
+            categoryCode: accounts.code,
+            categoryName: accounts.name,
+          })
+          .from(expenseClaims)
+          .leftJoin(accounts, eq(accounts.id, expenseClaims.categoryAccountId))
+          .where(and(eq(expenseClaims.orgId, orgId), inArray(expenseClaims.id, claimIds)))
+      : [];
+    const claimById = new Map(linkedClaims.map((c) => [c.id, c]));
+
+    const activity = txns.map((t) => {
+      const claimId = t.externalRef?.match(/^expclaim:(\d+)$/)?.[1];
+      const claim = claimId ? claimById.get(Number(claimId)) : undefined;
+      return {
+        id: t.id,
+        date: t.date,
+        description: t.description,
+        amountCents: t.amountCents,
+        submittedByName: claim?.submittedByName ?? null,
+        memberId: claim?.memberId ?? null,
+        categoryCode: claim?.categoryCode ?? t.categoryCode ?? null,
+        categoryName: claim?.categoryName ?? t.categoryName ?? (t.categoryAccountId || claim ? null : "Uncategorized"),
+      };
+    });
+
+    type StaffRow = { key: string; submittedByName: string; totalCents: number; count: number };
     const byStaff = new Map<string, StaffRow>();
-    type CategoryRow = { accountId: number | null; code: string; name: string; totalCents: number; count: number };
+    type CategoryRow = { code: string; name: string; totalCents: number; count: number };
     const byCategory = new Map<string, CategoryRow>();
+    let totalOutCents = 0;
+    let totalInCents = 0;
 
-    for (const c of claims) {
-      const staffKey = c.memberId ? `m:${c.memberId}` : `n:${c.submittedByName}`;
-      const staff = byStaff.get(staffKey) ?? { key: staffKey, submittedByName: c.submittedByName, pendingCents: 0, approvedUnpaidCents: 0, paidCents: 0, totalCents: 0, count: 0 };
-      staff.totalCents += c.amountCents;
+    for (const a of activity) {
+      if (a.amountCents >= 0) {
+        totalInCents += a.amountCents;
+        continue;
+      }
+      const spendCents = -a.amountCents;
+      totalOutCents += spendCents;
+
+      const staffKey = a.memberId ? `m:${a.memberId}` : a.submittedByName ? `n:${a.submittedByName}` : "unattributed";
+      const staffLabel = a.submittedByName ?? "Unattributed petty cash spend";
+      const staff = byStaff.get(staffKey) ?? { key: staffKey, submittedByName: staffLabel, totalCents: 0, count: 0 };
+      staff.totalCents += spendCents;
       staff.count += 1;
-      if (c.status === "pending") staff.pendingCents += c.amountCents;
-      else if (c.status === "approved") staff.approvedUnpaidCents += c.amountCents;
-      else if (c.status === "paid") staff.paidCents += c.amountCents;
       byStaff.set(staffKey, staff);
 
-      const catKey = c.categoryAccountId ? String(c.categoryAccountId) : "uncategorized";
-      const cat = byCategory.get(catKey) ?? { accountId: c.categoryAccountId, code: c.categoryCode ?? "—", name: c.categoryName ?? "Uncategorized", totalCents: 0, count: 0 };
-      cat.totalCents += c.amountCents;
+      const catKey = a.categoryCode ?? "uncategorized";
+      const catLabel = a.categoryName ?? "Uncategorized";
+      const cat = byCategory.get(catKey) ?? { code: a.categoryCode ?? "—", name: catLabel, totalCents: 0, count: 0 };
+      cat.totalCents += spendCents;
       cat.count += 1;
       byCategory.set(catKey, cat);
     }
 
+    // "Ready to reimburse" is about the claims pipeline itself (approved but
+    // not yet paid out) — independent of which account eventually pays it,
+    // so it's queried separately from the petty-cash ledger activity above.
+    const readyRows = await db
+      .select({ amountCents: expenseClaims.amountCents })
+      .from(expenseClaims)
+      .where(and(eq(expenseClaims.orgId, orgId), eq(expenseClaims.status, "approved")));
+    const readyToReimburseCents = readyRows.reduce((s, r) => s + r.amountCents, 0);
+
     return {
-      claims,
-      byStaff: [...byStaff.values()].sort((a, b) => b.approvedUnpaidCents - a.approvedUnpaidCents || b.totalCents - a.totalCents),
+      activity,
+      byStaff: [...byStaff.values()].sort((a, b) => b.totalCents - a.totalCents),
       byCategory: [...byCategory.values()].sort((a, b) => b.totalCents - a.totalCents),
-      readyToReimburseCents: [...byStaff.values()].reduce((s, r) => s + r.approvedUnpaidCents, 0),
+      readyToReimburseCents,
+      totalOutCents,
+      totalInCents,
     };
   });
 }
