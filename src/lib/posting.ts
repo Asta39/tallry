@@ -558,6 +558,16 @@ export async function voidDocument(docId: number, date: string): Promise<void> {
   const [doc] = await db.select().from(documents).where(and(eq(documents.orgId, orgId), eq(documents.id, docId))).limit(1);
   if (!doc) throw new Error("Document not found");
 
+  // A void reverses the document's *entire* original journal entry. If a
+  // payment already posted against it, that payment's own debit/credit to
+  // AR or AP is untouched by the reversal — so voiding a paid document
+  // permanently strands that amount in AR/AP with no document behind it.
+  // Payments must be unwound first (the app has no "delete payment" flow
+  // yet, so today that means: don't void a document that has money applied).
+  if (doc.paidCents > 0 || doc.creditedCents > 0) {
+    throw new Error("This document has a payment or credit applied — voiding it now would leave that amount stranded in Accounts Receivable/Payable. Reverse the payment first.");
+  }
+
   if (doc.journalEntryId) {
     // Don't silently break a completed bank reconciliation — the ticked bank
     // register line was matched against this entry; reversing it now would
