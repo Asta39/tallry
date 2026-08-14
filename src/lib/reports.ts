@@ -375,6 +375,17 @@ export async function dashboardStats(today: string) {
     (b) => b.subtype === "bank" || b.subtype === "cash"
   );
 
+  // The dashboard's "Payables" figure is Accounts Payable to vendors only
+  // (open bills) — VAT owed to KRA is a separate liability that never shows
+  // up there, which reads as "Payables is wrong" when it's actually just a
+  // different number. Surface the accumulated VAT liability (Output VAT
+  // credited minus Input VAT recoverable, since inception — not just this
+  // month) alongside it so both payables are visible without digging into
+  // the VAT return report.
+  const vatOutput = allBalances.find((b) => b.code === SYS.VAT_OUTPUT);
+  const vatInput = allBalances.find((b) => b.code === SYS.VAT_INPUT);
+  const vatPayableCents = (vatOutput?.balanceCents ?? 0) - (vatInput?.balanceCents ?? 0);
+
   return {
     receivablesCents: openInvoices.total,
     overdueReceivablesCents:
@@ -383,6 +394,7 @@ export async function dashboardStats(today: string) {
       openInvoices.buckets.d61_90 +
       openInvoices.buckets.d90plus,
     payablesCents: openBills.total,
+    vatPayableCents,
     cashCents: cash.reduce((s, b) => s + b.balanceCents, 0),
     cashAccounts: cash,
     incomeThisMonthCents: pl.totalIncome,

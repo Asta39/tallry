@@ -193,6 +193,64 @@ export async function activeAdminApprovalClaimIds() {
   });
 }
 
+/**
+ * Petty-expense reimbursement report: every claim (any status), rolled up
+ * by staff member and by category, so the accountant can see at a glance
+ * who's owed what without opening each claim individually.
+ */
+export async function pettyExpenseSummary() {
+  return withOrg(async () => {
+    const orgId = currentOrgId();
+    const claims = await db
+      .select({
+        id: expenseClaims.id,
+        memberId: expenseClaims.memberId,
+        submittedByName: expenseClaims.submittedByName,
+        date: expenseClaims.date,
+        categoryAccountId: expenseClaims.categoryAccountId,
+        categoryCode: accounts.code,
+        categoryName: accounts.name,
+        description: expenseClaims.description,
+        amountCents: expenseClaims.amountCents,
+        status: expenseClaims.status,
+        paidAt: expenseClaims.paidAt,
+      })
+      .from(expenseClaims)
+      .leftJoin(accounts, eq(accounts.id, expenseClaims.categoryAccountId))
+      .where(eq(expenseClaims.orgId, orgId))
+      .orderBy(desc(expenseClaims.date));
+
+    type StaffRow = { key: string; submittedByName: string; pendingCents: number; approvedUnpaidCents: number; paidCents: number; totalCents: number; count: number };
+    const byStaff = new Map<string, StaffRow>();
+    type CategoryRow = { accountId: number | null; code: string; name: string; totalCents: number; count: number };
+    const byCategory = new Map<string, CategoryRow>();
+
+    for (const c of claims) {
+      const staffKey = c.memberId ? `m:${c.memberId}` : `n:${c.submittedByName}`;
+      const staff = byStaff.get(staffKey) ?? { key: staffKey, submittedByName: c.submittedByName, pendingCents: 0, approvedUnpaidCents: 0, paidCents: 0, totalCents: 0, count: 0 };
+      staff.totalCents += c.amountCents;
+      staff.count += 1;
+      if (c.status === "pending") staff.pendingCents += c.amountCents;
+      else if (c.status === "approved") staff.approvedUnpaidCents += c.amountCents;
+      else if (c.status === "paid") staff.paidCents += c.amountCents;
+      byStaff.set(staffKey, staff);
+
+      const catKey = c.categoryAccountId ? String(c.categoryAccountId) : "uncategorized";
+      const cat = byCategory.get(catKey) ?? { accountId: c.categoryAccountId, code: c.categoryCode ?? "—", name: c.categoryName ?? "Uncategorized", totalCents: 0, count: 0 };
+      cat.totalCents += c.amountCents;
+      cat.count += 1;
+      byCategory.set(catKey, cat);
+    }
+
+    return {
+      claims,
+      byStaff: [...byStaff.values()].sort((a, b) => b.approvedUnpaidCents - a.approvedUnpaidCents || b.totalCents - a.totalCents),
+      byCategory: [...byCategory.values()].sort((a, b) => b.totalCents - a.totalCents),
+      readyToReimburseCents: [...byStaff.values()].reduce((s, r) => s + r.approvedUnpaidCents, 0),
+    };
+  });
+}
+
 export async function reviewedExpenseClaims() {
   // No cap — at this org's claim volume (dozens/day), a hard limit(50) here
   // was silently dropping recently-paid claims off the History screen the

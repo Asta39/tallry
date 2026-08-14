@@ -29,6 +29,7 @@ const reports = [
       { href: "/reports/balance-sheet", title: "Balance Sheet", body: "What you own vs what you owe, right now." },
       { href: "/reports/aging", title: "Aged Receivables (Aging)", body: "Unpaid invoices and bills, bucketed by lateness." },
       { href: "/reports/debtors", title: "Debtors", body: "Every customer with a balance outstanding, per sales agent, in one list." },
+      { href: "/reports/petty-expenses", title: "Petty Expenses", body: "Staff expense claims by person and category, for easy reimbursement." },
     ],
   },
   {
@@ -88,6 +89,13 @@ export default async function ReportsPage() {
           <div className="card p-5 bg-gradient-to-br from-[var(--color-ink-50)] to-white">
             <div className="text-[12.5px] font-semibold text-[var(--color-ink-500)] uppercase tracking-wider mb-1">Payables</div>
             <div className="text-2xl font-bold text-[var(--color-ink-900)]">{fmtKES(stats.payablesCents)}</div>
+            <div className="text-[11.5px] text-[var(--color-ink-400)] mt-1">
+              to vendors — VAT payable to KRA{" "}
+              <span className={stats.vatPayableCents > 0 ? "text-[var(--color-bad)] font-medium" : "font-medium"}>
+                {fmtKES(stats.vatPayableCents)}
+              </span>{" "}
+              is separate
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3 mt-1">
