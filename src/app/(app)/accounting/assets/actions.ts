@@ -13,7 +13,7 @@ import { redirect } from "next/navigation";
 
 export async function runDepreciationAction(dateStr: string) {
   try {
-    await requirePerm("accountant");
+    await requirePerm("fixed_assets");
     const o = await getOrg();
     const results = await runMonthlyDepreciation(o.id, dateStr);
     
@@ -32,7 +32,7 @@ export async function runDepreciationAction(dateStr: string) {
 }
 
 export async function createAssetAction(formData: FormData) {
-  await requirePerm("accountant");
+  await requirePerm("fixed_assets");
   const o = await getOrg();
 
   const name = formData.get("name") as string;
@@ -120,7 +120,7 @@ export async function disposeAssetAction(
   bankAccountId?: number
 ): Promise<{ success?: true; error?: string }> {
   try {
-    await requirePerm("accountant");
+    await requirePerm("fixed_assets");
     const o = await getOrg();
 
     if (proceedsCents < 0) throw new Error("Proceeds can't be negative");

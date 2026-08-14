@@ -51,6 +51,7 @@ const groups: {
     items: [
       { href: "/banking", label: "Bank & M-Pesa", icon: "🏦", perm: "banking" },
       { href: "/accountant", label: "Accountant", icon: "📚", perm: "accountant" },
+      { href: "/accounting/assets", label: "Fixed Assets", icon: "🏢", perm: "fixed_assets" },
       { href: "/analytics", label: "Analytics", icon: "📊", perm: "reports" },
       { href: "/reports", label: "Reports", icon: "📈", perm: "reports" },
     ],

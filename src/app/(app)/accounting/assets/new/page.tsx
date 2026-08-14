@@ -8,7 +8,7 @@ import { createAssetAction } from "../actions";
 export const dynamic = "force-dynamic";
 
 export default async function NewAssetPage() {
-  await requirePerm("accountant");
+  await requirePerm("fixed_assets");
   const o = await getOrg();
 
   // Load all accounts to let the user map the asset, accumulated depreciation, and expense accounts

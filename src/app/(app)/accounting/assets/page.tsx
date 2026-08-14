@@ -11,7 +11,7 @@ import { DisposeAssetButton } from "./DisposeAssetButton";
 export const dynamic = "force-dynamic";
 
 export default async function AssetsPage() {
-  await requirePerm("accountant");
+  await requirePerm("fixed_assets");
   const o = await getOrg();
 
   const [assets, banks] = await Promise.all([
