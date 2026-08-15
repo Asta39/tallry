@@ -44,10 +44,12 @@ export function DisposeAssetButton({
     }
   }
 
+  const inputCls = "rounded-md border border-[var(--color-ink-200)] bg-white px-2 py-1 text-[12px] outline-none focus:border-[var(--color-accent-500)] focus:ring-2 focus:ring-[var(--color-accent-100)]";
+
   return (
     <div className="flex flex-col items-end gap-1.5 py-1">
       <div className="flex flex-wrap items-center justify-end gap-1.5">
-        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="input input-xs input-bordered" />
+        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={inputCls} />
         <input
           type="number"
           min="0"
@@ -55,10 +57,10 @@ export function DisposeAssetButton({
           value={proceeds}
           onChange={(e) => setProceeds(e.target.value)}
           placeholder="Proceeds (KSh)"
-          className="input input-xs input-bordered w-28"
+          className={`${inputCls} w-28`}
         />
         {parseFloat(proceeds) > 0 && banks.length > 0 && (
-          <select value={bankId} onChange={(e) => setBankId(e.target.value ? Number(e.target.value) : "")} className="select select-xs select-bordered">
+          <select value={bankId} onChange={(e) => setBankId(e.target.value ? Number(e.target.value) : "")} className={inputCls}>
             {banks.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
           </select>
         )}

@@ -39,11 +39,13 @@ export function RecordPurchaseButton({
     }
   }
 
+  const inputCls = "rounded-md border border-[var(--color-ink-200)] bg-white px-2 py-1 text-[12px] outline-none focus:border-[var(--color-accent-500)] focus:ring-2 focus:ring-[var(--color-accent-100)]";
+
   return (
     <div className="flex flex-col items-end gap-1.5 py-1">
       <div className="flex flex-wrap items-center justify-end gap-1.5">
-        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="input input-xs input-bordered" />
-        <select value={bankId} onChange={(e) => setBankId(e.target.value ? Number(e.target.value) : "")} className="select select-xs select-bordered">
+        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={inputCls} />
+        <select value={bankId} onChange={(e) => setBankId(e.target.value ? Number(e.target.value) : "")} className={inputCls}>
           <option value="">Paid from…</option>
           {banks.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
         </select>

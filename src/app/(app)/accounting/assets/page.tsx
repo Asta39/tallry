@@ -2,7 +2,7 @@ import { requirePerm } from "@/lib/guard";
 import { getOrg } from "@/lib/org";
 import { db, fixedAssets, bankAccounts } from "@/db";
 import { and, eq } from "drizzle-orm";
-import { PageHeader } from "@/components/ui";
+import { PageHeader, TableCard, Th, Td } from "@/components/ui";
 import { fmtKES } from "@/lib/money";
 import Link from "next/link";
 import { DepreciationRunner } from "./DepreciationRunner";
@@ -22,71 +22,88 @@ export default async function AssetsPage() {
 
   return (
     <>
-      <PageHeader 
-        title="Fixed Assets" 
+      <PageHeader
+        title="Fixed Assets"
         subtitle="Manage and depreciate long-term assets"
-        action={<Link href="/accounting/assets/new" className="btn btn-primary">Register Asset</Link>}
+        action={
+          <Link
+            href="/accounting/assets/new"
+            className="rounded-lg bg-[var(--color-accent-500)] hover:bg-[var(--color-accent-600)] text-white text-[13px] font-medium px-4 py-2 transition-colors"
+          >
+            Register Asset
+          </Link>
+        }
       />
 
-      <div className="card bg-base-100 shadow-sm border border-base-content/10 mt-6">
-        <div className="flex justify-between items-center p-4 border-b border-base-content/10">
-          <h2 className="font-semibold">Asset Register</h2>
-          <DepreciationRunner />
-        </div>
-        <div className="overflow-x-auto">
-          <table className="table">
-            <thead className="bg-base-200/50">
-              <tr>
-                <th>Asset Name</th>
-                <th>Purchase Date</th>
-                <th>Cost</th>
-                <th>Useful Life</th>
-                <th>Method</th>
-                <th>Status</th>
-                <th>Ledger</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {assets.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="text-center py-8 text-base-content/50">
-                    No fixed assets registered yet.
-                  </td>
-                </tr>
-              ) : (
-                assets.map(a => (
-                  <tr key={a.id}>
-                    <td className="font-medium">{a.name}</td>
-                    <td>{a.purchaseDate}</td>
-                    <td>{fmtKES(a.purchaseCostCents)}</td>
-                    <td>{a.usefulLifeMonths} mos</td>
-                    <td className="capitalize">{a.depreciationMethod.replace("_", " ")}</td>
-                    <td>
-                      <span className={`badge ${a.status === 'active' ? 'badge-success badge-outline' : 'badge-neutral'}`}>
-                        {a.status}
-                      </span>
-                    </td>
-                    <td>
-                      {a.purchaseJournalEntryId ? (
-                        <span className="badge badge-ghost badge-sm">Recorded</span>
-                      ) : (
-                        <span className="badge badge-warning badge-outline badge-sm" title="Cost hasn't posted to the asset account yet">Not recorded</span>
-                      )}
-                    </td>
-                    <td className="text-right">
-                      <div className="flex flex-col items-end gap-1">
-                        {!a.purchaseJournalEntryId && <RecordPurchaseButton assetId={a.id} banks={banks.map((b) => ({ id: b.id, name: b.name }))} />}
-                        {a.status === "active" && <DisposeAssetButton assetId={a.id} assetName={a.name} banks={banks.map((b) => ({ id: b.id, name: b.name }))} />}
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-[13px] font-semibold text-[var(--color-ink-600)]">Asset Register</h2>
+        <DepreciationRunner />
       </div>
+
+      {assets.length === 0 ? (
+        <div className="card px-6 py-10 text-center text-[13px] text-[var(--color-ink-400)]">
+          No fixed assets registered yet.
+        </div>
+      ) : (
+        <TableCard>
+          <thead className="hairline-b">
+            <tr>
+              <Th>Asset Name</Th>
+              <Th>Purchase Date</Th>
+              <Th right>Cost</Th>
+              <Th>Useful Life</Th>
+              <Th>Method</Th>
+              <Th>Status</Th>
+              <Th>Ledger</Th>
+              <Th></Th>
+            </tr>
+          </thead>
+          <tbody>
+            {assets.map((a) => (
+              <tr key={a.id} className="hairline-b">
+                <Td className="font-medium">{a.name}</Td>
+                <Td>{a.purchaseDate}</Td>
+                <Td right>{fmtKES(a.purchaseCostCents)}</Td>
+                <Td>{a.usefulLifeMonths} mos</Td>
+                <Td className="capitalize">{a.depreciationMethod.replace("_", " ")}</Td>
+                <Td>
+                  <span
+                    className={`inline-block rounded-full px-2.5 py-0.5 text-[11px] font-medium ${
+                      a.status === "active" ? "bg-emerald-50 text-emerald-700" : "bg-[var(--color-ink-100)] text-[var(--color-ink-400)]"
+                    }`}
+                  >
+                    {a.status}
+                  </span>
+                </Td>
+                <Td>
+                  {a.purchaseJournalEntryId ? (
+                    <span className="inline-block rounded-full px-2.5 py-0.5 text-[11px] font-medium bg-[var(--color-ink-100)] text-[var(--color-ink-600)]">
+                      Recorded
+                    </span>
+                  ) : (
+                    <span
+                      className="inline-block rounded-full px-2.5 py-0.5 text-[11px] font-medium bg-amber-50 text-amber-700"
+                      title="Cost hasn't posted to the asset account yet"
+                    >
+                      Not recorded
+                    </span>
+                  )}
+                </Td>
+                <Td right>
+                  <div className="flex flex-col items-end gap-1.5">
+                    {!a.purchaseJournalEntryId && (
+                      <RecordPurchaseButton assetId={a.id} banks={banks.map((b) => ({ id: b.id, name: b.name }))} />
+                    )}
+                    {a.status === "active" && (
+                      <DisposeAssetButton assetId={a.id} assetName={a.name} banks={banks.map((b) => ({ id: b.id, name: b.name }))} />
+                    )}
+                  </div>
+                </Td>
+              </tr>
+            ))}
+          </tbody>
+        </TableCard>
+      )}
     </>
   );
 }

@@ -28,14 +28,18 @@ export function DepreciationRunner() {
 
   return (
     <div className="flex gap-2 items-center">
-      <input 
-        type="month" 
-        value={month} 
+      <input
+        type="month"
+        value={month}
         onChange={e => setMonth(e.target.value)}
-        className="input input-sm input-bordered"
+        className="rounded-md border border-[var(--color-ink-200)] bg-white px-2 py-1.5 text-[13px] outline-none focus:border-[var(--color-accent-500)] focus:ring-2 focus:ring-[var(--color-accent-100)]"
       />
-      <button onClick={handleRun} disabled={loading} className="btn btn-sm btn-outline">
-        {loading ? "Running..." : "Run Depreciation"}
+      <button
+        onClick={handleRun}
+        disabled={loading}
+        className="rounded-lg border border-[var(--color-ink-200)] hover:border-[var(--color-ink-400)] text-[13px] font-medium px-3 py-1.5 transition-colors disabled:opacity-50"
+      >
+        {loading ? "Running…" : "Run Depreciation"}
       </button>
     </div>
   );
