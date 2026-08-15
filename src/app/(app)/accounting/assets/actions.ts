@@ -187,9 +187,12 @@ async function recordAssetPurchase(
  * posted for this asset (sourceType "depreciation", sourceId = asset id) —
  * nothing is tracked as a separate running total that could drift.
  */
+export type DisposalType = "sale" | "scrap" | "trade";
+
 export async function disposeAssetAction(
   assetId: number,
   disposalDate: string,
+  disposalType: DisposalType,
   proceedsCents: number,
   bankAccountId?: number
 ): Promise<{ success?: true; error?: string }> {
@@ -200,20 +203,26 @@ export async function disposeAssetAction(
     // need the org set in AsyncLocalStorage. This action's outer catch was
     // masking that as "No organization in context — call within withOrg()
     // or sign in.", meaning disposal never actually worked.
-    return await orgContext.run(o.id, () => disposeAsset(o, assetId, disposalDate, proceedsCents, bankAccountId));
+    return await orgContext.run(o.id, () => disposeAsset(o, assetId, disposalDate, disposalType, proceedsCents, bankAccountId));
   } catch (err: any) {
     return { error: err?.message || "Failed to dispose of asset" };
   }
 }
 
+const DISPOSAL_TYPES: DisposalType[] = ["sale", "scrap", "trade"];
+const DISPOSAL_LABEL: Record<DisposalType, string> = { sale: "Sold", scrap: "Scrapped", trade: "Traded in" };
+
 async function disposeAsset(
   o: Awaited<ReturnType<typeof getOrg>>,
   assetId: number,
   disposalDate: string,
+  disposalType: DisposalType,
   proceedsCents: number,
   bankAccountId?: number
 ): Promise<{ success?: true; error?: string }> {
+    if (!DISPOSAL_TYPES.includes(disposalType)) throw new Error("Invalid disposal type");
     if (proceedsCents < 0) throw new Error("Proceeds can't be negative");
+    if (disposalType === "scrap" && proceedsCents > 0) throw new Error("Scrapped assets can't have proceeds — record it as a sale or trade instead");
 
     // Atomic claim — two concurrent dispose attempts on the same asset must
     // not both post the removal entry.
@@ -241,7 +250,7 @@ async function disposeAsset(
 
       let bank: { id: number; accountId: number } | undefined;
       if (proceedsCents > 0) {
-        if (!bankAccountId) throw new Error("Select which account received the disposal proceeds");
+        if (!bankAccountId) throw new Error(`Select which account received the ${disposalType === "trade" ? "trade-in" : "disposal"} proceeds`);
         const [b] = await db.select().from(bankAccounts).where(and(eq(bankAccounts.orgId, o.id), eq(bankAccounts.id, bankAccountId))).limit(1);
         if (!b) throw new Error("Bank account not found");
         bank = b;
@@ -259,7 +268,7 @@ async function disposeAsset(
 
       const entryId = await postEntry({
         date: disposalDate,
-        memo: `Disposal of ${asset.name}`,
+        memo: `${DISPOSAL_LABEL[disposalType]}: ${asset.name}`,
         sourceType: "asset_disposal",
         sourceId: asset.id,
         lines,
@@ -269,20 +278,20 @@ async function disposeAsset(
         await mirrorBankTxn({
           bankAccountId: bank.id,
           date: disposalDate,
-          description: `Disposal proceeds: ${asset.name}`,
+          description: `${DISPOSAL_LABEL[disposalType]}: ${asset.name}`,
           amountCents: proceedsCents,
           journalEntryId: entryId,
           externalRef: `assetdisp:${asset.id}`,
         });
       }
 
-      await db.update(fixedAssets).set({ status: "disposed" }).where(and(eq(fixedAssets.orgId, o.id), eq(fixedAssets.id, assetId)));
+      await db.update(fixedAssets).set({ status: "disposed", disposalType }).where(and(eq(fixedAssets.orgId, o.id), eq(fixedAssets.id, assetId)));
       await logAudit({
         action: "dispose",
         module: "items",
         recordId: assetId,
         recordLabel: asset.name,
-        detail: `Net book value ${(netBookValueCents / 100).toFixed(2)}, proceeds ${(proceedsCents / 100).toFixed(2)}, ${gainLossCents >= 0 ? "gain" : "loss"} ${(Math.abs(gainLossCents) / 100).toFixed(2)}`,
+        detail: `${DISPOSAL_LABEL[disposalType]} — net book value ${(netBookValueCents / 100).toFixed(2)}, proceeds ${(proceedsCents / 100).toFixed(2)}, ${gainLossCents >= 0 ? "gain" : "loss"} ${(Math.abs(gainLossCents) / 100).toFixed(2)}`,
       });
 
       revalidatePath("/accounting/assets");

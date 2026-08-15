@@ -719,6 +719,10 @@ export const fixedAssets = pgTable("fixed_assets", {
    *  registration exists purely to track depreciation. */
   paidFromBankAccountId: integer("paid_from_bank_account_id"),
   purchaseJournalEntryId: integer("purchase_journal_entry_id"),
+  /** How the asset left the register — sale | scrap | trade — set on
+   *  disposal so the register/audit trail records why, not just that it
+   *  happened. Null while still active. */
+  disposalType: text("disposal_type"),
   createdAt: text("created_at").notNull(),
 });
 

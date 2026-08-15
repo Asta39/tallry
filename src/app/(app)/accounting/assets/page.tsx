@@ -72,7 +72,9 @@ export default async function AssetsPage() {
                       a.status === "active" ? "bg-emerald-50 text-emerald-700" : "bg-[var(--color-ink-100)] text-[var(--color-ink-400)]"
                     }`}
                   >
-                    {a.status}
+                    {a.status === "disposed" && a.disposalType
+                      ? { sale: "sold", scrap: "scrapped", trade: "traded in" }[a.disposalType] ?? a.status
+                      : a.status}
                   </span>
                 </Td>
                 <Td>

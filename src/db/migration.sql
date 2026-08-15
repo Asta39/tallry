@@ -896,3 +896,5 @@ ALTER TABLE fixed_assets ADD COLUMN IF NOT EXISTS purchase_journal_entry_id INTE
 
 ALTER TABLE loan_ledger ADD COLUMN IF NOT EXISTS disbursed_from_bank_account_id INTEGER;
 ALTER TABLE loan_ledger ADD COLUMN IF NOT EXISTS disbursement_journal_entry_id INTEGER;
+
+ALTER TABLE fixed_assets ADD COLUMN IF NOT EXISTS disposal_type TEXT;
