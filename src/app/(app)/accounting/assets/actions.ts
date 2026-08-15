@@ -1,7 +1,7 @@
 "use server";
 
 import { requirePerm } from "@/lib/guard";
-import { getOrg } from "@/lib/org";
+import { getOrg, orgContext } from "@/lib/org";
 import { db, fixedAssets, journalEntries, journalLines, bankAccounts } from "@/db";
 import { and, eq } from "drizzle-orm";
 import { runMonthlyDepreciation } from "@/lib/depreciation";
@@ -15,8 +15,12 @@ export async function runDepreciationAction(dateStr: string) {
   try {
     await requirePerm("fixed_assets");
     const o = await getOrg();
-    const results = await runMonthlyDepreciation(o.id, dateStr);
-    
+    // runMonthlyDepreciation posts journal entries via postEntry(), which
+    // reads the org from AsyncLocalStorage (currentOrgId()) rather than a
+    // parameter — without this, every posting call throws "No organization
+    // in context", silently swallowed here by the catch below.
+    const results = await orgContext.run(o.id, () => runMonthlyDepreciation(o.id, dateStr));
+
     // Check for errors
     const errors = results.filter(r => r.error);
     if (errors.length > 0) {
@@ -34,7 +38,17 @@ export async function runDepreciationAction(dateStr: string) {
 export async function createAssetAction(formData: FormData) {
   await requirePerm("fixed_assets");
   const o = await getOrg();
+  // postEntry()/mirrorBankTxn() read the org from AsyncLocalStorage
+  // (currentOrgId()), not a parameter — outside orgContext.run() the first
+  // one throws "No organization in context", uncaught, crashing the whole
+  // page to Next.js's generic Server Components error screen. (This is why
+  // registering an asset with a "Paid from" account picked crashed every
+  // time — disposeAssetAction has the same gap but a catch block that hides
+  // it; this action had no catch, so the crash was visible.)
+  return orgContext.run(o.id, () => createAsset(o, formData));
+}
 
+async function createAsset(o: Awaited<ReturnType<typeof getOrg>>, formData: FormData) {
   const name = formData.get("name") as string;
   const assetAccountId = parseInt(formData.get("assetAccountId") as string, 10);
   const depreciationAccountId = parseInt(formData.get("depreciationAccountId") as string, 10);
@@ -122,7 +136,23 @@ export async function disposeAssetAction(
   try {
     await requirePerm("fixed_assets");
     const o = await getOrg();
+    // See createAssetAction: postEntry()/ensureAccount()/mirrorBankTxn() all
+    // need the org set in AsyncLocalStorage. This action's outer catch was
+    // masking that as "No organization in context — call within withOrg()
+    // or sign in.", meaning disposal never actually worked.
+    return await orgContext.run(o.id, () => disposeAsset(o, assetId, disposalDate, proceedsCents, bankAccountId));
+  } catch (err: any) {
+    return { error: err?.message || "Failed to dispose of asset" };
+  }
+}
 
+async function disposeAsset(
+  o: Awaited<ReturnType<typeof getOrg>>,
+  assetId: number,
+  disposalDate: string,
+  proceedsCents: number,
+  bankAccountId?: number
+): Promise<{ success?: true; error?: string }> {
     if (proceedsCents < 0) throw new Error("Proceeds can't be negative");
 
     // Atomic claim — two concurrent dispose attempts on the same asset must
@@ -201,7 +231,4 @@ export async function disposeAssetAction(
       await db.update(fixedAssets).set({ status: "active" }).where(and(eq(fixedAssets.orgId, o.id), eq(fixedAssets.id, assetId), eq(fixedAssets.status, "disposing")));
       throw e;
     }
-  } catch (err: any) {
-    return { error: err?.message || "Failed to dispose of asset" };
-  }
 }
