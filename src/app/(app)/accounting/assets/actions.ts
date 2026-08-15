@@ -116,6 +116,66 @@ async function createAsset(o: Awaited<ReturnType<typeof getOrg>>, formData: Form
 }
 
 /**
+ * Post an asset's purchase after the fact — for assets registered with
+ * "Paid from" left blank (the form's default), which never touched the
+ * ledger at all. Reported live: an accountant registered an asset expecting
+ * its cost to show up under the asset account immediately, but the default
+ * option on that field is "I've already booked it another way" (to avoid
+ * double-counting for assets whose purchase bill/expense already exists) —
+ * easy to miss since nothing on the form calls out that skipping it means
+ * the asset never appears on the books. This lets them fix it without
+ * re-registering the asset from scratch.
+ */
+export async function recordAssetPurchaseAction(assetId: number, paidFromBankAccountId: number, purchaseDate: string): Promise<{ success?: true; error?: string }> {
+  try {
+    await requirePerm("fixed_assets");
+    const o = await getOrg();
+    return await orgContext.run(o.id, () => recordAssetPurchase(o, assetId, paidFromBankAccountId, purchaseDate));
+  } catch (err: any) {
+    return { error: err?.message || "Failed to record asset purchase" };
+  }
+}
+
+async function recordAssetPurchase(
+  o: Awaited<ReturnType<typeof getOrg>>,
+  assetId: number,
+  paidFromBankAccountId: number,
+  purchaseDate: string
+): Promise<{ success?: true; error?: string }> {
+  const [asset] = await db.select().from(fixedAssets).where(and(eq(fixedAssets.orgId, o.id), eq(fixedAssets.id, assetId))).limit(1);
+  if (!asset) throw new Error("Asset not found");
+  if (asset.purchaseJournalEntryId) throw new Error("This asset's purchase is already recorded");
+
+  const [bank] = await db.select().from(bankAccounts).where(and(eq(bankAccounts.orgId, o.id), eq(bankAccounts.id, paidFromBankAccountId))).limit(1);
+  if (!bank) throw new Error("Bank/M-Pesa account not found");
+
+  const purchaseJournalEntryId = await postEntry({
+    date: purchaseDate,
+    memo: `Purchase of fixed asset: ${asset.name}`,
+    sourceType: "asset_purchase",
+    sourceId: asset.id,
+    lines: [
+      { accountId: asset.assetAccountId, debitCents: asset.purchaseCostCents },
+      { accountId: bank.accountId, creditCents: asset.purchaseCostCents },
+    ],
+  });
+
+  await db.update(fixedAssets).set({ paidFromBankAccountId, purchaseJournalEntryId }).where(and(eq(fixedAssets.orgId, o.id), eq(fixedAssets.id, assetId)));
+
+  await mirrorBankTxn({
+    bankAccountId: bank.id,
+    date: purchaseDate,
+    description: `Asset purchase: ${asset.name}`,
+    amountCents: -asset.purchaseCostCents,
+    journalEntryId: purchaseJournalEntryId,
+    externalRef: `assetpurchase:${asset.id}`,
+  });
+
+  revalidatePath("/accounting/assets");
+  return { success: true };
+}
+
+/**
  * Dispose of a fixed asset — sale, scrap, or write-off. Previously there was
  * no way to do this at all: an asset just sat in the register forever,
  * still picked up by runMonthlyDepreciation's `status = "active"` filter,

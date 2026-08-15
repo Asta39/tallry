@@ -7,6 +7,7 @@ import { fmtKES } from "@/lib/money";
 import Link from "next/link";
 import { DepreciationRunner } from "./DepreciationRunner";
 import { DisposeAssetButton } from "./DisposeAssetButton";
+import { RecordPurchaseButton } from "./RecordPurchaseButton";
 
 export const dynamic = "force-dynamic";
 
@@ -42,13 +43,14 @@ export default async function AssetsPage() {
                 <th>Useful Life</th>
                 <th>Method</th>
                 <th>Status</th>
+                <th>Ledger</th>
                 <th></th>
               </tr>
             </thead>
             <tbody>
               {assets.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="text-center py-8 text-base-content/50">
+                  <td colSpan={8} className="text-center py-8 text-base-content/50">
                     No fixed assets registered yet.
                   </td>
                 </tr>
@@ -65,8 +67,18 @@ export default async function AssetsPage() {
                         {a.status}
                       </span>
                     </td>
+                    <td>
+                      {a.purchaseJournalEntryId ? (
+                        <span className="badge badge-ghost badge-sm">Recorded</span>
+                      ) : (
+                        <span className="badge badge-warning badge-outline badge-sm" title="Cost hasn't posted to the asset account yet">Not recorded</span>
+                      )}
+                    </td>
                     <td className="text-right">
-                      {a.status === "active" && <DisposeAssetButton assetId={a.id} assetName={a.name} banks={banks.map((b) => ({ id: b.id, name: b.name }))} />}
+                      <div className="flex flex-col items-end gap-1">
+                        {!a.purchaseJournalEntryId && <RecordPurchaseButton assetId={a.id} banks={banks.map((b) => ({ id: b.id, name: b.name }))} />}
+                        {a.status === "active" && <DisposeAssetButton assetId={a.id} assetName={a.name} banks={banks.map((b) => ({ id: b.id, name: b.name }))} />}
+                      </div>
                     </td>
                   </tr>
                 ))

@@ -58,11 +58,11 @@ export default async function NewAssetPage() {
             <div className="col-span-2">
               <label className="label">Paid from</label>
               <select name="paidFromBankAccountId" className="select select-bordered w-full" defaultValue="">
-                <option value="">Don't record the purchase — I've already booked it another way</option>
+                <option value="">Skip — I already booked this purchase elsewhere (bill/expense)</option>
                 {banks.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
               </select>
               <div className="text-xs text-base-content/50 mt-1">
-                Pick the account this was actually paid from to record the purchase itself (debits the asset account, credits this account). Leave as "already booked" if this asset's purchase was already recorded via a bill/expense elsewhere — picking a bank here on top of that would double-count it.
+                Pick the account this was actually paid from so the cost debits the asset account and credits this account — <strong>without this, the asset's value won't show up under its asset account at all</strong>, only in this register. Skip only if the purchase already hit the books another way (a bill/expense) — picking a bank on top of that would double-count it. You can record it later from the asset list if you skip by mistake.
               </div>
             </div>
           </div>
