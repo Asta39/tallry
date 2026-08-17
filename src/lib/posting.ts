@@ -375,6 +375,25 @@ export async function postExpense(docId: number): Promise<number> {
     journalEntryId: entryId,
     externalRef: `exp:${doc.id}`,
   });
+
+  // A direct expense has no separate "payment method" field of its own —
+  // it's paid straight from whichever account was picked — so the routing
+  // check is purely on that account: an M-Pesa till the org has flagged as
+  // settling through Kopo Kopo (org.mpesaTillGatewayId) really does incur
+  // this fee on every transaction, same as it does for bills/payroll paid
+  // the same way. Without this, expenses paid from that till silently never
+  // recorded the deduction the statement actually shows.
+  if (await isKopoKopoRouted("", bank)) {
+    await postKopoKopoFee({
+      bankId: bank.id,
+      bankAccountId: bank.accountId,
+      date: doc.date,
+      sourceType: "expense",
+      sourceId: doc.id,
+      memo: `Expense ${doc.number}`,
+    });
+  }
+
   return entryId;
 }
 
