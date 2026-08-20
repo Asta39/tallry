@@ -2,7 +2,7 @@ import { requirePerm } from "@/lib/guard";
 import { getOrg } from "@/lib/org";
 import { db, accounts, bankAccounts } from "@/db";
 import { and, eq } from "drizzle-orm";
-import { PageHeader } from "@/components/ui";
+import { PageHeader, PrimaryButton } from "@/components/ui";
 import { createAssetAction } from "../actions";
 
 export const dynamic = "force-dynamic";
@@ -97,9 +97,7 @@ export default async function NewAssetPage() {
         </label>
 
         <div className="col-span-2 pt-1">
-          <button className="rounded-lg bg-[var(--color-accent-500)] hover:bg-[var(--color-accent-600)] disabled:opacity-60 text-white text-[13px] font-medium px-5 py-2.5">
-            Register Asset
-          </button>
+          <PrimaryButton className="px-5 py-2.5">Register Asset</PrimaryButton>
         </div>
       </form>
     </>
