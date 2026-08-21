@@ -1,9 +1,10 @@
 import { requirePerm } from "@/lib/guard";
-import { getOrg } from "@/lib/org";
+import { getOrg, orgContext } from "@/lib/org";
 import { db, accounts, bankAccounts } from "@/db";
 import { and, eq } from "drizzle-orm";
 import { PageHeader, PrimaryButton } from "@/components/ui";
 import { createAssetAction } from "../actions";
+import { ensureAccount } from "@/lib/phase-a-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +15,17 @@ const label = "text-[12px] font-medium text-[var(--color-ink-600)]";
 export default async function NewAssetPage() {
   await requirePerm("fixed_assets");
   const o = await getOrg();
+
+  // Orgs seeded before intangible-asset support existed won't have these
+  // accounts yet — create them on first visit to this page, same pattern as
+  // the on-demand Gain/Loss account in disposeAssetAction, so "Intangible
+  // Assets" / "Accumulated Amortization" / "Amortization Expense" are always
+  // selectable below instead of requiring a manual Chart of Accounts step.
+  await orgContext.run(o.id, () => Promise.all([
+    ensureAccount("1540", "Intangible Assets", "asset", "fixed_asset"),
+    ensureAccount("1535", "Accumulated Amortization", "asset", "fixed_asset"),
+    ensureAccount("6125", "Amortization Expense", "expense", "expense"),
+  ]));
 
   // Load all accounts to let the user map the asset, accumulated depreciation, and expense accounts
   const [allAccounts, banks] = await Promise.all([
@@ -27,8 +39,8 @@ export default async function NewAssetPage() {
   return (
     <>
       <PageHeader
-        title="Register Fixed Asset"
-        subtitle="Add a new long-term asset to the register"
+        title="Register Fixed / Intangible Asset"
+        subtitle="Add a new long-term tangible or intangible asset to the register"
       />
       <form action={createAssetAction} className="card p-6 max-w-2xl grid grid-cols-1 sm:grid-cols-2 gap-4">
         <label className="block col-span-2">
@@ -73,15 +85,18 @@ export default async function NewAssetPage() {
         </div>
 
         <label className="block col-span-2">
-          <span className={label}>Fixed Asset Account</span>
+          <span className={label}>Asset Account</span>
           <select name="assetAccountId" required className={input}>
             <option value="">Select asset account…</option>
             {assetAccounts.map(a => <option key={a.id} value={a.id}>{a.code} · {a.name}</option>)}
           </select>
+          <p className="text-[11px] text-[var(--color-ink-400)] mt-1">
+            Tangible (vehicles, computers) or intangible (software licenses, patents) — pick whichever account this asset belongs to.
+          </p>
         </label>
 
         <label className="block col-span-2">
-          <span className={label}>Accumulated Depreciation Account</span>
+          <span className={label}>Accumulated Depreciation / Amortization Account</span>
           <select name="depreciationAccountId" required className={input}>
             <option value="">Select contra-asset account…</option>
             {assetAccounts.map(a => <option key={a.id} value={a.id}>{a.code} · {a.name}</option>)}
@@ -89,11 +104,14 @@ export default async function NewAssetPage() {
         </label>
 
         <label className="block col-span-2">
-          <span className={label}>Depreciation Expense Account</span>
+          <span className={label}>Depreciation / Amortization Expense Account</span>
           <select name="expenseAccountId" required className={input}>
             <option value="">Select expense account…</option>
             {expenseAccounts.map(a => <option key={a.id} value={a.id}>{a.code} · {a.name}</option>)}
           </select>
+          <p className="text-[11px] text-[var(--color-ink-400)] mt-1">
+            This is the operating expense account the monthly cost posts to — e.g. "Amortization Expense" for an intangible asset.
+          </p>
         </label>
 
         <div className="col-span-2 pt-1">

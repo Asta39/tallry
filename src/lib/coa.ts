@@ -51,6 +51,8 @@ export const SEED_ACCOUNTS: AccountSeed[] = [
   { code: "1510", name: "Computers & IT Hardware", type: "asset", subtype: "fixed_asset", description: "Company laptops, servers, network switches, POS terminals, and permanent software licenses." },
   { code: "1520", name: "Motor Vehicles", type: "asset", subtype: "fixed_asset", description: "Company delivery trucks, vans, motorbikes, and executive transport vehicles." },
   { code: "1530", name: "Accumulated Depreciation", type: "asset", subtype: "fixed_asset", description: "Contra-asset account recording aggregate wear-and-tear depreciation across all fixed assets." },
+  { code: "1535", name: "Accumulated Amortization", type: "asset", subtype: "fixed_asset", description: "Contra-asset account recording aggregate amortization across all intangible assets." },
+  { code: "1540", name: "Intangible Assets", type: "asset", subtype: "fixed_asset", description: "Software licenses, patents, trademarks, and other non-physical assets with a multi-year useful life." },
 
   // --- LIABILITIES (2000 – 2999) ---
   { code: "2100", name: "Accounts Payable", type: "liability", subtype: "accounts_payable", description: "Short-term debt owed to vendors and trade suppliers for goods/services purchased on credit terms.", system: true },
@@ -97,6 +99,7 @@ export const SEED_ACCOUNTS: AccountSeed[] = [
   { code: "6100", name: "Repairs & Equipment Maintenance", type: "expense", subtype: "expense", description: "Routine repairs and servicing for IT hardware, machinery, office fixtures, and vehicles." },
   { code: "6110", name: "Commercial Insurance", type: "expense", subtype: "expense", description: "Insurance premiums covering fire, burglary, goods in transit, and public liability." },
   { code: "6120", name: "Depreciation Expense", type: "expense", subtype: "expense", description: "Non-cash monthly charge recognizing asset wear-and-tear across computers, vehicles, and equipment." },
+  { code: "6125", name: "Amortization Expense", type: "expense", subtype: "expense", description: "Non-cash monthly charge spreading the cost of intangible assets (software licenses, patents) over their useful life." },
   { code: "6130", name: "Bad Debts Written Off", type: "expense", subtype: "expense", description: "Uncollectible customer invoices written off from Accounts Receivable to reflect bad debts." },
   { code: "6140", name: "Training & Staff Development", type: "expense", subtype: "expense", description: "Staff training workshops, professional course fees, certifications, and conferences." },
   { code: "6150", name: "Business Travel & Lodging", type: "expense", subtype: "expense", description: "Hotel accommodation, meals, and flight/bus travel costs for out-of-town business trips." },
