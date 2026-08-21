@@ -121,7 +121,13 @@ export function OrgProfileForm({ initial, gatewayOptions = [] }: { initial: OrgD
         .upload(path, logoFile, { upsert: true });
       if (error) throw error;
       const { data } = supabase.storage.from("logos").getPublicUrl(path);
-      return data.publicUrl;
+      // Re-uploading to the same path (upsert) returns the exact same public
+      // URL every time — Supabase Storage's CDN caches that URL, so browsers
+      // keep serving the old cached image forever even though the file on
+      // disk changed. This is the reported bug: "updating the logo doesn't
+      // really update it." A cache-busting query param forces every client
+      // (and the invoice PDF renderer, which reads this same URL) to refetch.
+      return `${data.publicUrl}?v=${Date.now()}`;
     } finally {
       setLogoUploading(false);
     }

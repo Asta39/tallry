@@ -49,7 +49,9 @@ export default function OnboardingPage() {
         .upload(path, logoFile, { upsert: true });
       if (error) throw error;
       const { data } = supabase.storage.from("logos").getPublicUrl(path);
-      return data.publicUrl;
+      // See OrgProfileForm.tsx — same fixed path per user means re-uploads
+      // return the same CDN-cached URL; cache-bust so it actually refreshes.
+      return `${data.publicUrl}?v=${Date.now()}`;
     } finally {
       setLogoUploading(false);
     }
