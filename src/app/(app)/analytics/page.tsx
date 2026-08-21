@@ -10,7 +10,7 @@ import * as A from "@/lib/analytics";
 import { aging } from "@/lib/reports";
 import { TrendAreaChart, TrendLineChart, RankBarChart, CategoryBarChart, StackedBarChart, BreakdownDonut } from "@/components/analytics/Charts";
 import { LockedCard } from "@/components/analytics/LockedCard";
-import { fakeTrend, fakeRanked, fakeBuckets, fakeDonut, fakeStacked } from "./placeholders";
+import { fakeTrend, fakeRanked, fakeBuckets, fakeStacked } from "./placeholders";
 
 export const dynamic = "force-dynamic";
 
@@ -184,7 +184,11 @@ export default async function AnalyticsPage() {
           <Section title="Expenses" />
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <Card title="Expense breakdown" subtitle="Trailing 12 months, by category">
-              <BreakdownDonut data={expBreak.length > 0 ? expBreak : fakeDonut()} />
+              {expBreak.length > 0 ? (
+                <BreakdownDonut data={expBreak} />
+              ) : (
+                <div className="text-[13px] text-[var(--color-ink-400)] py-10 text-center">No expenses recorded yet.</div>
+              )}
             </Card>
             <LockedCard locked={!has("standard")} planLabel={TIER_LABEL.standard}>
               <Card title="Top vendors" subtitle="By spend, all time">
