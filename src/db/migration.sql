@@ -898,3 +898,5 @@ ALTER TABLE loan_ledger ADD COLUMN IF NOT EXISTS disbursed_from_bank_account_id 
 ALTER TABLE loan_ledger ADD COLUMN IF NOT EXISTS disbursement_journal_entry_id INTEGER;
 
 ALTER TABLE fixed_assets ADD COLUMN IF NOT EXISTS disposal_type TEXT;
+
+ALTER TABLE org ADD COLUMN IF NOT EXISTS website TEXT;

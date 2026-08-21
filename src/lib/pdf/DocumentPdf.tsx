@@ -1,6 +1,6 @@
 /* eslint-disable jsx-a11y/alt-text */
 import React from "react";
-import { Document, Page, Text, View, Image, StyleSheet } from "@react-pdf/renderer";
+import { Document, Page, Text, View, Image, StyleSheet, Link } from "@react-pdf/renderer";
 import { fmtKES } from "@/lib/money";
 import { TAX_CLASSES, type TaxClass } from "@/lib/tax";
 
@@ -19,6 +19,7 @@ export interface PdfOrg {
   address?: string | null;
   phone?: string | null;
   email?: string | null;
+  website?: string | null;
   logoUrl?: string | null;
   brandColor: string;
   customDocumentColumnName?: string | null;
@@ -172,6 +173,7 @@ function makeStyles(brand: string) {
     logo: { maxWidth: 130, maxHeight: 52, objectFit: "contain", objectPosition: "left", marginBottom: 12 },
     orgName: { fontSize: 10.5, fontFamily: "Helvetica-Bold", marginBottom: 3 },
     muted: { color: "#6e6e73", marginTop: 2 },
+    link: { color: brand, marginTop: 2, textDecoration: "underline" },
     docTitle: { fontSize: 19, fontFamily: "Helvetica-Bold", color: brand, textAlign: "right" },
     metaRight: { textAlign: "right", marginTop: 4, lineHeight: 1.5 },
     billTo: { marginTop: 26 },
@@ -659,6 +661,11 @@ export function DocumentPdf({
             ) : (
               <Text style={s.muted}>{org.name}</Text>
             )}
+            {org.website ? (
+              <Link src={org.website} style={s.link}>
+                {org.website.replace(/^https?:\/\//i, "")}
+              </Link>
+            ) : null}
           </View>
           {qrDataUrl ? (
             <View>

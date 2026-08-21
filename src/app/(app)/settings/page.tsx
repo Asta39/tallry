@@ -41,6 +41,7 @@ export default async function SettingsPage() {
           address: o.address,
           phone: o.phone,
           email: o.email,
+          website: o.website,
           invoicePrefix: o.invoicePrefix,
           invoiceTemplate: o.invoiceTemplate,
           quoteTemplate: o.quoteTemplate,

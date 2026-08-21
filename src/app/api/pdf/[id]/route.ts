@@ -51,6 +51,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
         address: o.address,
         phone: o.phone,
         email: o.email,
+        website: o.website,
         logoUrl: o.logoUrl,
         brandColor: o.brandColor ?? "#0f766e",
         documentFooterText: o.documentFooterText,

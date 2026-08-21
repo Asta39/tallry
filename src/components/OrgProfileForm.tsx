@@ -15,6 +15,7 @@ interface OrgData {
   address?: string | null;
   phone?: string | null;
   email?: string | null;
+  website?: string | null;
   invoicePrefix: string;
   invoiceTemplate?: string | null;
   quoteTemplate?: string | null;
@@ -44,6 +45,15 @@ interface OrgData {
   userId?: string | null;
 }
 
+/** Users type "example.com" as often as "https://example.com" — a bare
+ *  domain isn't a valid link target on a PDF/tap-to-open context, so default
+ *  the scheme to https rather than rejecting or silently mis-linking it. */
+function normalizeWebsite(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed) return "";
+  return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+}
+
 export function OrgProfileForm({ initial, gatewayOptions = [] }: { initial: OrgData; gatewayOptions?: { id: string; name: string }[] }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -54,6 +64,7 @@ export function OrgProfileForm({ initial, gatewayOptions = [] }: { initial: OrgD
   const [kraPin, setKraPin] = useState(initial.kraPin || "");
   const [phone, setPhone] = useState(initial.phone || "");
   const [email, setEmail] = useState(initial.email || "");
+  const [website, setWebsite] = useState(initial.website || "");
   const [address, setAddress] = useState(initial.address || "");
   const [vatRegistered, setVatRegistered] = useState(initial.vatRegistered);
   const [invoicePrefix, setInvoicePrefix] = useState(initial.invoicePrefix || "INV-");
@@ -156,6 +167,7 @@ export function OrgProfileForm({ initial, gatewayOptions = [] }: { initial: OrgD
           address: address || undefined,
           phone: phone || undefined,
           email: email || undefined,
+          website: normalizeWebsite(website) || undefined,
           invoicePrefix: invoicePrefix || "INV-",
           invoiceTemplate,
           quoteTemplate,
@@ -298,6 +310,19 @@ export function OrgProfileForm({ initial, gatewayOptions = [] }: { initial: OrgD
               className={inputCls}
               placeholder="info@yourco.co.ke"
             />
+          </label>
+          <label className="block">
+            <span className={labelCls}>Website</span>
+            <input
+              type="text"
+              value={website}
+              onChange={(e) => setWebsite(e.target.value)}
+              className={inputCls}
+              placeholder="yourco.co.ke"
+            />
+            <p className="text-[11px] text-[var(--color-ink-400)] mt-1">
+              Shown as a tappable link on invoice/quote/bill PDFs.
+            </p>
           </label>
           <label className="block col-span-2">
             <span className={labelCls}>Address (appears on invoices)</span>

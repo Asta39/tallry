@@ -29,6 +29,10 @@ export const org = pgTable("org", {
   address: text("address"),
   phone: text("phone"),
   email: text("email"),
+  /** Business website — shown as a clickable link on invoice/quote/bill etc.
+   *  PDFs so a customer reading a printed/emailed document can tap through
+   *  to it, same idea as the logo/brand color but for the website itself. */
+  website: text("website"),
   logoUrl: text("logo_url"),
   brandColor: text("brand_color").notNull().default("#0f766e"),
   invoicePrefix: text("invoice_prefix").notNull().default("INV-"),
