@@ -3,6 +3,7 @@
 import { db, loanLedger, employees, bankAccounts, accounts } from "@/db";
 import { and, eq } from "drizzle-orm";
 import { getAccess } from "@/lib/access";
+import { orgContext } from "@/lib/org";
 import { redirect } from "next/navigation";
 import { nowISO, todayISO } from "@/lib/money";
 import { postEntry, mirrorBankTxn } from "@/lib/posting";
@@ -10,7 +11,16 @@ import { postEntry, mirrorBankTxn } from "@/lib/posting";
 export async function createLoanAction(formData: FormData) {
   const access = await getAccess();
   if (!access) throw new Error("Not logged in");
+  // postEntry()/mirrorBankTxn() resolve the org via AsyncLocalStorage
+  // (currentOrgId()), not a parameter — without this, issuing a loan with a
+  // "Disbursed from" account picked threw "No organization in context"
+  // uncaught, crashing to the generic error page. Reported live as "loans
+  // and deductions giving an error." Same bug class as the fixed-asset
+  // crash fixed earlier this session.
+  return orgContext.run(access.orgId, () => _createLoan(access, formData));
+}
 
+async function _createLoan(access: NonNullable<Awaited<ReturnType<typeof getAccess>>>, formData: FormData) {
   const employeeId = Number(formData.get("employeeId"));
   const principalCents = Math.round(Number(formData.get("principal")) * 100);
   const installmentCents = Math.round(Number(formData.get("installment")) * 100);
