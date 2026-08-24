@@ -19,23 +19,24 @@ import {
  */
 export function Reconciliation({
   banks,
-  openRec,
+  openRecByBank,
 }: {
   banks: { id: number; label: string }[];
-  /** an in-progress session found on page load, if any */
-  openRec: { id: number } | null;
+  /** in-progress sessions found on page load, keyed by bank account id */
+  openRecByBank: Record<number, { id: number }>;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
   const [state, setState] = useState<ReconciliationState | null>(null);
-  const [expanded, setExpanded] = useState(!!openRec);
-  const [adjustMemo, setAdjustMemo] = useState("");
-  const [showAdjustForm, setShowAdjustForm] = useState(false);
 
   // start form
   const [bankId, setBankId] = useState<number>(banks[0]?.id ?? 0);
+  const openRec = openRecByBank[bankId] ?? null;
+  const [expanded, setExpanded] = useState(!!openRec);
+  const [adjustMemo, setAdjustMemo] = useState("");
+  const [showAdjustForm, setShowAdjustForm] = useState(false);
   const [stmtDate, setStmtDate] = useState(todayISO());
   const [stmtBal, setStmtBal] = useState("");
 

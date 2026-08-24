@@ -60,7 +60,14 @@ export async function startReconciliation(data: {
 }) {
   return withOrg(async () => {
     const orgId = currentOrgId();
-    // Only one open session per account
+    // Only one open session per account. Previously, clicking "Start
+    // reconciliation" while a stale in-progress session already existed
+    // (e.g. abandoned days ago) silently resumed that old session with its
+    // old date/balance and discarded whatever the user had just typed —
+    // reported live as "did bank reconciliation today and it did not pick
+    // my statement balance". The user clicked Start, not Resume, so their
+    // freshly entered numbers should always win: refresh the existing
+    // session's date/balance instead of ignoring the new input.
     const [open] = await db
       .select()
       .from(bankReconciliations)
@@ -72,7 +79,14 @@ export async function startReconciliation(data: {
         )
       )
       .limit(1);
-    if (open) return open.id;
+    if (open) {
+      await db
+        .update(bankReconciliations)
+        .set({ statementDate: data.statementDate, statementBalanceCents: data.statementBalanceCents })
+        .where(eq(bankReconciliations.id, open.id));
+      revalidatePath("/banking");
+      return open.id;
+    }
 
     const [rec] = await db
       .insert(bankReconciliations)

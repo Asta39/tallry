@@ -35,12 +35,17 @@ export default async function BankingPage() {
     .from(accounts)
     .where(and(eq(accounts.orgId, o.id), inArray(accounts.type, ["income", "expense"])));
 
-  // Any in-progress reconciliation session (first account with one)
-  const [openRec] = await db
+  // Every in-progress reconciliation session, keyed by account — a single
+  // "first one found" query showed the "Resume" prompt for whichever
+  // account happened to have a stale session first, even while reconciling
+  // a different account entirely. Keyed lookup lets the Resume button only
+  // appear for the account actually selected in the form.
+  const openRecRows = await db
     .select()
     .from(bankReconciliations)
-    .where(and(eq(bankReconciliations.orgId, o.id), eq(bankReconciliations.status, "in_progress")))
-    .limit(1);
+    .where(and(eq(bankReconciliations.orgId, o.id), eq(bankReconciliations.status, "in_progress")));
+  const openRecByBank: Record<number, { id: number }> = {};
+  for (const r of openRecRows) openRecByBank[r.bankAccountId] = { id: r.id };
 
   // Learned-rule suggestions for the uncategorized rows
   const uncategorized = txns.filter((t) => t.status === "uncategorized");
@@ -92,7 +97,7 @@ export default async function BankingPage() {
       <h2 className="text-[15px] font-semibold mt-8 mb-3">Reconcile</h2>
       <Reconciliation
         banks={banks.map((b) => ({ id: b.id, label: bankAccountLabel(b, o.mpesaTillGatewayId) }))}
-        openRec={openRec ? { id: openRec.id } : null}
+        openRecByBank={openRecByBank}
       />
 
       <h3 className="text-[13.5px] font-semibold mt-6 mb-3 text-[var(--color-ink-600)]">Transfer between accounts</h3>
