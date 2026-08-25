@@ -14,6 +14,9 @@ export const metadata: Metadata = {
     icon: "/icon.png",
     apple: "/app-icon?size=192",
   },
+  verification: {
+    google: "gZJE073WRIN-J15WdFIVc3HRaNo-5JT7LfYyX-7LAp4",
+  },
 };
 
 export const viewport: Viewport = {
