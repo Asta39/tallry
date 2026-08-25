@@ -32,6 +32,7 @@ export const MODULES: { key: string; label: string }[] = [
   { key: "items", label: "Items & Stock" },
   { key: "banking", label: "Bank & M-Pesa" },
   { key: "payroll", label: "Payroll" },
+  { key: "salary_advances", label: "Salary Advances (request & view own, or manage all with Payroll access)" },
   { key: "fixed_assets", label: "Fixed Assets" },
   { key: "vat3", label: "iTax VAT3" },
   { key: "accountant", label: "Accountant (ledger)" },

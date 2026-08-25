@@ -30,6 +30,7 @@ const reports = [
       { href: "/reports/aging", title: "Aged Receivables (Aging)", body: "Unpaid invoices and bills, bucketed by lateness." },
       { href: "/reports/debtors", title: "Debtors", body: "Every customer with a balance outstanding, per sales agent, in one list." },
       { href: "/reports/petty-expenses", title: "Petty Expenses", body: "Staff expense claims by person and category, for easy reimbursement." },
+      { href: "/accountant/cost-centers", title: "By Location / Cost Center", body: "Tag transactions with a branch, department, or project and see P&L broken down by it." },
     ],
   },
   {

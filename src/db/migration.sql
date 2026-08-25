@@ -900,3 +900,21 @@ ALTER TABLE loan_ledger ADD COLUMN IF NOT EXISTS disbursement_journal_entry_id I
 ALTER TABLE fixed_assets ADD COLUMN IF NOT EXISTS disposal_type TEXT;
 
 ALTER TABLE org ADD COLUMN IF NOT EXISTS website TEXT;
+
+ALTER TABLE loan_ledger ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'loan';
+ALTER TABLE members ADD COLUMN IF NOT EXISTS employee_id INTEGER;
+
+CREATE TABLE IF NOT EXISTS salary_advance_requests (
+  id SERIAL PRIMARY KEY,
+  org_id INTEGER NOT NULL REFERENCES org(id),
+  employee_id INTEGER NOT NULL REFERENCES employees(id),
+  requested_by_member_id INTEGER,
+  amount_cents BIGINT NOT NULL,
+  reason TEXT,
+  status TEXT NOT NULL DEFAULT 'pending',
+  reviewed_by_name TEXT,
+  review_note TEXT,
+  loan_ledger_id INTEGER,
+  created_at TEXT NOT NULL,
+  reviewed_at TEXT
+);

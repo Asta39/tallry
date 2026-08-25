@@ -51,7 +51,7 @@ export async function createStaff(data: {
   revalidatePath("/staff");
 }
 
-export async function updateStaff(memberId: number, patch: { role?: string; active?: boolean; name?: string }) {
+export async function updateStaff(memberId: number, patch: { role?: string; active?: boolean; name?: string; employeeId?: number | null }) {
   const access = await requireAdmin();
   await db
     .update(members)
@@ -59,6 +59,7 @@ export async function updateStaff(memberId: number, patch: { role?: string; acti
       ...(patch.role !== undefined ? { role: patch.role } : {}),
       ...(patch.active !== undefined ? { active: patch.active } : {}),
       ...(patch.name !== undefined ? { name: patch.name } : {}),
+      ...(patch.employeeId !== undefined ? { employeeId: patch.employeeId } : {}),
     })
     .where(and(eq(members.orgId, access.orgId), eq(members.id, memberId)));
   const [m] = await db.select({ name: members.name }).from(members).where(eq(members.id, memberId)).limit(1);

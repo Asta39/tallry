@@ -1,23 +1,20 @@
 "use server";
 
-import { db, loanLedger, employees, bankAccounts, accounts } from "@/db";
-import { and, eq } from "drizzle-orm";
 import { getAccess } from "@/lib/access";
 import { orgContext } from "@/lib/org";
 import { redirect } from "next/navigation";
-import { nowISO, todayISO } from "@/lib/money";
-import { postEntry, mirrorBankTxn } from "@/lib/posting";
+import { issueStaffLoan } from "@/lib/staff-loans";
 
 export async function createLoanAction(formData: FormData) {
   const access = await getAccess();
   if (!access) throw new Error("Not logged in");
-  // postEntry()/mirrorBankTxn() resolve the org via AsyncLocalStorage
-  // (currentOrgId()), not a parameter — without this, issuing a loan with a
-  // "Disbursed from" account picked threw "No organization in context"
-  // uncaught, crashing to the generic error page. Reported live as "loans
-  // and deductions giving an error." Same bug class as the fixed-asset
-  // crash fixed earlier this session.
-  return orgContext.run(access.orgId, () => _createLoan(access, formData));
+  // issueStaffLoan() -> postEntry()/mirrorBankTxn() resolve the org via
+  // AsyncLocalStorage (currentOrgId()), not a parameter — without this,
+  // issuing a loan with a "Disbursed from" account picked threw "No
+  // organization in context" uncaught, crashing to the generic error page.
+  // Reported live as "loans and deductions giving an error."
+  await orgContext.run(access.orgId, () => _createLoan(access, formData));
+  redirect("/payroll/loans");
 }
 
 async function _createLoan(access: NonNullable<Awaited<ReturnType<typeof getAccess>>>, formData: FormData) {
@@ -31,57 +28,14 @@ async function _createLoan(access: NonNullable<Awaited<ReturnType<typeof getAcce
     throw new Error("Invalid input");
   }
 
-  const [employee] = await db.select().from(employees).where(and(eq(employees.orgId, access.orgId), eq(employees.id, employeeId))).limit(1);
-  if (!employee) throw new Error("Employee not found");
-
-  // Records the actual cash disbursement — DR Accounts Receivable (1200) ·
-  // CR the bank/cash it was paid from. Without this, a staff loan had no
-  // ledger impact at all when issued, yet its recovery already credited AR
-  // on every payroll deduction (see payroll/runs/actions.ts) — meaning AR
-  // was quietly driven negative by every loan ever recovered, with no
-  // offsetting debit anywhere.
-  let disbursementJournalEntryId: number | null = null;
-  let bank: { id: number; accountId: number } | undefined;
-  if (disbursedFromBankAccountId) {
-    const [b] = await db.select().from(bankAccounts).where(and(eq(bankAccounts.orgId, access.orgId), eq(bankAccounts.id, disbursedFromBankAccountId))).limit(1);
-    if (!b) throw new Error("Bank/M-Pesa account not found");
-    bank = b;
-    const [ar] = await db.select().from(accounts).where(and(eq(accounts.orgId, access.orgId), eq(accounts.code, "1200"))).limit(1);
-    if (!ar) throw new Error("Accounts Receivable account (1200) not found");
-    disbursementJournalEntryId = await postEntry({
-      date: todayISO(),
-      memo: `Staff loan issued: ${employee.name}`,
-      sourceType: "staff_loan_disbursement",
-      lines: [
-        { accountId: ar.id, debitCents: principalCents },
-        { accountId: bank.accountId, creditCents: principalCents },
-      ],
-    });
-  }
-
-  const [created] = await db.insert(loanLedger).values({
+  await issueStaffLoan({
     orgId: access.orgId,
     employeeId,
     principalCents,
-    balanceCents: principalCents,
     installmentCents,
     type,
-    status: "active",
+    kind: "loan",
     disbursedFromBankAccountId,
-    disbursementJournalEntryId,
-    createdAt: nowISO(),
-  }).returning();
-
-  if (bank && disbursementJournalEntryId) {
-    await mirrorBankTxn({
-      bankAccountId: bank.id,
-      date: todayISO(),
-      description: `Staff loan issued: ${employee.name}`,
-      amountCents: -principalCents,
-      journalEntryId: disbursementJournalEntryId,
-      externalRef: `staffloan:${created.id}`,
-    });
-  }
-
-  redirect("/payroll/loans");
+    memoVerb: "Staff loan issued",
+  });
 }

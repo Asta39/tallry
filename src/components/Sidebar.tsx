@@ -62,7 +62,8 @@ const groups: {
       { href: "/payroll/runs", label: "Payroll Runs", icon: "💵", perm: "payroll" },
       { href: "/payroll/employees", label: "Employees", icon: "🧑‍💼", perm: "payroll" },
       { href: "/payroll/rules", label: "Rules & Tax", icon: "⚖️", perm: "payroll" },
-      { href: "/payroll/loans", label: "Loans & Deductions", icon: "🏷️", perm: "payroll" },
+      { href: "/payroll/loans", label: "Loans", icon: "🏷️", perm: "payroll" },
+      { href: "/payroll/advances", label: "Salary Advances", icon: "💳", perm: "salary_advances" },
     ],
   },
   {

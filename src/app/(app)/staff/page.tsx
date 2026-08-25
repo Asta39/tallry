@@ -56,8 +56,9 @@ export default async function StaffPage() {
 
       <h2 className="text-[15px] font-semibold mt-8 mb-3">Team</h2>
       <StaffList
-        staff={staff.map((m) => ({ id: m.id, name: m.name, email: m.email, role: m.role, active: m.active }))}
+        staff={staff.map((m) => ({ id: m.id, name: m.name, email: m.email, role: m.role, active: m.active, employeeId: m.employeeId }))}
         roles={allRoles}
+        employees={allEmployees.map((e) => ({ id: e.id, name: e.name }))}
       />
 
       <div className="flex items-center justify-between mt-8 mb-1">

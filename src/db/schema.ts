@@ -572,6 +572,12 @@ export const members = pgTable("members", {
   // admin | accountant | sales | hr | inventory | staff
   role: text("role").notNull().default("staff"),
   active: boolean("active").notNull().default(true),
+  /** Links this login to its payroll employee record — needed for
+   *  self-service features (e.g. "my" salary advance requests/history)
+   *  where the app has to know which employee the logged-in user is.
+   *  Null until an admin sets it on the Staff & Roles page; nothing else
+   *  in payroll depends on this link today. */
+  employeeId: integer("employee_id"),
   createdAt: text("created_at").notNull(),
 }, (t) => ({
   orgIdx: index("idx_members_org").on(t.orgId),
@@ -817,6 +823,10 @@ export const loanLedger = pgTable("loan_ledger", {
   balanceCents: money("balance_cents").notNull(),
   installmentCents: money("installment_cents").notNull(),
   type: text("type").notNull().default("amortizing"), // amortizing, recurring_fixed
+  /** loan | advance — same repayment/deduction mechanism either way (payroll
+   *  just pulls every active row), this only separates which tab
+   *  (Loans vs Salary Advances) a row shows up on. */
+  kind: text("kind").notNull().default("loan"),
   status: text("status").notNull().default("active"), // active, paid, paused
   /** Disbursement — DR Accounts Receivable (1200) · CR this bank/cash
    *  account. Recovery already credited AR on every payroll deduction (see
@@ -827,6 +837,31 @@ export const loanLedger = pgTable("loan_ledger", {
   disbursedFromBankAccountId: integer("disbursed_from_bank_account_id"),
   disbursementJournalEntryId: integer("disbursement_journal_entry_id"),
   createdAt: text("created_at").notNull(),
+});
+
+/**
+ * A staff member's request for a salary advance — separate from loanLedger
+ * because it has its own request/review lifecycle before any money moves.
+ * Once approved, a loanLedger row (kind: "advance") is created to actually
+ * disburse and recover it through payroll — this table just tracks the ask.
+ */
+export const salaryAdvanceRequests = pgTable("salary_advance_requests", {
+  id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
+  employeeId: integer("employee_id").notNull().references(() => employees.id),
+  /** Who submitted it — null when an accountant/admin created it directly
+   *  for a staff member rather than the staff member requesting it. */
+  requestedByMemberId: integer("requested_by_member_id"),
+  amountCents: money("amount_cents").notNull(),
+  reason: text("reason"),
+  status: text("status").notNull().default("pending"), // pending | approved | rejected
+  reviewedByName: text("reviewed_by_name"),
+  reviewNote: text("review_note"),
+  /** Set once approved and disbursed — the actual loanLedger row this
+   *  request turned into. */
+  loanLedgerId: integer("loan_ledger_id"),
+  createdAt: text("created_at").notNull(),
+  reviewedAt: text("reviewed_at"),
 });
 
 export const loanInstallments = pgTable("loan_installments", {

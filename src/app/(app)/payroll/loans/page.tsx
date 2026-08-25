@@ -19,13 +19,13 @@ export default async function PayrollLoansPage() {
     })
     .from(loanLedger)
     .innerJoin(employees, eq(loanLedger.employeeId, employees.id))
-    .where(eq(loanLedger.orgId, o.id));
+    .where(and(eq(loanLedger.orgId, o.id), eq(loanLedger.kind, "loan")));
 
   return (
     <>
-      <PageHeader 
-        title="Loans & Deductions" 
-        subtitle="Manage employee salary advances and loans"
+      <PageHeader
+        title="Loans"
+        subtitle="Longer-term staff loans, recovered through payroll deductions"
         action={<PrimaryLink href="/payroll/loans/new">Issue Loan</PrimaryLink>}
       />
 
@@ -58,9 +58,13 @@ export default async function PayrollLoansPage() {
                 <Td right>{fmtKES(row.loan.installmentCents)}/mo</Td>
                 <Td right className="font-bold">{fmtKES(row.loan.balanceCents)}</Td>
                 <Td>
-                  <div className={`badge badge-sm ${row.loan.status === "active" ? "badge-success" : "badge-ghost"}`}>
+                  <span
+                    className={`inline-block rounded-full px-2.5 py-0.5 text-[11px] font-medium ${
+                      row.loan.status === "active" ? "bg-emerald-50 text-emerald-700" : "bg-[var(--color-ink-100)] text-[var(--color-ink-400)]"
+                    }`}
+                  >
                     {row.loan.status}
-                  </div>
+                  </span>
                 </Td>
               </tr>
             ))}

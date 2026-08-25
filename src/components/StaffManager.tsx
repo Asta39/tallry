@@ -14,6 +14,7 @@ export interface StaffMember {
   email: string;
   role: string;
   active: boolean;
+  employeeId?: number | null;
 }
 
 export function AddStaffForm({ roles, employees, isLocked }: { roles: string[], employees?: { id: number, name: string }[], isLocked?: boolean }) {
@@ -100,7 +101,7 @@ export function AddStaffForm({ roles, employees, isLocked }: { roles: string[], 
   );
 }
 
-export function StaffList({ staff, roles }: { staff: StaffMember[]; roles: string[] }) {
+export function StaffList({ staff, roles, employees = [] }: { staff: StaffMember[]; roles: string[]; employees?: { id: number; name: string }[] }) {
   const router = useRouter();
   const [pending, start] = useTransition();
 
@@ -119,6 +120,7 @@ export function StaffList({ staff, roles }: { staff: StaffMember[]; roles: strin
             <th className="text-left px-4 py-2.5 font-semibold">Name</th>
             <th className="text-left px-4 py-2.5 font-semibold">Email</th>
             <th className="text-left px-4 py-2.5 font-semibold">Role</th>
+            <th className="text-left px-4 py-2.5 font-semibold">Payroll employee</th>
             <th className="text-left px-4 py-2.5 font-semibold">Status</th>
           </tr>
         </thead>
@@ -141,6 +143,25 @@ export function StaffList({ staff, roles }: { staff: StaffMember[]; roles: strin
                 >
                   {roles.map((r) => (
                     <option key={r} value={r}>{r[0].toUpperCase() + r.slice(1)}</option>
+                  ))}
+                </select>
+              </td>
+              <td className="px-4 py-3">
+                <select
+                  disabled={pending}
+                  value={m.employeeId ?? ""}
+                  onChange={(e) =>
+                    start(async () => {
+                      await updateStaff(m.id, { employeeId: e.target.value ? Number(e.target.value) : null });
+                      router.refresh();
+                    })
+                  }
+                  className="rounded-md border border-[var(--color-ink-200)] px-2 py-1 text-[12.5px] bg-white"
+                  title="Links this login to a payroll employee — needed for self-service features like requesting a salary advance"
+                >
+                  <option value="">Not linked</option>
+                  {employees.map((e) => (
+                    <option key={e.id} value={e.id}>{e.name}</option>
                   ))}
                 </select>
               </td>
