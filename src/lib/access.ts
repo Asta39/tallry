@@ -31,6 +31,7 @@ export const MODULES: { key: string; label: string }[] = [
   { key: "purchase_orders", label: "Purchase orders" },
   { key: "items", label: "Items & Stock" },
   { key: "banking", label: "Bank & M-Pesa" },
+  { key: "view_all_documents", label: "View org-wide invoices/documents even when Data Segregation is on" },
   { key: "payroll", label: "Payroll" },
   { key: "salary_advances", label: "Salary Advances (request & view own, or manage all with Payroll access)" },
   { key: "fixed_assets", label: "Fixed Assets" },
@@ -204,6 +205,11 @@ export const getAccessCached = cache(getAccess);
 export function canViewAllData(access: Access): boolean {
   if (access.isOwner || access.role === "admin") return true;
   if (!access.orgRow.dataSegregation) return true;
+  // Explicit per-role override — lets an admin grant a role (accountant, by
+  // default) org-wide document visibility without also handing them the
+  // full "admin" role, even while segregation is switched on for everyone
+  // else.
+  if (access.perms.has("view_all_documents")) return true;
   return false;
 }
 

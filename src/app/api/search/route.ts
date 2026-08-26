@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db, contacts, documents } from "@/db";
 import { ilike, or, eq, and } from "drizzle-orm";
-import { getAccess } from "@/lib/access";
+import { getAccess, canViewAllData } from "@/lib/access";
 
 export async function GET(request: Request) {
   try {
@@ -38,10 +38,12 @@ export async function GET(request: Request) {
         .limit(5),
     ]);
 
-    // Data Segregation: To be perfectly secure, we should ideally filter the documents by assignments if canViewAllData is false.
-    // However, since it's just a search API, we can either filter them here or filter them after. Let's filter them if needed.
+    // Same segregation rule every document list uses (canViewAllData) — was
+    // previously re-derived inline here and missed the view_all_documents
+    // permission override, so a role granted that override still had its
+    // search results silently filtered.
     let finalDocs = matchedDocs;
-    if (access && !access.isOwner && access.role !== "admin" && access.orgRow.dataSegregation) {
+    if (!canViewAllData(access)) {
        // Just fetch assignments for these matched docs
        if (finalDocs.length > 0) {
          const { documentAssignments } = await import("@/db");
