@@ -56,6 +56,7 @@ export function BillingClient({
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const isDue = !entitlements.nextMaintenanceDueAt || new Date().toISOString().slice(0, 10) >= entitlements.nextMaintenanceDueAt;
 
   const [modal, setModal] = useState<{
     isOpen: boolean;
@@ -189,12 +190,22 @@ export function BillingClient({
             <div className="mt-1 text-[12.5px] text-[var(--color-ink-500)]">Next due {entitlements.nextMaintenanceDueAt}</div>
           )}
           {entitlements.monthlyFeeCents > 0 && (
-            <button
-              onClick={() => setModal((prev) => ({ ...prev, isOpen: true, status: "idle", error: undefined }))}
-              className="mt-4 rounded-lg bg-[var(--color-accent-500)] hover:bg-[var(--color-accent-600)] text-white text-[13px] font-medium px-4 py-2"
-            >
-              Pay now
-            </button>
+            isDue ? (
+              <button
+                onClick={() => setModal((prev) => ({ ...prev, isOpen: true, status: "idle", error: undefined }))}
+                className="mt-4 rounded-lg bg-[var(--color-accent-500)] hover:bg-[var(--color-accent-600)] text-white text-[13px] font-medium px-4 py-2"
+              >
+                Pay now
+              </button>
+            ) : (
+              <button
+                disabled
+                title={`Not due until ${entitlements.nextMaintenanceDueAt}`}
+                className="mt-4 rounded-lg bg-[var(--color-ink-100)] text-[var(--color-ink-400)] text-[13px] font-medium px-4 py-2 cursor-not-allowed"
+              >
+                Not due yet
+              </button>
+            )
           )}
         </div>
       </div>

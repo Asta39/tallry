@@ -1,6 +1,6 @@
 import { db, billingPayments, subscriptions } from "@/db";
 import { eq } from "drizzle-orm";
-import { addMonthsISO } from "./billing";
+import { nextMonthEndISO } from "./billing";
 
 /**
  * Apply a COMPLETE maintenance-fee payment: advances the org's
@@ -21,7 +21,7 @@ export async function applyBillingPayment(paymentId: number): Promise<boolean> {
     // than from today, so paying early doesn't shorten the next cycle.
     const base = sub.nextMaintenanceDueAt && sub.nextMaintenanceDueAt > today ? sub.nextMaintenanceDueAt : today;
     await db.update(subscriptions)
-      .set({ nextMaintenanceDueAt: addMonthsISO(base, 1) })
+      .set({ nextMaintenanceDueAt: nextMonthEndISO(base) })
       .where(eq(subscriptions.id, sub.id));
   }
 

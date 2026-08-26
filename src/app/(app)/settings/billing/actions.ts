@@ -13,6 +13,10 @@ import { applyBillingPayment } from "@/lib/billing-apply";
 async function currentMonthlyFeeCents(orgId: number): Promise<number> {
   const ents = await getEntitlements(orgId);
   if (ents.monthlyFeeCents <= 0) throw new Error("No maintenance fee has been set for your account yet — contact us.");
+  const today = new Date().toISOString().slice(0, 10);
+  if (ents.nextMaintenanceDueAt && today < ents.nextMaintenanceDueAt) {
+    throw new Error(`Your maintenance fee isn't due yet — next due ${ents.nextMaintenanceDueAt}.`);
+  }
   return ents.monthlyFeeCents;
 }
 

@@ -70,3 +70,20 @@ export function addMonthsISO(dateISO: string, months: number): string {
   d.setUTCMonth(d.getUTCMonth() + months);
   return d.toISOString().slice(0, 10);
 }
+
+/** Last calendar day of dateISO's month, e.g. any January date -> 2026-01-31. */
+export function endOfMonthISO(dateISO: string): string {
+  const d = new Date(dateISO + "T00:00:00Z");
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).toISOString().slice(0, 10);
+}
+
+/**
+ * Last calendar day of the month after dateISO's month — used to advance a
+ * maintenance due date by one cycle. Goes via year/month directly (not
+ * addMonthsISO on a day-31 date) so Jan 31 -> Feb 28/29, not an overflow
+ * into March.
+ */
+export function nextMonthEndISO(dateISO: string): string {
+  const d = new Date(dateISO + "T00:00:00Z");
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 2, 0)).toISOString().slice(0, 10);
+}

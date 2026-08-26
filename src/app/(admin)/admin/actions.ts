@@ -7,7 +7,7 @@ import { db, superAdmins, subscriptions, billingPayments, org, announcements } f
 import { eq } from "drizzle-orm";
 import { requireSuperAdmin } from "@/lib/super-admin";
 import { logAdminAction } from "@/lib/admin-audit";
-import { addMonthsISO } from "@/lib/billing";
+import { endOfMonthISO, nextMonthEndISO } from "@/lib/billing";
 import { runAndStoreAllOrgChecks } from "@/lib/ledger-integrity";
 import { runOrgBackup, runAllOrgBackups, getBackupDownloadUrl } from "@/lib/org-backup";
 import { reconcileUnconfirmedKopoKopoPayouts } from "@/lib/payments/webhook";
@@ -119,7 +119,14 @@ export async function setOrgMonthlyFeeAction(orgId: number, formData: FormData) 
 
   const [existing] = await db.select().from(subscriptions).where(eq(subscriptions.orgId, orgId)).limit(1);
   if (!existing) return { error: "No subscription record for this org" };
-  await db.update(subscriptions).set({ monthlyFeeCents: amountCents }).where(eq(subscriptions.id, existing.id));
+  const today = new Date().toISOString().slice(0, 10);
+  await db.update(subscriptions).set({
+    monthlyFeeCents: amountCents,
+    // First time a fee is set, start the billing cycle at the end of the
+    // current calendar month — never leave it empty, and never on a random
+    // day-of-month like "next month same day".
+    nextMaintenanceDueAt: existing.nextMaintenanceDueAt ?? endOfMonthISO(today),
+  }).where(eq(subscriptions.id, existing.id));
 
   await logAdminAction({
     actorEmail: user.email!,
@@ -165,7 +172,7 @@ export async function activateOrgAction(orgId: number, formData: FormData) {
   await db.update(subscriptions).set({
     billingStatus: "active",
     activatedAt: today,
-    nextMaintenanceDueAt: addMonthsISO(today, 1),
+    nextMaintenanceDueAt: endOfMonthISO(today),
   }).where(eq(subscriptions.id, existing.id));
 
   await logAdminAction({
@@ -208,7 +215,7 @@ export async function recordMaintenancePaymentAction(orgId: number, formData: Fo
     updatedAt: new Date().toISOString(),
   });
   const base = existing.nextMaintenanceDueAt && existing.nextMaintenanceDueAt > date ? existing.nextMaintenanceDueAt : date;
-  await db.update(subscriptions).set({ nextMaintenanceDueAt: addMonthsISO(base, 1) }).where(eq(subscriptions.id, existing.id));
+  await db.update(subscriptions).set({ nextMaintenanceDueAt: nextMonthEndISO(base) }).where(eq(subscriptions.id, existing.id));
 
   await logAdminAction({
     actorEmail: user.email!,
