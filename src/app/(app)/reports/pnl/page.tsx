@@ -1,9 +1,10 @@
 import { withOrg } from "@/lib/org";
 import { requirePerm } from "@/lib/guard";
 import { profitAndLoss } from "@/lib/reports";
+import { listCostCenters } from "@/lib/cost-centers";
 import { fmtKES } from "@/lib/money";
 import { PageHeader, TableCard, Th, Td } from "@/components/ui";
-import { PeriodPicker, periodFromSearch, CsvLink, PdfLinks } from "@/components/reportShared";
+import { PeriodPicker, periodFromSearch, CsvLink, PdfLinks, LocationGate } from "@/components/reportShared";
 import { ReportChart } from "@/components/ReportCharts";
 
 export const dynamic = "force-dynamic";
@@ -11,11 +12,23 @@ export const dynamic = "force-dynamic";
 export default async function PnlPage({
   searchParams,
 }: {
-  searchParams: Promise<{ from?: string; to?: string }>;
+  searchParams: Promise<{ from?: string; to?: string; costCenter?: string }>;
 }) {
   await requirePerm("reports");
-  const { from, to } = periodFromSearch(await searchParams);
-  const pl = await withOrg(() => profitAndLoss(from, to));
+  const sp = await searchParams;
+  const { from, to } = periodFromSearch(sp);
+  const costCenters = await withOrg(() => listCostCenters(true));
+
+  if (!sp.costCenter) {
+    return (
+      <>
+        <PageHeader title="Profit & Loss" subtitle="Pick a location before viewing this report" />
+        <LocationGate costCenters={costCenters} />
+      </>
+    );
+  }
+  const costCenterId = sp.costCenter === "all" ? undefined : Number(sp.costCenter);
+  const pl = await withOrg(() => profitAndLoss(from, to, costCenterId));
 
   const Section = ({ title, rows, total }: { title: string; rows: typeof pl.income; total: number }) => (
     <>
@@ -38,8 +51,11 @@ export default async function PnlPage({
 
   return (
     <>
-      <PageHeader title="Profit & Loss" subtitle={`${from} → ${to}`} />
-      <PeriodPicker from={from} to={to} extra={
+      <PageHeader
+        title="Profit & Loss"
+        subtitle={`${from} → ${to} · ${costCenterId ? costCenters.find((c) => c.id === costCenterId)?.name ?? "Unknown location" : "All locations"}`}
+      />
+      <PeriodPicker from={from} to={to} costCenters={costCenters} costCenter={sp.costCenter} extra={
         <div className="flex gap-2">
           <CsvLink report="pnl" from={from} to={to} />
           <PdfLinks report="pnl" from={from} to={to} />

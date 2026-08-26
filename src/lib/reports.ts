@@ -22,10 +22,17 @@ export interface AccountBalance {
   creditCents: number;
 }
 
-export async function accountBalances(opts?: { from?: string; to?: string }): Promise<AccountBalance[]> {
+export async function accountBalances(opts?: { from?: string; to?: string; costCenterId?: number }): Promise<AccountBalance[]> {
   const conds = [eq(journalLines.orgId, currentOrgId())] as ReturnType<typeof eq>[];
   if (opts?.from) conds.push(gte(journalEntries.date, opts.from));
   if (opts?.to) conds.push(lte(journalEntries.date, opts.to));
+  // Only income/expense/COGS lines ever carry a cost center (see postBill/
+  // postInvoice/postExpense) — AR/AP/bank/VAT lines never do. Fine for P&L,
+  // which only ever reads income/expense accounts; a caller that filters
+  // this by cost center and then reads asset/liability balances would get
+  // misleading near-zero figures, so this is deliberately not wired into
+  // the balance sheet.
+  if (opts?.costCenterId) conds.push(eq(journalLines.costCenterId, opts.costCenterId));
 
   const rows = await db
     .select({
@@ -62,8 +69,8 @@ export async function accountBalances(opts?: { from?: string; to?: string }): Pr
     .sort((x, y) => x.code.localeCompare(y.code));
 }
 
-export async function profitAndLoss(from: string, to: string) {
-  const balances = await accountBalances({ from, to });
+export async function profitAndLoss(from: string, to: string, costCenterId?: number) {
+  const balances = await accountBalances({ from, to, costCenterId });
   const income = balances.filter((b) => b.type === "income");
   const cogs = balances.filter((b) => b.type === "expense" && b.subtype === "cost_of_goods_sold");
   // Inventory Adjustments gets its own bucket, split out of both COGS and
@@ -558,9 +565,11 @@ export async function generalLedger(accountId: number, from?: string, to?: strin
 }
 
 /** Income vs expense per month for the dashboard chart (last n months, oldest first). */
-export async function monthlyIncomeExpense(months = 6): Promise<
+export async function monthlyIncomeExpense(months = 6, costCenterId?: number): Promise<
   { month: string; label: string; incomeCents: number; expenseCents: number }[]
 > {
+  const conds = [eq(journalLines.orgId, currentOrgId()), inArray(accounts.type, ["income", "expense"])];
+  if (costCenterId) conds.push(eq(journalLines.costCenterId, costCenterId));
   const rows = await db
     .select({
       month: sql<string>`substr(${journalEntries.date}, 1, 7)`,
@@ -572,7 +581,7 @@ export async function monthlyIncomeExpense(months = 6): Promise<
     .from(journalLines)
     .innerJoin(journalEntries, eq(journalLines.entryId, journalEntries.id))
     .innerJoin(accounts, eq(journalLines.accountId, accounts.id))
-    .where(and(eq(journalLines.orgId, currentOrgId()), inArray(accounts.type, ["income", "expense"])))
+    .where(and(...conds))
     .groupBy(sql`substr(${journalEntries.date}, 1, 7)`, accounts.type, accounts.subtype);
 
   const now = new Date();
