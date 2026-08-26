@@ -209,7 +209,7 @@ export default async function ContactDetail({
                       {d.number}
                     </Link>
                   </Td>
-                  <Td><StatusPill status={d.status} overdue={(d.status === "open" || d.status === "partial") && !!d.dueDate && d.dueDate < today} /></Td>
+                  <Td><StatusPill status={d.status} overdue={(d.status === "open" || d.status === "partial") && !!d.dueDate && d.dueDate < today} docType={d.type} /></Td>
                   <Td right>{fmtKES(d.totalCents)}</Td>
                   <Td right className="font-medium">
                     {["open", "partial"].includes(d.status) ? fmtKES(d.totalCents - d.paidCents) : "—"}
@@ -305,7 +305,7 @@ export default async function ContactDetail({
                             {d.number}
                           </Link>
                         </Td>
-                        <Td><StatusPill status={d.status} overdue={(d.status === "open" || d.status === "partial") && !!d.dueDate && d.dueDate < today} /></Td>
+                        <Td><StatusPill status={d.status} overdue={(d.status === "open" || d.status === "partial") && !!d.dueDate && d.dueDate < today} docType={d.type} /></Td>
                         <Td right>{fmtKES(d.totalCents)}</Td>
                       </tr>
                     ))}
