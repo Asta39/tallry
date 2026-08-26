@@ -2,6 +2,7 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { Tooltip } from "./Tooltip";
 
 export interface SearchableOption {
   id: number;
@@ -124,14 +125,16 @@ export function SearchableSelect({
         }}
       />
       {selected && !open && (
-        <button
-          type="button"
-          aria-label="Clear selection"
-          className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--color-ink-400)] hover:text-[var(--color-ink-600)] text-sm px-1"
-          onClick={() => { onChange(""); setQuery(""); }}
-        >
-          ×
-        </button>
+        <Tooltip text="Clear selection" side="left" className="absolute right-2 top-1/2 -translate-y-1/2">
+          <button
+            type="button"
+            aria-label="Clear selection"
+            className="text-[var(--color-ink-400)] hover:text-[var(--color-ink-600)] text-sm px-1"
+            onClick={() => { onChange(""); setQuery(""); }}
+          >
+            ×
+          </button>
+        </Tooltip>
       )}
       {mounted && menu ? createPortal(menu, document.body) : null}
     </div>

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { addTodo, toggleTodo, deleteTodo, addEvent, deleteEvent } from "@/lib/staff-actions";
 import { fmtKESCompact, todayISO } from "@/lib/money";
+import { Tooltip } from "./Tooltip";
 
 /* ---------------- Income vs expense bar chart ---------------- */
 
@@ -116,18 +117,20 @@ export function TodoWidget({ todos }: { todos: TodoItem[] }) {
                 {t.dueDate}
               </span>
             )}
-            <button
-              onClick={() =>
-                start(async () => {
-                  await deleteTodo(t.id);
-                  router.refresh();
-                })
-              }
-              className="opacity-0 group-hover:opacity-100 text-[var(--color-ink-200)] hover:text-[var(--color-bad)] shrink-0"
-              aria-label="Delete task"
-            >
-              ×
-            </button>
+            <Tooltip text="Delete task" className="shrink-0">
+              <button
+                onClick={() =>
+                  start(async () => {
+                    await deleteTodo(t.id);
+                    router.refresh();
+                  })
+                }
+                className="opacity-0 group-hover:opacity-100 text-[var(--color-ink-200)] hover:text-[var(--color-bad)]"
+                aria-label="Delete task"
+              >
+                ×
+              </button>
+            </Tooltip>
           </li>
         ))}
         {todos.length === 0 && (
@@ -203,9 +206,13 @@ export function CalendarWidget({ events }: { events: CalEvent[] }) {
       <div className="flex items-center justify-between mb-3">
         <div className="text-[13.5px] font-semibold">Calendar</div>
         <div className="flex items-center gap-1 text-[13px]">
-          <button onClick={() => moveMonth(-1)} className="w-7 h-7 rounded-md hover:bg-[var(--color-ink-50)]" aria-label="Previous month">‹</button>
+          <Tooltip text="Previous month">
+            <button onClick={() => moveMonth(-1)} className="w-7 h-7 rounded-md hover:bg-[var(--color-ink-50)]" aria-label="Previous month">‹</button>
+          </Tooltip>
           <span className="min-w-[120px] text-center text-[12.5px] font-medium">{monthLabel}</span>
-          <button onClick={() => moveMonth(1)} className="w-7 h-7 rounded-md hover:bg-[var(--color-ink-50)]" aria-label="Next month">›</button>
+          <Tooltip text="Next month">
+            <button onClick={() => moveMonth(1)} className="w-7 h-7 rounded-md hover:bg-[var(--color-ink-50)]" aria-label="Next month">›</button>
+          </Tooltip>
         </div>
       </div>
 
@@ -275,18 +282,20 @@ export function CalendarWidget({ events }: { events: CalEvent[] }) {
                 <span className="flex-1 min-w-0 truncate">{e.title}</span>
               )}
               {e.deletable && e.dbId != null && (
-                <button
-                  onClick={() =>
-                    start(async () => {
-                      await deleteEvent(e.dbId!);
-                      router.refresh();
-                    })
-                  }
-                  className="opacity-0 group-hover:opacity-100 text-[var(--color-ink-200)] hover:text-[var(--color-bad)]"
-                  aria-label="Delete event"
-                >
-                  ×
-                </button>
+                <Tooltip text="Delete event">
+                  <button
+                    onClick={() =>
+                      start(async () => {
+                        await deleteEvent(e.dbId!);
+                        router.refresh();
+                      })
+                    }
+                    className="opacity-0 group-hover:opacity-100 text-[var(--color-ink-200)] hover:text-[var(--color-bad)]"
+                    aria-label="Delete event"
+                  >
+                    ×
+                  </button>
+                </Tooltip>
               )}
             </li>
           ))}

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { computeDocument, TAX_CLASSES, type TaxClass } from "@/lib/tax";
 import { fmtKES, parseKES, todayISO } from "@/lib/money";
+import { Tooltip } from "@/components/Tooltip";
 import { upsertDocumentAction, createItemFromLine, listCustomerInvoices, type DocLineInput } from "@/lib/actions";
 import { SearchableSelect } from "@/components/SearchableSelect";
 import { DimensionQtyInput } from "@/components/DimensionQtyInput";
@@ -656,14 +657,16 @@ export function DocumentEditor({
                       />
                     </td>
                     <td className="pr-2 py-3">
-                      <button
-                        type="button"
-                        onClick={() => setLines((ls) => ls.filter((_, j) => j !== i))}
-                        className="text-[var(--color-ink-200)] hover:text-[var(--color-bad)] text-[15px]"
-                        aria-label="Remove heading"
-                      >
-                        ×
-                      </button>
+                      <Tooltip text="Remove heading">
+                        <button
+                          type="button"
+                          onClick={() => setLines((ls) => ls.filter((_, j) => j !== i))}
+                          className="text-[var(--color-ink-200)] hover:text-[var(--color-bad)] text-[15px]"
+                          aria-label="Remove heading"
+                        >
+                          ×
+                        </button>
+                      </Tooltip>
                     </td>
                   </tr>
                 );
@@ -881,14 +884,16 @@ export function DocumentEditor({
                     {t ? fmtKES(t.grossCents) : "—"}
                   </td>
                   <td className="pr-2 py-3">
-                    <button
-                      type="button"
-                      onClick={() => setLines((ls) => ls.filter((_, j) => j !== i))}
-                      className="text-[var(--color-ink-200)] hover:text-[var(--color-bad)] text-[15px]"
-                      aria-label="Remove line"
-                    >
-                      ×
-                    </button>
+                    <Tooltip text="Remove line">
+                      <button
+                        type="button"
+                        onClick={() => setLines((ls) => ls.filter((_, j) => j !== i))}
+                        className="text-[var(--color-ink-200)] hover:text-[var(--color-bad)] text-[15px]"
+                        aria-label="Remove line"
+                      >
+                        ×
+                      </button>
+                    </Tooltip>
                   </td>
                 </tr>
               );

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { Tooltip } from "./Tooltip";
 
 export function Modal({
   open,
@@ -40,14 +41,16 @@ export function Modal({
       >
         <div className="flex items-center justify-between px-5 py-3.5 hairline-b shrink-0">
           <h2 className="text-[14px] font-semibold text-[var(--color-ink-900)]">{title}</h2>
-          <button
-            type="button"
-            onClick={() => !busy && onClose()}
-            className="w-7 h-7 flex items-center justify-center rounded-full text-[var(--color-ink-400)] hover:bg-[var(--color-ink-50)] hover:text-[var(--color-ink-700)] transition-colors"
-            aria-label="Close"
-          >
-            ×
-          </button>
+          <Tooltip text="Close">
+            <button
+              type="button"
+              onClick={() => !busy && onClose()}
+              className="w-7 h-7 flex items-center justify-center rounded-full text-[var(--color-ink-400)] hover:bg-[var(--color-ink-50)] hover:text-[var(--color-ink-700)] transition-colors"
+              aria-label="Close"
+            >
+              ×
+            </button>
+          </Tooltip>
         </div>
         <div className="flex-1 min-h-0 overflow-y-auto">{children}</div>
       </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Tooltip } from "./Tooltip";
 
 export const ANNOUNCEMENT_COLORS: Record<string, { bar: string; text: string; dot: string; label: string }> = {
   blue: { bar: "bg-[var(--color-accent-500)]", text: "text-white", dot: "bg-white/70", label: "Blue" },
@@ -63,14 +64,16 @@ export function TeamAnnouncementBanner({ announcements }: { announcements: Pinne
               <span className="font-semibold">{a.title}</span>
               {a.body ? <span className="opacity-90"> — {a.body}</span> : null}
             </span>
-            <button
-              type="button"
-              onClick={() => dismiss(a.id)}
-              className="ml-auto shrink-0 opacity-70 hover:opacity-100 text-[13px] leading-none px-1"
-              aria-label="Dismiss"
-            >
-              ✕
-            </button>
+            <Tooltip text="Dismiss" side="left" className="ml-auto shrink-0">
+              <button
+                type="button"
+                onClick={() => dismiss(a.id)}
+                className="opacity-70 hover:opacity-100 text-[13px] leading-none px-1"
+                aria-label="Dismiss"
+              >
+                ✕
+              </button>
+            </Tooltip>
           </div>
         );
       })}

@@ -4,6 +4,7 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { getNotifications, markNotificationRead, markAllNotificationsRead } from "@/lib/actions";
 import { useRouter } from "next/navigation";
 import { useRealtimeTable } from "@/lib/realtime/useRealtimeTable";
+import { Tooltip } from "./Tooltip";
 
 type NotificationRow = {
   id: number;
@@ -102,21 +103,23 @@ export function NotificationBell({ orgId, memberId, variant = "fixed" }: { orgId
 
   return (
     <div ref={containerRef} className={wrapperClass}>
-      <button
-        onClick={() => setOpen(!open)}
-        className="relative p-2 rounded-full bg-white border border-[var(--color-ink-200)] shadow-sm hover:bg-[var(--color-ink-50)] transition-colors"
-        aria-label="Notifications"
-      >
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-          <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-        </svg>
-        {unreadCount > 0 && (
-          <span className="absolute top-0 right-0 inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-red-500 rounded-full border-2 border-white translate-x-1/4 -translate-y-1/4">
-            {unreadCount}
-          </span>
-        )}
-      </button>
+      <Tooltip text="Notifications">
+        <button
+          onClick={() => setOpen(!open)}
+          className="relative p-2 rounded-full bg-white border border-[var(--color-ink-200)] shadow-sm hover:bg-[var(--color-ink-50)] transition-colors"
+          aria-label="Notifications"
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+            <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+          </svg>
+          {unreadCount > 0 && (
+            <span className="absolute top-0 right-0 inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-red-500 rounded-full border-2 border-white translate-x-1/4 -translate-y-1/4">
+              {unreadCount}
+            </span>
+          )}
+        </button>
+      </Tooltip>
 
       {open && (
         <>

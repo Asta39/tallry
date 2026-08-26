@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Tooltip } from "./Tooltip";
 
 /**
  * Registers the service worker and shows a quiet, dismissable "Install" banner
@@ -97,13 +98,15 @@ export function InstallPrompt() {
             Install
           </button>
         )}
-        <button
-          onClick={dismiss}
-          aria-label="Dismiss"
-          className="shrink-0 w-7 h-7 rounded-full text-[var(--color-ink-400)] hover:bg-[var(--color-ink-50)] flex items-center justify-center text-[16px]"
-        >
-          ×
-        </button>
+        <Tooltip text="Dismiss" side="left" className="shrink-0">
+          <button
+            onClick={dismiss}
+            aria-label="Dismiss"
+            className="w-7 h-7 rounded-full text-[var(--color-ink-400)] hover:bg-[var(--color-ink-50)] flex items-center justify-center text-[16px]"
+          >
+            ×
+          </button>
+        </Tooltip>
       </div>
     </div>
   );

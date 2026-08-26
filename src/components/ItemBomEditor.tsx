@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { setItemBomAction } from "@/lib/item-bom";
 import { DimensionQtyInput } from "@/components/DimensionQtyInput";
+import { Tooltip } from "@/components/Tooltip";
 
 type Row = { componentItemId: number | ""; qtyPerUnit: string; wasteQtyPerUnit: string };
 
@@ -121,7 +122,9 @@ export function ItemBomEditor({
                       />
                     </td>
                     <td className="px-1 py-1.5">
-                      <button type="button" onClick={() => removeRow(i)} className="text-[var(--color-ink-300)] hover:text-[var(--color-bad)] text-[15px]" aria-label="Remove component">×</button>
+                      <Tooltip text="Remove component">
+                        <button type="button" onClick={() => removeRow(i)} className="text-[var(--color-ink-300)] hover:text-[var(--color-bad)] text-[15px]" aria-label="Remove component">×</button>
+                      </Tooltip>
                     </td>
                   </tr>
                 );

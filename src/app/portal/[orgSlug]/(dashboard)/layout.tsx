@@ -4,6 +4,7 @@ import Link from "next/link";
 import { getOrgBySlug } from "@/lib/portal";
 import { logoutAction } from "./logout-action";
 import { PortalNav, PortalBreadcrumb } from "./PortalNav";
+import { Tooltip } from "@/components/Tooltip";
 
 export const dynamic = "force-dynamic";
 
@@ -47,18 +48,19 @@ export default async function ClientPortalLayout({
                 {o.name.slice(0, 1).toUpperCase()}
               </div>
               <form action={logout}>
-                <button
-                  type="submit"
-                  className="flex items-center justify-center w-9 h-9 rounded-full text-[var(--color-ink-400)] hover:text-[var(--color-ink-900)] hover:bg-[var(--color-ink-100)] transition-colors"
-                  title="Log out"
-                  aria-label="Log out"
-                >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                    <polyline points="16 17 21 12 16 7" />
-                    <line x1="21" y1="12" x2="9" y2="12" />
-                  </svg>
-                </button>
+                <Tooltip text="Log out" side="left">
+                  <button
+                    type="submit"
+                    className="flex items-center justify-center w-9 h-9 rounded-full text-[var(--color-ink-400)] hover:text-[var(--color-ink-900)] hover:bg-[var(--color-ink-100)] transition-colors"
+                    aria-label="Log out"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                      <polyline points="16 17 21 12 16 7" />
+                      <line x1="21" y1="12" x2="9" y2="12" />
+                    </svg>
+                  </button>
+                </Tooltip>
               </form>
             </div>
           </div>
