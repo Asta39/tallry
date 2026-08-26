@@ -2,31 +2,35 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { PLANS, PlanKey, Entitlements, BillingCycle } from "@/lib/billing";
+import { Entitlements } from "@/lib/billing";
 import { fmtKES } from "@/lib/money";
-import { initiateSubscriptionPaymentAction, initiateCardPaymentAction, checkSubscriptionPaymentAction } from "./actions";
-import { Player } from "@lottiefiles/react-lottie-player";
+import { initiateMaintenancePaymentAction, initiateMaintenanceCardPaymentAction, checkMaintenancePaymentAction } from "./actions";
 
-const ALL_FEATURES = [
-  { key: "invoices", label: "Invoices & Quotes" },
-  { key: "staff", label: "Staff Seats" },
-  { key: "recurring", label: "Recurring Invoices" },
-  { key: "gateways", label: "Automated Payment Gateways" },
-  { key: "sms", label: "Advanta SMS Integration" },
-  { key: "portal", label: "Customer Portal" },
-  { key: "payroll", label: "Payroll Module" },
-  { key: "payouts", label: "B2B Payouts" },
-];
+interface PaymentRow {
+  id: number;
+  kind: string;
+  amountCents: number;
+  method: string;
+  state: string;
+  createdAt: string;
+}
 
-export function BillingClient({ entitlements, orgPhone, orgEmail }: { entitlements: Entitlements; orgPhone: string; orgEmail: string }) {
+export function BillingClient({
+  entitlements,
+  orgPhone,
+  orgEmail,
+  history,
+}: {
+  entitlements: Entitlements;
+  orgPhone: string;
+  orgEmail: string;
+  history: PaymentRow[];
+}) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [cycle, setCycle] = useState<BillingCycle>("monthly");
 
-  // Payment Modal State
   const [modal, setModal] = useState<{
     isOpen: boolean;
-    plan: PlanKey | null;
     method: "mpesa" | "card";
     phone: string;
     email: string;
@@ -34,23 +38,17 @@ export function BillingClient({ entitlements, orgPhone, orgEmail }: { entitlemen
     error?: string;
   }>({
     isOpen: false,
-    plan: null,
     method: "mpesa",
     phone: orgPhone,
     email: orgEmail,
     status: "idle",
   });
 
-  const handleUpgradeClick = (plan: PlanKey) => {
-    setModal((prev) => ({ ...prev, isOpen: true, plan, status: "idle", error: undefined }));
-  };
-
   const pollPayment = async (paymentId: number) => {
-    // Poll every 3s for up to 2 minutes while the payment settles
     const deadline = Date.now() + 120_000;
     while (Date.now() < deadline) {
       await new Promise((r) => setTimeout(r, 3000));
-      const check = await checkSubscriptionPaymentAction(paymentId);
+      const check = await checkMaintenancePaymentAction(paymentId);
       if ("error" in check && check.error) {
         setModal((prev) => ({ ...prev, isOpen: true, status: "error", error: check.error }));
         return;
@@ -58,7 +56,7 @@ export function BillingClient({ entitlements, orgPhone, orgEmail }: { entitlemen
       if ("status" in check) {
         if (check.status === "complete") {
           setModal((prev) => ({ ...prev, isOpen: true, status: "success" }));
-          setTimeout(() => window.location.reload(), 2500);
+          setTimeout(() => window.location.reload(), 2000);
           return;
         }
         if (check.status === "failed") {
@@ -71,11 +69,10 @@ export function BillingClient({ entitlements, orgPhone, orgEmail }: { entitlemen
       ...prev,
       isOpen: true,
       status: "error",
-      error: "We didn't get a confirmation in time. If you completed the payment, your plan will activate automatically within a few minutes.",
+      error: "We didn't get a confirmation in time. If you completed the payment, it will apply automatically within a few minutes.",
     }));
   };
 
-  // Resume polling if we've just been redirected back from IntaSend's hosted card checkout.
   useEffect(() => {
     const paymentId = searchParams.get("payment");
     if (!paymentId) return;
@@ -85,406 +82,179 @@ export function BillingClient({ entitlements, orgPhone, orgEmail }: { entitlemen
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handlePayment = async () => {
-    if (!modal.plan || !modal.phone) return;
+  const handleMpesaPayment = async () => {
+    if (!modal.phone) return;
     setModal((prev) => ({ ...prev, status: "processing", error: undefined }));
-
     try {
-      const res = await initiateSubscriptionPaymentAction(modal.plan, cycle, modal.phone);
+      const res = await initiateMaintenancePaymentAction(modal.phone);
       if ("error" in res && res.error) {
         setModal((prev) => ({ ...prev, status: "error", error: res.error }));
         return;
       }
-      const paymentId = (res as { paymentId: number }).paymentId;
-      await pollPayment(paymentId);
+      await pollPayment((res as { paymentId: number }).paymentId);
     } catch (e: any) {
       setModal((prev) => ({ ...prev, status: "error", error: e.message || "An error occurred." }));
     }
   };
 
   const handleCardPayment = async () => {
-    if (!modal.plan || !modal.email) return;
+    if (!modal.email) return;
     setModal((prev) => ({ ...prev, status: "redirecting", error: undefined }));
-
     try {
-      const res = await initiateCardPaymentAction(modal.plan, cycle, modal.email);
+      const res = await initiateMaintenanceCardPaymentAction(modal.email);
       if ("error" in res && res.error) {
         setModal((prev) => ({ ...prev, status: "error", error: res.error }));
         return;
       }
-      const { checkoutUrl } = res as { paymentId: number; checkoutUrl: string };
-      window.location.href = checkoutUrl;
+      window.location.href = (res as { checkoutUrl: string }).checkoutUrl;
     } catch (e: any) {
       setModal((prev) => ({ ...prev, status: "error", error: e.message || "An error occurred." }));
     }
   };
 
-  const renderCheck = (hasFeature: boolean | number | string) => {
-    if (typeof hasFeature === "boolean") {
-      return hasFeature ? (
-        <div className="mx-auto w-6 h-6 bg-[var(--color-brand)] text-white rounded-full flex items-center justify-center">
-          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
-        </div>
-      ) : (
-        <div className="mx-auto w-6 h-6 bg-[var(--color-ink-100)] text-[var(--color-ink-300)] rounded-full flex items-center justify-center">
-          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg>
-        </div>
-      );
-    }
-    return <span className="font-semibold text-[var(--color-ink-900)]">{hasFeature === -1 ? "Unlimited" : hasFeature}</span>;
-  };
+  const closeModal = () => setModal((prev) => ({ ...prev, isOpen: false, status: "idle", error: undefined }));
 
   return (
-    <div className="space-y-16 pb-12 relative">
-      {entitlements.status === "expired" && (
-        <div className="max-w-5xl mx-auto px-4">
-          <div className="rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-red-900">
-            <div className="text-sm font-semibold">Your {PLANS[entitlements.subscriptionPlan].name} plan expired on {entitlements.paidUntil}.</div>
-            <div className="mt-1 text-sm text-red-800">
-              Paid features are now locked and your account is running on Free access until you renew.
-            </div>
+    <div className="space-y-8 max-w-2xl">
+      {entitlements.status === "trial" && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-amber-900">
+          <div className="text-[13.5px] font-semibold">
+            Trial — {entitlements.trialDaysLeft} day{entitlements.trialDaysLeft === 1 ? "" : "s"} left
+          </div>
+          <div className="mt-1 text-[13px] text-amber-800">
+            Full access until {entitlements.trialEndsAt}. Contact us to continue after the trial ends.
           </div>
         </div>
       )}
-      {/* Hero Section */}
-      <div className="relative pt-12 pb-8 text-center rounded-3xl overflow-hidden bg-gradient-to-b from-[var(--color-brand)]/10 to-transparent">
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full max-w-2xl bg-[var(--color-brand)]/5 blur-3xl rounded-full" />
-        
-        <div className="relative z-10">
-          <div className="inline-flex items-center gap-2 px-3 py-1 text-xs font-semibold rounded-full bg-[var(--color-brand)]/10 text-[var(--color-brand)] mb-4">
-            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-            {entitlements.status === "expired" ? `Expired ${PLANS[entitlements.subscriptionPlan].name}` : "Pricing Plan"}
-          </div>
-          <h1 className="text-4xl md:text-5xl font-extrabold text-[var(--color-ink-900)] tracking-tight">
-            Explore Our <br className="md:hidden" /> Affordable Pricing!
-          </h1>
-          <p className="mt-4 text-base text-[var(--color-ink-600)] max-w-2xl mx-auto px-4">
-            Discover tools built to simplify tasks, reduce friction, and keep your creative momentum flowing.
-          </p>
-          
-          <div className="mt-8 inline-flex items-center bg-white p-1 rounded-full shadow-sm border border-[var(--color-ink-200)]">
-            <button 
-              onClick={() => setCycle("monthly")}
-              className={`px-6 py-2 text-[13px] font-semibold rounded-full shadow-md transition-colors ${
-                cycle === "monthly" ? "bg-[var(--color-brand)] text-white" : "bg-transparent text-[var(--color-ink-600)] hover:text-[var(--color-ink-900)] shadow-none"
-              }`}
-            >
-              Monthly
-            </button>
-            <button 
-              onClick={() => setCycle("annual")}
-              className={`px-6 py-2 text-[13px] font-medium transition-colors flex items-center gap-2 rounded-full ${
-                cycle === "annual" ? "bg-[var(--color-brand)] text-white shadow-md" : "bg-transparent text-[var(--color-ink-600)] hover:text-[var(--color-ink-900)]"
-              }`}
-            >
-              Annual <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${cycle === "annual" ? "bg-white/20 text-white" : "bg-[var(--color-brand)]/10 text-[var(--color-brand)]"}`}>Save 20%</span>
-            </button>
-          </div>
+
+      <div className="card p-6">
+        <div className="text-[12px] font-semibold uppercase tracking-wide text-[var(--color-ink-400)]">Monthly maintenance fee</div>
+        <div className="mt-1 text-[28px] font-bold tnum">
+          {entitlements.monthlyFeeCents > 0 ? fmtKES(entitlements.monthlyFeeCents) : "Not set yet"}
         </div>
+        {entitlements.nextMaintenanceDueAt && (
+          <div className="mt-1 text-[12.5px] text-[var(--color-ink-500)]">Next due {entitlements.nextMaintenanceDueAt}</div>
+        )}
+        {entitlements.monthlyFeeCents > 0 && (
+          <button
+            onClick={() => setModal((prev) => ({ ...prev, isOpen: true, status: "idle", error: undefined }))}
+            className="mt-4 rounded-lg bg-[var(--color-accent-500)] hover:bg-[var(--color-accent-600)] text-white text-[13px] font-medium px-4 py-2"
+          >
+            Pay now
+          </button>
+        )}
       </div>
 
-      {/* Pricing Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto px-4">
-        {(Object.entries(PLANS) as [PlanKey, typeof PLANS[PlanKey]][]).map(([key, plan]) => {
-          const isActive = entitlements.plan === key;
-          const isPopular = key === "standard";
-          const priceCents = cycle === "annual" ? plan.annualCents : plan.monthlyCents;
-          
-          return (
-            <div 
-              key={key} 
-              className={`relative flex flex-col bg-white rounded-3xl p-8 transition-all duration-300 ${
-                isPopular 
-                  ? "ring-2 ring-[var(--color-brand)] shadow-2xl scale-[1.02] z-10" 
-                  : "border border-[var(--color-ink-100)] shadow-lg hover:shadow-xl"
-              }`}
-            >
-              {isPopular && (
-                <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-gradient-to-r from-[var(--color-brand)] to-[var(--color-accent-500)] text-white text-[10px] font-bold uppercase tracking-wider rounded-full shadow-sm">
-                  Popular
-                </div>
-              )}
-              
-              <div className="mb-8">
-                <h3 className="text-lg font-bold text-[var(--color-ink-900)]">{plan.name}</h3>
-                <p className="text-[13px] text-[var(--color-ink-500)] mt-1">Predict bottlenecks and optimize team</p>
-                <div className="mt-4 flex items-baseline gap-1">
-                  <span className="text-4xl font-extrabold text-[var(--color-ink-900)] tracking-tight">
-                    {priceCents === 0 ? "$0" : fmtKES(priceCents).replace(".00", "")}
-                  </span>
-                  <span className="text-[13px] font-medium text-[var(--color-ink-500)]">/ {cycle === "annual" ? "Year" : "Month"}</span>
-                </div>
-              </div>
-              
-              <button
-                onClick={() => handleUpgradeClick(key)}
-                disabled={isActive}
-                className={`w-full py-3.5 rounded-xl text-[14px] font-semibold transition-all mb-8 shadow-sm ${
-                  isActive 
-                    ? "bg-[var(--color-ink-100)] text-[var(--color-ink-500)] cursor-not-allowed" 
-                    : isPopular
-                      ? "bg-gradient-to-r from-[var(--color-brand)] to-[var(--color-accent-500)] text-white hover:opacity-90 hover:shadow-lg hover:-translate-y-0.5"
-                      : "bg-white border-2 border-[var(--color-ink-100)] text-[var(--color-ink-900)] hover:border-[var(--color-brand)] hover:text-[var(--color-brand)]"
-                }`}
-              >
-                {isActive ? "Current Plan" : priceCents === 0 ? "Start For Free" : "Upgrade"}
-              </button>
-              
-              <div className="flex-1">
-                <p className="text-[13px] font-bold text-[var(--color-ink-900)] mb-4 uppercase tracking-wider">Features included</p>
-                <ul className="space-y-4">
-                  <li className="flex items-start gap-3 text-[13.5px] text-[var(--color-ink-700)] font-medium">
-                    <div className="mt-0.5 shrink-0 w-5 h-5 bg-[var(--color-brand)] text-white rounded-full flex items-center justify-center shadow-sm">
-                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
-                    </div>
-                    {plan.invoices === -1 ? "Unlimited" : plan.invoices} Invoices / Quotes
-                  </li>
-                  <li className="flex items-start gap-3 text-[13.5px] text-[var(--color-ink-700)] font-medium">
-                    <div className="mt-0.5 shrink-0 w-5 h-5 bg-[var(--color-brand)] text-white rounded-full flex items-center justify-center shadow-sm">
-                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
-                    </div>
-                    Up to {plan.staff} Staff Seats
-                  </li>
-                  <li className="flex items-start gap-3 text-[13.5px] text-[var(--color-ink-700)] font-medium">
-                    <div className="mt-0.5 shrink-0 w-5 h-5 bg-[var(--color-brand)] text-white rounded-full flex items-center justify-center shadow-sm">
-                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
-                    </div>
-                    {plan.reporting === "advanced" ? "Advanced" : plan.reporting === "standard" ? "Standard" : "Basic"} Reporting
-                  </li>
-                  {plan.gateways && (
-                    <li className="flex items-start gap-3 text-[13.5px] text-[var(--color-ink-700)] font-medium">
-                      <div className="mt-0.5 shrink-0 w-5 h-5 bg-[var(--color-brand)] text-white rounded-full flex items-center justify-center shadow-sm">
-                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
-                      </div>
-                      Automated Payment Gateways
-                    </li>
-                  )}
-                  {plan.payroll && (
-                    <li className="flex items-start gap-3 text-[13.5px] text-[var(--color-ink-700)] font-medium">
-                      <div className="mt-0.5 shrink-0 w-5 h-5 bg-[var(--color-brand)] text-white rounded-full flex items-center justify-center shadow-sm">
-                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
-                      </div>
-                      Full Payroll Module
-                    </li>
-                  )}
-                </ul>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Compare Plans Section */}
-      <div className="pt-16 max-w-5xl mx-auto px-4">
-        <div className="text-center mb-12">
-          <div className="inline-flex items-center gap-2 px-3 py-1 text-xs font-semibold rounded-full bg-[var(--color-brand)]/10 text-[var(--color-brand)] mb-4">
-            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
-            Compare Plan
-          </div>
-          <h2 className="text-3xl font-extrabold text-[var(--color-ink-900)] tracking-tight">
-            Discover The Best Coaching <br className="md:hidden" /> Plan For Your Business
-          </h2>
-          <p className="mt-3 text-[15px] text-[var(--color-ink-600)]">
-            The efficiency of starting projects and improves teamwork.
-          </p>
-        </div>
-
-        <div className="bg-white rounded-3xl border border-[var(--color-ink-100)] shadow-xl overflow-hidden hidden md:block">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr>
-                <th className="w-1/4 p-6 bg-gradient-to-br from-[var(--color-brand)]/5 to-transparent border-b border-r border-[var(--color-ink-100)]">
-                  <span className="block text-lg font-bold text-[var(--color-ink-900)]">Features</span>
-                  <span className="block text-xs font-normal text-[var(--color-ink-500)] mt-1">Choose the perfect plan tailored to your team's size, pace, and growth.</span>
-                </th>
-                <th className="w-1/4 p-6 text-center border-b border-r border-[var(--color-ink-100)] bg-white">
-                  <span className="block text-lg font-bold text-[var(--color-ink-900)]">Free</span>
-                  <span className="block text-2xl font-extrabold text-[var(--color-ink-900)] mt-2">$0 <span className="text-xs font-medium text-[var(--color-ink-500)]">/ {cycle === "annual" ? "Year" : "Month"}</span></span>
-                </th>
-                <th className="w-1/4 p-6 text-center border-b border-r border-[var(--color-ink-100)] bg-white relative">
-                  <div className="absolute top-0 left-0 w-full h-1 bg-[var(--color-brand)]" />
-                  <span className="block text-lg font-bold text-[var(--color-ink-900)]">Standard</span>
-                  <span className="block text-2xl font-extrabold text-[var(--color-ink-900)] mt-2">{fmtKES(cycle === "annual" ? PLANS.standard.annualCents : PLANS.standard.monthlyCents).replace(".00", "")} <span className="text-xs font-medium text-[var(--color-ink-500)]">/ {cycle === "annual" ? "Year" : "Month"}</span></span>
-                </th>
-                <th className="w-1/4 p-6 text-center border-b border-[var(--color-ink-100)] bg-white">
-                  <span className="block text-lg font-bold text-[var(--color-ink-900)]">Business</span>
-                  <span className="block text-2xl font-extrabold text-[var(--color-ink-900)] mt-2">{fmtKES(cycle === "annual" ? PLANS.business.annualCents : PLANS.business.monthlyCents).replace(".00", "")} <span className="text-xs font-medium text-[var(--color-ink-500)]">/ {cycle === "annual" ? "Year" : "Month"}</span></span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {ALL_FEATURES.map((feature, idx) => (
-                <tr key={feature.key} className={idx % 2 === 0 ? "bg-white" : "bg-[var(--color-ink-50)]/50"}>
-                  <td className="p-4 px-6 text-[14px] font-medium text-[var(--color-ink-700)] border-b border-r border-[var(--color-ink-100)]">
-                    {feature.label}
-                  </td>
-                  <td className="p-4 text-center border-b border-r border-[var(--color-ink-100)]">
-                    {renderCheck((PLANS.free as any)[feature.key])}
-                  </td>
-                  <td className="p-4 text-center border-b border-r border-[var(--color-ink-100)]">
-                    {renderCheck((PLANS.standard as any)[feature.key])}
-                  </td>
-                  <td className="p-4 text-center border-b border-[var(--color-ink-100)]">
-                    {renderCheck((PLANS.business as any)[feature.key])}
-                  </td>
+      <div>
+        <h2 className="text-[13px] font-semibold text-[var(--color-ink-600)] mb-3">Payment history</h2>
+        {history.length === 0 ? (
+          <div className="card px-6 py-8 text-center text-[13px] text-[var(--color-ink-400)]">No payments recorded yet.</div>
+        ) : (
+          <div className="card overflow-x-auto">
+            <table className="w-full min-w-[480px]">
+              <thead className="hairline-b">
+                <tr className="text-[11.5px] uppercase tracking-wide text-[var(--color-ink-400)]">
+                  <th className="text-left px-4 py-2.5 font-semibold">Date</th>
+                  <th className="text-left px-4 py-2.5 font-semibold">Type</th>
+                  <th className="text-left px-4 py-2.5 font-semibold">Method</th>
+                  <th className="text-right px-4 py-2.5 font-semibold">Amount</th>
+                  <th className="text-left px-4 py-2.5 font-semibold">Status</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {history.map((p) => (
+                  <tr key={p.id} className="hairline-t">
+                    <td className="px-4 py-3 text-[13px]">{p.createdAt.slice(0, 10)}</td>
+                    <td className="px-4 py-3 text-[13px] capitalize">{p.kind === "setup_fee" ? "One-time setup" : "Maintenance"}</td>
+                    <td className="px-4 py-3 text-[13px] capitalize">{p.method}</td>
+                    <td className="px-4 py-3 text-[13px] text-right tnum">{fmtKES(p.amountCents)}</td>
+                    <td className="px-4 py-3 text-[13px]">
+                      <span
+                        className={`inline-block rounded-full px-2.5 py-0.5 text-[11px] font-medium ${
+                          p.state === "applied" || p.state === "COMPLETE"
+                            ? "bg-emerald-50 text-emerald-700"
+                            : p.state === "FAILED"
+                              ? "bg-red-50 text-red-700"
+                              : "bg-[var(--color-ink-100)] text-[var(--color-ink-500)]"
+                        }`}
+                      >
+                        {p.state === "applied" ? "Paid" : p.state}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
-      {/* Payment Modal / Bottom Sheet */}
       {modal.isOpen && (
-        <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => modal.status !== "processing" && setModal(prev => ({ ...prev, isOpen: false }))} />
-          
-          <div className="relative w-full h-[65vh] md:h-auto md:w-[420px] bg-white rounded-t-3xl md:rounded-3xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-bottom-8 md:slide-in-from-bottom-0 md:zoom-in-95 duration-200 flex flex-col">
-            {/* Header */}
-            <div className="flex-none flex items-center justify-between p-6 border-b border-[var(--color-ink-100)]">
-              <h3 className="text-lg font-bold text-[var(--color-ink-900)]">
-                Upgrade to {modal.plan ? PLANS[modal.plan].name : ""}
-              </h3>
-              {modal.status !== "processing" && (
-                <button 
-                  onClick={() => setModal(prev => ({ ...prev, isOpen: false }))}
-                  className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-[var(--color-ink-100)] text-[var(--color-ink-500)]"
-                >
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                </button>
-              )}
-            </div>
-            
-            <div className="p-6 flex-1 overflow-y-auto flex flex-col">
-              {modal.status === "idle" || modal.status === "error" ? (
-                <>
-                  <div className="mb-auto">
-                    <p className="text-[14px] text-[var(--color-ink-600)] mb-6">
-                      You are about to pay <strong>{fmtKES(modal.plan ? (cycle === "annual" ? PLANS[modal.plan].annualCents : PLANS[modal.plan].monthlyCents) : 0).replace(".00", "")}</strong> for the {modal.plan ? PLANS[modal.plan].name : ""} plan ({cycle}).
-                    </p>
-
-                    {/* Payment method accordion */}
-                    <div className="rounded-2xl border border-[var(--color-ink-200)] overflow-hidden divide-y divide-[var(--color-ink-100)]">
-                      {/* M-Pesa row */}
-                      <div>
-                        <button
-                          type="button"
-                          onClick={() => setModal((prev) => ({ ...prev, method: "mpesa" }))}
-                          className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-[var(--color-ink-50)] transition-colors"
-                        >
-                          <div className="w-9 h-9 rounded-lg bg-white border border-[var(--color-ink-100)] flex items-center justify-center shrink-0 overflow-hidden">
-                            <img src="/images/brand/mpesa-logo.png" alt="" className="w-full h-full object-contain p-0.5" />
-                          </div>
-                          <span className="flex-1 text-[14px] font-semibold text-[var(--color-ink-900)]">M-Pesa</span>
-                          <svg className={`w-4 h-4 text-[var(--color-ink-400)] transition-transform duration-200 ${modal.method === "mpesa" ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                          </svg>
-                        </button>
-                        <div className={`grid transition-all duration-300 ease-in-out ${modal.method === "mpesa" ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
-                          <div className="overflow-hidden">
-                            <div className="px-4 pb-4 pt-1">
-                              <input
-                                type="tel"
-                                value={modal.phone}
-                                onChange={(e) => setModal((prev) => ({ ...prev, phone: e.target.value }))}
-                                placeholder="07XXXXXXXX"
-                                className="w-full px-3.5 py-3 bg-[var(--color-ink-50)] border border-[var(--color-ink-200)] rounded-xl text-[14px] focus:ring-2 focus:ring-[var(--color-brand)] focus:border-transparent outline-none transition-all font-medium"
-                              />
-                              <p className="mt-2 text-[12px] text-[var(--color-ink-500)]">
-                                An STK push will be sent to this number. Please have your phone ready.
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Card row */}
-                      <div>
-                        <button
-                          type="button"
-                          onClick={() => setModal((prev) => ({ ...prev, method: "card" }))}
-                          className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-[var(--color-ink-50)] transition-colors"
-                        >
-                          <div className="w-9 h-9 rounded-lg bg-white border border-[var(--color-ink-100)] flex items-center justify-center shrink-0 overflow-hidden">
-                            <img src="/images/brand/card-logo.png" alt="" className="w-full h-full object-contain p-0.5" />
-                          </div>
-                          <span className="flex-1 text-[14px] font-semibold text-[var(--color-ink-900)]">Card</span>
-                          <svg className={`w-4 h-4 text-[var(--color-ink-400)] transition-transform duration-200 ${modal.method === "card" ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                          </svg>
-                        </button>
-                        <div className={`grid transition-all duration-300 ease-in-out ${modal.method === "card" ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"}`}>
-                          <div className="overflow-hidden">
-                            <div className="px-4 pb-4 pt-1">
-                              <input
-                                type="email"
-                                value={modal.email}
-                                onChange={(e) => setModal((prev) => ({ ...prev, email: e.target.value }))}
-                                placeholder="you@business.com"
-                                className="w-full px-3.5 py-3 bg-[var(--color-ink-50)] border border-[var(--color-ink-200)] rounded-xl text-[14px] focus:ring-2 focus:ring-[var(--color-brand)] focus:border-transparent outline-none transition-all font-medium"
-                              />
-                              <p className="mt-2 text-[12px] text-[var(--color-ink-500)]">
-                                You'll be taken to a secure page to enter your card details.
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {modal.error && (
-                    <div className="my-6 p-3 bg-[var(--color-bad)]/10 text-[var(--color-bad)] rounded-lg text-[13px] font-medium border border-[var(--color-bad)]/20">
-                      {modal.error}
-                    </div>
-                  )}
-
+        <div className="fixed inset-0 z-[80] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6">
+            {modal.status === "success" ? (
+              <div className="text-center py-4">
+                <div className="text-[15px] font-semibold text-[var(--color-good)]">Payment received</div>
+                <p className="mt-2 text-[13px] text-[var(--color-ink-500)]">Reloading…</p>
+              </div>
+            ) : modal.status === "error" ? (
+              <div>
+                <div className="text-[15px] font-semibold text-[var(--color-bad)] mb-2">Payment issue</div>
+                <p className="text-[13px] text-[var(--color-ink-500)] mb-4">{modal.error}</p>
+                <button onClick={closeModal} className="rounded-lg border border-[var(--color-ink-200)] px-4 py-2 text-[13px] font-medium">Close</button>
+              </div>
+            ) : modal.status === "processing" || modal.status === "redirecting" ? (
+              <div className="text-center py-4">
+                <div className="text-[15px] font-semibold">{modal.status === "redirecting" ? "Redirecting to checkout…" : "Waiting for confirmation…"}</div>
+                <p className="mt-2 text-[13px] text-[var(--color-ink-500)]">
+                  {modal.method === "mpesa" ? "Check your phone and enter your M-Pesa PIN." : "Complete the payment in the new tab."}
+                </p>
+              </div>
+            ) : (
+              <div>
+                <div className="text-[15px] font-semibold mb-1">Pay {fmtKES(entitlements.monthlyFeeCents)}</div>
+                <div className="flex gap-2 mb-4">
                   <button
-                    onClick={modal.method === "card" ? handleCardPayment : handlePayment}
-                    className="w-full mt-6 py-3.5 rounded-xl text-[14px] font-bold text-white bg-[var(--color-brand)] hover:opacity-90 shadow-lg shadow-[var(--color-brand)]/20 transition-all active:scale-[0.98]"
+                    onClick={() => setModal((prev) => ({ ...prev, method: "mpesa" }))}
+                    className={`flex-1 rounded-lg border px-3 py-2 text-[13px] font-medium ${modal.method === "mpesa" ? "border-[var(--color-accent-500)] bg-[var(--color-accent-50)]" : "border-[var(--color-ink-200)]"}`}
                   >
-                    {modal.method === "card" ? "Continue to card payment" : "Pay with M-Pesa"}
+                    M-Pesa
                   </button>
-                </>
-              ) : modal.status === "redirecting" ? (
-                <div className="py-10 flex flex-col items-center justify-center text-center flex-1">
-                  <div className="w-8 h-8 border-2 border-[var(--color-brand)] border-t-transparent rounded-full animate-spin mb-5" />
-                  <h4 className="text-lg font-bold text-[var(--color-ink-900)] mb-2">Taking you to checkout…</h4>
-                  <p className="text-[14px] text-[var(--color-ink-500)] max-w-[250px]">
-                    Enter your card details on IntaSend's secure page — you'll be brought back here automatically.
-                  </p>
+                  <button
+                    onClick={() => setModal((prev) => ({ ...prev, method: "card" }))}
+                    className={`flex-1 rounded-lg border px-3 py-2 text-[13px] font-medium ${modal.method === "card" ? "border-[var(--color-accent-500)] bg-[var(--color-accent-50)]" : "border-[var(--color-ink-200)]"}`}
+                  >
+                    Card
+                  </button>
                 </div>
-              ) : modal.status === "processing" ? (
-                <div className="py-8 flex flex-col items-center justify-center text-center flex-1">
-                  <div className="w-56 h-56 mb-4">
-                    <Player
-                      autoplay
-                      loop
-                      src="https://lottie.host/988ad23c-a0b0-492d-b31d-3b60a924e89a/IZdC3LuBul.json"
-                      style={{ height: '100%', width: '100%' }}
-                    />
-                  </div>
-                  <h4 className="text-lg font-bold text-[var(--color-ink-900)] mb-2">
-                    {modal.method === "card" ? "Confirming Payment" : "Check Your Phone"}
-                  </h4>
-                  <p className="text-[14px] text-[var(--color-ink-500)] max-w-[250px]">
-                    {modal.method === "card"
-                      ? "We're confirming your card payment with IntaSend — this only takes a moment."
-                      : <>We've sent an M-Pesa prompt to <strong>{modal.phone}</strong>. Please enter your PIN to complete the payment.</>}
-                  </p>
+                {modal.method === "mpesa" ? (
+                  <input
+                    type="tel"
+                    value={modal.phone}
+                    onChange={(e) => setModal((prev) => ({ ...prev, phone: e.target.value }))}
+                    placeholder="07xx xxx xxx"
+                    className="w-full rounded-lg border border-[var(--color-ink-200)] px-3 py-2 text-[13px] mb-4"
+                  />
+                ) : (
+                  <input
+                    type="email"
+                    value={modal.email}
+                    onChange={(e) => setModal((prev) => ({ ...prev, email: e.target.value }))}
+                    placeholder="you@yourco.co.ke"
+                    className="w-full rounded-lg border border-[var(--color-ink-200)] px-3 py-2 text-[13px] mb-4"
+                  />
+                )}
+                <div className="flex gap-2">
+                  <button
+                    onClick={modal.method === "mpesa" ? handleMpesaPayment : handleCardPayment}
+                    className="flex-1 rounded-lg bg-[var(--color-accent-500)] hover:bg-[var(--color-accent-600)] text-white text-[13px] font-medium px-4 py-2"
+                  >
+                    Pay now
+                  </button>
+                  <button onClick={closeModal} className="rounded-lg border border-[var(--color-ink-200)] px-4 py-2 text-[13px] font-medium">Cancel</button>
                 </div>
-              ) : (
-                <div className="py-10 flex flex-col items-center justify-center text-center flex-1">
-                  <div className="w-20 h-20 bg-[var(--color-good)]/10 text-[var(--color-good)] rounded-full flex items-center justify-center mb-6">
-                    <svg className="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
-                  </div>
-                  <h4 className="text-xl font-bold text-[var(--color-ink-900)] mb-2">Payment Successful!</h4>
-                  <p className="text-[14px] text-[var(--color-ink-500)]">
-                    Your {modal.plan ? PLANS[modal.plan].name : ""} plan is now active for a {cycle}.
-                  </p>
-                </div>
-              )}
-            </div>
+              </div>
+            )}
           </div>
         </div>
       )}

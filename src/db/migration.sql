@@ -901,6 +901,23 @@ ALTER TABLE fixed_assets ADD COLUMN IF NOT EXISTS disposal_type TEXT;
 
 ALTER TABLE org ADD COLUMN IF NOT EXISTS website TEXT;
 
+-- Replace tiered-plan billing with trial -> one-time fee + admin-set maintenance fee.
+ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS billing_status TEXT NOT NULL DEFAULT 'trial';
+ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS trial_ends_at TEXT;
+ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS activated_at TEXT;
+ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS monthly_fee_cents BIGINT NOT NULL DEFAULT 0;
+ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS next_maintenance_due_at TEXT;
+-- Existing rows predate the trial system — treat them as already active (they were
+-- paying on the old plan model) rather than resetting them into a fresh trial.
+UPDATE subscriptions SET billing_status = 'active', activated_at = created_at, trial_ends_at = created_at
+  WHERE trial_ends_at IS NULL;
+ALTER TABLE subscriptions ALTER COLUMN trial_ends_at SET NOT NULL;
+
+ALTER TABLE billing_payments ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'maintenance';
+ALTER TABLE billing_payments ADD COLUMN IF NOT EXISTS note TEXT;
+ALTER TABLE billing_payments ALTER COLUMN plan DROP NOT NULL;
+ALTER TABLE billing_payments ALTER COLUMN cycle DROP NOT NULL;
+
 ALTER TABLE loan_ledger ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'loan';
 ALTER TABLE members ADD COLUMN IF NOT EXISTS employee_id INTEGER;
 

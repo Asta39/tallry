@@ -1,7 +1,7 @@
 import { db, org, members, subscriptions, paymentEvents } from "@/db";
 import { sql, eq, count, desc } from "drizzle-orm";
 import { fmtKES } from "@/lib/money";
-import { PLANS, PlanKey } from "@/lib/billing";
+import { resolveBillingAccess } from "@/lib/billing";
 import { SignupsChart, PlanDonut, MpesaVolumeChart } from "@/components/AdminCharts";
 import Link from "next/link";
 
@@ -38,7 +38,7 @@ export default async function AdminDashboard() {
   ] = await Promise.all([
     db.select({ count: count() }).from(org),
     db.select({ count: count() }).from(members),
-    db.select({ plan: subscriptions.plan, count: count() }).from(subscriptions).where(sql`${subscriptions.paidUntil} >= ${today}`).groupBy(subscriptions.plan),
+    db.select().from(subscriptions),
     db.select({ totalVolume: sql<string>`coalesce(sum(${paymentEvents.amountCents}), 0)`, count: count() }).from(paymentEvents).where(eq(paymentEvents.gatewayId, "mpesa_daraja")),
     db.select({ count: count() }).from(paymentEvents).where(sql`${paymentEvents.gatewayId} = 'mpesa_daraja' AND ${paymentEvents.status} IN ('failed', 'unmatched', 'amount_mismatch')`),
     // Org signups per month — signup date comes from the owner's auth.users row
@@ -56,7 +56,8 @@ export default async function AdminDashboard() {
     `),
     db.execute(sql`
       select o.id, o.name, o.email, substr(u.created_at::text, 1, 10) as joined,
-             coalesce(case when s.paid_until >= ${today} then s.plan end, 'free') as plan
+             coalesce(s.billing_status, 'trial') as billing_status,
+             s.trial_ends_at
       from org o
       join auth.users u on u.id::text = o.user_id
       left join subscriptions s on s.org_id = o.id
@@ -83,15 +84,14 @@ export default async function AdminDashboard() {
     return { label: m.label, volumeCents: Number(r?.volume || 0), failed: Number(r?.failed || 0) };
   });
 
-  const planCounts: Record<string, number> = { free: 0, standard: 0, business: 0 };
-  for (const s of subs) planCounts[s.plan] = s.count;
-  // Orgs without a subscription row are free
-  const subbed = subs.reduce((a, s) => a + s.count, 0);
-  planCounts.free += Math.max(0, orgCount.count - subbed);
-  const planData = (["business", "standard", "free"] as const).map((p) => ({ plan: p, label: PLANS[p].name, count: planCounts[p] || 0 }));
+  const resolvedSubs = subs.map((s) => resolveBillingAccess(s));
+  const statusCounts: Record<string, number> = { trial: 0, active: 0, locked: 0 };
+  for (const s of resolvedSubs) statusCounts[s.status]++;
+  const statusLabel: Record<string, string> = { trial: "Trial", active: "Active", locked: "Locked" };
+  const planData = (["active", "trial", "locked"] as const).map((p) => ({ plan: p, label: statusLabel[p], count: statusCounts[p] || 0 }));
 
-  const mrrCents = (["standard", "business"] as PlanKey[]).reduce((s, p) => s + (planCounts[p] || 0) * PLANS[p].monthlyCents, 0);
-  const paidOrgs = (planCounts.standard || 0) + (planCounts.business || 0);
+  const mrrCents = subs.reduce((sum, s, i) => sum + (resolvedSubs[i].status === "active" ? s.monthlyFeeCents : 0), 0);
+  const paidOrgs = statusCounts.active || 0;
 
   const failRate = mpesaStats.count ? Math.round((mpesaFailed.count / mpesaStats.count) * 100) : 0;
 
@@ -105,9 +105,9 @@ export default async function AdminDashboard() {
     amount_mismatch: "bg-red-50 text-red-700 border-red-200",
   };
   const planBadge: Record<string, string> = {
-    business: "bg-[var(--color-accent-50)] text-[var(--color-accent-700)] border-[var(--color-accent-100)]",
-    standard: "bg-sky-50 text-sky-700 border-sky-200",
-    free: "bg-[var(--color-ink-50)] text-[var(--color-ink-600)] border-[var(--color-ink-200)]",
+    active: "bg-[var(--color-accent-50)] text-[var(--color-accent-700)] border-[var(--color-accent-100)]",
+    trial: "bg-amber-50 text-amber-700 border-amber-200",
+    locked: "bg-red-50 text-red-700 border-red-200",
   };
 
   const Stat = ({ label, value, sub, subTone }: { label: string; value: string; sub?: string; subTone?: "good" | "bad" | "muted" }) => (
@@ -138,8 +138,8 @@ export default async function AdminDashboard() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <Stat label="Organizations" value={String(orgCount.count)} sub={signupsThisMonth > 0 ? `+${signupsThisMonth} this month` : "No new signups this month"} subTone={signupsThisMonth > 0 ? "good" : "muted"} />
         <Stat label="Staff Users" value={String(userCount.count)} sub="across all tenants" subTone="muted" />
-        <Stat label="Paying Organizations" value={String(paidOrgs)} sub={`${planCounts.business || 0} Business · ${planCounts.standard || 0} Standard`} subTone="muted" />
-        <Stat label="MRR (est.)" value={fmtKES(mrrCents)} sub="from active paid plans" subTone="muted" />
+        <Stat label="Active Organizations" value={String(paidOrgs)} sub={`${statusCounts.trial || 0} on trial · ${statusCounts.locked || 0} locked`} subTone="muted" />
+        <Stat label="MRR" value={fmtKES(mrrCents)} sub="from active orgs' maintenance fees" subTone="muted" />
       </div>
 
       {/* Growth + plan mix */}
@@ -182,18 +182,21 @@ export default async function AdminDashboard() {
           </div>
           <table className="w-full text-left text-[12.5px]">
             <tbody className="divide-y divide-[var(--color-ink-100)] border-t border-[var(--color-ink-100)]">
-              {(recentOrgs as unknown as { id: number; name: string; email: string | null; joined: string; plan: string }[]).map((o) => (
-                <tr key={o.id}>
-                  <td className="px-5 py-2.5">
-                    <div className="font-medium truncate max-w-[180px]">{o.name || <span className="text-[var(--color-ink-400)] italic">Not onboarded</span>}</div>
-                    <div className="text-[11px] text-[var(--color-ink-400)] truncate max-w-[180px]">{o.email || "—"}</div>
-                  </td>
-                  <td className="px-3 py-2.5">
-                    <span className={`inline-flex px-2 py-0.5 rounded-full text-[10.5px] font-medium border capitalize ${planBadge[o.plan] || planBadge.free}`}>{o.plan}</span>
-                  </td>
-                  <td className="px-5 py-2.5 text-right text-[var(--color-ink-400)] tnum whitespace-nowrap">{o.joined}</td>
-                </tr>
-              ))}
+              {(recentOrgs as unknown as { id: number; name: string; email: string | null; joined: string; billing_status: string; trial_ends_at: string | null }[]).map((o) => {
+                const status = o.billing_status === "active" ? "active" : o.billing_status === "suspended" ? "locked" : (!o.trial_ends_at || o.trial_ends_at >= today) ? "trial" : "locked";
+                return (
+                  <tr key={o.id}>
+                    <td className="px-5 py-2.5">
+                      <div className="font-medium truncate max-w-[180px]">{o.name || <span className="text-[var(--color-ink-400)] italic">Not onboarded</span>}</div>
+                      <div className="text-[11px] text-[var(--color-ink-400)] truncate max-w-[180px]">{o.email || "—"}</div>
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <span className={`inline-flex px-2 py-0.5 rounded-full text-[10.5px] font-medium border capitalize ${planBadge[status]}`}>{status}</span>
+                    </td>
+                    <td className="px-5 py-2.5 text-right text-[var(--color-ink-400)] tnum whitespace-nowrap">{o.joined}</td>
+                  </tr>
+                );
+              })}
               {(recentOrgs as unknown as unknown[]).length === 0 && (
                 <tr><td className="px-5 py-8 text-center text-[var(--color-ink-400)]">No organizations yet.</td></tr>
               )}

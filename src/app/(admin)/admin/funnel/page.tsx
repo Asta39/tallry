@@ -13,7 +13,7 @@ export default async function AdminFunnelPage() {
         count(*) filter (where o.name <> '')::int as onboarded,
         count(*) filter (where exists (select 1 from documents d where d.org_id = o.id and d.type = 'invoice'))::int as first_invoice,
         count(*) filter (where exists (select 1 from payments p where p.org_id = o.id))::int as first_payment,
-        count(*) filter (where exists (select 1 from subscriptions s where s.org_id = o.id and s.plan in ('standard','business') and s.paid_until >= ${today}))::int as paid
+        count(*) filter (where exists (select 1 from subscriptions s where s.org_id = o.id and s.billing_status = 'active'))::int as paid
       from org o
     `),
     db.execute(sql`
@@ -26,7 +26,7 @@ export default async function AdminFunnelPage() {
         end as stage
       from org o
       left join auth.users u on u.id::text = o.user_id
-      where not exists (select 1 from subscriptions s where s.org_id = o.id and s.plan in ('standard','business') and s.paid_until >= ${today})
+      where not exists (select 1 from subscriptions s where s.org_id = o.id and s.billing_status = 'active')
       order by u.created_at desc
       limit 15
     `),
@@ -40,7 +40,7 @@ export default async function AdminFunnelPage() {
     { key: "onboarded", label: "Onboarded", desc: "Completed business setup", value: s.onboarded },
     { key: "first_invoice", label: "First invoice", desc: "Created at least one invoice", value: s.first_invoice },
     { key: "first_payment", label: "First payment", desc: "Recorded money in", value: s.first_payment },
-    { key: "paid", label: "Paid plan", desc: "On Standard or Business", value: s.paid },
+    { key: "paid", label: "Activated", desc: "Setup fee paid, account active", value: s.paid },
   ];
   const max = Math.max(1, s.signups);
 
@@ -48,7 +48,7 @@ export default async function AdminFunnelPage() {
     signed_up: { label: "Never onboarded", cls: "bg-red-50 text-red-700 border-red-200" },
     onboarded: { label: "No invoices yet", cls: "bg-amber-50 text-amber-700 border-amber-200" },
     invoiced: { label: "No payments yet", cls: "bg-sky-50 text-sky-700 border-sky-200" },
-    collecting: { label: "Active, on free", cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+    collecting: { label: "Active, not yet activated", cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },
   };
 
   return (

@@ -66,7 +66,7 @@ export async function withOrg<T>(fn: () => Promise<T>, options?: { requireWrite?
     if (options?.requireWrite) {
       const { getEntitlements } = await import("./billing-server");
       const ents = await getEntitlements(orgContext.getStore()!);
-      if (ents.isReadOnly) throw new Error("Your subscription has expired. Please upgrade to continue creating or editing data.");
+      if (ents.status === "locked") throw new Error("This account's access is currently paused. Contact us to reactivate it.");
     }
     return fn();
   }
@@ -74,7 +74,7 @@ export async function withOrg<T>(fn: () => Promise<T>, options?: { requireWrite?
   if (options?.requireWrite) {
     const { getEntitlements } = await import("./billing-server");
     const ents = await getEntitlements(o.id);
-    if (ents.isReadOnly) throw new Error("Your subscription has expired. Please upgrade to continue creating or editing data.");
+    if (ents.status === "locked") throw new Error("This account's access is currently paused. Contact us to reactivate it.");
   }
   return orgContext.run(o.id, fn);
 }
@@ -94,12 +94,14 @@ export async function seedOrgDefaults(orgId: number) {
   if (existing.length > 0) return;
 
   const { subscriptions, itemTypes } = await import("@/db");
+  const { addDaysISO } = await import("./billing");
   const now = new Date().toISOString();
+  const today = now.slice(0, 10);
 
   await db.insert(subscriptions).values({
     orgId,
-    plan: "free",
-    paidUntil: "9999-12-31",
+    billingStatus: "trial",
+    trialEndsAt: addDaysISO(today, 7),
     createdAt: now,
   });
 

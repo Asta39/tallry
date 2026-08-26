@@ -3,11 +3,11 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { db, superAdmins, subscriptions, org, announcements } from "@/db";
+import { db, superAdmins, subscriptions, billingPayments, org, announcements } from "@/db";
 import { eq } from "drizzle-orm";
 import { requireSuperAdmin } from "@/lib/super-admin";
 import { logAdminAction } from "@/lib/admin-audit";
-import { PLANS, PlanKey, subscriptionStatusForDate } from "@/lib/billing";
+import { addMonthsISO } from "@/lib/billing";
 import { runAndStoreAllOrgChecks } from "@/lib/ledger-integrity";
 import { runOrgBackup, runAllOrgBackups, getBackupDownloadUrl } from "@/lib/org-backup";
 import { reconcileUnconfirmedKopoKopoPayouts } from "@/lib/payments/webhook";
@@ -107,37 +107,158 @@ export async function removeSuperAdminAction(id: number) {
   return { success: true };
 }
 
-/** Set an org's plan and paid-until date (comp/support tool — bypasses payment). */
-export async function setOrgPlanAction(orgId: number, formData: FormData) {
+/** Set an org's admin-editable monthly maintenance fee. */
+export async function setOrgMonthlyFeeAction(orgId: number, formData: FormData) {
   const user = await requireSuperAdmin();
 
-  const plan = String(formData.get("plan") || "") as PlanKey;
-  const paidUntil = String(formData.get("paidUntil") || "");
-  if (!(plan in PLANS)) return { error: "Invalid plan" };
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(paidUntil)) return { error: "Pick a valid paid-until date" };
+  const amountCents = Math.round(Number(formData.get("monthlyFee")) * 100);
+  if (!Number.isFinite(amountCents) || amountCents < 0) return { error: "Enter a valid amount" };
 
   const [o] = await db.select({ id: org.id, name: org.name }).from(org).where(eq(org.id, orgId)).limit(1);
   if (!o) return { error: "Org not found" };
 
   const [existing] = await db.select().from(subscriptions).where(eq(subscriptions.orgId, orgId)).limit(1);
-  const before = existing ? `${existing.plan} until ${existing.paidUntil}` : "none";
-  const status = subscriptionStatusForDate(paidUntil);
-  if (existing) {
-    await db.update(subscriptions).set({ plan, paidUntil, status }).where(eq(subscriptions.id, existing.id));
-  } else {
-    await db.insert(subscriptions).values({ orgId, plan, paidUntil, status, createdAt: new Date().toISOString() });
-  }
+  if (!existing) return { error: "No subscription record for this org" };
+  await db.update(subscriptions).set({ monthlyFeeCents: amountCents }).where(eq(subscriptions.id, existing.id));
 
   await logAdminAction({
     actorEmail: user.email!,
-    action: "plan_change",
+    action: "set_monthly_fee",
     targetType: "org",
     targetId: orgId,
-    detail: `${o.name || `Org #${orgId}`}: ${before} → ${plan} until ${paidUntil}`,
+    detail: `${o.name || `Org #${orgId}`}: monthly fee set to KSh ${(amountCents / 100).toLocaleString("en-KE")}`,
+  });
+  revalidatePath(`/admin/orgs/${orgId}`);
+  return { success: true };
+}
+
+/**
+ * Activate an org after its trial ends: records the one-time setup fee
+ * received (outside the app, as part of the sales deal) and flips billing
+ * status to active with the first maintenance cycle starting today.
+ */
+export async function activateOrgAction(orgId: number, formData: FormData) {
+  const user = await requireSuperAdmin();
+
+  const amountCents = Math.round(Number(formData.get("setupFeeAmount")) * 100);
+  const date = String(formData.get("setupFeeDate") || "");
+  const note = String(formData.get("setupFeeNote") || "").trim() || null;
+  if (!Number.isFinite(amountCents) || amountCents <= 0) return { error: "Enter the amount received" };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { error: "Pick a valid date" };
+
+  const [o] = await db.select({ id: org.id, name: org.name }).from(org).where(eq(org.id, orgId)).limit(1);
+  if (!o) return { error: "Org not found" };
+  const [existing] = await db.select().from(subscriptions).where(eq(subscriptions.orgId, orgId)).limit(1);
+  if (!existing) return { error: "No subscription record for this org" };
+
+  const today = new Date().toISOString().slice(0, 10);
+  await db.insert(billingPayments).values({
+    orgId,
+    kind: "setup_fee",
+    amountCents,
+    method: "mpesa",
+    state: "applied",
+    note,
+    createdAt: date,
+    updatedAt: new Date().toISOString(),
+  });
+  await db.update(subscriptions).set({
+    billingStatus: "active",
+    activatedAt: today,
+    nextMaintenanceDueAt: addMonthsISO(today, 1),
+  }).where(eq(subscriptions.id, existing.id));
+
+  await logAdminAction({
+    actorEmail: user.email!,
+    action: "activate_org",
+    targetType: "org",
+    targetId: orgId,
+    detail: `${o.name || `Org #${orgId}`}: activated, setup fee KSh ${(amountCents / 100).toLocaleString("en-KE")} received ${date}`,
   });
   revalidatePath(`/admin/orgs/${orgId}`);
   revalidatePath("/admin/subscriptions");
-  revalidatePath("/admin/revenue");
+  revalidatePath("/admin/billing-payments");
+  return { success: true };
+}
+
+/** Record a maintenance-fee payment the org made outside the app (bank transfer, cash, etc). */
+export async function recordMaintenancePaymentAction(orgId: number, formData: FormData) {
+  const user = await requireSuperAdmin();
+
+  const amountCents = Math.round(Number(formData.get("amount")) * 100);
+  const date = String(formData.get("date") || "");
+  const method = String(formData.get("method") || "mpesa");
+  const note = String(formData.get("note") || "").trim() || null;
+  if (!Number.isFinite(amountCents) || amountCents <= 0) return { error: "Enter the amount received" };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { error: "Pick a valid date" };
+
+  const [o] = await db.select({ id: org.id, name: org.name }).from(org).where(eq(org.id, orgId)).limit(1);
+  if (!o) return { error: "Org not found" };
+  const [existing] = await db.select().from(subscriptions).where(eq(subscriptions.orgId, orgId)).limit(1);
+  if (!existing) return { error: "No subscription record for this org" };
+
+  await db.insert(billingPayments).values({
+    orgId,
+    kind: "maintenance",
+    amountCents,
+    method,
+    state: "applied",
+    note,
+    createdAt: date,
+    updatedAt: new Date().toISOString(),
+  });
+  const base = existing.nextMaintenanceDueAt && existing.nextMaintenanceDueAt > date ? existing.nextMaintenanceDueAt : date;
+  await db.update(subscriptions).set({ nextMaintenanceDueAt: addMonthsISO(base, 1) }).where(eq(subscriptions.id, existing.id));
+
+  await logAdminAction({
+    actorEmail: user.email!,
+    action: "record_maintenance_payment",
+    targetType: "org",
+    targetId: orgId,
+    detail: `${o.name || `Org #${orgId}`}: KSh ${(amountCents / 100).toLocaleString("en-KE")} recorded (${method}), ${date}`,
+  });
+  revalidatePath(`/admin/orgs/${orgId}`);
+  revalidatePath("/admin/billing-payments");
+  return { success: true };
+}
+
+/** Hard-suspend an org's access — explicit admin hard-stop (e.g. a churned client). */
+export async function suspendOrgAction(orgId: number) {
+  const user = await requireSuperAdmin();
+  const [o] = await db.select({ id: org.id, name: org.name }).from(org).where(eq(org.id, orgId)).limit(1);
+  if (!o) return { error: "Org not found" };
+  const [existing] = await db.select().from(subscriptions).where(eq(subscriptions.orgId, orgId)).limit(1);
+  if (!existing) return { error: "No subscription record for this org" };
+
+  await db.update(subscriptions).set({ billingStatus: "suspended" }).where(eq(subscriptions.id, existing.id));
+  await logAdminAction({
+    actorEmail: user.email!,
+    action: "suspend_org",
+    targetType: "org",
+    targetId: orgId,
+    detail: `${o.name || `Org #${orgId}`}: access suspended`,
+  });
+  revalidatePath(`/admin/orgs/${orgId}`);
+  return { success: true };
+}
+
+/** Reinstate a suspended org back to active, without touching its fee/due date. */
+export async function reinstateOrgAction(orgId: number) {
+  const user = await requireSuperAdmin();
+  const [o] = await db.select({ id: org.id, name: org.name }).from(org).where(eq(org.id, orgId)).limit(1);
+  if (!o) return { error: "Org not found" };
+  const [existing] = await db.select().from(subscriptions).where(eq(subscriptions.orgId, orgId)).limit(1);
+  if (!existing) return { error: "No subscription record for this org" };
+
+  await db.update(subscriptions).set({ billingStatus: "active" }).where(eq(subscriptions.id, existing.id));
+  await logAdminAction({
+    actorEmail: user.email!,
+    action: "reinstate_org",
+    targetType: "org",
+    targetId: orgId,
+    detail: `${o.name || `Org #${orgId}`}: access reinstated`,
+  });
+  revalidatePath(`/admin/orgs/${orgId}`);
   return { success: true };
 }
 

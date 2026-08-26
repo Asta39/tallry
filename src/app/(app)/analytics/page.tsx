@@ -1,7 +1,5 @@
 import { requirePerm } from "@/lib/guard";
 import { getOrg, withOrg } from "@/lib/org";
-import { getEntitlements } from "@/lib/billing-server";
-import { meetsReportingTier, ReportingTier } from "@/lib/billing";
 import { PageHeader } from "@/components/ui";
 import { fmtKES } from "@/lib/money";
 import { db, items, employees } from "@/db";
@@ -13,8 +11,6 @@ import { LockedCard } from "@/components/analytics/LockedCard";
 import { fakeTrend, fakeRanked, fakeBuckets, fakeStacked } from "./placeholders";
 
 export const dynamic = "force-dynamic";
-
-const TIER_LABEL: Record<ReportingTier, string> = { basic: "Free", standard: "Standard", advanced: "Business" };
 
 function Card({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
   return (
@@ -45,9 +41,11 @@ function Tile({ label, value, sub, tone }: { label: string; value: string; sub?:
 export default async function AnalyticsPage() {
   await requirePerm("reports");
   const o = await getOrg();
-  const ents = await getEntitlements(o.id);
-  const tier = ents.limits.reporting;
-  const has = (need: ReportingTier) => meetsReportingTier(tier, need);
+  // Tiered plans were removed — every active org sees every card, so `has`
+  // and `TIER_LABEL` are kept as no-op stubs rather than touching the ~20
+  // call sites below that reference them.
+  const has = (_need?: string) => true;
+  const TIER_LABEL = { standard: "", advanced: "" };
 
   const [hasInventory, hasEmployees] = await withOrg(() =>
     Promise.all([

@@ -47,9 +47,9 @@ export function SignupsChart({ data }: { data: { label: string; signups: number 
 }
 
 const PLAN_COLORS: Record<string, string> = {
-  business: "#0f766e",
-  standard: "#5eead4",
-  free: "#d2d2d7",
+  active: "#0f766e",
+  trial: "#5eead4",
+  locked: "#d2d2d7",
 };
 
 /** Plan mix donut with centered total. */

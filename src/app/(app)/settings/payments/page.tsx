@@ -9,7 +9,6 @@ import { PageHeader } from "@/components/ui";
 import { PaymentGatewayForm } from "./PaymentGatewayForm";
 import { MpesaTillSettings } from "./MpesaTillSettings";
 import { UpgradePrompt } from "@/components/UpgradePrompt";
-import { getEntitlements } from "@/lib/billing-server";
 import { previewMpesaTillReconciliation } from "@/lib/mpesa-till-reconcile";
 
 export const dynamic = "force-dynamic";
@@ -20,8 +19,7 @@ export default async function PaymentsSettingsPage() {
   const user = await getUser();
   if (!user || !o) redirect("/login");
 
-  const entitlements = await getEntitlements(o.id);
-  const isLocked = !entitlements.limits.gateways;
+  const isLocked = false; // tiered plans removed — every active org has full access
 
   const gateways = await db.select().from(paymentGateways).where(eq(paymentGateways.orgId, o.id));
   const connectedGatewayIds = gateways.filter((g) => g.enabled).map((g) => g.gatewayId);

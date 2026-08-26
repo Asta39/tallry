@@ -7,7 +7,6 @@ import { RecurringManager, type RecurringRow } from "@/components/RecurringManag
 import { computeDocument, type TaxClass } from "@/lib/tax";
 import type { DocLineInput } from "@/lib/actions";
 import { UpgradePrompt } from "@/components/UpgradePrompt";
-import { getEntitlements } from "@/lib/billing-server";
 
 export const dynamic = "force-dynamic";
 
@@ -64,8 +63,7 @@ export default async function RecurringPage() {
     };
   });
 
-  const entitlements = await getEntitlements(o.id);
-  const isLocked = !entitlements.limits.recurring;
+  const isLocked = false; // tiered plans removed — every active org has full access
 
   return (
     <UpgradePrompt 

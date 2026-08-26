@@ -4,8 +4,6 @@ import { eq } from "drizzle-orm";
 import { getAccess, MODULES, rolePermMap, getAllRoles } from "@/lib/access";
 import { PageHeader } from "@/components/ui";
 import { AddStaffForm, StaffList, PermissionMatrix, CreateRoleForm } from "@/components/StaffManager";
-import { UpgradePrompt } from "@/components/UpgradePrompt";
-import { getEntitlements } from "@/lib/billing-server";
 import { DashboardVisibilityToggles } from "@/components/DashboardVisibilityToggles";
 
 export const dynamic = "force-dynamic";
@@ -15,12 +13,11 @@ export default async function StaffPage() {
   if (!access) redirect("/login");
   if (access.role !== "admin") redirect("/");
 
-  const entitlements = await getEntitlements(access.orgId);
   const [orgRow] = await db.select().from(org).where(eq(org.id, access.orgId)).limit(1);
   const staff = await db.select().from(members).where(eq(members.orgId, access.orgId));
   const allEmployees = await db.select().from(employees).where(eq(employees.orgId, access.orgId));
-  
-  const isLocked = entitlements.limits.staff !== -1 && staff.length >= entitlements.limits.staff;
+
+  const isLocked = false; // tiered plans removed — no more staff-seat cap
 
   const allRoles = await getAllRoles(access.orgId);
   const editableRoles = allRoles.filter((r) => r !== "admin");

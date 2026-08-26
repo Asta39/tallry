@@ -2,28 +2,31 @@
 
 import { requirePerm } from "@/lib/guard";
 import { getOrg } from "@/lib/org";
-import { db, subscriptions, billingPayments } from "@/db";
+import { db, billingPayments } from "@/db";
 import { eq, and } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { PLANS, PlanKey, BillingCycle, subscriptionStatusForDate } from "@/lib/billing";
+import { getEntitlements } from "@/lib/billing-server";
 import { intasendStkPush, intasendStatus, intasendCheckout, normalizeKenyanPhone } from "@/lib/payments/intasend";
 import { headers } from "next/headers";
 import { applyBillingPayment } from "@/lib/billing-apply";
 
-/** Kick off a real IntaSend M-Pesa STK push for a plan upgrade/renewal. */
-export async function initiateSubscriptionPaymentAction(plan: PlanKey, cycle: BillingCycle, mpesaPhone: string) {
+async function currentMonthlyFeeCents(orgId: number): Promise<number> {
+  const ents = await getEntitlements(orgId);
+  if (ents.monthlyFeeCents <= 0) throw new Error("No maintenance fee has been set for your account yet — contact us.");
+  return ents.monthlyFeeCents;
+}
+
+/** Kick off a real IntaSend M-Pesa STK push for this org's monthly maintenance fee. */
+export async function initiateMaintenancePaymentAction(mpesaPhone: string) {
   try {
     await requirePerm("settings");
     const o = await getOrg();
-
-    if (!PLANS[plan] || plan === "free") return { error: "Invalid plan selected" };
-    const amountCents = cycle === "annual" ? PLANS[plan].annualCents : PLANS[plan].monthlyCents;
+    const amountCents = await currentMonthlyFeeCents(o.id);
     const phone = normalizeKenyanPhone(mpesaPhone);
 
     const [row] = await db.insert(billingPayments).values({
       orgId: o.id,
-      plan,
-      cycle,
+      kind: "maintenance",
       amountCents,
       phone,
       createdAt: new Date().toISOString(),
@@ -32,8 +35,8 @@ export async function initiateSubscriptionPaymentAction(plan: PlanKey, cycle: Bi
     const { invoiceId, state } = await intasendStkPush({
       amountKes: Math.round(amountCents / 100),
       phone,
-      apiRef: `zeno-sub-${row.id}`,
-      narrative: `Zeno ${PLANS[plan].name} plan (${cycle})`,
+      apiRef: `zeno-maint-${row.id}`,
+      narrative: `Zeno monthly maintenance fee`,
     });
 
     await db.update(billingPayments)
@@ -46,20 +49,17 @@ export async function initiateSubscriptionPaymentAction(plan: PlanKey, cycle: Bi
   }
 }
 
-/** Kick off a card payment via IntaSend hosted checkout — returns a URL to redirect the customer to. */
-export async function initiateCardPaymentAction(plan: PlanKey, cycle: BillingCycle, email: string) {
+/** Kick off a card payment via IntaSend hosted checkout for this org's monthly maintenance fee. */
+export async function initiateMaintenanceCardPaymentAction(email: string) {
   try {
     await requirePerm("settings");
     const o = await getOrg();
-
-    if (!PLANS[plan] || plan === "free") return { error: "Invalid plan selected" };
     if (!email || !email.includes("@")) return { error: "Enter a valid email address" };
-    const amountCents = cycle === "annual" ? PLANS[plan].annualCents : PLANS[plan].monthlyCents;
+    const amountCents = await currentMonthlyFeeCents(o.id);
 
     const [row] = await db.insert(billingPayments).values({
       orgId: o.id,
-      plan,
-      cycle,
+      kind: "maintenance",
       amountCents,
       method: "card",
       email,
@@ -72,8 +72,8 @@ export async function initiateCardPaymentAction(plan: PlanKey, cycle: BillingCyc
     const { id, url } = await intasendCheckout({
       amountKes: Math.round(amountCents / 100),
       email,
-      apiRef: `zeno-sub-${row.id}`,
-      comment: `Zeno ${PLANS[plan].name} plan (${cycle})`,
+      apiRef: `zeno-maint-${row.id}`,
+      comment: `Zeno monthly maintenance fee`,
       redirectUrl: `${origin}/settings/billing?payment=${row.id}`,
       host: origin,
     });
@@ -89,10 +89,10 @@ export async function initiateCardPaymentAction(plan: PlanKey, cycle: BillingCyc
 }
 
 /**
- * Poll a pending payment. Returns "complete" once the subscription is active,
- * "failed" with a reason, or "pending" while the customer is entering their PIN.
+ * Poll a pending payment. Returns "complete" once applied, "failed" with a
+ * reason, or "pending" while the customer is entering their PIN.
  */
-export async function checkSubscriptionPaymentAction(paymentId: number) {
+export async function checkMaintenancePaymentAction(paymentId: number) {
   try {
     await requirePerm("settings");
     const o = await getOrg();
@@ -106,6 +106,7 @@ export async function checkSubscriptionPaymentAction(paymentId: number) {
 
     const s = await intasendStatus(p.invoiceId);
     if (s.state === "COMPLETE") {
+      await db.update(billingPayments).set({ state: "COMPLETE", updatedAt: new Date().toISOString() }).where(eq(billingPayments.id, p.id));
       await applyBillingPayment(p.id);
       revalidatePath("/", "layout");
       return { status: "complete" as const };
@@ -119,39 +120,5 @@ export async function checkSubscriptionPaymentAction(paymentId: number) {
     return { status: "pending" as const };
   } catch (e: any) {
     return { error: e.message || "Could not check payment status" };
-  }
-}
-
-/**
- * DEMO ONLY: simulates an upgrade without payment. Gate: SIMULATED_BILLING_ENABLED=true,
- * which must stay unset in production.
- */
-export async function simulateSubscriptionUpgradeAction(plan: PlanKey, cycle: BillingCycle, _mpesaPhone: string) {
-  try {
-    if (process.env.SIMULATED_BILLING_ENABLED !== "true") {
-      return { error: "Simulated billing is disabled." };
-    }
-    await requirePerm("settings");
-    const o = await getOrg();
-
-    if (!PLANS[plan]) return { error: "Invalid plan selected" };
-
-    await new Promise((resolve) => setTimeout(resolve, 5000));
-
-    const today = new Date();
-    today.setDate(today.getDate() + (cycle === "annual" ? 365 : 30));
-    const paidUntil = today.toISOString().split("T")[0];
-
-    const [existing] = await db.select().from(subscriptions).where(eq(subscriptions.orgId, o.id)).limit(1);
-    if (existing) {
-      await db.update(subscriptions).set({ plan, paidUntil, status: subscriptionStatusForDate(paidUntil) }).where(eq(subscriptions.orgId, o.id));
-    } else {
-      await db.insert(subscriptions).values({ orgId: o.id, plan, paidUntil, status: subscriptionStatusForDate(paidUntil), createdAt: new Date().toISOString() });
-    }
-
-    revalidatePath("/", "layout");
-    return { success: true };
-  } catch (e: any) {
-    return { error: e.message || "Failed to upgrade subscription" };
   }
 }

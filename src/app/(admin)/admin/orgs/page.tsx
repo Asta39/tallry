@@ -4,10 +4,9 @@ import { db, org, subscriptions } from "@/db";
 import { eq } from "drizzle-orm";
 import Link from "next/link";
 import { ImpersonateButton } from "./ImpersonateButton";
-import { subscriptionStatusForDate } from "@/lib/billing";
+import { resolveBillingAccess } from "@/lib/billing";
 
 export default async function OrgsPage() {
-  const today = new Date().toISOString().slice(0, 10);
   const orgsWithSubs = await db
     .select({
       id: org.id,
@@ -15,8 +14,10 @@ export default async function OrgsPage() {
       email: org.email,
       phone: org.phone,
       portalSlug: org.portalSlug,
-      plan: subscriptions.plan,
-      paidUntil: subscriptions.paidUntil,
+      billingStatus: subscriptions.billingStatus,
+      trialEndsAt: subscriptions.trialEndsAt,
+      monthlyFeeCents: subscriptions.monthlyFeeCents,
+      nextMaintenanceDueAt: subscriptions.nextMaintenanceDueAt,
     })
     .from(org)
     .leftJoin(subscriptions, eq(org.id, subscriptions.orgId))
@@ -37,45 +38,48 @@ export default async function OrgsPage() {
                 <th className="px-4 py-3 font-medium">ID</th>
                 <th className="px-4 py-3 font-medium">Name</th>
                 <th className="px-4 py-3 font-medium">Contact</th>
-                <th className="px-4 py-3 font-medium">Plan</th>
+                <th className="px-4 py-3 font-medium">Status</th>
                 <th className="px-4 py-3 font-medium">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--color-ink-100)]">
-              {orgsWithSubs.map((o) => (
-                <tr key={o.id} className="hover:bg-[var(--color-ink-50)] transition-colors">
-                  {(() => {
-                    const status = o.paidUntil ? subscriptionStatusForDate(o.paidUntil, today) : "active";
-                    return (
-                      <>
-                  <td className="px-4 py-3 text-[var(--color-ink-500)]">{o.id}</td>
-                  <td className="px-4 py-3 font-medium">
-                    <Link href={`/admin/orgs/${o.id}`} className="hover:underline text-red-700">{o.name || "Unnamed Org"}</Link>
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="text-[var(--color-ink-900)]">{o.email || "-"}</div>
-                    <div className="text-xs text-[var(--color-ink-500)]">{o.phone || "-"}</div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                      !o.plan ? "bg-gray-100 text-gray-800"
-                        : status === "expired" ? "bg-red-100 text-red-800"
-                        : o.plan === "business" ? "bg-purple-100 text-purple-800"
-                        : o.plan === "standard" ? "bg-blue-100 text-blue-800"
-                        : "bg-gray-100 text-gray-800"
-                    }`}>
-                      {!o.plan ? "Free" : status === "expired" ? `${o.plan} expired` : o.plan}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 flex items-center gap-3">
-                    <Link href={`/admin/orgs/${o.id}`} className="text-sm font-medium text-[var(--color-ink-600)] hover:underline">Details</Link>
-                    <ImpersonateButton orgId={o.id} />
-                  </td>
-                      </>
-                    );
-                  })()}
-                </tr>
-              ))}
+              {orgsWithSubs.map((o) => {
+                const today = new Date().toISOString().slice(0, 10);
+                const billing = o.trialEndsAt
+                  ? resolveBillingAccess({
+                      billingStatus: (o.billingStatus || "trial") as "trial" | "active" | "suspended",
+                      trialEndsAt: o.trialEndsAt,
+                      activatedAt: null,
+                      monthlyFeeCents: o.monthlyFeeCents || 0,
+                      nextMaintenanceDueAt: o.nextMaintenanceDueAt,
+                    })
+                  : { status: "trial" as const, trialDaysLeft: 0 };
+                return (
+                  <tr key={o.id} className="hover:bg-[var(--color-ink-50)] transition-colors">
+                    <td className="px-4 py-3 text-[var(--color-ink-500)]">{o.id}</td>
+                    <td className="px-4 py-3 font-medium">
+                      <Link href={`/admin/orgs/${o.id}`} className="hover:underline text-red-700">{o.name || "Unnamed Org"}</Link>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="text-[var(--color-ink-900)]">{o.email || "-"}</div>
+                      <div className="text-xs text-[var(--color-ink-500)]">{o.phone || "-"}</div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                        billing.status === "locked" ? "bg-red-100 text-red-800"
+                          : billing.status === "trial" ? "bg-amber-100 text-amber-800"
+                          : "bg-green-100 text-green-800"
+                      }`}>
+                        {billing.status === "trial" ? `Trial · ${billing.trialDaysLeft}d left` : billing.status}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 flex items-center gap-3">
+                      <Link href={`/admin/orgs/${o.id}`} className="text-sm font-medium text-[var(--color-ink-600)] hover:underline">Details</Link>
+                      <ImpersonateButton orgId={o.id} />
+                    </td>
+                  </tr>
+                );
+              })}
               {orgsWithSubs.length === 0 && (
                 <tr>
                   <td colSpan={5} className="px-4 py-8 text-center text-[var(--color-ink-500)]">

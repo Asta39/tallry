@@ -221,9 +221,13 @@ export const activities = pgTable("activities", {
 export const subscriptions = pgTable("subscriptions", {
   id: serial("id").primaryKey(),
   orgId: integer("org_id").notNull().references(() => org.id),
-  plan: text("plan").notNull().default("free"), // free | standard | business
-  status: text("status").notNull().default("active"), // active | expired
-  paidUntil: text("paid_until").notNull(), // ISO date
+  // trial | active | suspended — trial-expired is derived (today > trialEndsAt),
+  // not stored; suspended is an explicit admin hard-stop. See src/lib/billing.ts.
+  billingStatus: text("billing_status").notNull().default("trial"),
+  trialEndsAt: text("trial_ends_at").notNull(), // ISO date, createdAt + 7 days
+  activatedAt: text("activated_at"), // ISO date — set when admin activates post-trial; null = never activated
+  monthlyFeeCents: money("monthly_fee_cents").notNull().default(0), // admin-editable per-org maintenance fee
+  nextMaintenanceDueAt: text("next_maintenance_due_at"), // ISO date
   createdAt: text("created_at").notNull(),
 }, (t) => ({
   orgUnique: uniqueIndex("idx_subscriptions_org").on(t.orgId),
@@ -1171,8 +1175,10 @@ export const featureFlags = pgTable("feature_flags", {
 export const billingPayments = pgTable("billing_payments", {
   id: serial("id").primaryKey(),
   orgId: integer("org_id").notNull().references(() => org.id),
-  plan: text("plan").notNull(), // standard | business
-  cycle: text("cycle").notNull(), // monthly | annual
+  // setup_fee | maintenance — which kind of platform payment this is.
+  kind: text("kind").notNull().default("maintenance"),
+  plan: text("plan"), // unused since the tiered-plan model was removed; kept for historical rows
+  cycle: text("cycle"), // unused since the tiered-plan model was removed; kept for historical rows
   amountCents: money("amount_cents").notNull(),
   /** "mpesa" (STK push, requires phone) or "card" (hosted checkout, requires email). */
   method: text("method").notNull().default("mpesa"),
@@ -1182,6 +1188,10 @@ export const billingPayments = pgTable("billing_payments", {
   invoiceId: text("invoice_id"),
   state: text("state").notNull().default("PENDING"), // PENDING | PROCESSING | COMPLETE | FAILED | applied
   failedReason: text("failed_reason"),
+  /** Free-text note — used for manually-recorded payments (setup fee, or
+   *  maintenance paid outside the app) to capture how/why, distinct from
+   *  failedReason which is specifically about a failed attempt. */
+  note: text("note"),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at"),
 }, (t) => ({
