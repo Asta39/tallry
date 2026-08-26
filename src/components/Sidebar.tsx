@@ -73,6 +73,7 @@ const groups: {
       { href: "/recurring", label: "Recurring Templates", icon: "🔁", perm: "accountant" },
       { href: "/settings/audit-logs", label: "Audit Logs", icon: "🕵️", perm: "__admin_only" },
       { href: "/settings", label: "Settings", icon: "⚙️", perm: "settings" },
+      { href: "/settings/support", label: "Support", icon: "💬", perm: "dashboard" },
     ],
   },
 ];
