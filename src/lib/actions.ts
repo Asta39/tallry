@@ -1007,6 +1007,15 @@ async function _convertQuoteToInvoice(quoteId: number): Promise<number> {
 }
 
 async function _convertQuoteToInvoiceInner(quote: typeof documents.$inferSelect, lines: (typeof documentLines.$inferSelect)[]): Promise<number> {
+  // Carry the quote's staff assignment forward — a quote an accountant
+  // built on behalf of a sales agent (assigning them so it shows up in
+  // their own document list under Data Segregation) should still be theirs
+  // once it becomes the real sale, not silently drop back to unassigned.
+  const quoteAssignments = await db
+    .select({ memberId: documentAssignments.memberId })
+    .from(documentAssignments)
+    .where(and(eq(documentAssignments.orgId, currentOrgId()), eq(documentAssignments.documentId, quote.id)));
+
   const invoiceId = await saveDocument({
     type: "invoice",
     contactId: quote.contactId,
@@ -1026,6 +1035,7 @@ async function _convertQuoteToInvoiceInner(quote: typeof documents.$inferSelect,
       costCenterId: l.costCenterId,
       warehouseId: l.warehouseId,
     })),
+    assignedMemberIds: quoteAssignments.length > 0 ? quoteAssignments.map((a) => a.memberId) : undefined,
   });
   await db
     .update(documents)
