@@ -1777,7 +1777,21 @@ export async function saveDocument(data: Parameters<typeof _saveDocument>[0]) {
     if (data.payoutDestinationType === "paybill" && !data.payoutAccountNumber?.trim()) throw new Error("Enter the paybill account number");
   }
   if (data.type === "bill" || data.type === "expense" || data.type === "purchase_order") {
+    // Mirror DocumentEditor's own client-side check: a category heading
+    // never carries an account, and a tracked-inventory item's cost always
+    // posts to Inventory Asset automatically (addLot() at posting time) —
+    // the editor shows that as a fixed label instead of a picker, so
+    // requiring l.accountId here for either case rejected saves the UI had
+    // already told the user were fine.
+    const itemIds = data.lines.map((l) => l.itemId).filter((id): id is number => !!id);
+    const trackedItemIds = itemIds.length
+      ? new Set(
+          (await db.select({ id: items.id }).from(items).where(and(inArray(items.id, itemIds), eq(items.trackInventory, true)))).map((r) => r.id)
+        )
+      : new Set<number>();
     for (const l of data.lines) {
+      if (l.isHeading) continue;
+      if (l.itemId && trackedItemIds.has(l.itemId)) continue;
       if (!l.accountId) throw new Error(`Pick a category for "${l.description || "a line"}"`);
     }
     const orgIdForCostCenters = data.id
