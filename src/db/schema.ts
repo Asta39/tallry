@@ -119,6 +119,17 @@ export const org = pgTable("org", {
    *  pattern as expenseClaimPayoutGatewayId, just for vendor bill payouts.
    *  Null falls back to whichever connected gateway sorts first. */
   billPayoutGatewayId: text("bill_payout_gateway_id"),
+  /** Shown once, right after onboarding — the "Welcome to your trial"
+   *  screen. Null = not shown yet; set the moment they continue past it
+   *  (whether or not they picked a module preference), so it never shows
+   *  again. */
+  trialWelcomeSeenAt: text("trial_welcome_seen_at"),
+  /** Which modules the org said they want going forward, captured on the
+   *  welcome screen — "crm" | "crm_accounting" | "crm_payroll" | "all".
+   *  Informational only (every active org still gets full access — see
+   *  billing.ts) so the sales/support team knows what to configure or
+   *  follow up about when the trial ends. Null = not stated. */
+  modulePreference: text("module_preference"),
 });
 
 export const accounts = pgTable("accounts", {

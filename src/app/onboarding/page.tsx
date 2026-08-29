@@ -82,7 +82,7 @@ export default function OnboardingPage() {
           invoicePrefix: invoicePrefix || "INV-",
           logoUrl: logoUrl ?? undefined,
         });
-        router.push("/");
+        router.push("/welcome-trial");
         router.refresh();
       } catch (err) {
         setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");

@@ -47,6 +47,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   const ents = await getEntitlements(access.orgRow.id);
 
+  // A trial org that hasn't seen the welcome screen yet (fresh signup —
+  // existing pre-trial-system orgs already carry a non-null value here, or
+  // are billingStatus "active" so ents.status is never "trial" for them)
+  // gets routed there before ever landing on the dashboard.
+  if (ents.status === "trial" && !access.orgRow.trialWelcomeSeenAt) {
+    redirect("/welcome-trial");
+  }
+
   // Hard lock: trial ran out without the admin activating the org, or the
   // admin explicitly suspended it. Every route is blocked — render a
   // standalone notice instead of the app shell, for every role (not just

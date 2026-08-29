@@ -138,6 +138,14 @@ export default async function AdminOrgDetailPage({ params }: { params: Promise<{
           <Row k="VAT registered" v={o.vatRegistered ? "Yes" : "No"} />
           <Row k="Portal slug" v={o.portalSlug || "—"} />
           <Row k="Books locked through" v={o.lockDate || "—"} />
+          <Row
+            k="Wants (stated on welcome screen)"
+            v={
+              { crm: "CRM only", crm_accounting: "CRM + Accounting", crm_payroll: "CRM + Payroll", all: "All of it" }[
+                o.modulePreference || ""
+              ] || "Not stated"
+            }
+          />
         </Card>
 
         {/* Staff */}

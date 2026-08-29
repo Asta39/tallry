@@ -943,3 +943,6 @@ CREATE TABLE IF NOT EXISTS salary_advance_requests (
   created_at TEXT NOT NULL,
   reviewed_at TEXT
 );
+
+ALTER TABLE org ADD COLUMN IF NOT EXISTS trial_welcome_seen_at TEXT;
+ALTER TABLE org ADD COLUMN IF NOT EXISTS module_preference TEXT;
