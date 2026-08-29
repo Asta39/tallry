@@ -24,7 +24,7 @@ const SECTIONS: Section[] = [
       },
       {
         q: "What's the ongoing cost once active?",
-        a: "A monthly maintenance fee, set per organization by us and shown on your Billing screen. There are no feature tiers — every active org gets every module, so the fee isn't for \"unlocking\" anything, it's what keeps hosting, backups, KRA/eTIMS compliance updates and support running.",
+        a: "A monthly maintenance fee based on your team size — KSh 1,000 per seat (you plus every staff member you've added) per month, shown on your Billing screen. It's not for \"unlocking\" anything — the modules you're paying for (CRM, Accounting, Payroll) stay on regardless of seat count — it's what keeps hosting, backups, KRA/eTIMS compliance updates and support running as your team grows.",
       },
       {
         q: "Who can I contact for help?",
