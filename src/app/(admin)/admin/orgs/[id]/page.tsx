@@ -53,7 +53,10 @@ export default async function AdminOrgDetailPage({ params }: { params: Promise<{
   // Activation isn't gated on the trial having actually run out any more —
   // an org can pay the setup fee and go active any time, including mid-trial.
   const needsActivation = sub?.billingStatus === "trial";
-  const activeStaffCount = memberList.filter((m) => m.active).length;
+  // +1 for the owner — they never get a `members` row (see access.ts) but
+  // are still a real seat using the org, so a brand-new org with no staff
+  // invited yet correctly suggests KSh 1,000, not KSh 0/"Not set yet".
+  const activeStaffCount = memberList.filter((m) => m.active).length + 1;
   const suggestedMonthlyFeeCents = activeStaffCount * PER_STAFF_MONTHLY_FEE_CENTS;
 
   const Row = ({ k, v }: { k: string; v: React.ReactNode }) => (

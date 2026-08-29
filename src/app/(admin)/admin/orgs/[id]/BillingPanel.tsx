@@ -99,7 +99,7 @@ export function BillingPanel({
           <input name="setupFeeNote" type="text" placeholder="Note (optional)" className={`${inputCls} w-full`} />
           <div>
             <span className="block text-[11.5px] font-medium text-[var(--color-ink-600)] mb-1">
-              Monthly fee (KES) — auto: {activeStaffCount} staff × KSh 1,000
+              Monthly fee (KES) — auto: {activeStaffCount} seats (owner + staff) × KSh 1,000
             </span>
             <div className="flex gap-2">
               <input ref={activateFeeRef} name="monthlyFee" type="number" step="0.01" min="0" defaultValue={suggestedFeeKES} className={inputCls} />
@@ -137,7 +137,7 @@ export function BillingPanel({
               onClick={() => { if (monthlyFeeRef.current) monthlyFeeRef.current.value = suggestedFeeKES; }}
               className="text-[11.5px] font-medium text-[var(--color-accent-600)] hover:underline"
             >
-              Recalc: {activeStaffCount} staff × 1,000
+              Recalc: {activeStaffCount} seats × 1,000
             </button>
             <button type="submit" disabled={pending} className="rounded-lg bg-red-600 hover:bg-red-700 disabled:opacity-60 text-white text-[13px] font-medium px-4 py-2">
               Save

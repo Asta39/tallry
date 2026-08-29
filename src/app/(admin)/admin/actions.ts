@@ -166,7 +166,8 @@ export async function activateOrgAction(orgId: number, formData: FormData) {
   let monthlyFeeCents = Number.isFinite(submittedFee) && submittedFee >= 0 ? submittedFee : NaN;
   if (!Number.isFinite(monthlyFeeCents)) {
     const [{ count }] = await db.select({ count: sql<number>`count(*)`.mapWith(Number) }).from(members).where(and(eq(members.orgId, orgId), eq(members.active, true)));
-    monthlyFeeCents = count * PER_STAFF_MONTHLY_FEE_CENTS;
+    // +1 for the owner — see the matching note in orgs/[id]/page.tsx.
+    monthlyFeeCents = (count + 1) * PER_STAFF_MONTHLY_FEE_CENTS;
   }
 
   const today = new Date().toISOString().slice(0, 10);
