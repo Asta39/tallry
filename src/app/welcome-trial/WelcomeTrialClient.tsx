@@ -86,7 +86,7 @@ export function WelcomeTrialClient({ orgName }: { orgName: string }) {
         <div className="card p-6">
           <h2 className="text-[15px] font-bold text-[var(--color-ink-900)]">What happens when your trial ends</h2>
           <p className="text-[13px] text-[var(--color-ink-500)] mt-2 leading-relaxed">
-            After 7 days, access pauses — every page shows a single screen with our contact details until we reactivate your account. Reactivation is a one-time setup fee, agreed directly with us, after which you're billed a monthly maintenance fee (covers hosting, backups, KRA/eTIMS compliance updates and support) that you can pay in-app or have us record for you. Nothing you enter during the trial is lost — it's all still there the moment you're reactivated.
+            After 7 days, access pauses — every page shows a single screen with our contact details until we reactivate your account. Reactivation is a one-time setup fee, agreed directly with us, after which you're billed KSh 1,000 per seat per month (you plus every staff member you add) — covers hosting, backups, KRA/eTIMS compliance updates and support, and you can pay it in-app or have us record it for you. Nothing you enter during the trial is lost — it's all still there the moment you're reactivated.
           </p>
         </div>
 
