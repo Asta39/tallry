@@ -279,7 +279,9 @@ export function BillingClient({
                 {history.map((p) => (
                   <tr key={p.id} className="hairline-t">
                     <td className="px-4 py-3 text-[13px]">{p.createdAt.slice(0, 10)}</td>
-                    <td className="px-4 py-3 text-[13px] capitalize">{p.kind === "setup_fee" ? "One-time setup" : "Maintenance"}</td>
+                    <td className="px-4 py-3 text-[13px]">
+                      {p.kind === "setup_fee" ? "One-time setup" : p.kind === "module_fee" ? "Module unlock" : "Maintenance"}
+                    </td>
                     <td className="px-4 py-3 text-[13px] capitalize">{p.method}</td>
                     <td className="px-4 py-3 text-[13px] text-right tnum">{fmtKES(p.amountCents)}</td>
                     <td className="px-4 py-3 text-[13px]">

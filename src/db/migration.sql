@@ -946,3 +946,11 @@ CREATE TABLE IF NOT EXISTS salary_advance_requests (
 
 ALTER TABLE org ADD COLUMN IF NOT EXISTS trial_welcome_seen_at TEXT;
 ALTER TABLE org ADD COLUMN IF NOT EXISTS module_preference TEXT;
+
+-- Per-module UI visibility (sidebar only — the ledger/payroll engines keep
+-- running regardless). Default true so every org existing before this
+-- feature keeps seeing everything until an admin deliberately restricts one.
+ALTER TABLE org ADD COLUMN IF NOT EXISTS crm_enabled BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE org ADD COLUMN IF NOT EXISTS accounting_enabled BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE org ADD COLUMN IF NOT EXISTS payroll_enabled BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE billing_payments ADD COLUMN IF NOT EXISTS module_key TEXT;

@@ -130,6 +130,17 @@ export const org = pgTable("org", {
    *  billing.ts) so the sales/support team knows what to configure or
    *  follow up about when the trial ends. Null = not stated. */
   modulePreference: text("module_preference"),
+  /** Which modules this org has actually paid for and should see — toggled
+   *  by the admin on the org detail page after recording a module payment.
+   *  UI visibility only (Sidebar.tsx): the underlying ledger/payroll keeps
+   *  posting and calculating in the background regardless of these flags —
+   *  nothing is deleted or functionally disabled, a disabled module's
+   *  sidebar links just don't render. Default true on all three so every
+   *  existing org (pre-dating this feature) keeps seeing everything unless
+   *  an admin deliberately restricts a new org. */
+  crmEnabled: boolean("crm_enabled").notNull().default(true),
+  accountingEnabled: boolean("accounting_enabled").notNull().default(true),
+  payrollEnabled: boolean("payroll_enabled").notNull().default(true),
 });
 
 export const accounts = pgTable("accounts", {
@@ -1186,8 +1197,11 @@ export const featureFlags = pgTable("feature_flags", {
 export const billingPayments = pgTable("billing_payments", {
   id: serial("id").primaryKey(),
   orgId: integer("org_id").notNull().references(() => org.id),
-  // setup_fee | maintenance — which kind of platform payment this is.
+  // setup_fee | maintenance | module_fee — which kind of platform payment this is.
   kind: text("kind").notNull().default("maintenance"),
+  /** module_fee rows only — which module this payment unlocked: "crm" |
+   *  "accounting" | "payroll". Null for setup_fee/maintenance rows. */
+  moduleKey: text("module_key"),
   plan: text("plan"), // unused since the tiered-plan model was removed; kept for historical rows
   cycle: text("cycle"), // unused since the tiered-plan model was removed; kept for historical rows
   amountCents: money("amount_cents").notNull(),

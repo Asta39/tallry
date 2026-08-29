@@ -242,6 +242,80 @@ export async function recordMaintenancePaymentAction(orgId: number, formData: Fo
   return { success: true };
 }
 
+const MODULE_LABELS: Record<string, string> = { crm: "CRM", accounting: "Accounting", payroll: "Payroll" };
+
+/** Record a one-off module payment (e.g. an org that started on CRM-only
+ *  later paying for Accounting) and switch that module on for them —
+ *  separate from the single setup-fee field, which only ever fires once at
+ *  initial activation. Repeatable any time, for any of the three modules. */
+export async function recordModulePaymentAction(orgId: number, formData: FormData) {
+  const user = await requireSuperAdmin();
+
+  const moduleKey = String(formData.get("module") || "");
+  if (!MODULE_LABELS[moduleKey]) return { error: "Pick a module" };
+  const amountCents = Math.round(Number(formData.get("amount")) * 100);
+  const date = String(formData.get("date") || "");
+  const note = String(formData.get("note") || "").trim() || null;
+  if (!Number.isFinite(amountCents) || amountCents <= 0) return { error: "Enter the amount received" };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { error: "Pick a valid date" };
+
+  const [o] = await db.select({ id: org.id, name: org.name }).from(org).where(eq(org.id, orgId)).limit(1);
+  if (!o) return { error: "Org not found" };
+
+  await db.insert(billingPayments).values({
+    orgId,
+    kind: "module_fee",
+    moduleKey,
+    amountCents,
+    method: "mpesa",
+    state: "applied",
+    note,
+    createdAt: date,
+    updatedAt: new Date().toISOString(),
+  });
+  await db
+    .update(org)
+    .set({ [`${moduleKey}Enabled`]: true } as Record<string, boolean>)
+    .where(eq(org.id, orgId));
+
+  await logAdminAction({
+    actorEmail: user.email!,
+    action: "record_module_payment",
+    targetType: "org",
+    targetId: orgId,
+    detail: `${o.name || `Org #${orgId}`}: ${MODULE_LABELS[moduleKey]} module paid, KSh ${(amountCents / 100).toLocaleString("en-KE")} recorded, ${date}`,
+  });
+  revalidatePath(`/admin/orgs/${orgId}`);
+  revalidatePath("/admin/billing-payments");
+  return { success: true };
+}
+
+/** Toggle which modules an org's staff actually see in the sidebar — UI
+ *  visibility only, the underlying ledger/payroll never stops running (see
+ *  org.crmEnabled/accountingEnabled/payrollEnabled in schema.ts). */
+export async function setOrgModuleAccessAction(orgId: number, formData: FormData) {
+  const user = await requireSuperAdmin();
+  const [o] = await db.select({ id: org.id, name: org.name }).from(org).where(eq(org.id, orgId)).limit(1);
+  if (!o) return { error: "Org not found" };
+
+  const crmEnabled = formData.get("crmEnabled") === "on";
+  const accountingEnabled = formData.get("accountingEnabled") === "on";
+  const payrollEnabled = formData.get("payrollEnabled") === "on";
+
+  await db.update(org).set({ crmEnabled, accountingEnabled, payrollEnabled }).where(eq(org.id, orgId));
+
+  await logAdminAction({
+    actorEmail: user.email!,
+    action: "set_module_access",
+    targetType: "org",
+    targetId: orgId,
+    detail: `${o.name || `Org #${orgId}`}: CRM ${crmEnabled ? "on" : "off"}, Accounting ${accountingEnabled ? "on" : "off"}, Payroll ${payrollEnabled ? "on" : "off"}`,
+  });
+  revalidatePath(`/admin/orgs/${orgId}`);
+  revalidatePath("/");
+  return { success: true };
+}
+
 /** Hard-suspend an org's access — explicit admin hard-stop (e.g. a churned client). */
 export async function suspendOrgAction(orgId: number) {
   const user = await requireSuperAdmin();

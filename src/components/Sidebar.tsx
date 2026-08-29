@@ -6,9 +6,11 @@ import { usePathname } from "next/navigation";
 import { SignOutButton } from "./SignOutButton";
 import { CreateMenu } from "./CreateMenu";
 
+type ModuleKey = "crm" | "accounting" | "payroll";
+
 const groups: {
   label: string | null;
-  items: { href: string; label: string; icon: string; perm: string }[];
+  items: { href: string; label: string; icon: string; perm: string; module?: ModuleKey }[];
 }[] = [
   {
     label: null,
@@ -22,55 +24,55 @@ const groups: {
   {
     label: "Selling",
     items: [
-      { href: "/contacts", label: "Customers & Vendors", icon: "👥", perm: "contacts" },
-      { href: "/pipeline", label: "Deals", icon: "🎯", perm: "pipeline" },
-      { href: "/sales/quotes", label: "Quotes", icon: "📝", perm: "quotes" },
-      { href: "/sales/quote-templates", label: "Quote Templates", icon: "🗒️", perm: "quote_templates" },
-      { href: "/sales/invoices", label: "Invoices", icon: "🧾", perm: "invoices" },
-      { href: "/sales/invoice-templates", label: "Invoice Templates", icon: "🗂️", perm: "invoice_templates" },
-      { href: "/sales/payments", label: "Payments Received", icon: "💰", perm: "invoices" },
-      { href: "/sales/credit-notes", label: "Credit Notes", icon: "↩️", perm: "credit_notes" },
+      { href: "/contacts", label: "Customers & Vendors", icon: "👥", perm: "contacts", module: "crm" },
+      { href: "/pipeline", label: "Deals", icon: "🎯", perm: "pipeline", module: "crm" },
+      { href: "/sales/quotes", label: "Quotes", icon: "📝", perm: "quotes", module: "crm" },
+      { href: "/sales/quote-templates", label: "Quote Templates", icon: "🗒️", perm: "quote_templates", module: "crm" },
+      { href: "/sales/invoices", label: "Invoices", icon: "🧾", perm: "invoices", module: "crm" },
+      { href: "/sales/invoice-templates", label: "Invoice Templates", icon: "🗂️", perm: "invoice_templates", module: "crm" },
+      { href: "/sales/payments", label: "Payments Received", icon: "💰", perm: "invoices", module: "crm" },
+      { href: "/sales/credit-notes", label: "Credit Notes", icon: "↩️", perm: "credit_notes", module: "crm" },
     ],
   },
   {
     label: "Spending",
     items: [
-      { href: "/purchases/expenses", label: "Expenses", icon: "💸", perm: "expenses" },
+      { href: "/purchases/expenses", label: "Expenses", icon: "💸", perm: "expenses", module: "accounting" },
       { href: "/expense-claims", label: "Expense Claims", icon: "🧾", perm: "expense_claims" },
-      { href: "/purchases/bills", label: "Bills", icon: "📄", perm: "bills" },
-      { href: "/purchases/orders", label: "Purchase Orders", icon: "📦", perm: "purchase_orders" },
-      { href: "/purchases/payment-runs", label: "Payment Runs", icon: "🏃", perm: "bills" },
-      { href: "/purchases/payouts", label: "Stuck Payouts", icon: "⚠️", perm: "can_payout" },
-      { href: "/items", label: "Items & Stock", icon: "📦", perm: "items" },
-      { href: "/items/warehouses", label: "Warehouses", icon: "🏬", perm: "items" },
-      { href: "/items/transfers", label: "Stock Transfers", icon: "🔄", perm: "items" },
+      { href: "/purchases/bills", label: "Bills", icon: "📄", perm: "bills", module: "accounting" },
+      { href: "/purchases/orders", label: "Purchase Orders", icon: "📦", perm: "purchase_orders", module: "accounting" },
+      { href: "/purchases/payment-runs", label: "Payment Runs", icon: "🏃", perm: "bills", module: "accounting" },
+      { href: "/purchases/payouts", label: "Stuck Payouts", icon: "⚠️", perm: "can_payout", module: "accounting" },
+      { href: "/items", label: "Items & Stock", icon: "📦", perm: "items", module: "crm" },
+      { href: "/items/warehouses", label: "Warehouses", icon: "🏬", perm: "items", module: "crm" },
+      { href: "/items/transfers", label: "Stock Transfers", icon: "🔄", perm: "items", module: "crm" },
     ],
   },
   {
     label: "Money",
     items: [
-      { href: "/banking", label: "Bank & M-Pesa", icon: "🏦", perm: "banking" },
-      { href: "/accountant", label: "Accountant", icon: "📚", perm: "accountant" },
-      { href: "/accounting/assets", label: "Fixed Assets", icon: "🏢", perm: "fixed_assets" },
-      { href: "/analytics", label: "Analytics", icon: "📊", perm: "reports" },
-      { href: "/reports", label: "Reports", icon: "📈", perm: "reports" },
+      { href: "/banking", label: "Bank & M-Pesa", icon: "🏦", perm: "banking", module: "accounting" },
+      { href: "/accountant", label: "Accountant", icon: "📚", perm: "accountant", module: "accounting" },
+      { href: "/accounting/assets", label: "Fixed Assets", icon: "🏢", perm: "fixed_assets", module: "accounting" },
+      { href: "/analytics", label: "Analytics", icon: "📊", perm: "reports", module: "accounting" },
+      { href: "/reports", label: "Reports", icon: "📈", perm: "reports", module: "accounting" },
     ],
   },
   {
     label: "Payroll",
     items: [
-      { href: "/payroll/runs", label: "Payroll Runs", icon: "💵", perm: "payroll" },
-      { href: "/payroll/employees", label: "Employees", icon: "🧑‍💼", perm: "payroll" },
-      { href: "/payroll/rules", label: "Rules & Tax", icon: "⚖️", perm: "payroll" },
-      { href: "/payroll/loans", label: "Loans", icon: "🏷️", perm: "payroll" },
-      { href: "/payroll/advances", label: "Salary Advances", icon: "💳", perm: "salary_advances" },
+      { href: "/payroll/runs", label: "Payroll Runs", icon: "💵", perm: "payroll", module: "payroll" },
+      { href: "/payroll/employees", label: "Employees", icon: "🧑‍💼", perm: "payroll", module: "payroll" },
+      { href: "/payroll/rules", label: "Rules & Tax", icon: "⚖️", perm: "payroll", module: "payroll" },
+      { href: "/payroll/loans", label: "Loans", icon: "🏷️", perm: "payroll", module: "payroll" },
+      { href: "/payroll/advances", label: "Salary Advances", icon: "💳", perm: "salary_advances", module: "payroll" },
     ],
   },
   {
     label: "Organization",
     items: [
       { href: "/staff", label: "Staff & Roles", icon: "🛡️", perm: "staff" },
-      { href: "/recurring", label: "Recurring Templates", icon: "🔁", perm: "accountant" },
+      { href: "/recurring", label: "Recurring Templates", icon: "🔁", perm: "accountant", module: "accounting" },
       { href: "/settings/audit-logs", label: "Audit Logs", icon: "🕵️", perm: "__admin_only" },
       { href: "/settings", label: "Settings", icon: "⚙️", perm: "settings" },
       { href: "/settings/docs", label: "Documentation", icon: "📖", perm: "dashboard" },
@@ -91,15 +93,24 @@ interface SidebarProps {
   isAdmin?: boolean;
   /** Tailwind top-offset class for the mobile fixed bar, e.g. "top-9" when an announcement banner is showing above it. */
   topOffsetClass?: string;
+  /** Which of the org's paid modules to show — admin-toggled on the org detail
+   *  page (org.crmEnabled/accountingEnabled/payrollEnabled). This is UI
+   *  visibility only: everything keeps posting/calculating in the background
+   *  regardless, a disabled module's links just don't render here. Undefined
+   *  = show everything (matches every existing org's default of all-true). */
+  crmEnabled?: boolean;
+  accountingEnabled?: boolean;
+  payrollEnabled?: boolean;
 }
 
-export function Sidebar({ orgName, orgEmail, logoUrl, perms, roleLabel, timeTrackingEnabled, isAdmin, topOffsetClass = "top-0" }: SidebarProps) {
+export function Sidebar({ orgName, orgEmail, logoUrl, perms, roleLabel, timeTrackingEnabled, isAdmin, topOffsetClass = "top-0", crmEnabled = true, accountingEnabled = true, payrollEnabled = true }: SidebarProps) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
   // Close the mobile drawer on navigation
   useEffect(() => setOpen(false), [pathname]);
 
+  const moduleOn: Record<ModuleKey, boolean> = { crm: crmEnabled, accounting: accountingEnabled, payroll: payrollEnabled };
   const allowed = perms ? new Set(perms) : null;
   const visibleGroups = groups
     .map((g) => ({
@@ -107,6 +118,7 @@ export function Sidebar({ orgName, orgEmail, logoUrl, perms, roleLabel, timeTrac
       items: g.items.filter((it) => {
         if (it.href === "/time-tracking" && !timeTrackingEnabled) return false;
         if (it.perm === "__admin_only") return !!isAdmin;
+        if (it.module && !moduleOn[it.module]) return false;
         return !allowed || allowed.has(it.perm);
       }),
     }))

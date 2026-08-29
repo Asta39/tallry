@@ -126,6 +126,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           isAdmin={access.isOwner || access.role === "admin"}
           timeTrackingEnabled={access.orgRow.timeTrackingEnabled}
           topOffsetClass={announcement ? "top-9" : "top-0"}
+          crmEnabled={access.orgRow.crmEnabled}
+          accountingEnabled={access.orgRow.accountingEnabled}
+          payrollEnabled={access.orgRow.payrollEnabled}
         />
         <BlurProvider>
         <main className="flex-1 min-w-0 flex flex-col h-screen overflow-y-auto">

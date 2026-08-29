@@ -12,6 +12,7 @@ export default async function AdminBillingPaymentsPage() {
       orgId: billingPayments.orgId,
       orgName: org.name,
       kind: billingPayments.kind,
+      moduleKey: billingPayments.moduleKey,
       amountCents: billingPayments.amountCents,
       method: billingPayments.method,
       state: billingPayments.state,
@@ -25,6 +26,10 @@ export default async function AdminBillingPaymentsPage() {
 
   const setupTotal = rows.filter((r) => r.kind === "setup_fee" && (r.state === "applied" || r.state === "COMPLETE")).reduce((s, r) => s + r.amountCents, 0);
   const maintTotal = rows.filter((r) => r.kind === "maintenance" && (r.state === "applied" || r.state === "COMPLETE")).reduce((s, r) => s + r.amountCents, 0);
+  const moduleTotal = rows.filter((r) => r.kind === "module_fee" && (r.state === "applied" || r.state === "COMPLETE")).reduce((s, r) => s + r.amountCents, 0);
+  const moduleLabels: Record<string, string> = { crm: "CRM", accounting: "Accounting", payroll: "Payroll" };
+  const kindLabel = (r: { kind: string; moduleKey: string | null }) =>
+    r.kind === "setup_fee" ? "Setup fee" : r.kind === "module_fee" ? `Module: ${moduleLabels[r.moduleKey || ""] || r.moduleKey}` : "Maintenance";
 
   const stateBadge: Record<string, string> = {
     applied: "bg-emerald-50 text-emerald-700 border-emerald-200",
@@ -41,7 +46,7 @@ export default async function AdminBillingPaymentsPage() {
         <p className="text-[var(--color-ink-500)] text-sm mt-1">Every setup fee and maintenance payment recorded across the platform.</p>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 max-w-md">
+      <div className="grid grid-cols-3 gap-4 max-w-2xl">
         <div className="bg-white p-5 rounded-xl border border-[var(--color-ink-200)] shadow-sm">
           <div className="text-[12.5px] font-medium text-[var(--color-ink-400)]">Setup fees received</div>
           <div className="text-[22px] font-semibold tnum mt-1">{fmtKES(setupTotal)}</div>
@@ -49,6 +54,10 @@ export default async function AdminBillingPaymentsPage() {
         <div className="bg-white p-5 rounded-xl border border-[var(--color-ink-200)] shadow-sm">
           <div className="text-[12.5px] font-medium text-[var(--color-ink-400)]">Maintenance received</div>
           <div className="text-[22px] font-semibold tnum mt-1">{fmtKES(maintTotal)}</div>
+        </div>
+        <div className="bg-white p-5 rounded-xl border border-[var(--color-ink-200)] shadow-sm">
+          <div className="text-[12.5px] font-medium text-[var(--color-ink-400)]">Module fees received</div>
+          <div className="text-[22px] font-semibold tnum mt-1">{fmtKES(moduleTotal)}</div>
         </div>
       </div>
 
@@ -72,7 +81,7 @@ export default async function AdminBillingPaymentsPage() {
                   <td className="px-4 py-3 font-medium">
                     <Link href={`/admin/orgs/${r.orgId}`} className="hover:underline">{r.orgName || `Org #${r.orgId}`}</Link>
                   </td>
-                  <td className="px-4 py-3 capitalize">{r.kind === "setup_fee" ? "Setup fee" : "Maintenance"}</td>
+                  <td className="px-4 py-3">{kindLabel(r)}</td>
                   <td className="px-4 py-3 capitalize">{r.method}</td>
                   <td className="px-4 py-3 text-right tnum font-medium">{fmtKES(r.amountCents)}</td>
                   <td className="px-4 py-3">
