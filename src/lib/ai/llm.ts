@@ -1,5 +1,5 @@
 import Groq from "groq-sdk";
-import { ALL_TOOLS, findWriteTool, type ToolDef } from "./tools";
+import { ALL_TOOLS, TOOL_MODULES, findWriteTool, type ToolDef } from "./tools";
 import type { Access } from "@/lib/access";
 import { nairobiDateISO } from "@/lib/timezone";
 
@@ -76,7 +76,16 @@ export async function runAssistantTurn(
   if (!apiKey) throw new Error("AI assistant is not configured (missing GROQ_API_KEY)");
 
   const client = new Groq({ apiKey });
-  const tools = ALL_TOOLS.map(toGroqTool);
+  // Cap the model to modules this org has actually paid for — same flags
+  // that gate the sidebar/pages, so the assistant can't draft an invoice
+  // for a CRM-only org that had Accounting switched off, or read P&L data
+  // it shouldn't have.
+  const moduleOn = { crm: access.orgRow.crmEnabled, accounting: access.orgRow.accountingEnabled, payroll: access.orgRow.payrollEnabled };
+  const allowedTools = ALL_TOOLS.filter((t) => {
+    const mod = TOOL_MODULES[t.name];
+    return !mod || moduleOn[mod];
+  });
+  const tools = allowedTools.map(toGroqTool);
 
   const messages: Groq.Chat.Completions.ChatCompletionMessageParam[] = [
     { role: "system", content: systemPrompt() },
@@ -115,6 +124,12 @@ export async function runAssistantTurn(
     // immediately rather than let the model batch multiple mutations blind.
     const call = calls[0];
     const args = JSON.parse(call.function.arguments || "{}");
+
+    const mod = TOOL_MODULES[call.function.name];
+    if (mod && !moduleOn[mod]) {
+      return { reply: `That needs the ${mod === "crm" ? "CRM" : mod === "accounting" ? "Accounting" : "Payroll"} module, which isn't on your plan yet.`, toolCalls, pendingAction: null };
+    }
+
     const writeTool = findWriteTool(call.function.name);
     if (writeTool) {
       return {

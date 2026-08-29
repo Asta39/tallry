@@ -480,6 +480,36 @@ export const WRITE_TOOLS: WriteToolDef[] = [
 
 export const ALL_TOOLS: ToolDef[] = [...READ_TOOLS, ...WRITE_TOOLS];
 
+/**
+ * Which paid module each tool belongs to — mirrors Sidebar.tsx's own
+ * per-item module tags, so the assistant never offers (or executes) a tool
+ * for a module the org hasn't paid for. Tools not listed here are core
+ * (contact lookup, generic explain/void/pay-any-document) and always
+ * available. getDailyBrief/recordPayment/voidDocument/explainDocument work
+ * across doc types from either module, so they're deliberately left ungated.
+ */
+export const TOOL_MODULES: Record<string, "crm" | "accounting" | "payroll"> = {
+  getOverdueInvoices: "crm",
+  searchContacts: "crm",
+  getStockLevel: "crm",
+  draftInvoice: "crm",
+  draftQuote: "crm",
+  adjustStock: "crm",
+  createContact: "crm",
+  getOverdueBills: "accounting",
+  getProfitAndLoss: "accounting",
+  getAccountBalances: "accounting",
+  getCashPosition: "accounting",
+  getVatDue: "accounting",
+  getVat3Prefill: "accounting",
+  getWithholdingTaxReport: "accounting",
+  getCustomerProfitability: "accounting",
+  getCostCenterPnL: "accounting",
+  getChartOfAccounts: "accounting",
+  draftBill: "accounting",
+  draftExpense: "accounting",
+};
+
 export function findWriteTool(name: string): WriteToolDef | undefined {
   return WRITE_TOOLS.find((t) => t.name === name);
 }

@@ -14,6 +14,9 @@ export default async function OrgsPage() {
       email: org.email,
       phone: org.phone,
       portalSlug: org.portalSlug,
+      crmEnabled: org.crmEnabled,
+      accountingEnabled: org.accountingEnabled,
+      payrollEnabled: org.payrollEnabled,
       billingStatus: subscriptions.billingStatus,
       trialEndsAt: subscriptions.trialEndsAt,
       monthlyFeeCents: subscriptions.monthlyFeeCents,
@@ -39,6 +42,7 @@ export default async function OrgsPage() {
                 <th className="px-4 py-3 font-medium">Name</th>
                 <th className="px-4 py-3 font-medium">Contact</th>
                 <th className="px-4 py-3 font-medium">Status</th>
+                <th className="px-4 py-3 font-medium">Modules</th>
                 <th className="px-4 py-3 font-medium">Actions</th>
               </tr>
             </thead>
@@ -73,6 +77,24 @@ export default async function OrgsPage() {
                         {billing.status === "trial" ? `Trial · ${billing.trialDaysLeft}d left` : billing.status}
                       </span>
                     </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-1">
+                        {([
+                          ["CRM", o.crmEnabled],
+                          ["Acct", o.accountingEnabled],
+                          ["Payroll", o.payrollEnabled],
+                        ] as const).map(([label, on]) => (
+                          <span
+                            key={label}
+                            className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10.5px] font-medium ${
+                              on ? "bg-[var(--color-ink-100)] text-[var(--color-ink-700)]" : "bg-[var(--color-ink-50)] text-[var(--color-ink-300)] line-through"
+                            }`}
+                          >
+                            {label}
+                          </span>
+                        ))}
+                      </div>
+                    </td>
                     <td className="px-4 py-3 flex items-center gap-3">
                       <Link href={`/admin/orgs/${o.id}`} className="text-sm font-medium text-[var(--color-ink-600)] hover:underline">Details</Link>
                       <ImpersonateButton orgId={o.id} />
@@ -82,7 +104,7 @@ export default async function OrgsPage() {
               })}
               {orgsWithSubs.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-8 text-center text-[var(--color-ink-500)]">
+                  <td colSpan={6} className="px-4 py-8 text-center text-[var(--color-ink-500)]">
                     No organizations found.
                   </td>
                 </tr>

@@ -8,6 +8,7 @@ import { createAdminClient } from "./supabase/admin";
 import { nowISO } from "./money";
 import { customRoles } from "@/db";
 import { logAudit } from "./audit";
+import { syncSeatFee } from "./billing-server";
 
 async function requireAdmin() {
   const access = await getAccess();
@@ -46,6 +47,7 @@ export async function createStaff(data: {
     createdAt: nowISO(),
   }).returning();
   await logAudit({ action: "create", module: "staff", recordId: member.id, recordLabel: `${data.name} (${role})` });
+  await syncSeatFee(access.orgId);
   revalidatePath("/staff");
 }
 
@@ -68,6 +70,7 @@ export async function updateStaff(memberId: number, patch: { role?: string; acti
     recordLabel: m?.name,
     detail: JSON.stringify(patch),
   });
+  if (patch.active !== undefined) await syncSeatFee(access.orgId);
   revalidatePath("/staff");
 }
 

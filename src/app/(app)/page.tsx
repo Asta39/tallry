@@ -140,7 +140,6 @@ export default async function Dashboard({
             </>
           ) : stats ? (
             <>
-              <StatCard label="Cash & M-Pesa" hint="across all money accounts" cents={stats.cashCents} />
               <StatCard
                 label="Money you're owed"
                 hint={stats.overdueReceivablesCents > 0
@@ -149,13 +148,22 @@ export default async function Dashboard({
                 cents={stats.receivablesCents}
                 tone={stats.overdueReceivablesCents > 0 ? "warn" : "neutral"}
               />
-              <StatCard label="Money you owe" hint="accounts payable" cents={stats.payablesCents} />
-              <StatCard
-                label="VAT due to KRA"
-                hint="this month so far"
-                cents={stats.netVatDueCents}
-                tone={stats.netVatDueCents > 0 ? "warn" : "good"}
-              />
+              {/* Cash/payables/VAT all live behind Banking, Bills and Reports —
+                  Accounting-module screens — so they're hidden along with the
+                  sidebar when an org hasn't paid for Accounting. Receivables
+                  above is invoice data (CRM), shown either way. */}
+              {o.accountingEnabled && (
+                <>
+                  <StatCard label="Cash & M-Pesa" hint="across all money accounts" cents={stats.cashCents} />
+                  <StatCard label="Money you owe" hint="accounts payable" cents={stats.payablesCents} />
+                  <StatCard
+                    label="VAT due to KRA"
+                    hint="this month so far"
+                    cents={stats.netVatDueCents}
+                    tone={stats.netVatDueCents > 0 ? "warn" : "good"}
+                  />
+                </>
+              )}
             </>
           ) : null}
         </div>
@@ -167,12 +175,12 @@ export default async function Dashboard({
 
         {/* Chart (company-wide, hidden in own-metrics view) + calendar */}
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 mt-4 items-stretch">
-          {!ownOnly && (
+          {!ownOnly && o.accountingEnabled && (
             <div className="lg:col-span-3">
               <IncomeExpenseChart data={chartData} />
             </div>
           )}
-          <div className={ownOnly ? "lg:col-span-5" : "lg:col-span-2"}>
+          <div className={ownOnly || !o.accountingEnabled ? "lg:col-span-5" : "lg:col-span-2"}>
             <CalendarWidget
               events={[
                 ...eventRows.map((e) => ({ id: `evt-${e.id}`, title: e.title, date: e.date, color: "#515154", deletable: true, dbId: e.id })),

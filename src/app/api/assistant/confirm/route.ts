@@ -3,7 +3,7 @@ import { db, aiMessages } from "@/db";
 import { getAccess } from "@/lib/access";
 import { nairobiDateISO } from "@/lib/timezone";
 import { executeConfirmedAction } from "@/lib/ai/llm";
-import { findWriteTool } from "@/lib/ai/tools";
+import { findWriteTool, TOOL_MODULES as BILLING_TOOL_MODULES } from "@/lib/ai/tools";
 import { logAudit, type AuditModule } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
@@ -29,6 +29,16 @@ export async function POST(req: NextRequest) {
   const { tool, args } = await req.json();
   const writeTool = findWriteTool(tool);
   if (!writeTool) return NextResponse.json({ error: "Unknown action" }, { status: 400 });
+
+  // Defense in depth — llm.ts already keeps a module-gated tool out of the
+  // model's hands entirely, but this endpoint executes the real mutation,
+  // so it re-checks independently rather than trusting the client-supplied
+  // tool name never got past that first gate.
+  const requiredModule = BILLING_TOOL_MODULES[tool];
+  if (requiredModule) {
+    const moduleOn = requiredModule === "crm" ? access.orgRow.crmEnabled : requiredModule === "accounting" ? access.orgRow.accountingEnabled : access.orgRow.payrollEnabled;
+    if (!moduleOn) return NextResponse.json({ error: "That module isn't on your plan yet" }, { status: 403 });
+  }
 
   let result: unknown;
   try {
