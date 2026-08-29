@@ -921,6 +921,14 @@ ALTER TABLE billing_payments ALTER COLUMN cycle DROP NOT NULL;
 ALTER TABLE loan_ledger ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'loan';
 ALTER TABLE members ADD COLUMN IF NOT EXISTS employee_id INTEGER;
 
+-- paid_until/plan/status are legacy plan-tier columns, dropped from the
+-- Drizzle schema by the billing rewrite above but never relaxed on the live
+-- table — seedOrgDefaults()'s subscriptions insert (which only sets the new
+-- columns) has been violating this NOT NULL on every new org signup since.
+ALTER TABLE subscriptions ALTER COLUMN paid_until DROP NOT NULL;
+ALTER TABLE subscriptions ALTER COLUMN plan DROP NOT NULL;
+ALTER TABLE subscriptions ALTER COLUMN status DROP NOT NULL;
+
 CREATE TABLE IF NOT EXISTS salary_advance_requests (
   id SERIAL PRIMARY KEY,
   org_id INTEGER NOT NULL REFERENCES org(id),
