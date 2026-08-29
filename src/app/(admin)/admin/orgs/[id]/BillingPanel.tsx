@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { fmtKES } from "@/lib/money";
 import {
   setOrgMonthlyFeeAction,
@@ -28,6 +28,8 @@ export function BillingPanel({
   trialEndsAt,
   needsActivation,
   monthlyFeeCents,
+  suggestedMonthlyFeeCents,
+  activeStaffCount,
   nextMaintenanceDueAt,
   createdAt,
   isSuspended,
@@ -38,6 +40,9 @@ export function BillingPanel({
   trialEndsAt: string;
   needsActivation: boolean;
   monthlyFeeCents: number;
+  /** activeStaffCount × KSh 1,000 — auto-filled into the fee field, still editable. */
+  suggestedMonthlyFeeCents: number;
+  activeStaffCount: number;
   nextMaintenanceDueAt: string | null;
   createdAt: string;
   isSuspended: boolean;
@@ -47,6 +52,9 @@ export function BillingPanel({
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [showRecordPayment, setShowRecordPayment] = useState(false);
+  const activateFeeRef = useRef<HTMLInputElement>(null);
+  const monthlyFeeRef = useRef<HTMLInputElement>(null);
+  const suggestedFeeKES = (suggestedMonthlyFeeCents / 100).toFixed(2);
 
   const Row = ({ k, v }: { k: string; v: React.ReactNode }) => (
     <div className="flex justify-between gap-4 py-2 border-t border-[var(--color-ink-100)] first:border-t-0 text-[13px]">
@@ -83,12 +91,27 @@ export function BillingPanel({
             run(() => activateOrgAction(orgId, fd), "Activated.");
           }}
         >
-          <div className="text-[11.5px] text-[var(--color-ink-400)] mb-1">Trial ended — record the one-time setup fee received to activate this org</div>
+          <div className="text-[11.5px] text-[var(--color-ink-400)] mb-1">Record the one-time setup fee received to activate this org — works any time, trial-expired or not</div>
           <div className="flex flex-wrap gap-2">
-            <input name="setupFeeAmount" type="number" step="0.01" min="0.01" required placeholder="Amount (KES)" className={inputCls} />
+            <input name="setupFeeAmount" type="number" step="0.01" min="0.01" required placeholder="Setup fee (KES)" className={inputCls} />
             <input name="setupFeeDate" type="date" required defaultValue={new Date().toISOString().slice(0, 10)} className={inputCls} />
           </div>
           <input name="setupFeeNote" type="text" placeholder="Note (optional)" className={`${inputCls} w-full`} />
+          <div>
+            <span className="block text-[11.5px] font-medium text-[var(--color-ink-600)] mb-1">
+              Monthly fee (KES) — auto: {activeStaffCount} staff × KSh 1,000
+            </span>
+            <div className="flex gap-2">
+              <input ref={activateFeeRef} name="monthlyFee" type="number" step="0.01" min="0" defaultValue={suggestedFeeKES} className={inputCls} />
+              <button
+                type="button"
+                onClick={() => { if (activateFeeRef.current) activateFeeRef.current.value = suggestedFeeKES; }}
+                className="text-[11.5px] font-medium text-[var(--color-accent-600)] hover:underline shrink-0"
+              >
+                Reset to auto
+              </button>
+            </div>
+          </div>
           <button type="submit" disabled={pending} className="rounded-lg bg-red-600 hover:bg-red-700 disabled:opacity-60 text-white text-[13px] font-medium px-4 py-2">
             {pending ? "Saving…" : "Activate"}
           </button>
@@ -107,8 +130,15 @@ export function BillingPanel({
           >
             <label>
               <span className="block text-[11.5px] font-medium text-[var(--color-ink-600)] mb-1">Monthly fee (KES)</span>
-              <input name="monthlyFee" type="number" step="0.01" min="0" defaultValue={(monthlyFeeCents / 100).toFixed(2)} className={inputCls} />
+              <input ref={monthlyFeeRef} name="monthlyFee" type="number" step="0.01" min="0" defaultValue={(monthlyFeeCents / 100).toFixed(2)} className={inputCls} />
             </label>
+            <button
+              type="button"
+              onClick={() => { if (monthlyFeeRef.current) monthlyFeeRef.current.value = suggestedFeeKES; }}
+              className="text-[11.5px] font-medium text-[var(--color-accent-600)] hover:underline"
+            >
+              Recalc: {activeStaffCount} staff × 1,000
+            </button>
             <button type="submit" disabled={pending} className="rounded-lg bg-red-600 hover:bg-red-700 disabled:opacity-60 text-white text-[13px] font-medium px-4 py-2">
               Save
             </button>

@@ -3,11 +3,11 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { db, superAdmins, subscriptions, billingPayments, org, announcements } from "@/db";
-import { eq } from "drizzle-orm";
+import { db, superAdmins, subscriptions, billingPayments, org, announcements, members } from "@/db";
+import { eq, and, sql } from "drizzle-orm";
 import { requireSuperAdmin } from "@/lib/super-admin";
 import { logAdminAction } from "@/lib/admin-audit";
-import { endOfMonthISO, nextMonthEndISO } from "@/lib/billing";
+import { endOfMonthISO, nextMonthEndISO, PER_STAFF_MONTHLY_FEE_CENTS } from "@/lib/billing";
 import { runAndStoreAllOrgChecks } from "@/lib/ledger-integrity";
 import { runOrgBackup, runAllOrgBackups, getBackupDownloadUrl } from "@/lib/org-backup";
 import { reconcileUnconfirmedKopoKopoPayouts } from "@/lib/payments/webhook";
@@ -158,6 +158,17 @@ export async function activateOrgAction(orgId: number, formData: FormData) {
   const [existing] = await db.select().from(subscriptions).where(eq(subscriptions.orgId, orgId)).limit(1);
   if (!existing) return { error: "No subscription record for this org" };
 
+  // Maintenance is billed per active staff member — the form pre-fills this
+  // from the org's current staff count (KSh 1,000/staff), but the admin can
+  // type a different number; fall back to computing it here if the field
+  // was left blank.
+  const submittedFee = Math.round(Number(formData.get("monthlyFee")) * 100);
+  let monthlyFeeCents = Number.isFinite(submittedFee) && submittedFee >= 0 ? submittedFee : NaN;
+  if (!Number.isFinite(monthlyFeeCents)) {
+    const [{ count }] = await db.select({ count: sql<number>`count(*)`.mapWith(Number) }).from(members).where(and(eq(members.orgId, orgId), eq(members.active, true)));
+    monthlyFeeCents = count * PER_STAFF_MONTHLY_FEE_CENTS;
+  }
+
   const today = new Date().toISOString().slice(0, 10);
   await db.insert(billingPayments).values({
     orgId,
@@ -172,7 +183,8 @@ export async function activateOrgAction(orgId: number, formData: FormData) {
   await db.update(subscriptions).set({
     billingStatus: "active",
     activatedAt: today,
-    nextMaintenanceDueAt: endOfMonthISO(today),
+    monthlyFeeCents,
+    nextMaintenanceDueAt: existing.nextMaintenanceDueAt ?? endOfMonthISO(today),
   }).where(eq(subscriptions.id, existing.id));
 
   await logAdminAction({

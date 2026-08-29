@@ -3,7 +3,7 @@ import { eq, and, desc, count, sql, gte, inArray } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { fmtKES } from "@/lib/money";
-import { resolveBillingAccess } from "@/lib/billing";
+import { resolveBillingAccess, PER_STAFF_MONTHLY_FEE_CENTS } from "@/lib/billing";
 import { BillingPanel } from "./BillingPanel";
 import { ImpersonateButton } from "../ImpersonateButton";
 
@@ -50,7 +50,11 @@ export default async function AdminOrgDetailPage({ params }: { params: Promise<{
   const billing = sub
     ? resolveBillingAccess(sub)
     : { status: "trial" as const, trialEndsAt: today, trialDaysLeft: 7, monthlyFeeCents: 0, nextMaintenanceDueAt: null };
-  const needsActivation = billing.status === "locked" && sub?.billingStatus === "trial";
+  // Activation isn't gated on the trial having actually run out any more —
+  // an org can pay the setup fee and go active any time, including mid-trial.
+  const needsActivation = sub?.billingStatus === "trial";
+  const activeStaffCount = memberList.filter((m) => m.active).length;
+  const suggestedMonthlyFeeCents = activeStaffCount * PER_STAFF_MONTHLY_FEE_CENTS;
 
   const Row = ({ k, v }: { k: string; v: React.ReactNode }) => (
     <div className="flex justify-between gap-4 py-2 border-t border-[var(--color-ink-100)] first:border-t-0 text-[13px]">
@@ -120,6 +124,8 @@ export default async function AdminOrgDetailPage({ params }: { params: Promise<{
             trialEndsAt={billing.trialEndsAt}
             needsActivation={needsActivation}
             monthlyFeeCents={billing.monthlyFeeCents}
+            suggestedMonthlyFeeCents={suggestedMonthlyFeeCents}
+            activeStaffCount={activeStaffCount}
             nextMaintenanceDueAt={billing.nextMaintenanceDueAt}
             createdAt={sub?.createdAt?.slice(0, 10) || "—"}
             isSuspended={sub?.billingStatus === "suspended"}

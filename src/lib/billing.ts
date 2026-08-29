@@ -9,6 +9,11 @@
 
 export type BillingStatus = "trial" | "active" | "locked";
 
+/** Maintenance is billed per active staff member (members table row, not
+ *  counting the owner) — KSh 1,000/staff/month. Used to auto-suggest the
+ *  monthly fee on activation; the admin can always override it. */
+export const PER_STAFF_MONTHLY_FEE_CENTS = 100_000;
+
 export interface SubscriptionRow {
   billingStatus: string; // "trial" | "active" | "suspended" — loose to accept raw DB rows
   trialEndsAt: string; // ISO date

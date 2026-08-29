@@ -40,7 +40,7 @@ const WHY_US = [
   { label: "Built for Kenya, not adapted to it", desc: "VAT, eTIMS, M-Pesa, PAYE/NSSF/SHIF/AHL — native, not bolted on." },
   { label: "One person can run it", desc: "Calm, simple screens — no accounting degree or IT department required." },
   { label: "A real person answers", desc: "Onboarding and support from someone who knows your business, not a ticket queue." },
-  { label: "Fair, predictable pricing", desc: "One setup fee, one monthly fee — no per-seat surprises or feature paywalls." },
+  { label: "Fair, predictable pricing", desc: "One setup fee, then a simple monthly fee per staff member — no feature paywalls." },
 ];
 
 export function BillingClient({
@@ -163,7 +163,7 @@ export function BillingClient({
             Everything your business <br className="md:hidden" /> needs, all included
           </h1>
           <p className="mt-4 text-base text-[var(--color-ink-600)] max-w-2xl mx-auto">
-            One setup fee, one monthly fee — no tiers, no locked features, no per-seat pricing games.
+            One setup fee, then a monthly fee per staff member — no tiers, no locked features.
           </p>
         </div>
       </div>
