@@ -964,3 +964,7 @@ ALTER TABLE payroll_runs ADD COLUMN IF NOT EXISTS payables_account_id INTEGER;
 ALTER TABLE payroll_runs ADD COLUMN IF NOT EXISTS paid_from_bank_account_id INTEGER;
 ALTER TABLE payroll_runs ADD COLUMN IF NOT EXISTS paid_journal_entry_id INTEGER;
 ALTER TABLE payroll_runs ADD COLUMN IF NOT EXISTS paid_at TEXT;
+
+-- Genuine "due at month-end" rule for recurring templates, instead of a
+-- flat day-count that only coincidentally lands on the last day of a month.
+ALTER TABLE recurring_templates ADD COLUMN IF NOT EXISTS due_end_of_month BOOLEAN NOT NULL DEFAULT FALSE;

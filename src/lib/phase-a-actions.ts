@@ -21,7 +21,7 @@ import { postEntry, acct, mirrorBankTxn } from "./posting";
 import { buildBalanceAdjustmentLines } from "./account-balance-adjustments";
 import { SYS } from "./coa";
 import { saveDocument, issueDocument, type DocLineInput } from "./actions";
-import { advance, dueRuns, addDays, type Frequency } from "./recurring";
+import { advance, dueRuns, addDays, endOfMonthISO, type Frequency } from "./recurring";
 import { notifyOrg } from "./notifications";
 
 function revalidatePath(path: string) {
@@ -474,6 +474,7 @@ export async function saveRecurringTemplate(data: {
   frequency: Frequency;
   nextRunDate: string;
   dueInDays: number;
+  dueEndOfMonth?: boolean;
   taxInclusive: boolean;
   autoIssue: boolean;
   notes?: string;
@@ -496,6 +497,7 @@ export async function saveRecurringTemplate(data: {
       frequency: data.frequency,
       nextRunDate: data.nextRunDate,
       dueInDays: data.dueInDays,
+      dueEndOfMonth: data.dueEndOfMonth ?? false,
       taxInclusive: data.taxInclusive,
       autoIssue: data.autoIssue,
       notes: data.notes ?? null,
@@ -565,7 +567,12 @@ export async function runDueRecurring(): Promise<{ created: number; stillBehind:
           type: t.docType as "invoice" | "bill" | "expense",
           contactId: t.contactId,
           date: runDate,
-          dueDate: t.docType === "invoice" || t.docType === "bill" ? addDays(runDate, t.dueInDays) : null,
+          dueDate:
+            t.docType === "invoice" || t.docType === "bill"
+              ? t.dueEndOfMonth
+                ? endOfMonthISO(advance(runDate, "monthly"))
+                : addDays(runDate, t.dueInDays)
+              : null,
           taxInclusive: t.taxInclusive,
           notes: t.notes ? `${t.notes}` : `Recurring: ${t.name}`,
           paidFromBankAccountId: t.paidFromBankAccountId,

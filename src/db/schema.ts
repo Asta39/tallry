@@ -726,6 +726,11 @@ export const recurringTemplates = pgTable("recurring_templates", {
   active: boolean("active").notNull().default(true),
   lastRunAt: text("last_run_at"),
   dueInDays: integer("due_in_days").notNull().default(30),
+  /** When true, dueInDays is ignored and the generated document's due date
+   *  is set to the last day of the month after the one it's generated in —
+   *  a genuine "due at month-end" rule, not a day-count that only
+   *  coincidentally lands there. */
+  dueEndOfMonth: boolean("due_end_of_month").notNull().default(false),
   paidFromBankAccountId: integer("paid_from_bank_account_id"),
   notes: text("notes"),
   /** Staff member who owns this template — generated documents are assigned to them

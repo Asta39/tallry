@@ -55,6 +55,7 @@ export default async function RecurringPage() {
       frequency: t.frequency,
       nextRunDate: t.nextRunDate,
       dueInDays: t.dueInDays,
+      dueEndOfMonth: t.dueEndOfMonth,
       autoIssue: t.autoIssue,
       active: t.active,
       totalCents,

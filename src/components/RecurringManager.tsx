@@ -28,6 +28,7 @@ export interface RecurringRow {
   frequency: string;
   nextRunDate: string;
   dueInDays: number;
+  dueEndOfMonth: boolean;
   autoIssue: boolean;
   active: boolean;
   totalCents: number;
@@ -74,6 +75,7 @@ export function RecurringManager({
   const [frequency, setFrequency] = useState<Frequency>("monthly");
   const [nextRun, setNextRun] = useState(todayISO());
   const [dueInDays, setDueInDays] = useState("30");
+  const [dueEndOfMonth, setDueEndOfMonth] = useState(false);
   const [autoIssue, setAutoIssue] = useState(false);
   const [assignedMemberId, setAssignedMemberId] = useState<number | "">("");
   const [lines, setLines] = useState<FormLine[]>([emptyLine()]);
@@ -87,6 +89,7 @@ export function RecurringManager({
     setFrequency("monthly");
     setNextRun(todayISO());
     setDueInDays("30");
+    setDueEndOfMonth(false);
     setAutoIssue(false);
     setAssignedMemberId("");
     setLines([emptyLine()]);
@@ -101,6 +104,7 @@ export function RecurringManager({
     setFrequency(r.frequency as Frequency);
     setNextRun(r.nextRunDate);
     setDueInDays(String(r.dueInDays));
+    setDueEndOfMonth(r.dueEndOfMonth);
     setAutoIssue(r.autoIssue);
     setAssignedMemberId(r.assignedMemberId ?? "");
     setLines(
@@ -146,6 +150,7 @@ export function RecurringManager({
           frequency,
           nextRunDate: nextRun,
           dueInDays: Number(dueInDays) || 30,
+          dueEndOfMonth,
           taxInclusive: false,
           autoIssue,
           assignedMemberId: assignedMemberId === "" ? null : assignedMemberId,
@@ -249,10 +254,28 @@ export function RecurringManager({
               <input type="date" value={nextRun} onChange={(e) => setNextRun(e.target.value)} className={input} />
             </label>
             {docType !== "expense" && (
-              <label className="block">
-                <span className={label}>Due in (days)</span>
-                <input value={dueInDays} onChange={(e) => setDueInDays(e.target.value)} className={input} />
-              </label>
+              <>
+                <label className="block">
+                  <span className={label}>Due in (days)</span>
+                  <input
+                    value={dueInDays}
+                    onChange={(e) => setDueInDays(e.target.value)}
+                    disabled={dueEndOfMonth}
+                    className={`${input} disabled:opacity-50 disabled:bg-[var(--color-ink-50)]`}
+                  />
+                </label>
+                <label className="flex items-center gap-2 self-end pb-2">
+                  <input
+                    type="checkbox"
+                    checked={dueEndOfMonth}
+                    onChange={(e) => setDueEndOfMonth(e.target.checked)}
+                    className="accent-[var(--color-accent-500)]"
+                  />
+                  <span className="text-[12.5px] text-[var(--color-ink-600)]">
+                    Due at end of next month instead (ignores days above)
+                  </span>
+                </label>
+              </>
             )}
             <label className="flex items-center gap-2 self-end pb-2">
               <input type="checkbox" checked={autoIssue} onChange={(e) => setAutoIssue(e.target.checked)} className="accent-[var(--color-accent-500)]" />
