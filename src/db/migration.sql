@@ -954,3 +954,13 @@ ALTER TABLE org ADD COLUMN IF NOT EXISTS crm_enabled BOOLEAN NOT NULL DEFAULT TR
 ALTER TABLE org ADD COLUMN IF NOT EXISTS accounting_enabled BOOLEAN NOT NULL DEFAULT TRUE;
 ALTER TABLE org ADD COLUMN IF NOT EXISTS payroll_enabled BOOLEAN NOT NULL DEFAULT TRUE;
 ALTER TABLE billing_payments ADD COLUMN IF NOT EXISTS module_key TEXT;
+
+-- "Post to Ledger" only ever accrued the Net Salary Payable liability — it
+-- never asked which bank account the actual salary cash came from, so that
+-- liability sat unpaid on the books forever. payablesAccountId remembers
+-- which liability account a run posted to (operator-chosen, not fixed) so
+-- the new "pay salaries" step knows what to clear.
+ALTER TABLE payroll_runs ADD COLUMN IF NOT EXISTS payables_account_id INTEGER;
+ALTER TABLE payroll_runs ADD COLUMN IF NOT EXISTS paid_from_bank_account_id INTEGER;
+ALTER TABLE payroll_runs ADD COLUMN IF NOT EXISTS paid_journal_entry_id INTEGER;
+ALTER TABLE payroll_runs ADD COLUMN IF NOT EXISTS paid_at TEXT;

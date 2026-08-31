@@ -2,10 +2,10 @@
 
 import { requirePerm } from "@/lib/guard";
 import { getOrg, withOrg } from "@/lib/org";
-import { db, employees, payrollRuns, payrollRunLineItems, leaveRecords, payrollAdjustments, loanLedger, loanInstallments, statutoryRules, accounts, journalEntries } from "@/db";
+import { db, employees, payrollRuns, payrollRunLineItems, leaveRecords, payrollAdjustments, loanLedger, loanInstallments, statutoryRules, accounts, journalEntries, bankAccounts } from "@/db";
 import { and, eq } from "drizzle-orm";
 import { runPayrollEngine, RuleDef } from "@/lib/payroll";
-import { postEntry } from "@/lib/posting";
+import { postEntry, mirrorBankTxn, isKopoKopoRouted, postKopoKopoFee } from "@/lib/posting";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
@@ -216,7 +216,8 @@ export async function postPayrollRunAction(runId: number, formData: FormData) {
     await db.transaction(async (tx) => {
       await tx.update(payrollRuns).set({
         status: "posted",
-        journalEntryId: entryId
+        journalEntryId: entryId,
+        payablesAccountId
       }).where(eq(payrollRuns.id, run.id));
 
       // Update loan balances
@@ -245,6 +246,76 @@ export async function postPayrollRunAction(runId: number, formData: FormData) {
         .where(and(eq(payrollRuns.id, runId), eq(payrollRuns.status, "posting")));
       throw err;
     }
+  });
+}
+
+/**
+ * Second half of the two-step flow — postPayrollRunAction only ever accrues
+ * the Net Salary Payable liability, the same accrue-then-pay split bills and
+ * expense claims already use; nothing about it moves cash. The accountant
+ * reported that posting payroll never asked which account the money came
+ * from — this is that missing step: clear the liability against a real
+ * bank account and mirror the outflow so reconciliation sees it.
+ */
+export async function payPayrollRunAction(runId: number, bankAccountId: number) {
+  return withOrg(async () => {
+    await requirePerm("accountant");
+    const o = await getOrg();
+
+    const [run] = await db.select().from(payrollRuns).where(and(eq(payrollRuns.id, runId), eq(payrollRuns.orgId, o.id)));
+    if (!run) throw new Error("Not found");
+    if (run.status !== "posted") throw new Error("Post this run to the ledger before recording payment");
+    if (run.paidAt) throw new Error("Already marked paid");
+    if (!run.payablesAccountId) throw new Error("This run has no recorded payables account — it may predate this feature; clear the liability manually in the Accountant module instead");
+
+    const [bank] = await db.select().from(bankAccounts).where(and(eq(bankAccounts.orgId, o.id), eq(bankAccounts.id, bankAccountId)));
+    if (!bank) throw new Error("Bank account not found");
+
+    const lines = await db.select().from(payrollRunLineItems).where(eq(payrollRunLineItems.payrollRunId, runId));
+    const totalNet = lines.filter((l) => l.type === "net_pay").reduce((s, l) => s + l.amountCents, 0);
+    if (totalNet <= 0) throw new Error("Nothing to pay on this run");
+
+    const date = new Date().toISOString().slice(0, 10);
+    const entryId = await postEntry({
+      date,
+      memo: `Salary payment — payroll run ${run.month}`,
+      sourceType: "payroll_payment",
+      sourceId: run.id,
+      lines: [
+        { accountId: run.payablesAccountId, debitCents: totalNet },
+        { accountId: bank.accountId, creditCents: totalNet },
+      ],
+    });
+
+    await mirrorBankTxn({
+      bankAccountId: bank.id,
+      date,
+      description: `Salaries — payroll run ${run.month}`,
+      amountCents: -totalNet,
+      journalEntryId: entryId,
+      externalRef: `payroll-pay:${run.id}`,
+    });
+
+    if (await isKopoKopoRouted("", bank)) {
+      await postKopoKopoFee({
+        bankId: bank.id,
+        bankAccountId: bank.accountId,
+        date,
+        sourceType: "payroll_payment",
+        sourceId: run.id,
+        memo: `Salaries — payroll run ${run.month}`,
+      });
+    }
+
+    await db.update(payrollRuns).set({
+      paidFromBankAccountId: bank.id,
+      paidJournalEntryId: entryId,
+      paidAt: date,
+    }).where(eq(payrollRuns.id, run.id));
+
+    revalidatePath(`/payroll/runs/${run.id}`);
+    revalidatePath("/payroll/runs");
+    revalidatePath("/banking");
   });
 }
 

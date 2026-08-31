@@ -780,6 +780,17 @@ export const payrollRuns = pgTable("payroll_runs", {
   month: text("month").notNull(), // e.g. "2024-05"
   status: text("status").notNull().default("draft"), // draft | posting | posted
   journalEntryId: integer("journal_entry_id"), // once posted
+  /** The Net Salary Payable liability account picked on the ledger-posting
+   *  form — remembered so the later "pay salaries" step knows exactly which
+   *  liability to clear, since it's operator-chosen per run, not fixed. */
+  payablesAccountId: integer("payables_account_id"),
+  /** Set once the net pay total has actually been paid out from a bank
+   *  account — posting to the ledger only accrues the liability, it never
+   *  touches cash on its own (same accrue-then-pay split bills/expense
+   *  claims already use). Null = not yet paid. */
+  paidFromBankAccountId: integer("paid_from_bank_account_id"),
+  paidJournalEntryId: integer("paid_journal_entry_id"),
+  paidAt: text("paid_at"),
   createdAt: text("created_at").notNull(),
 });
 

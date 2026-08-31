@@ -1,11 +1,12 @@
 import { requirePerm } from "@/lib/guard";
 import { getOrg } from "@/lib/org";
-import { db, payrollRuns, payrollRunLineItems, employees, accounts } from "@/db";
+import { db, payrollRuns, payrollRunLineItems, employees, accounts, bankAccounts as bankAccountsTable } from "@/db";
 import { and, eq } from "drizzle-orm";
 import { PageHeader, TableCard, Th, Td } from "@/components/ui";
 import { fmtKES } from "@/lib/money";
 import { notFound } from "next/navigation";
 import { PostRunForm } from "./PostRunForm";
+import { PayRunForm } from "./PayRunForm";
 import { DeleteRunButton } from "./DeleteRunButton";
 import { RecoverRunButton } from "./RecoverRunButton";
 import Link from "next/link";
@@ -35,7 +36,7 @@ export default async function PayrollRunDetailsPage(props: { params: Promise<{ i
   const allAccounts = await db.select().from(accounts).where(and(eq(accounts.orgId, o.id), eq(accounts.archived, false)));
   const expenseAccounts = allAccounts.filter(a => a.type === "expense");
   const liabilityAccounts = allAccounts.filter(a => a.type === "liability");
-  const bankAccounts = allAccounts.filter(a => a.type === "asset"); 
+  const bankAccounts = await db.select({ id: bankAccountsTable.id, name: bankAccountsTable.name }).from(bankAccountsTable).where(and(eq(bankAccountsTable.orgId, o.id), eq(bankAccountsTable.archived, false)));
 
   const empMap = new Map();
   for (const row of linesData) {
@@ -73,7 +74,7 @@ export default async function PayrollRunDetailsPage(props: { params: Promise<{ i
     <>
       <PageHeader 
         title={`Payroll Run: ${run.month}`} 
-        subtitle="Review payslips and post to the ledger"
+        subtitle="Review payslips, post to the ledger, then record which account paid it"
         action={
           run.status === "posting" ? (
             <RecoverRunButton runId={run.id} />
@@ -86,6 +87,8 @@ export default async function PayrollRunDetailsPage(props: { params: Promise<{ i
                   liabilityAccounts={liabilityAccounts}
                 />
               </div>
+          ) : run.status === "posted" && !run.paidAt ? (
+            <PayRunForm runId={run.id} bankAccounts={bankAccounts} totalNetCents={totalNet} />
           ) : null
         }
       />
@@ -97,6 +100,11 @@ export default async function PayrollRunDetailsPage(props: { params: Promise<{ i
             <span className={`inline-block mt-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${run.status === 'posted' ? 'bg-[var(--color-success-50)] text-[var(--color-success-700)] border-[var(--color-success-200)]' : 'bg-orange-50 text-orange-700 border-orange-200'}`}>
               {run.status.toUpperCase()}
             </span>
+            {run.status === "posted" && (
+              <span className={`inline-block mt-1 ml-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${run.paidAt ? 'bg-[var(--color-success-50)] text-[var(--color-success-700)] border-[var(--color-success-200)]' : 'bg-orange-50 text-orange-700 border-orange-200'}`}>
+                {run.paidAt ? `PAID ${run.paidAt}` : "NOT PAID"}
+              </span>
+            )}
           </div>
           <div>
             <p className="text-[12px] font-medium text-[var(--color-ink-500)]">Total Gross Pay</p>
@@ -115,6 +123,14 @@ export default async function PayrollRunDetailsPage(props: { params: Promise<{ i
               <p className="text-[12px] font-medium text-[var(--color-ink-500)]">Journal</p>
               <Link href={`/accountant/journal/${run.journalEntryId}`} className="text-[16px] font-bold text-[var(--color-accent-600)] hover:underline mt-1 block">
                 #{run.journalEntryId}
+              </Link>
+            </div>
+          )}
+          {run.paidJournalEntryId && (
+            <div>
+              <p className="text-[12px] font-medium text-[var(--color-ink-500)]">Payment journal</p>
+              <Link href={`/accountant/journal/${run.paidJournalEntryId}`} className="text-[16px] font-bold text-[var(--color-accent-600)] hover:underline mt-1 block">
+                #{run.paidJournalEntryId}
               </Link>
             </div>
           )}
