@@ -1,6 +1,6 @@
 export const metadata = { title: "Privacy Policy — Zeno" };
 
-const LAST_UPDATED = "12 July 2026";
+const LAST_UPDATED = "31 August 2026";
 
 export default function PrivacyPage() {
   return (
@@ -9,11 +9,12 @@ export default function PrivacyPage() {
       <p className="text-gray-500">Last updated: {LAST_UPDATED}</p>
 
       <p>
-        Zeno (&quot;we&quot;, &quot;us&quot;, &quot;the Service&quot;) is an accounting and payments
-        platform for Kenyan businesses. This policy explains what personal data we collect, why,
-        and the rights you have under the <strong>Data Protection Act, 2019 (Kenya)</strong> and
-        its regulations. It applies to business owners and staff who use Zeno, and to their
-        customers whose details are processed through the Service.
+        Zeno (&quot;we&quot;, &quot;us&quot;, &quot;the Service&quot;) is a CRM, accounting and
+        payroll platform for Kenyan businesses. This policy explains what personal data we
+        collect, why, and the rights you have under the{" "}
+        <strong>Data Protection Act, 2019 (Kenya)</strong> and its regulations. It applies to
+        business owners and staff who use Zeno, and to their customers whose details are
+        processed through the Service.
       </p>
 
       <h2>1. Who is responsible for your data</h2>
@@ -28,17 +29,20 @@ export default function PrivacyPage() {
       <h2>2. What we collect</h2>
       <ul>
         <li><strong>Account data</strong> — name, email, phone, business details, KRA PIN, login credentials.</li>
-        <li><strong>Business records</strong> — contacts, invoices, bills, payroll, ledger entries entered by the business.</li>
+        <li><strong>Business records</strong> — contacts, invoices, bills, payroll, fixed assets, and ledger entries entered by the business.</li>
         <li><strong>Payment data</strong> — M-Pesa and Kopo Kopo transaction details received via payment gateways: payer phone number, name, amount, receipt numbers. We never see or store M-Pesa PINs.</li>
+        <li><strong>Billing data</strong> — your organisation&apos;s own setup-fee and monthly maintenance-fee payments to us, including phone number/email used to pay and payment status.</li>
         <li><strong>Receipt access data</strong> — when a customer uses a receipt link or the customer portal: the phone number they verify, one-time codes (stored hashed), and access sessions.</li>
+        <li><strong>AI assistant data</strong> — questions you ask the assistant and the business records needed to answer them (see section 4), kept as a short chat history tied to your account.</li>
         <li><strong>Technical data</strong> — device/browser information and logs needed to keep the Service secure.</li>
       </ul>
 
       <h2>3. Why we process it (lawful basis)</h2>
       <ul>
-        <li>To provide the Service — bookkeeping, invoicing, payments, receipts (performance of contract).</li>
+        <li>To provide the Service — bookkeeping, invoicing, payments, receipts, payroll, and AI-assisted answers/drafts you request (performance of contract).</li>
         <li>To meet legal duties — tax record-keeping under Kenyan law, including KRA requirements (legal obligation).</li>
         <li>To send transactional messages — payment receipts and verification codes by SMS or email (legitimate interest / contract).</li>
+        <li>To bill you — processing your organisation&apos;s own setup and maintenance-fee payments (performance of contract).</li>
         <li>To secure the Service — fraud prevention, audit logs (legitimate interest).</li>
       </ul>
       <p>We do not sell personal data. We do not use it for third-party advertising.</p>
@@ -46,8 +50,10 @@ export default function PrivacyPage() {
       <h2>4. Who we share it with</h2>
       <ul>
         <li><strong>Safaricom (M-Pesa Daraja)</strong> and <strong>Kopo Kopo</strong> — to process payments you initiate or receive.</li>
+        <li><strong>IntaSend</strong> — to process your organisation&apos;s own setup-fee and maintenance-fee payments to us.</li>
         <li><strong>Advanta</strong> — to deliver SMS receipts and verification codes.</li>
         <li><strong>Resend</strong> — to deliver email receipts and notifications.</li>
+        <li><strong>Groq</strong> — to process the business data included in a message you send the AI assistant, solely to generate that response; only used when you actively use the assistant.</li>
         <li><strong>Supabase</strong> — our database and authentication host.</li>
       </ul>
       <p>
@@ -60,15 +66,16 @@ export default function PrivacyPage() {
       <p>
         Financial records are kept for at least <strong>five (5) years</strong> as required by
         Kenyan tax law, even after an account closes. Portal verification codes expire after 10
-        minutes; portal sessions after 30 days. Other personal data is deleted or anonymised when
-        no longer needed.
+        minutes; portal sessions after 30 days. AI assistant chat history is kept only as long as
+        needed to keep the conversation coherent and is not used to train any model. Other
+        personal data is deleted or anonymised when no longer needed.
       </p>
 
       <h2>6. How we protect it</h2>
       <ul>
         <li>Encryption in transit (HTTPS) and at rest; payment gateway credentials additionally encrypted with AES-256.</li>
         <li>Verification codes stored only as one-way hashes.</li>
-        <li>Role-based access controls inside each business account.</li>
+        <li>Role-based access controls inside each business account, including which modules (CRM/Accounting/Payroll) and AI tools each account can reach.</li>
         <li>Receipt links use unguessable random tokens; the customer portal requires phone verification.</li>
       </ul>
 
