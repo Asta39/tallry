@@ -1,3 +1,5 @@
+import { TRIAL_DAYS } from "@/lib/billing";
+
 export const dynamic = "force-dynamic";
 
 interface Topic {
@@ -16,7 +18,7 @@ const SECTIONS: Section[] = [
   {
     icon: "🏠",
     title: "Getting started",
-    intro: "The first 7 days on Zeno are a full-access trial — every module below is unlocked from the moment you sign up, no credit card required.",
+    intro: `The first ${TRIAL_DAYS} days on Zeno are a full-access trial — every module below is unlocked from the moment you sign up, no credit card required.`,
     topics: [
       {
         q: "What happens when the trial ends?",

@@ -1,6 +1,6 @@
 /**
- * Billing model: every org gets a 7-day full-access trial from creation,
- * then a hard lockout until the admin manually activates it (after
+ * Billing model: every org gets a full-access trial (TRIAL_DAYS) from
+ * creation, then a hard lockout until the admin manually activates it (after
  * receiving the one-time setup fee, collected outside the app). Once
  * active, the org has full access to everything — there are no more
  * feature tiers — and pays an admin-set monthly maintenance fee, trackable
@@ -8,6 +8,10 @@
  */
 
 export type BillingStatus = "trial" | "active" | "locked";
+
+/** Length of the free trial, in days. Single source of truth — every place
+ *  that starts, displays, or explains the trial reads this. */
+export const TRIAL_DAYS = 30;
 
 /** Maintenance is billed per active staff member (members table row, not
  *  counting the owner) — KSh 1,000/staff/month. Used to auto-suggest the

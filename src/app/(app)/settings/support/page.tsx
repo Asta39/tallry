@@ -1,3 +1,5 @@
+import { TRIAL_DAYS } from "@/lib/billing";
+
 export const dynamic = "force-dynamic";
 
 const SUPPORT_PHONE = "+254115706542";
@@ -6,7 +8,7 @@ const SUPPORT_PHONE_WA = "254115706542";
 const FAQS = [
   {
     q: "My trial ended and everything's locked — what now?",
-    a: "That's expected once the 7-day trial is over. Call or WhatsApp us below and we'll get your account activated the same day.",
+    a: `That's expected once the ${TRIAL_DAYS}-day trial is over. Call or WhatsApp us below and we'll get your account activated the same day.`,
   },
   {
     q: "I did bank reconciliation but my new statement balance wasn't used.",

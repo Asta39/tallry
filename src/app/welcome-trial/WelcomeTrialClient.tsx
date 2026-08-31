@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { completeWelcomeTrialAction, type ModulePreference } from "./actions";
+import { TRIAL_DAYS } from "@/lib/billing";
 
 const TRIAL_FEATURES = [
   { icon: "🧾", label: "Invoicing, quotes & credit notes", desc: "KRA-compliant VAT on every line, eTIMS-ready" },
@@ -58,7 +59,7 @@ export function WelcomeTrialClient({ orgName }: { orgName: string }) {
               Welcome to Zeno, <br className="md:hidden" /> {orgName}
             </h1>
             <p className="mt-4 text-base text-[var(--color-ink-600)] max-w-2xl mx-auto">
-              You have 7 days of full, unrestricted access — every module below, no card required. Here's what's included and what happens next.
+              You have {TRIAL_DAYS} days of full, unrestricted access — every module below, no card required. Here's what's included and what happens next.
             </p>
           </div>
         </div>
@@ -86,7 +87,7 @@ export function WelcomeTrialClient({ orgName }: { orgName: string }) {
         <div className="card p-6">
           <h2 className="text-[15px] font-bold text-[var(--color-ink-900)]">What happens when your trial ends</h2>
           <p className="text-[13px] text-[var(--color-ink-500)] mt-2 leading-relaxed">
-            After 7 days, access pauses — every page shows a single screen with our contact details until we reactivate your account. Reactivation is a one-time setup fee, agreed directly with us, after which you're billed KSh 1,000 per seat per month (you plus every staff member you add) — covers hosting, backups, KRA/eTIMS compliance updates and support, and you can pay it in-app or have us record it for you. Nothing you enter during the trial is lost — it's all still there the moment you're reactivated.
+            After {TRIAL_DAYS} days, access pauses — every page shows a single screen with our contact details until we reactivate your account. Reactivation is a one-time setup fee, agreed directly with us, after which you're billed KSh 1,000 per seat per month (you plus every staff member you add) — covers hosting, backups, KRA/eTIMS compliance updates and support, and you can pay it in-app or have us record it for you. Nothing you enter during the trial is lost — it's all still there the moment you're reactivated.
           </p>
         </div>
 

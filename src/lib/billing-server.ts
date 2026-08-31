@@ -1,6 +1,6 @@
 import { db, subscriptions, members } from "@/db";
 import { eq, and, sql } from "drizzle-orm";
-import { Entitlements, resolveBillingAccess, addDaysISO, PER_STAFF_MONTHLY_FEE_CENTS } from "./billing";
+import { Entitlements, resolveBillingAccess, addDaysISO, PER_STAFF_MONTHLY_FEE_CENTS, TRIAL_DAYS } from "./billing";
 
 export async function getEntitlements(orgId: number): Promise<Entitlements> {
   const [sub] = await db
@@ -24,7 +24,7 @@ export async function getEntitlements(orgId: number): Promise<Entitlements> {
   const today = now.slice(0, 10);
   await db
     .insert(subscriptions)
-    .values({ orgId, billingStatus: "trial", trialEndsAt: addDaysISO(today, 7), createdAt: now })
+    .values({ orgId, billingStatus: "trial", trialEndsAt: addDaysISO(today, TRIAL_DAYS), createdAt: now })
     .onConflictDoNothing({ target: subscriptions.orgId });
 
   const [healed] = await db.select().from(subscriptions).where(eq(subscriptions.orgId, orgId)).limit(1);
