@@ -1043,6 +1043,10 @@ async function _convertQuoteToInvoiceInner(quote: typeof documents.$inferSelect,
       customColumnValue: l.customColumnValue,
       costCenterId: l.costCenterId,
       warehouseId: l.warehouseId,
+      // Was missing entirely — a quote's category headings (isHeading rows,
+      // always qty 0/price 0/no item) converted into ordinary zero-value
+      // line items on the invoice instead of staying section headers.
+      isHeading: l.isHeading,
     })),
     assignedMemberIds: quoteAssignments.length > 0 ? quoteAssignments.map((a) => a.memberId) : undefined,
   });
