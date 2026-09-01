@@ -124,9 +124,9 @@ export default async function AdminAnalyticsPage() {
           <AdminActivityRings
             title="Modules enabled"
             rings={[
-              { label: "CRM", value: (crmOn / denom) * 100, color: "#0f766e", current: crmOn, target: activeOrgs.length, unit: "orgs" },
-              { label: "Accounting", value: (acctOn / denom) * 100, color: "#5eead4", current: acctOn, target: activeOrgs.length, unit: "orgs" },
-              { label: "Payroll", value: (payrollOn / denom) * 100, color: "#f59e0b", current: payrollOn, target: activeOrgs.length, unit: "orgs" },
+              { label: "CRM", value: (crmOn / denom) * 100, color: "#0f766e", gradientTo: "#2dd4bf", size: 176, current: crmOn, target: activeOrgs.length, unit: "orgs" },
+              { label: "Accounting", value: (acctOn / denom) * 100, color: "#5eead4", gradientTo: "#99f6e4", size: 132, current: acctOn, target: activeOrgs.length, unit: "orgs" },
+              { label: "Payroll", value: (payrollOn / denom) * 100, color: "#f59e0b", gradientTo: "#fbbf24", size: 88, current: payrollOn, target: activeOrgs.length, unit: "orgs" },
             ]}
           />
         </Card>
