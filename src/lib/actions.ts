@@ -687,7 +687,16 @@ async function _saveDocument(data: {
         if (mirrored?.reconciliationId) {
           throw new Error("This invoice's bank entry has already been reconciled — void and reissue instead");
         }
-        await reverseEntry(existingPre.journalEntryId, todayISO(), `Reversed for edit: ${existingPre.number}`);
+        // Dated at the original invoice's own date, not today — the repost
+        // a few lines down already uses the invoice's date (data.date), so
+        // reversing at that same date makes the two net to zero within the
+        // period the revenue was actually recognized, leaving only the net
+        // effect of the edit. Reversing "today" instead (the edit date, as
+        // this did before) left a naked debit sitting in whatever period the
+        // edit happened to occur in, with no offsetting credit there —
+        // making that period's income deeply negative while double-counting
+        // the original revenue in the invoice's own period.
+        await reverseEntry(existingPre.journalEntryId, existingPre.date, `Reversed for edit: ${existingPre.number}`);
       }
       const oldLines = await db.select().from(documentLines).where(eq(documentLines.documentId, data.id));
       for (const l of oldLines) {
