@@ -119,3 +119,77 @@ export function MpesaVolumeChart({ data }: { data: { label: string; volumeCents:
     </div>
   );
 }
+
+/** Horizontal bar ranking which module combination orgs said they want on
+ *  the welcome-trial screen. */
+export function ModulePreferenceBar({ data }: { data: { label: string; count: number }[] }) {
+  const mounted = useMounted();
+  if (!mounted) return <div className="h-48 w-full bg-[var(--color-ink-50)]/40 rounded-lg animate-pulse" />;
+
+  return (
+    <div className="h-48 w-full">
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={data} layout="vertical" margin={{ top: 4, right: 24, left: 0, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e8e8ed" />
+          <XAxis type="number" axisLine={false} tickLine={false} tick={axisTick} allowDecimals={false} />
+          <YAxis type="category" dataKey="label" axisLine={false} tickLine={false} tick={{ ...axisTick, fontSize: 12 }} width={110} />
+          <Tooltip cursor={{ fill: "#f5f5f7" }} contentStyle={tooltipStyle} formatter={(v: any) => [`${v} org${v === 1 ? "" : "s"}`, "Orgs"]} />
+          <Bar dataKey="count" fill="#0f766e" radius={[0, 4, 4, 0]} maxBarSize={22} />
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+const REVENUE_KIND_COLORS: Record<string, string> = {
+  setup_fee: "#0f766e",
+  maintenance: "#5eead4",
+  module_fee: "#f59e0b",
+};
+const REVENUE_KIND_LABELS: Record<string, string> = {
+  setup_fee: "Setup fees",
+  maintenance: "Maintenance",
+  module_fee: "Module unlocks",
+};
+
+/** Revenue composition donut — how platform income splits across setup
+ *  fees, ongoing maintenance, and one-off module unlocks. */
+export function RevenueCompositionDonut({ data }: { data: { kind: string; totalCents: number }[] }) {
+  const mounted = useMounted();
+  const totalCents = data.reduce((s, d) => s + d.totalCents, 0);
+
+  return (
+    <div className="flex items-center gap-5">
+      <div className="relative h-44 w-44 shrink-0">
+        {mounted ? (
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie data={data} dataKey="totalCents" nameKey="kind" innerRadius={56} outerRadius={80} paddingAngle={2} strokeWidth={0}>
+                {data.map((d) => (
+                  <Cell key={d.kind} fill={REVENUE_KIND_COLORS[d.kind] || "#e8e8ed"} />
+                ))}
+              </Pie>
+              <Tooltip contentStyle={tooltipStyle} formatter={(v: any, name: any) => [fmtKES(Number(v)), REVENUE_KIND_LABELS[name as string] || name]} />
+            </PieChart>
+          </ResponsiveContainer>
+        ) : (
+          <div className="h-44 w-44 rounded-full bg-[var(--color-ink-50)]/40 animate-pulse" />
+        )}
+        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none px-4 text-center">
+          <div className="text-[15px] font-semibold tnum leading-tight">{fmtKES(totalCents)}</div>
+          <div className="text-[10.5px] text-[var(--color-ink-400)] mt-1">total collected</div>
+        </div>
+      </div>
+      <ul className="space-y-2.5 text-[12.5px] min-w-0">
+        {data.map((d) => (
+          <li key={d.kind} className="flex items-center gap-2">
+            <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: REVENUE_KIND_COLORS[d.kind] || "#e8e8ed" }} />
+            <span className="text-[var(--color-ink-600)]">{REVENUE_KIND_LABELS[d.kind] || d.kind}</span>
+            <span className="ml-auto pl-3 font-medium tnum">{fmtKES(d.totalCents)}</span>
+            <span className="text-[var(--color-ink-400)] tnum w-9 text-right">{totalCents ? Math.round((d.totalCents / totalCents) * 100) : 0}%</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
