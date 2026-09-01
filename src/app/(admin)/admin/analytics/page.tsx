@@ -1,8 +1,9 @@
 import { db, org, subscriptions, billingPayments, members } from "@/db";
 import { sql, eq, count } from "drizzle-orm";
+import Link from "next/link";
 import { fmtKES } from "@/lib/money";
 import { resolveBillingAccess } from "@/lib/billing";
-import { SignupsChart, ModulePreferenceBar, RevenueCompositionDonut } from "@/components/AdminCharts";
+import { SignupsChart, ModulePreferenceBar, RevenueCompositionDonut, DocVolumeChart, PaymentMethodDonut } from "@/components/AdminCharts";
 import { AdminActivityRings } from "@/components/AdminActivityRings";
 
 export const dynamic = "force-dynamic";
@@ -31,7 +32,7 @@ const MODULE_PREF_LABELS: Record<string, string> = {
 export default async function AdminAnalyticsPage() {
   const months = monthKeys(6);
 
-  const [orgs, subs, allMembers, payments, signupRows] = await Promise.all([
+  const [orgs, subs, allMembers, payments, signupRows, docVolumeRows] = await Promise.all([
     db.select().from(org),
     db.select().from(subscriptions),
     db.select({ orgId: members.orgId, active: members.active }).from(members),
@@ -39,6 +40,12 @@ export default async function AdminAnalyticsPage() {
     db.execute(sql`
       select substr(u.created_at::text, 1, 7) as month, count(*)::int as signups
       from org o join auth.users u on u.id::text = o.user_id
+      group by 1
+    `),
+    db.execute(sql`
+      select substr(created_at, 1, 7) as month, count(*)::int as count
+      from documents
+      where type in ('invoice', 'quote', 'bill')
       group by 1
     `),
   ]);
@@ -86,6 +93,33 @@ export default async function AdminAnalyticsPage() {
   const signupsByMonth = new Map((signupRows as unknown as { month: string; signups: number }[]).map((r) => [r.month, Number(r.signups)]));
   const signupSeries = months.map((m) => ({ label: m.label, signups: signupsByMonth.get(m.key) || 0 }));
 
+  const arrCents = mrrCents * 12;
+  const arpuCents = activeOrgs.length ? Math.round(mrrCents / activeOrgs.length) : 0;
+
+  const docVolumeByMonth = new Map((docVolumeRows as unknown as { month: string; count: number }[]).map((r) => [r.month, Number(r.count)]));
+  const docVolumeSeries = months.map((m) => ({ label: m.label, count: docVolumeByMonth.get(m.key) || 0 }));
+
+  const methodCounts: Record<string, number> = {};
+  for (const p of payments) {
+    if (p.state !== "applied" && p.state !== "COMPLETE") continue;
+    methodCounts[p.method] = (methodCounts[p.method] || 0) + 1;
+  }
+  const methodData = Object.entries(methodCounts).map(([method, count]) => ({ method, count }));
+
+  // Collections risk: active orgs whose next maintenance payment is already
+  // overdue — the report the admin actually needs to chase.
+  const today = new Date().toISOString().slice(0, 10);
+  const orgById = new Map(orgs.map((o) => [o.id, o]));
+  const overdueOrgs = activeSubs
+    .filter((s) => s.nextMaintenanceDueAt && s.nextMaintenanceDueAt < today)
+    .map((s) => ({ orgId: s.orgId, name: orgById.get(s.orgId)?.name || `Org #${s.orgId}`, due: s.nextMaintenanceDueAt!, feeCents: s.monthlyFeeCents }))
+    .sort((a, b) => a.due.localeCompare(b.due));
+
+  const topOrgs = [...activeSubs]
+    .sort((a, b) => b.monthlyFeeCents - a.monthlyFeeCents)
+    .slice(0, 8)
+    .map((s) => ({ orgId: s.orgId, name: orgById.get(s.orgId)?.name || `Org #${s.orgId}`, feeCents: s.monthlyFeeCents }));
+
   const Card = ({ title, children, subtitle }: { title: string; children: React.ReactNode; subtitle?: string }) => (
     <div className="bg-white rounded-xl border border-[var(--color-ink-200)] shadow-sm p-5">
       <div className="mb-4">
@@ -111,12 +145,18 @@ export default async function AdminAnalyticsPage() {
         <p className="text-[var(--color-ink-500)] text-sm mt-1">Platform-wide health, adoption and revenue composition.</p>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <Stat label="MRR" value={fmtKES(mrrCents)} sub={`${activeOrgs.length} active org${activeOrgs.length === 1 ? "" : "s"}`} />
+        <Stat label="ARR (run rate)" value={fmtKES(arrCents)} sub="MRR × 12" />
+        <Stat label="Avg. revenue / org" value={fmtKES(arpuCents)} sub="MRR ÷ active orgs" />
+        <Stat label="Paid seats" value={String(totalSeats)} sub="owners + active staff" />
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <Stat label="Trial orgs" value={String(trialCount)} />
         <Stat label="Locked orgs" value={String(lockedCount)} />
         <Stat label="Total orgs" value={String(orgs.length)} />
-        <Stat label="Paid seats" value={String(totalSeats)} sub="owners + active staff" />
+        <Stat label="Overdue maintenance" value={String(overdueOrgs.length)} sub={overdueOrgs.length > 0 ? "needs collecting" : "all caught up"} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -150,6 +190,55 @@ export default async function AdminAnalyticsPage() {
             <ModulePreferenceBar data={prefData} />
           ) : (
             <div className="h-48 flex items-center justify-center text-[13px] text-[var(--color-ink-400)]">No data yet.</div>
+          )}
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <Card title="Platform document volume" subtitle="Invoices, quotes and bills created per month, across every org">
+          <DocVolumeChart data={docVolumeSeries} />
+        </Card>
+
+        <Card title="Payment method mix" subtitle="How orgs pay their own setup/maintenance fees">
+          {methodData.length > 0 ? (
+            <PaymentMethodDonut data={methodData} />
+          ) : (
+            <div className="h-36 flex items-center justify-center text-[13px] text-[var(--color-ink-400)]">No payments recorded yet.</div>
+          )}
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <Card title="Overdue maintenance" subtitle="Active orgs past their next maintenance due date">
+          {overdueOrgs.length === 0 ? (
+            <div className="text-[13px] text-[var(--color-ink-400)] text-center py-6">Nothing overdue.</div>
+          ) : (
+            <ul className="divide-y divide-[var(--color-ink-100)]">
+              {overdueOrgs.map((o) => (
+                <li key={o.orgId} className="py-2.5 flex items-center justify-between text-[13px]">
+                  <div>
+                    <Link href={`/admin/orgs/${o.orgId}`} className="font-medium hover:underline text-red-700">{o.name}</Link>
+                    <div className="text-[11.5px] text-[var(--color-ink-400)]">Due {o.due}</div>
+                  </div>
+                  <span className="font-medium tnum">{fmtKES(o.feeCents)}/mo</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+
+        <Card title="Top orgs by MRR" subtitle="Highest monthly maintenance fee, active orgs">
+          {topOrgs.length === 0 ? (
+            <div className="text-[13px] text-[var(--color-ink-400)] text-center py-6">No active orgs yet.</div>
+          ) : (
+            <ul className="divide-y divide-[var(--color-ink-100)]">
+              {topOrgs.map((o) => (
+                <li key={o.orgId} className="py-2.5 flex items-center justify-between text-[13px]">
+                  <Link href={`/admin/orgs/${o.orgId}`} className="font-medium hover:underline text-[var(--color-ink-700)]">{o.name}</Link>
+                  <span className="font-medium tnum">{fmtKES(o.feeCents)}/mo</span>
+                </li>
+              ))}
+            </ul>
           )}
         </Card>
       </div>

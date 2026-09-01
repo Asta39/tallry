@@ -193,3 +193,73 @@ export function RevenueCompositionDonut({ data }: { data: { kind: string; totalC
     </div>
   );
 }
+
+/** Platform-wide document volume — invoices/quotes/bills created per month,
+ *  across every org. Usage/engagement, distinct from anything billing-related. */
+export function DocVolumeChart({ data }: { data: { label: string; count: number }[] }) {
+  const mounted = useMounted();
+  if (!mounted) return <div className="h-56 w-full bg-[var(--color-ink-50)]/40 rounded-lg animate-pulse" />;
+
+  return (
+    <div className="h-56 w-full">
+      <ResponsiveContainer width="100%" height="100%">
+        <AreaChart data={data} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
+          <defs>
+            <linearGradient id="docVolumeFill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#7c3aed" stopOpacity={0.2} />
+              <stop offset="100%" stopColor="#7c3aed" stopOpacity={0.02} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e8e8ed" />
+          <XAxis dataKey="label" axisLine={false} tickLine={false} tick={axisTick} dy={8} />
+          <YAxis axisLine={false} tickLine={false} tick={axisTick} width={40} />
+          <Tooltip cursor={{ stroke: "#d2d2d7" }} contentStyle={tooltipStyle} formatter={(v: any) => [v, "Documents"]} />
+          <Area type="monotone" dataKey="count" stroke="#7c3aed" strokeWidth={2} fill="url(#docVolumeFill)" dot={{ r: 3, fill: "#7c3aed", strokeWidth: 0 }} activeDot={{ r: 4 }} />
+        </AreaChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+const METHOD_COLORS: Record<string, string> = { mpesa: "#0f766e", card: "#3b82f6" };
+const METHOD_LABELS: Record<string, string> = { mpesa: "M-Pesa", card: "Card" };
+
+/** Platform billing payments split by method — M-Pesa vs card. */
+export function PaymentMethodDonut({ data }: { data: { method: string; count: number }[] }) {
+  const mounted = useMounted();
+  const total = data.reduce((s, d) => s + d.count, 0);
+
+  return (
+    <div className="flex items-center gap-5">
+      <div className="relative h-36 w-36 shrink-0">
+        {mounted ? (
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie data={data} dataKey="count" nameKey="method" innerRadius={44} outerRadius={64} paddingAngle={2} strokeWidth={0}>
+                {data.map((d) => (
+                  <Cell key={d.method} fill={METHOD_COLORS[d.method] || "#e8e8ed"} />
+                ))}
+              </Pie>
+              <Tooltip contentStyle={tooltipStyle} formatter={(v: any, name: any) => [`${v} payment${v === 1 ? "" : "s"}`, METHOD_LABELS[name as string] || name]} />
+            </PieChart>
+          </ResponsiveContainer>
+        ) : (
+          <div className="h-36 w-36 rounded-full bg-[var(--color-ink-50)]/40 animate-pulse" />
+        )}
+        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+          <div className="text-[18px] font-semibold tnum leading-none">{total}</div>
+          <div className="text-[10px] text-[var(--color-ink-400)] mt-1">payments</div>
+        </div>
+      </div>
+      <ul className="space-y-2.5 text-[12.5px] min-w-0">
+        {data.map((d) => (
+          <li key={d.method} className="flex items-center gap-2">
+            <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: METHOD_COLORS[d.method] || "#e8e8ed" }} />
+            <span className="text-[var(--color-ink-600)]">{METHOD_LABELS[d.method] || d.method}</span>
+            <span className="ml-auto pl-3 font-medium tnum">{d.count}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
