@@ -968,3 +968,9 @@ ALTER TABLE payroll_runs ADD COLUMN IF NOT EXISTS paid_at TEXT;
 -- Genuine "due at month-end" rule for recurring templates, instead of a
 -- flat day-count that only coincidentally lands on the last day of a month.
 ALTER TABLE recurring_templates ADD COLUMN IF NOT EXISTS due_end_of_month BOOLEAN NOT NULL DEFAULT FALSE;
+
+-- Links a client org's subscription to an auto-generated Contact + recurring
+-- maintenance-fee invoice template inside the platform operator's own org
+-- (PLATFORM_ORG_ID) — see src/lib/platform-invoicing.ts.
+ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS linked_contact_id INTEGER;
+ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS linked_recurring_template_id INTEGER;

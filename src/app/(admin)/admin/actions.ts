@@ -11,6 +11,7 @@ import { endOfMonthISO, nextMonthEndISO, PER_STAFF_MONTHLY_FEE_CENTS } from "@/l
 import { runAndStoreAllOrgChecks } from "@/lib/ledger-integrity";
 import { runOrgBackup, runAllOrgBackups, getBackupDownloadUrl } from "@/lib/org-backup";
 import { reconcileUnconfirmedKopoKopoPayouts } from "@/lib/payments/webhook";
+import { ensurePlatformContactAndTemplate, syncPlatformInvoiceAmount, setPlatformTemplateActive } from "@/lib/platform-invoicing";
 
 export async function reconcilePayoutsNow() {
   const user = await requireSuperAdmin();
@@ -128,6 +129,13 @@ export async function setOrgMonthlyFeeAction(orgId: number, formData: FormData) 
     nextMaintenanceDueAt: existing.nextMaintenanceDueAt ?? endOfMonthISO(today),
   }).where(eq(subscriptions.id, existing.id));
 
+  // Keep the operator's own auto-generated maintenance invoice for this
+  // client in step with the fee that was just changed — only for orgs
+  // already active; a trial org's fee is meaningless to invoice against.
+  if (existing.billingStatus === "active") {
+    await syncPlatformInvoiceAmount(orgId);
+  }
+
   await logAdminAction({
     actorEmail: user.email!,
     action: "set_monthly_fee",
@@ -187,6 +195,11 @@ export async function activateOrgAction(orgId: number, formData: FormData) {
     monthlyFeeCents,
     nextMaintenanceDueAt: existing.nextMaintenanceDueAt ?? endOfMonthISO(today),
   }).where(eq(subscriptions.id, existing.id));
+
+  // Creates the operator's own auto-generated maintenance invoice for this
+  // client, the first time an org activates out of trial.
+  await ensurePlatformContactAndTemplate(orgId);
+  await syncPlatformInvoiceAmount(orgId);
 
   await logAdminAction({
     actorEmail: user.email!,
@@ -325,6 +338,8 @@ export async function suspendOrgAction(orgId: number) {
   if (!existing) return { error: "No subscription record for this org" };
 
   await db.update(subscriptions).set({ billingStatus: "suspended" }).where(eq(subscriptions.id, existing.id));
+  // A suspended client shouldn't keep accumulating draft maintenance invoices.
+  await setPlatformTemplateActive(orgId, false);
   await logAdminAction({
     actorEmail: user.email!,
     action: "suspend_org",
@@ -345,6 +360,11 @@ export async function reinstateOrgAction(orgId: number) {
   if (!existing) return { error: "No subscription record for this org" };
 
   await db.update(subscriptions).set({ billingStatus: "active" }).where(eq(subscriptions.id, existing.id));
+  // Resume the operator's own maintenance invoice, and pick up any fee
+  // change made while suspended.
+  await ensurePlatformContactAndTemplate(orgId);
+  await setPlatformTemplateActive(orgId, true);
+  await syncPlatformInvoiceAmount(orgId);
   await logAdminAction({
     actorEmail: user.email!,
     action: "reinstate_org",

@@ -250,6 +250,14 @@ export const subscriptions = pgTable("subscriptions", {
   activatedAt: text("activated_at"), // ISO date — set when admin activates post-trial; null = never activated
   monthlyFeeCents: money("monthly_fee_cents").notNull().default(0), // admin-editable per-org maintenance fee
   nextMaintenanceDueAt: text("next_maintenance_due_at"), // ISO date
+  /** id of the auto-created Contact for this org inside PLATFORM_ORG_ID's own
+   *  org (see src/lib/platform-invoicing.ts) — null until this org has been
+   *  linked. Both this and linkedRecurringTemplateId double as the dedupe
+   *  key: contacts has no natural unique constraint to match against. */
+  linkedContactId: integer("linked_contact_id"),
+  /** id of the auto-created recurring maintenance-fee invoice template for
+   *  this org inside PLATFORM_ORG_ID's own org. Null = not linked. */
+  linkedRecurringTemplateId: integer("linked_recurring_template_id"),
   createdAt: text("created_at").notNull(),
 }, (t) => ({
   orgUnique: uniqueIndex("idx_subscriptions_org").on(t.orgId),
