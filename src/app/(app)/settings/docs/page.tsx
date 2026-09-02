@@ -5,6 +5,8 @@ export const dynamic = "force-dynamic";
 interface Topic {
   q: string;
   a: string;
+  roles?: string[];
+  xref?: string;
 }
 
 interface Section {
@@ -13,6 +15,24 @@ interface Section {
   intro: string;
   topics: Topic[];
 }
+
+const ROLE_STYLES: Record<string, string> = {
+  Owner: "bg-orange-50 text-orange-800 border-orange-200",
+  Accountant: "bg-teal-50 text-teal-800 border-teal-200",
+  Sales: "bg-indigo-50 text-indigo-800 border-indigo-200",
+  HR: "bg-purple-50 text-purple-800 border-purple-200",
+  Inventory: "bg-amber-50 text-amber-800 border-amber-200",
+  Staff: "bg-slate-50 text-slate-700 border-slate-200",
+};
+
+const ROLE_TABLE: { role: string; access: string; who: string }[] = [
+  { role: "Owner / Admin", access: "Everything, including Staff & Roles and Settings.", who: "The business owner, or a trusted manager." },
+  { role: "Accountant", access: "Everything except staff management and settings — full ledger, reports, banking, payroll.", who: "Bookkeeper, external accountant." },
+  { role: "Sales", access: "Contacts, Deals, Quotes, Invoices, Credit Notes, Items.", who: "Sales reps, account managers." },
+  { role: "HR", access: "Contacts, Reports, Payroll, Expense Claims, Leave Requests.", who: "HR / people operations." },
+  { role: "Inventory", access: "Items & Stock, Purchase Orders, Bills, Contacts.", who: "Warehouse / stock controllers." },
+  { role: "Staff", access: "Home, Expense Claims, Leave Requests — self-service only.", who: "Everyone else on the team." },
+];
 
 const SECTIONS: Section[] = [
   {
@@ -23,14 +43,18 @@ const SECTIONS: Section[] = [
       {
         q: "What happens when the trial ends?",
         a: "Access is paused until it's reactivated — every page is blocked and you're shown a single screen with Call/WhatsApp buttons to reach us. Reactivation is a one-time setup fee we record on our side; once that's done your account switches to Active and everything reopens immediately.",
+        roles: ["Owner"],
       },
       {
         q: "What's the ongoing cost once active?",
         a: "A monthly maintenance fee based on your team size — KSh 1,000 per seat (you plus every staff member you've added) per month, shown on your Billing screen. It's not for \"unlocking\" anything — the modules you're paying for (CRM, Accounting, Payroll) stay on regardless of seat count — it's what keeps hosting, backups, KRA/eTIMS compliance updates and support running as your team grows.",
+        roles: ["Owner"],
+        xref: "Billing (Organization → Billing)",
       },
       {
         q: "Who can I contact for help?",
         a: "Settings → Support, reachable from the sidebar at every stage (even a paused account), has direct Call and WhatsApp buttons plus a FAQ.",
+        roles: ["Owner", "Accountant", "Sales", "HR", "Inventory", "Staff"],
       },
     ],
   },
@@ -41,19 +65,26 @@ const SECTIONS: Section[] = [
     topics: [
       {
         q: "Quotes",
-        a: "Draft a quote, send it, and the customer can accept or decline. An accepted quote can be converted straight into an invoice with one click — line items, tax and customer carry over automatically. Quote Templates let you save a reusable layout (line items, terms, footer) so repeat quotes don't have to be rebuilt from scratch.",
+        a: "Draft a quote, send it, and the customer can accept or decline. An accepted quote can be converted straight into an invoice with one click — line items, tax, category headings and customer carry over automatically. Quote Templates let you save a reusable layout (line items, terms, footer) so repeat quotes don't have to be rebuilt from scratch.",
+        roles: ["Owner", "Sales"],
+        xref: "Converts into an Invoice — see below.",
       },
       {
         q: "Invoices",
         a: "Every invoice line carries KRA-compliant VAT and is eTIMS-ready. Status moves through Draft → Awaiting payment → Partly paid → Paid, or Overdue once the due date passes. Invoice Templates work the same way as quote templates. Payments Received shows every payment applied against an invoice, whether entered manually or through a payment gateway.",
+        roles: ["Owner", "Accountant", "Sales"],
+        xref: "Posts to Accountant → Accounts Receivable / Sales / VAT Output.",
       },
       {
         q: "Credit Notes",
-        a: "For refunds, returns, or correcting an invoice after the fact. Unlike an invoice, a credit note isn't something the customer owes you — it's a credit balance they can draw down against a future invoice. Its status reads Available → Partly applied → Fully applied, not \"awaiting payment\", since nothing is ever payable on a credit note.",
+        a: "For refunds, returns, or correcting an invoice after the fact. Unlike an invoice, a credit note isn't something the customer owes you — it's a credit balance they can draw down against a future invoice. Its status reads Available → Partly applied → Fully applied, not \"awaiting payment\", since nothing is ever payable on a credit note. Can be raised even on an invoice that's already fully paid — that's the most common real reason to issue one.",
+        roles: ["Owner", "Accountant", "Sales"],
+        xref: "Always linked back to the Invoice it corrects.",
       },
       {
         q: "Recurring Templates",
-        a: "Under Organization → Recurring Templates: set an invoice or bill to regenerate automatically on a schedule (weekly/monthly/etc.) instead of re-entering it every cycle.",
+        a: "Under Organization → Recurring Templates: set an invoice or bill to regenerate automatically on a schedule (weekly/monthly/etc.) instead of re-entering it every cycle. Due date can be a flat day-count or a genuine \"due at end of next month\" calendar rule.",
+        roles: ["Owner", "Accountant"],
       },
     ],
   },
@@ -65,14 +96,18 @@ const SECTIONS: Section[] = [
       {
         q: "Expenses",
         a: "A single payment out — pick the account it was paid from (bank, M-Pesa till, or cash/Petty Cash) and the expense category. If the paying account is a Kopo Kopo-routed M-Pesa till, the flat Kopo Kopo transaction fee is posted automatically alongside the expense so the ledger matches what actually left the till.",
+        roles: ["Owner", "Accountant"],
       },
       {
         q: "Expense Claims",
-        a: "For staff who pay for something out of pocket (or from petty cash) and need reimbursing. A staff member files a claim with a receipt; once approved it shows up for reimbursement. Reports → Petty Expenses gives the admin a day/week/month/all-time view of everything that moved through the Petty Cash account — both claimed and unattributed spend — for easy reconciliation.",
+        a: "For staff who pay for something out of pocket (or from petty cash) and need reimbursing. Anyone can file a claim with a receipt; once approved it's payable via Record payment or Pay via gateway. Reports → Petty Expenses gives the admin a day/week/month/all-time view of everything that moved through the Petty Cash account — both claimed and unattributed spend — for easy reconciliation.",
+        roles: ["Owner", "Accountant", "Staff"],
+        xref: "Reports → Petty Expenses.",
       },
       {
         q: "Bills & Purchase Orders",
-        a: "Bills are vendor invoices you owe; Purchase Orders are what you send to a vendor before the bill arrives — a PO can be converted into a bill once goods/services are received. Payment Runs let you batch-pay several outstanding bills together instead of one at a time. Stuck Payouts (visible only with the Gateway Payouts permission) surfaces any gateway payout that didn't complete cleanly, so it can be retried or investigated.",
+        a: "Bills are vendor invoices you owe; every line needs a category, except a tracked-inventory item, which posts to Inventory Asset automatically. Purchase Orders are what you send to a vendor before the bill arrives — a PO can be converted into a bill once goods/services are received, with partial receipt supported across more than one bill. Payment Runs let you batch-pay several outstanding bills together instead of one at a time. Stuck Payouts (visible only with the Gateway Payouts permission) surfaces any gateway payout still pending confirmation from the provider.",
+        roles: ["Owner", "Accountant", "Inventory"],
       },
     ],
   },
@@ -83,11 +118,14 @@ const SECTIONS: Section[] = [
     topics: [
       {
         q: "Items & Stock",
-        a: "Each item can optionally have \"Track inventory\" turned on — once it does, quantity on hand and cost are tracked automatically as it moves through invoices, bills and transfers. An item can only be switched from tracked back to untracked (or vice-versa) cleanly while its on-hand quantity is zero.",
+        a: "Each item can optionally have \"Track inventory\" turned on — once it does, quantity on hand and cost (FIFO) are tracked automatically as it moves through invoices, bills and transfers. An item can only be switched from tracked back to untracked (or vice-versa) cleanly while its on-hand quantity is zero.",
+        roles: ["Owner", "Sales", "Inventory"],
+        xref: "Feeds Accountant → Inventory Asset / COGS on every sale.",
       },
       {
         q: "Warehouses & Stock Transfers",
         a: "Multiple warehouses can hold separate stock counts for the same item; Stock Transfers move quantity from one warehouse to another with its own record, separate from a sale or purchase.",
+        roles: ["Owner", "Inventory"],
       },
     ],
   },
@@ -99,10 +137,12 @@ const SECTIONS: Section[] = [
       {
         q: "Reconciliation",
         a: "Start a reconciliation by entering the statement date and closing balance from your real bank/M-Pesa statement, then match it line-by-line against what's booked in Zeno. If a reconciliation is left unfinished, reopening the account and starting again reuses that session with your newly entered date/balance — it won't silently discard what you just typed and reuse stale numbers.",
+        roles: ["Owner", "Accountant"],
       },
       {
         q: "Categorization rules",
         a: "When a transaction description contains a keyword you've booked to a specific account before, Zeno remembers and suggests the same account next time — visible under \"Saved categorization rules\" on the Banking page.",
+        roles: ["Owner", "Accountant"],
       },
     ],
   },
@@ -114,14 +154,17 @@ const SECTIONS: Section[] = [
       {
         q: "Registering an asset",
         a: "Enter the asset, its cost, and which account it was paid from. If \"Paid from\" is left blank at registration, the asset is saved but not yet posted to the ledger — its row is marked \"Not recorded\" with a \"Record purchase\" action to finish posting it once you know the paying account.",
+        roles: ["Owner", "Accountant"],
       },
       {
         q: "Depreciation & disposal",
         a: "Run depreciation from the Fixed Assets page — straight-line, one run posts the period's depreciation entry. Disposing of an asset asks how it left the business (Sold, Scrapped, or Traded in) and, for a sale or trade, which account the proceeds landed in; a scrapped asset has no proceeds to record.",
+        roles: ["Owner", "Accountant"],
       },
       {
         q: "Intangible assets",
         a: "For things like software licenses or trademarks that amortize monthly instead of depreciating — tracked the same way, posting to Intangible Assets/Accumulated Amortization/Amortization Expense instead of the fixed-asset accounts.",
+        roles: ["Owner", "Accountant"],
       },
     ],
   },
@@ -133,14 +176,17 @@ const SECTIONS: Section[] = [
       {
         q: "Location / Cost Center reports",
         a: "Profit & Loss, Income vs Expense and Cost Center P&L can be filtered by business location (e.g. a branch or warehouse) — you'll be asked to pick a location before the report loads. This only works for lines that were tagged with a location when the invoice/bill/expense was entered; the underlying AR/AP/VAT/bank ledger lines are never location-tagged, so Balance Sheet, Trial Balance, Cash Flow and VAT/WHT reports are always org-wide.",
+        roles: ["Owner", "Accountant"],
       },
       {
         q: "VAT & WHT",
         a: "VAT3 mirrors what you'd file with iTax; the dashboard's Payables card also shows accumulated VAT payable (output VAT minus input VAT) separately from the month-to-date net VAT figure. WHT covers withholding tax where applicable.",
+        roles: ["Owner", "Accountant"],
       },
       {
         q: "Analytics",
-        a: "A dashboard of charts — revenue trend, expense breakdown, business ratios and more — all reading real transaction data for the org, with no locked/paywalled cards.",
+        a: "A dashboard of charts — revenue trend, top customers, top items/services, quote conversion rate and more — all reading real transaction data for the org, with no locked/paywalled cards.",
+        roles: ["Owner", "Accountant"],
       },
     ],
   },
@@ -151,11 +197,13 @@ const SECTIONS: Section[] = [
     topics: [
       {
         q: "Payroll Runs & Rules",
-        a: "Run payroll for a period; PAYE, NSSF, SHIF and AHL are calculated per Rules & Tax settings. Employees holds each staff member's payroll record — pay rate, statutory numbers, and (optionally) which login account they map to for self-service.",
+        a: "Run payroll for a period; PAYE, NSSF, SHIF and AHL are calculated per Rules & Tax settings. Posting is two deliberate steps: \"Post to Ledger\" accrues the liability only (no cash moves yet), then \"Record Salary Payment\" — appearing once posted — asks which account (bank or M-Pesa) the net pay actually left from and clears the liability. A run stays flagged NOT PAID until that second step. Employees holds each staff member's payroll record — pay rate, statutory numbers, and (optionally) which login account they map to for self-service.",
+        roles: ["Owner", "Accountant", "HR"],
       },
       {
         q: "Loans vs Salary Advances",
         a: "Loans is for a longer-term staff loan the admin issues and recovers through payroll deductions over time. Salary Advances is a lighter-weight, self-service version — a staff member can request an advance themselves (if their role has the Salary Advances permission) and see their own request status/history; a manager can also issue one directly or approve/reject a pending request. Both recover the same way, through payroll deduction.",
+        roles: ["Owner", "HR", "Staff"],
       },
     ],
   },
@@ -166,15 +214,19 @@ const SECTIONS: Section[] = [
     topics: [
       {
         q: "Roles",
-        a: "Admin (full access), Accountant (everything except staff management and settings), Sales, HR, Inventory, and Staff (self-service only: expense claims, leave requests, home). An admin can toggle any individual module on or off for a role in Staff & Roles, overriding the defaults.",
+        a: "Admin (full access), Accountant (everything except staff management and settings), Sales, HR, Inventory, and Staff (self-service only: expense claims, leave requests, home). An admin can toggle any individual module on or off for a role in Staff & Roles, overriding the defaults — the change applies to everyone with that role immediately.",
+        roles: ["Owner"],
+        xref: "See Roles at a glance above.",
       },
       {
         q: "Data Segregation",
         a: "When turned on (Settings), staff without elevated access only see documents assigned to them, not the whole org's invoices/bills. The \"View org-wide invoices/documents\" permission lets an admin grant a specific role (Accountant, by default) full visibility even with segregation on, without making them a full admin.",
+        roles: ["Owner"],
       },
       {
         q: "Leave Requests",
         a: "Staff can request leave themselves; \"Manage leave requests\" is a separate permission for approving/viewing everyone's requests, not just your own.",
+        roles: ["Owner", "HR", "Staff"],
       },
     ],
   },
@@ -185,7 +237,9 @@ const SECTIONS: Section[] = [
     topics: [
       {
         q: "What lives here",
-        a: "The Chart of Accounts, journal entries, and Trial Balance. Every other module (Sales, Spending, Banking, Payroll, Fixed Assets) writes to this ledger automatically — you generally won't post directly here except for manual adjusting entries.",
+        a: "The Chart of Accounts, journal entries, Trial Balance, Lock books (freeze a closed period), Owner's drawings, Cost centers, Uncategorized transactions and Budgets. Every other module (Sales, Spending, Banking, Payroll, Fixed Assets) writes to this ledger automatically — you generally won't post directly here except for manual adjusting entries. Every account is one of five types (asset, liability, equity, income, expense); that type can never change after creation.",
+        roles: ["Owner", "Accountant"],
+        xref: "Everything in Reports & Analytics reads directly from here.",
       },
     ],
   },
@@ -196,11 +250,14 @@ const SECTIONS: Section[] = [
     topics: [
       {
         q: "Customers & Vendors",
-        a: "A single contact record per customer or vendor, with a full document history (invoices, quotes, bills, credit notes) and account statement, and an opening balance if you're migrating from another system mid-year.",
+        a: "A single contact record per customer or vendor (or both, for a supplier you also sell to), with a full document history (invoices, quotes, bills, credit notes) and account statement, and an opening balance if you're migrating from another system mid-year.",
+        roles: ["Owner", "Sales", "Inventory", "HR"],
+        xref: "Every Quote, Invoice, Bill and Credit Note needs a contact.",
       },
       {
         q: "Deals",
-        a: "A lightweight pipeline (lead → qualified → proposal → negotiation → won/lost) for tracking sales opportunities before they become an invoice.",
+        a: "A lightweight pipeline (lead → qualified → proposal → negotiation → won/lost) for tracking sales opportunities before they become an invoice. Optional — you can invoice a customer directly without ever creating a deal.",
+        roles: ["Owner", "Sales"],
       },
     ],
   },
@@ -212,10 +269,12 @@ const SECTIONS: Section[] = [
       {
         q: "Trial and maintenance fee",
         a: "Shows days left on trial, or your monthly maintenance fee and next due date once active. \"Pay now\" (M-Pesa STK push or card) only becomes available once the fee is actually due — it stays disabled before that to avoid paying twice by mistake.",
+        roles: ["Owner"],
       },
       {
         q: "Payment history",
         a: "Every payment recorded against your account — whether you paid in-app or we recorded one manually — is listed here with its date, amount and status.",
+        roles: ["Owner"],
       },
     ],
   },
@@ -240,6 +299,40 @@ export default async function DocsPage() {
           <p className="mt-4 text-base text-[var(--color-ink-600)] max-w-2xl mx-auto">
             A module-by-module guide to what each screen does and how it fits together. Still stuck? Settings → Support has a direct line to us.
           </p>
+        </div>
+      </div>
+
+      {/* Roles at a glance */}
+      <div className="max-w-3xl mx-auto px-4">
+        <div className="card p-6">
+          <h2 className="text-[17px] font-bold text-[var(--color-ink-900)] tracking-tight">Roles at a glance</h2>
+          <p className="text-[13px] text-[var(--color-ink-500)] mt-1 mb-4">
+            Every login has exactly one role. The owner always sees everything; an admin can fine-tune any role's access per module in Staff &amp; Roles.
+          </p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-[12.5px]">
+              <thead>
+                <tr className="text-left text-[10.5px] uppercase tracking-wide text-[var(--color-ink-400)]">
+                  <th className="pb-2 pr-3 font-semibold">Role</th>
+                  <th className="pb-2 pr-3 font-semibold">Default access</th>
+                  <th className="pb-2 font-semibold">Typically used by</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[var(--color-ink-100)]">
+                {ROLE_TABLE.map((r) => (
+                  <tr key={r.role}>
+                    <td className="py-2 pr-3 align-top">
+                      <span className={`inline-flex items-center text-[10.5px] font-semibold px-2 py-0.5 rounded-full border ${ROLE_STYLES[r.role.split(" ")[0]] ?? ROLE_STYLES.Staff}`}>
+                        {r.role}
+                      </span>
+                    </td>
+                    <td className="py-2 pr-3 align-top text-[var(--color-ink-600)]">{r.access}</td>
+                    <td className="py-2 align-top text-[var(--color-ink-500)]">{r.who}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
 
@@ -275,7 +368,21 @@ export default async function DocsPage() {
                     {t.q}
                     <span className="text-[var(--color-ink-400)] transition-transform group-open:rotate-45 text-[16px] shrink-0 ml-3">+</span>
                   </summary>
+                  {t.roles && t.roles.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {t.roles.map((r) => (
+                        <span key={r} className={`text-[9.5px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-full border ${ROLE_STYLES[r] ?? ROLE_STYLES.Staff}`}>
+                          {r}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                   <p className="mt-2 text-[13px] text-[var(--color-ink-500)] leading-relaxed">{t.a}</p>
+                  {t.xref && (
+                    <p className="mt-1.5 text-[11.5px] text-[var(--color-ink-400)]">
+                      <span className="font-semibold text-[var(--color-ink-500)]">Connects to:</span> {t.xref}
+                    </p>
+                  )}
                 </details>
               ))}
             </div>
