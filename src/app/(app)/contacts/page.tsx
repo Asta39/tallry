@@ -1,22 +1,36 @@
 import { getOrg } from "@/lib/org";
 import { requirePerm } from "@/lib/guard";
+import { getAccess } from "@/lib/access";
 import Link from "next/link";
 import { db, contacts, documents } from "@/db";
 import { eq, and, inArray } from "drizzle-orm";
-import { fmtKES } from "@/lib/money";
+import { fmtKES, todayISO } from "@/lib/money";
 import { PageHeader, PrimaryLink, TableCard, Th, Td, EmptyState } from "@/components/ui";
 import { CsvImporter } from "@/components/CsvImporter";
 
 export const dynamic = "force-dynamic";
 
-export default async function ContactsPage() {
+export default async function ContactsPage({ searchParams }: { searchParams: Promise<{ followup?: string }> }) {
   await requirePerm("contacts");
+  const access = await getAccess();
+  const showFinancials = !access || access.perms.has("financials");
+  const { followup } = await searchParams;
+  const followUpOnly = followup === "due";
+  const today = todayISO();
   const o = await getOrg();
-  const rows = await db.select().from(contacts).where(and(eq(contacts.orgId, o.id), eq(contacts.archived, false)));
-  const openDocs = await db
-    .select()
-    .from(documents)
-    .where(and(eq(documents.orgId, o.id), inArray(documents.status, ["open", "partial"]), inArray(documents.type, ["invoice", "bill"])));
+  let rows = await db.select().from(contacts).where(and(eq(contacts.orgId, o.id), eq(contacts.archived, false)));
+  const dueCount = rows.filter((c) => c.nextFollowUpAt && c.nextFollowUpAt <= today).length;
+  if (followUpOnly) {
+    rows = rows
+      .filter((c) => c.nextFollowUpAt && c.nextFollowUpAt <= today)
+      .sort((a, b) => (a.nextFollowUpAt! < b.nextFollowUpAt! ? -1 : 1));
+  }
+  const openDocs = showFinancials
+    ? await db
+        .select()
+        .from(documents)
+        .where(and(eq(documents.orgId, o.id), inArray(documents.status, ["open", "partial"]), inArray(documents.type, ["invoice", "bill"])))
+    : [];
 
   const balances = new Map<number, { owedToYou: number; youOwe: number }>();
   for (const d of openDocs) {
@@ -35,6 +49,16 @@ export default async function ContactsPage() {
         subtitle="Everyone you do business with, in one place"
         action={
           <div className="flex items-start gap-2">
+            <Link
+              href={followUpOnly ? "/contacts" : "/contacts?followup=due"}
+              className={`rounded-lg border text-[13px] font-medium px-4 py-2 h-9 inline-flex items-center ${
+                followUpOnly
+                  ? "border-[var(--color-accent-500)] bg-[var(--color-accent-500)]/10 text-[var(--color-accent-700)]"
+                  : "border-[var(--color-ink-200)] bg-white hover:bg-[var(--color-ink-50)]"
+              }`}
+            >
+              {followUpOnly ? "Showing follow-ups due ✕" : `Follow up due${dueCount > 0 ? ` (${dueCount})` : ""}`}
+            </Link>
             <Link
               href="/contacts/groups"
               className="rounded-lg border border-[var(--color-ink-200)] bg-white hover:bg-[var(--color-ink-50)] text-[13px] font-medium px-4 py-2 h-9 inline-flex items-center"
@@ -71,8 +95,9 @@ export default async function ContactsPage() {
               <Th>Type</Th>
               <Th>Phone</Th>
               <Th>KRA PIN</Th>
-              <Th right>Owes you</Th>
-              <Th right>You owe</Th>
+              <Th>Follow up</Th>
+              {showFinancials && <Th right>Owes you</Th>}
+              {showFinancials && <Th right>You owe</Th>}
             </tr>
           </thead>
           <tbody>
@@ -89,8 +114,11 @@ export default async function ContactsPage() {
                   <Td className="capitalize text-[var(--color-ink-600)]">{c.kind}</Td>
                   <Td>{c.phone ?? "—"}</Td>
                   <Td className="tnum">{c.kraPin ?? "—"}</Td>
-                  <Td right>{b?.owedToYou ? fmtKES(b.owedToYou) : "—"}</Td>
-                  <Td right>{b?.youOwe ? fmtKES(b.youOwe) : "—"}</Td>
+                  <Td className={c.nextFollowUpAt && c.nextFollowUpAt <= today ? "text-[var(--color-bad)] font-medium" : "text-[var(--color-ink-500)]"}>
+                    {c.nextFollowUpAt ?? "—"}
+                  </Td>
+                  {showFinancials && <Td right>{b?.owedToYou ? fmtKES(b.owedToYou) : "—"}</Td>}
+                  {showFinancials && <Td right>{b?.youOwe ? fmtKES(b.youOwe) : "—"}</Td>}
                 </tr>
               );
             })}

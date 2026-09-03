@@ -1,6 +1,6 @@
 import { requirePerm } from "@/lib/guard";
 import { getOrg } from "@/lib/org";
-import { db, contacts } from "@/db";
+import { db, contacts, members } from "@/db";
 import { and, eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { listCustomerGroups, getContactGroups } from "@/lib/customer-groups";
@@ -16,7 +16,11 @@ export default async function EditContactPage({ params }: { params: Promise<{ id
   const [c] = await db.select().from(contacts).where(and(eq(contacts.orgId, o.id), eq(contacts.id, Number(id)))).limit(1);
   if (!c) notFound();
 
-  const [groups, memberships] = await Promise.all([listCustomerGroups(), getContactGroups(c.id)]);
+  const [groups, memberships, staffMembers] = await Promise.all([
+    listCustomerGroups(),
+    getContactGroups(c.id),
+    db.select({ id: members.id, name: members.name }).from(members).where(eq(members.orgId, o.id)),
+  ]);
 
   return (
     <>
@@ -24,6 +28,7 @@ export default async function EditContactPage({ params }: { params: Promise<{ id
       <ContactForm
         groups={groups.map((g) => ({ id: g.id, name: g.name, parentGroupId: g.parentGroupId }))}
         groupsRequired={o.customerGroupsEnabled}
+        staffMembers={staffMembers}
         initial={{
           id: c.id,
           kind: c.kind,
@@ -40,6 +45,9 @@ export default async function EditContactPage({ params }: { params: Promise<{ id
           payoutDestination: c.payoutDestination,
           payoutAccountNumber: c.payoutAccountNumber,
           groupIds: memberships.map((m) => m.id),
+          source: c.source,
+          nextFollowUpAt: c.nextFollowUpAt,
+          assignedMemberId: c.assignedMemberId,
         }}
       />
     </>

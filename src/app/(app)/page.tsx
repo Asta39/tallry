@@ -29,6 +29,9 @@ export default async function Dashboard({
     const viewAll = access ? canViewAllData(access) : true;
     const ownOnly = !!access && !viewAll && access.perms.has("dashboard_metrics") && !!access.memberId;
     const isOwnerOrAdmin = !access || access.isOwner || access.role === "admin";
+    // A role without the "financials" perm (e.g. Marketer) sees no money figures
+    // anywhere on Home — not org-wide totals, not even their own assigned docs.
+    const showFinancials = !access || access.perms.has("financials");
 
     const recentDocsWhere = [
       eq(documents.orgId, o.id),
@@ -122,7 +125,7 @@ export default async function Dashboard({
         )}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {ownOnly && memberStats ? (
+          {!showFinancials ? null : ownOnly && memberStats ? (
             <>
               <StatCard
                 label="Your outstanding invoices"
@@ -169,18 +172,20 @@ export default async function Dashboard({
         </div>
 
         {/* Invoice & quote overview — yearly money breakdown is admin-only */}
-        <div className="mt-4">
-          <DocOverview data={overview} year={year} years={years} showBreakdown={viewAll && (isOwnerOrAdmin || o.showInvoiceCollectionTotals)} />
-        </div>
+        {showFinancials && (
+          <div className="mt-4">
+            <DocOverview data={overview} year={year} years={years} showBreakdown={viewAll && (isOwnerOrAdmin || o.showInvoiceCollectionTotals)} />
+          </div>
+        )}
 
         {/* Chart (company-wide, hidden in own-metrics view) + calendar */}
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 mt-4 items-stretch">
-          {!ownOnly && o.accountingEnabled && (
+          {showFinancials && !ownOnly && o.accountingEnabled && (
             <div className="lg:col-span-3">
               <IncomeExpenseChart data={chartData} />
             </div>
           )}
-          <div className={ownOnly || !o.accountingEnabled ? "lg:col-span-5" : "lg:col-span-2"}>
+          <div className={showFinancials && !ownOnly && o.accountingEnabled ? "lg:col-span-2" : "lg:col-span-5"}>
             <CalendarWidget
               events={[
                 ...eventRows.map((e) => ({ id: `evt-${e.id}`, title: e.title, date: e.date, color: "#515154", deletable: true, dbId: e.id })),
@@ -205,11 +210,12 @@ export default async function Dashboard({
 
         {/* Todos + recent activity */}
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 mt-4 items-start">
-          <div className="lg:col-span-2">
+          <div className={showFinancials ? "lg:col-span-2" : "lg:col-span-5"}>
             <TodoWidget
               todos={todoRows.map((t) => ({ id: t.id, title: t.title, done: t.done, dueDate: t.dueDate }))}
             />
           </div>
+          {showFinancials && (
           <div className="lg:col-span-3">
             <h2 className="text-[15px] font-semibold mb-3">Recent activity</h2>
             {recentDocs.length === 0 ? (
@@ -249,6 +255,7 @@ export default async function Dashboard({
               </TableCard>
             )}
           </div>
+          )}
         </div>
       </>
     );

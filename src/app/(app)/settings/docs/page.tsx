@@ -78,6 +78,7 @@ const SECTIONS: DocSection[] = [
     concepts: [
       "Admins and accountants see the full picture: money owed, cash across every account, money owed to vendors, VAT due to KRA, and a 6-month income vs. expense chart.",
       "Everyone else sees a narrower, personal view — their own assigned documents and tasks — when Data Segregation is on.",
+      "A role without the Financials permission (the Marketer default) sees none of this — no KPI cards, no chart, no recent-invoices table — just the calendar and to-dos.",
       "A calendar surfaces upcoming due dates; a red banner surfaces anything overdue or needing attention today.",
     ],
     seeAlso: ["08", "15"],
@@ -88,14 +89,15 @@ const SECTIONS: DocSection[] = [
     subtitle: "Contacts",
     tags: ["Sales", "Spending", "Core-data"],
     perm: "contacts",
-    rolesLabel: "Admin / Owner · Accountant · Sales · HR · Inventory",
+    rolesLabel: "Admin / Owner · Accountant · Sales · HR · Inventory · Marketer",
     desc: "One shared address book for everyone your business deals with — a contact can be a customer, a vendor, or both. Every quote, invoice, bill and credit note links back to a Contact here.",
     concepts: [
       "A contact's \"kind\" — customer, vendor, or both — decides which documents it can appear on.",
       "Every contact carries its own document history and account statement, plus an opening balance if you're migrating mid-year from another system.",
       "Vendors can save a default payout destination (M-Pesa, till, paybill) so bills don't require re-entering payment details every time.",
+      "Source, Assigned to, and Next follow-up are non-financial CRM fields — the contacts list has a \"Follow up due\" filter that becomes a daily worklist. A role without the Financials permission (the Marketer default) can create and follow up with contacts here but never sees their balances, document totals, or profitability — those tabs simply don't appear.",
     ],
-    seeAlso: ["07", "08", "10"],
+    seeAlso: ["07", "08", "10", "21"],
   },
   {
     num: "06",
@@ -310,6 +312,20 @@ const SECTIONS: DocSection[] = [
   },
   {
     num: "21",
+    title: "Campaigns",
+    tags: ["Sales", "Marketing"],
+    perm: "campaigns",
+    rolesLabel: "Admin / Owner · Marketer",
+    desc: "Send a bulk SMS to everyone in a customer group — turns the SMS provider you configure in Settings → SMS into an actual outreach tool.",
+    concepts: [
+      "Pick a customer group (Contacts → Groups) and write a message — saved as a draft first, nothing sends until you click Send now.",
+      "Sending loops every contact in the group who has a phone number on file and records each one's result — sent or failed — so a failure is diagnosable per contact, not just a lower total.",
+      "SMS only for now — there's no programmatic WhatsApp sending (only the static click-to-chat link elsewhere in the app) and no email campaigns yet.",
+    ],
+    seeAlso: ["05"],
+  },
+  {
+    num: "22",
     title: "Getting Help",
     tags: ["Orientation"],
     rolesLabel: "Everyone",

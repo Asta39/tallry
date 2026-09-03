@@ -10,13 +10,15 @@ import { getUser } from "./supabase/server";
  * toggles live in role_permissions and override the defaults below.
  */
 
-export const ROLES = ["admin", "accountant", "sales", "hr", "inventory", "staff"] as const;
+export const ROLES = ["admin", "accountant", "sales", "hr", "inventory", "staff", "marketer"] as const;
 export type Role = (typeof ROLES)[number];
 
 export const MODULES: { key: string; label: string }[] = [
   { key: "dashboard", label: "Home dashboard" },
   { key: "dashboard_metrics", label: "Own metrics only (dashboard shows just their documents)" },
+  { key: "financials", label: "See money figures & amounts (Home dashboard KPIs/chart, contact balances & profitability)" },
   { key: "contacts", label: "Customers & Vendors" },
+  { key: "campaigns", label: "Campaigns (bulk SMS to a customer group)" },
   { key: "pipeline", label: "Deals pipeline" },
   { key: "quotes", label: "Quotes" },
   { key: "quote_templates", label: "Quote templates" },
@@ -49,10 +51,13 @@ const ALL = MODULES.map((m) => m.key);
 export const DEFAULT_ROLE_PERMS: Record<Role, string[]> = {
   admin: ALL,
   accountant: ALL.filter((k) => !["staff", "settings", "can_payout"].includes(k)),
-  sales: ["dashboard", "dashboard_metrics", "contacts", "pipeline", "quotes", "quote_templates", "invoices", "invoice_templates", "credit_notes", "items", "expense_claims", "leave_requests"],
-  hr: ["dashboard", "dashboard_metrics", "contacts", "reports", "payroll", "expense_claims", "leave_requests", "announcements"],
-  inventory: ["dashboard", "dashboard_metrics", "items", "purchase_orders", "bills", "contacts", "expense_claims", "leave_requests"],
+  sales: ["dashboard", "dashboard_metrics", "financials", "contacts", "pipeline", "quotes", "quote_templates", "invoices", "invoice_templates", "credit_notes", "items", "expense_claims", "leave_requests"],
+  hr: ["dashboard", "dashboard_metrics", "financials", "contacts", "reports", "payroll", "expense_claims", "leave_requests", "announcements"],
+  inventory: ["dashboard", "dashboard_metrics", "financials", "items", "purchase_orders", "bills", "contacts", "expense_claims", "leave_requests"],
   staff: ["dashboard", "dashboard_metrics", "expense_claims", "leave_requests"],
+  // No financial visibility anywhere (dashboard KPIs, contact balances/profitability),
+  // full contacts create/edit for lead follow-up, and Campaigns for outreach.
+  marketer: ["dashboard", "contacts", "campaigns", "expense_claims", "leave_requests"],
 };
 
 export interface Access {

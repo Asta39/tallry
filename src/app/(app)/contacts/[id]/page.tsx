@@ -3,7 +3,7 @@ import { requirePerm } from "@/lib/guard";
 import { getOrg } from "@/lib/org";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { db, contacts, documents, activities, deals, payments, portalUsers, customerGroups, contactGroupMemberships, documentAssignments, journalEntries, expenseClaims, bankAccounts } from "@/db";
+import { db, contacts, documents, activities, deals, payments, portalUsers, customerGroups, contactGroupMemberships, documentAssignments, journalEntries, expenseClaims, bankAccounts, members } from "@/db";
 import { getAccessCached, canViewAllData } from "@/lib/access";
 import { fmtKES, todayISO } from "@/lib/money";
 import { addActivity } from "@/lib/actions";
@@ -67,18 +67,24 @@ export default async function ContactDetail({
   const [c] = await db.select().from(contacts).where(and(eq(contacts.orgId, o.id), eq(contacts.id, cid))).limit(1);
   if (!c) notFound();
 
+  const access = await getAccessCached();
+  const viewAll = !access || canViewAllData(access);
+  // A role without "financials" (e.g. Marketer) can create/edit this contact
+  // and follow up with them, but sees none of their money: no balances, no
+  // document totals, no profitability/spend/statement.
+  const showFinancials = !access || access.perms.has("financials");
+  const FINANCIAL_TABS = ["invoices", "quotes", "credit_notes", "bills", "profitability", "spend", "statement"];
+
   const isVendor = c.kind === "vendor" || c.kind === "both";
   const isCustomer = c.kind === "customer" || c.kind === "both";
   const visibleTabs = TABS.filter((t) => {
+    if (FINANCIAL_TABS.includes(t.key) && !showFinancials) return false;
     if (["invoices", "quotes", "credit_notes", "portal", "profitability"].includes(t.key)) return isCustomer;
     if (["bills", "spend"].includes(t.key)) return isVendor;
     return true;
   });
   const tab = visibleTabs.some((t) => t.key === tabParam) ? tabParam! : "overview";
   const period = resolvePeriod(sp);
-
-  const access = await getAccessCached();
-  const viewAll = !access || canViewAllData(access);
   // Balance-brought-forward is org financial data, not a "my assigned docs"
   // concern — accountants can always see/manage it regardless of the doc/
   // payment staff-segregation setting above (matches setContactOpeningBalanceAction's
@@ -171,6 +177,17 @@ export default async function ContactDetail({
     if (content) await addActivity(cid, String(formData.get("kind") || "note"), content);
     redirect(`/contacts/${cid}?tab=notes`);
   }
+
+  async function markFollowedUp() {
+    "use server";
+    await db.update(contacts).set({ nextFollowUpAt: null }).where(and(eq(contacts.orgId, o.id), eq(contacts.id, cid)));
+    await addActivity(cid, "note", "Followed up");
+    redirect(`/contacts/${cid}`);
+  }
+
+  const [assignedMember] = c.assignedMemberId
+    ? await db.select({ name: members.name }).from(members).where(eq(members.id, c.assignedMemberId)).limit(1)
+    : [];
 
   const groupNames = (
     await db
@@ -269,13 +286,41 @@ export default async function ContactDetail({
         <div className="flex-1 min-w-0 w-full">
           {tab === "overview" && (
             <>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <StatCard label="They owe you" cents={owedToYou} tone={owedToYou > 0 ? "warn" : "neutral"} />
-                <StatCard label="You owe them" cents={youOwe} />
-                <StatCard label="Lifetime sales" cents={lifetime} tone="good" />
+              <div className="card p-4 grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+                <div>
+                  <div className="text-[11px] font-medium text-[var(--color-ink-400)]">Source</div>
+                  <div className="text-[13px] mt-0.5">{c.source || "—"}</div>
+                </div>
+                <div>
+                  <div className="text-[11px] font-medium text-[var(--color-ink-400)]">Assigned to</div>
+                  <div className="text-[13px] mt-0.5">{assignedMember?.name || "Unassigned"}</div>
+                </div>
+                <div>
+                  <div className="text-[11px] font-medium text-[var(--color-ink-400)]">Next follow-up</div>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className={`text-[13px] ${c.nextFollowUpAt && c.nextFollowUpAt <= today ? "text-[var(--color-bad)] font-medium" : ""}`}>
+                      {c.nextFollowUpAt || "—"}
+                    </span>
+                    {c.nextFollowUpAt && (
+                      <form action={markFollowedUp}>
+                        <button className="text-[11px] font-medium text-[var(--color-accent-600)] hover:underline">
+                          Mark followed up
+                        </button>
+                      </form>
+                    )}
+                  </div>
+                </div>
               </div>
 
-              {canManageOpeningBalance && (
+              {showFinancials && (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <StatCard label="They owe you" cents={owedToYou} tone={owedToYou > 0 ? "warn" : "neutral"} />
+                  <StatCard label="You owe them" cents={youOwe} />
+                  <StatCard label="Lifetime sales" cents={lifetime} tone="good" />
+                </div>
+              )}
+
+              {showFinancials && canManageOpeningBalance && (
                 <div className="mt-4">
                   <ContactOpeningBalanceCard
                     contactId={cid}
@@ -288,29 +333,33 @@ export default async function ContactDetail({
                 </div>
               )}
 
-              <h2 className="text-[15px] font-semibold mt-6 mb-3">Recent documents</h2>
-              {allDocs.length === 0 ? (
-                <div className="card px-5 py-8 text-center text-[13px] text-[var(--color-ink-400)]">Nothing yet.</div>
-              ) : (
-                <TableCard>
-                  <thead className="hairline-b">
-                    <tr><Th>Date</Th><Th>Doc</Th><Th>Status</Th><Th right>Total</Th></tr>
-                  </thead>
-                  <tbody>
-                    {allDocs.slice(0, 10).map((d) => (
-                      <tr key={d.id} className="hairline-t">
-                        <Td className="text-[var(--color-ink-400)]">{d.date}</Td>
-                        <Td>
-                          <Link href={docHref(d.type, d.id)} className="font-medium hover:text-[var(--color-accent-600)]">
-                            {d.number}
-                          </Link>
-                        </Td>
-                        <Td><StatusPill status={d.status} overdue={(d.status === "open" || d.status === "partial") && !!d.dueDate && d.dueDate < today} docType={d.type} /></Td>
-                        <Td right>{fmtKES(d.totalCents)}</Td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </TableCard>
+              {showFinancials && (
+                <>
+                  <h2 className="text-[15px] font-semibold mt-6 mb-3">Recent documents</h2>
+                  {allDocs.length === 0 ? (
+                    <div className="card px-5 py-8 text-center text-[13px] text-[var(--color-ink-400)]">Nothing yet.</div>
+                  ) : (
+                    <TableCard>
+                      <thead className="hairline-b">
+                        <tr><Th>Date</Th><Th>Doc</Th><Th>Status</Th><Th right>Total</Th></tr>
+                      </thead>
+                      <tbody>
+                        {allDocs.slice(0, 10).map((d) => (
+                          <tr key={d.id} className="hairline-t">
+                            <Td className="text-[var(--color-ink-400)]">{d.date}</Td>
+                            <Td>
+                              <Link href={docHref(d.type, d.id)} className="font-medium hover:text-[var(--color-accent-600)]">
+                                {d.number}
+                              </Link>
+                            </Td>
+                            <Td><StatusPill status={d.status} overdue={(d.status === "open" || d.status === "partial") && !!d.dueDate && d.dueDate < today} docType={d.type} /></Td>
+                            <Td right>{fmtKES(d.totalCents)}</Td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </TableCard>
+                  )}
+                </>
               )}
             </>
           )}
@@ -331,13 +380,13 @@ export default async function ContactDetail({
                 </div>
               ) : (
                 <TableCard>
-                  <thead className="hairline-b"><tr><Th>Deal</Th><Th>Stage</Th><Th right>Value</Th></tr></thead>
+                  <thead className="hairline-b"><tr><Th>Deal</Th><Th>Stage</Th>{showFinancials && <Th right>Value</Th>}</tr></thead>
                   <tbody>
                     {contactDeals.map((d) => (
                       <tr key={d.id} className="hairline-t">
                         <Td className="font-medium">{d.title}</Td>
                         <Td><StatusPill status={d.stage} /></Td>
-                        <Td right>{fmtKES(d.amountCents)}</Td>
+                        {showFinancials && <Td right>{fmtKES(d.amountCents)}</Td>}
                       </tr>
                     ))}
                   </tbody>

@@ -23,13 +23,26 @@ export interface ContactFormInitial {
   payoutDestination?: string | null;
   payoutAccountNumber?: string | null;
   groupIds?: number[];
+  source?: string | null;
+  nextFollowUpAt?: string | null;
+  assignedMemberId?: number | null;
 }
 
 const input =
   "w-full rounded-lg border border-[var(--color-ink-200)] bg-white px-3 py-2 text-[13px] outline-none focus:border-[var(--color-accent-500)] focus:ring-2 focus:ring-[var(--color-accent-100)] mt-1";
 const labelCls = "text-[12px] font-medium text-[var(--color-ink-600)]";
 
-export function ContactForm({ initial, groups, groupsRequired = true }: { initial?: ContactFormInitial; groups: Group[]; groupsRequired?: boolean }) {
+export function ContactForm({
+  initial,
+  groups,
+  groupsRequired = true,
+  staffMembers = [],
+}: {
+  initial?: ContactFormInitial;
+  groups: Group[];
+  groupsRequired?: boolean;
+  staffMembers?: { id: number; name: string }[];
+}) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -98,6 +111,9 @@ export function ContactForm({ initial, groups, groupsRequired = true }: { initia
           payoutDestination: isVendor ? payoutDestination.trim() || null : null,
           payoutAccountNumber: isVendor && payoutDestinationType === "paybill" ? payoutAccountNumber.trim() || null : null,
           groupIds: isCustomer ? groupIds : [],
+          source: String(formData.get("source") || "") || undefined,
+          nextFollowUpAt: String(formData.get("nextFollowUpAt") || "") || undefined,
+          assignedMemberId: formData.get("assignedMemberId") ? Number(formData.get("assignedMemberId")) : undefined,
         });
         router.push(initial?.id ? `/contacts/${initial.id}` : "/contacts");
         router.refresh();
@@ -182,6 +198,23 @@ export function ContactForm({ initial, groups, groupsRequired = true }: { initia
       <label className="block">
         <span className={labelCls}>City</span>
         <input name="city" defaultValue={initial?.city ?? ""} className={input} placeholder="Nairobi" />
+      </label>
+      <label className="block">
+        <span className={labelCls}>Source</span>
+        <input name="source" defaultValue={initial?.source ?? ""} className={input} placeholder="Referral, Instagram, walk-in…" />
+      </label>
+      <label className="block">
+        <span className={labelCls}>Assigned to</span>
+        <select name="assignedMemberId" defaultValue={initial?.assignedMemberId ?? ""} className={input}>
+          <option value="">Unassigned</option>
+          {staffMembers.map((m) => (
+            <option key={m.id} value={m.id}>{m.name}</option>
+          ))}
+        </select>
+      </label>
+      <label className="block">
+        <span className={labelCls}>Next follow-up</span>
+        <input type="date" name="nextFollowUpAt" defaultValue={initial?.nextFollowUpAt ?? ""} className={input} />
       </label>
       <label className="block col-span-2">
         <span className={labelCls}>Notes</span>

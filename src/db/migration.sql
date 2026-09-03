@@ -974,3 +974,40 @@ ALTER TABLE recurring_templates ADD COLUMN IF NOT EXISTS due_end_of_month BOOLEA
 -- (PLATFORM_ORG_ID) — see src/lib/platform-invoicing.ts.
 ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS linked_contact_id INTEGER;
 ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS linked_recurring_template_id INTEGER;
+
+-- Marketer role: lead source, next-follow-up date, and an assigned staff
+-- member on each contact — non-financial CRM fields for a role that
+-- creates/nurtures contacts but sees none of their money.
+ALTER TABLE contacts ADD COLUMN IF NOT EXISTS source TEXT;
+ALTER TABLE contacts ADD COLUMN IF NOT EXISTS next_follow_up_at TEXT;
+ALTER TABLE contacts ADD COLUMN IF NOT EXISTS assigned_member_id INTEGER;
+CREATE INDEX IF NOT EXISTS idx_contacts_follow_up ON contacts (org_id, next_follow_up_at);
+
+-- Campaigns: bulk SMS to a customer group, reusing sendSms() and the
+-- existing customer_groups/contact_group_memberships tables.
+CREATE TABLE IF NOT EXISTS campaigns (
+  id SERIAL PRIMARY KEY,
+  org_id INTEGER NOT NULL REFERENCES org(id),
+  name TEXT NOT NULL,
+  group_id INTEGER NOT NULL,
+  message TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'draft',
+  created_by_member_id INTEGER,
+  created_at TEXT NOT NULL,
+  sent_at TEXT,
+  recipient_count INTEGER NOT NULL DEFAULT 0,
+  success_count INTEGER NOT NULL DEFAULT 0,
+  failure_count INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_campaigns_org ON campaigns (org_id);
+
+CREATE TABLE IF NOT EXISTS campaign_recipients (
+  id SERIAL PRIMARY KEY,
+  campaign_id INTEGER NOT NULL REFERENCES campaigns(id),
+  contact_id INTEGER NOT NULL,
+  phone TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  sent_at TEXT,
+  error TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_campaign_recipients_campaign ON campaign_recipients (campaign_id);

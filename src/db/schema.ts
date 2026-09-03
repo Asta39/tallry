@@ -194,10 +194,20 @@ export const contacts = pgTable("contacts", {
   openingBalanceCents: money("opening_balance_cents").notNull().default(0),
   openingBalanceDate: text("opening_balance_date"),
   openingBalanceEntryId: integer("opening_balance_entry_id"),
+  /** Free-text lead source ("referral", "walk-in", "Instagram") — not an
+   *  enum, matches how activities.kind is already free-text by convention.
+   *  Assigned staff member owns the relationship; next follow-up date drives
+   *  the "Follow up due" worklist on the contacts list — both non-financial,
+   *  built for roles (Marketer) that create/nurture contacts but see none
+   *  of their money. */
+  source: text("source"),
+  nextFollowUpAt: text("next_follow_up_at"),
+  assignedMemberId: integer("assigned_member_id"),
   createdAt: text("created_at").notNull(),
 }, (t) => ({
   orgKindIdx: index("idx_contacts_org").on(t.orgId, t.kind),
   groupIdx: index("idx_contacts_group").on(t.orgId, t.groupId),
+  followUpIdx: index("idx_contacts_follow_up").on(t.orgId, t.nextFollowUpAt),
 }));
 
 /** Admin-created customer segments — tag customers to slice reports by segment. */
@@ -603,7 +613,7 @@ export const members = pgTable("members", {
   userId: text("user_id").notNull().unique(), // Supabase auth uuid
   email: text("email").notNull(),
   name: text("name").notNull().default(""),
-  // admin | accountant | sales | hr | inventory | staff
+  // admin | accountant | sales | hr | inventory | staff | marketer | <custom>
   role: text("role").notNull().default("staff"),
   active: boolean("active").notNull().default(true),
   /** Links this login to its payroll employee record — needed for
@@ -1022,6 +1032,40 @@ export const smsLog = pgTable("sms_log", {
   createdAt: text("created_at").notNull(),
 }, (t) => ({
   paymentUnique: uniqueIndex("idx_sms_log_payment").on(t.paymentId),
+}));
+
+/** Bulk SMS to a customer group — turns the existing single-recipient
+ *  sendSms() (src/lib/sms/index.ts) and existing customerGroups into a
+ *  real marketing tool. Draft-only until sendCampaignAction runs it. */
+export const campaigns = pgTable("campaigns", {
+  id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
+  name: text("name").notNull(),
+  groupId: integer("group_id").notNull(),
+  message: text("message").notNull(),
+  status: text("status").notNull().default("draft"), // draft | sending | sent | failed
+  createdByMemberId: integer("created_by_member_id"),
+  createdAt: text("created_at").notNull(),
+  sentAt: text("sent_at"),
+  recipientCount: integer("recipient_count").notNull().default(0),
+  successCount: integer("success_count").notNull().default(0),
+  failureCount: integer("failure_count").notNull().default(0),
+}, (t) => ({
+  orgIdx: index("idx_campaigns_org").on(t.orgId),
+}));
+
+/** Per-recipient send record — mirrors sms_log's shape so a failed send is
+ *  diagnosable per contact instead of only visible as an aggregate count. */
+export const campaignRecipients = pgTable("campaign_recipients", {
+  id: serial("id").primaryKey(),
+  campaignId: integer("campaign_id").notNull().references(() => campaigns.id),
+  contactId: integer("contact_id").notNull(),
+  phone: text("phone").notNull(),
+  status: text("status").notNull().default("pending"), // pending | sent | failed
+  sentAt: text("sent_at"),
+  error: text("error"),
+}, (t) => ({
+  campaignIdx: index("idx_campaign_recipients_campaign").on(t.campaignId),
 }));
 
 export const portalOtps = pgTable("portal_otps", {

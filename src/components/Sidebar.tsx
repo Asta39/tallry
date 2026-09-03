@@ -25,6 +25,7 @@ const groups: {
     label: "Selling",
     items: [
       { href: "/contacts", label: "Customers & Vendors", icon: "👥", perm: "contacts", module: "crm" },
+      { href: "/campaigns", label: "Campaigns", icon: "📣", perm: "campaigns", module: "crm" },
       { href: "/pipeline", label: "Deals", icon: "🎯", perm: "pipeline", module: "crm" },
       { href: "/sales/quotes", label: "Quotes", icon: "📝", perm: "quotes", module: "crm" },
       { href: "/sales/quote-templates", label: "Quote Templates", icon: "🗒️", perm: "quote_templates", module: "crm" },

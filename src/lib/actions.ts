@@ -166,6 +166,9 @@ async function _saveContact(data: {
   payoutAccountNumber?: string | null;
   /** One or more customer groups. Required (>=1) for customers; ignored for vendors. */
   groupIds?: number[];
+  source?: string | null;
+  nextFollowUpAt?: string | null;
+  assignedMemberId?: number | null;
 }) {
   const orgId = currentOrgId();
   const o = await getOrg();
@@ -213,6 +216,9 @@ async function _saveContact(data: {
     // Keep the legacy single-group column pointed at the first group for any
     // old read path; the membership table below is the source of truth.
     groupId: groupIds[0] ?? null,
+    source: data.source || null,
+    nextFollowUpAt: data.nextFollowUpAt || null,
+    assignedMemberId: data.assignedMemberId ?? null,
   };
 
   let contactId = data.id;
