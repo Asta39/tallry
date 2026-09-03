@@ -10,6 +10,8 @@ import { IncomeExpenseChart, TodoWidget, CalendarWidget } from "@/components/Das
 import { DocOverview } from "@/components/DocOverview";
 import { TimeTrackingCard } from "@/components/TimeTrackingCard";
 import { getActiveShift } from "@/lib/time-tracking";
+import { AdminActivityRings, type RingMetric } from "@/components/AdminActivityRings";
+import { InvoiceStatusDonut } from "@/components/HomeDashboardCharts";
 
 export const dynamic = "force-dynamic";
 
@@ -102,6 +104,19 @@ export default async function Dashboard({
 
     const years = [thisYear, String(Number(thisYear) - 1), String(Number(thisYear) - 2)];
 
+    // Three Apple-Activity-style rings, computed entirely from `overview`
+    // (already fetched above for DocOverview) — no extra queries. Only
+    // meaningful, and only shown, when the caller can see money at all.
+    const invoicedThisYear = overview.paidCents + overview.outstandingCents;
+    const collectedPct = invoicedThisYear > 0 ? (overview.paidCents / invoicedThisYear) * 100 : 0;
+    const onTimePct = overview.outstandingCents > 0 ? ((overview.outstandingCents - overview.pastDueCents) / overview.outstandingCents) * 100 : 100;
+    const quotesWonPct = overview.qtTotal > 0 ? (overview.qt.accepted / overview.qtTotal) * 100 : 0;
+    const rings: [RingMetric, RingMetric, RingMetric] = [
+      { label: "Collected", value: collectedPct, color: "#FF2D55", gradientTo: "#FF6B8B", size: 168, current: Math.round(collectedPct), target: 100, unit: "%" },
+      { label: "On time", value: onTimePct, color: "#04C7DD", gradientTo: "#4DDFED", size: 128, current: Math.round(onTimePct), target: 100, unit: "%" },
+      { label: "Quotes won", value: quotesWonPct, color: "#A3F900", gradientTo: "#C5FF4D", size: 88, current: overview.qt.accepted, target: overview.qtTotal, unit: "won" },
+    ];
+
     return (
       <>
         <PageHeader
@@ -178,6 +193,18 @@ export default async function Dashboard({
           </div>
         )}
 
+        {showFinancials && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
+            <div className="card p-5">
+              <AdminActivityRings title={`${year} activity`} rings={rings} />
+            </div>
+            <div className="card p-5">
+              <div className="text-[13px] font-semibold text-[var(--color-ink-900)] mb-3">Invoice mix</div>
+              <InvoiceStatusDonut counts={overview.inv} />
+            </div>
+          </div>
+        )}
+
         {/* Chart (company-wide, hidden in own-metrics view) + calendar */}
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 mt-4 items-stretch">
           {showFinancials && !ownOnly && o.accountingEnabled && (
@@ -188,21 +215,31 @@ export default async function Dashboard({
           <div className={showFinancials && !ownOnly && o.accountingEnabled ? "lg:col-span-2" : "lg:col-span-5"}>
             <CalendarWidget
               events={[
-                ...eventRows.map((e) => ({ id: `evt-${e.id}`, title: e.title, date: e.date, color: "#515154", deletable: true, dbId: e.id })),
-                ...dueDocs.map((d) => ({
-                  id: `doc-${d.id}`,
-                  title: d.number,
-                  date: d.dueDate!,
-                  color: d.type === "invoice" ? "#2563eb" : "#b8860b",
-                  href: d.type === "invoice" ? `/sales/invoices/${d.id}` : `/purchases/bills/${d.id}`,
-                })),
-                ...recurringRows.map((r) => ({
-                  id: `rec-${r.id}`,
-                  title: r.name,
-                  date: r.nextRunDate,
-                  color: "#1f8a4c",
-                  href: "/recurring",
-                })),
+                // A role without "financials" only sees calendar events they
+                // added themselves — everyone else's tend to be financial
+                // reminders (VAT filing, bill payments) with no other way
+                // to tell them apart from a genuine shared task.
+                ...eventRows
+                  .filter((e) => showFinancials || e.createdByMemberId === access?.memberId)
+                  .map((e) => ({ id: `evt-${e.id}`, title: e.title, date: e.date, color: "#515154", deletable: true, dbId: e.id })),
+                ...(showFinancials
+                  ? dueDocs.map((d) => ({
+                      id: `doc-${d.id}`,
+                      title: d.number,
+                      date: d.dueDate!,
+                      color: d.type === "invoice" ? "#2563eb" : "#b8860b",
+                      href: d.type === "invoice" ? `/sales/invoices/${d.id}` : `/purchases/bills/${d.id}`,
+                    }))
+                  : []),
+                ...(showFinancials
+                  ? recurringRows.map((r) => ({
+                      id: `rec-${r.id}`,
+                      title: r.name,
+                      date: r.nextRunDate,
+                      color: "#1f8a4c",
+                      href: "/recurring",
+                    }))
+                  : []),
               ]}
             />
           </div>

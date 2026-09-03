@@ -651,6 +651,11 @@ export const events = pgTable("events", {
   title: text("title").notNull(),
   date: text("date").notNull(), // YYYY-MM-DD
   color: text("color").notNull().default("#0f766e"),
+  /** Who added it — a role without "financials" (Marketer) only sees events
+   *  they created themselves on the Home calendar, since anyone else's tend
+   *  to be financial reminders (VAT filing, bill payments). Null = added
+   *  before this column existed. */
+  createdByMemberId: integer("created_by_member_id"),
   createdAt: text("created_at").notNull(),
 });
 

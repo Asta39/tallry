@@ -1011,3 +1011,7 @@ CREATE TABLE IF NOT EXISTS campaign_recipients (
   error TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_campaign_recipients_campaign ON campaign_recipients (campaign_id);
+
+-- A role without "financials" only sees their own calendar events on Home —
+-- everyone else's tend to be financial reminders (VAT filing, bill payments).
+ALTER TABLE events ADD COLUMN IF NOT EXISTS created_by_member_id INTEGER;

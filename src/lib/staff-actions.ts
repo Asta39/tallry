@@ -153,6 +153,7 @@ export async function addEvent(title: string, date: string, color?: string) {
     title: title.trim(),
     date,
     color: color || access.orgRow.brandColor || "#0f766e",
+    createdByMemberId: access.memberId,
     createdAt: nowISO(),
   });
   revalidatePath("/");
