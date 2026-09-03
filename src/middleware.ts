@@ -20,6 +20,10 @@ export async function middleware(request: NextRequest) {
   if (path.startsWith("/api/cron/")) {
     return;
   }
+  // Static public downloads (e.g. the docs PDF) — no session needed.
+  if (path.startsWith("/docs/")) {
+    return;
+  }
   // Public receipt links: the token in the URL is the credential.
   // Customer portal (/p/) authenticates with its own phone+OTP session.
   // Rate-limited to blunt token brute-forcing and scraping.
