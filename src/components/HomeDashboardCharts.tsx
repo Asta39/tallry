@@ -82,3 +82,63 @@ export function InvoiceStatusDonut({ counts }: { counts: Record<string, number> 
     </div>
   );
 }
+
+/** Generic two/three-segment donut for non-financial counts (e.g. follow-ups
+ *  due vs up to date) — no $ figures, safe for a role without "financials". */
+export function CountDonut({
+  segments,
+  centerLabel,
+  centerSub,
+  emptyLabel,
+}: {
+  segments: { key: string; label: string; value: number; color: string }[];
+  centerLabel: string;
+  centerSub: string;
+  emptyLabel: string;
+}) {
+  const mounted = useMounted();
+  const data = segments.filter((s) => s.value > 0);
+  const total = segments.reduce((s, d) => s + d.value, 0);
+
+  if (total === 0) {
+    return (
+      <div className="h-40 flex items-center justify-center text-[12.5px] text-[var(--color-ink-400)]">
+        {emptyLabel}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-5">
+      <div className="relative h-36 w-36 shrink-0">
+        {mounted ? (
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie data={data} dataKey="value" nameKey="label" innerRadius={44} outerRadius={64} paddingAngle={2} strokeWidth={0}>
+                {data.map((d) => (
+                  <Cell key={d.key} fill={d.color} />
+                ))}
+              </Pie>
+              <Tooltip contentStyle={tooltipStyle} />
+            </PieChart>
+          </ResponsiveContainer>
+        ) : (
+          <div className="h-36 w-36 rounded-full bg-[var(--color-ink-50)]/40 animate-pulse" />
+        )}
+        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+          <div className="text-[18px] font-semibold tnum leading-none">{centerLabel}</div>
+          <div className="text-[10px] text-[var(--color-ink-400)] mt-1">{centerSub}</div>
+        </div>
+      </div>
+      <ul className="space-y-2 text-[12px] min-w-0">
+        {segments.map((d) => (
+          <li key={d.key} className="flex items-center gap-2">
+            <span className="h-2 w-2 rounded-full shrink-0" style={{ background: d.color }} />
+            <span className="text-[var(--color-ink-600)]">{d.label}</span>
+            <span className="ml-auto pl-3 font-medium tnum">{d.value}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}

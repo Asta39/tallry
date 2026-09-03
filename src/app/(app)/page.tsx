@@ -1,6 +1,6 @@
 import { withOrg, getOrg } from "@/lib/org";
 import Link from "next/link";
-import { db, documents, todos, events, documentAssignments, recurringTemplates } from "@/db";
+import { db, documents, todos, events, documentAssignments, recurringTemplates, contacts, campaigns } from "@/db";
 import { desc, asc, inArray, and, eq, exists, isNotNull } from "drizzle-orm";
 import { getAccessCached, canViewAllData } from "@/lib/access";
 import { dashboardStats, monthlyIncomeExpense, docStatusOverview, memberDashboardStats } from "@/lib/reports";
@@ -11,7 +11,7 @@ import { DocOverview } from "@/components/DocOverview";
 import { TimeTrackingCard } from "@/components/TimeTrackingCard";
 import { getActiveShift } from "@/lib/time-tracking";
 import { AdminActivityRings, type RingMetric } from "@/components/AdminActivityRings";
-import { InvoiceStatusDonut } from "@/components/HomeDashboardCharts";
+import { InvoiceStatusDonut, CountDonut } from "@/components/HomeDashboardCharts";
 
 export const dynamic = "force-dynamic";
 
@@ -101,6 +101,21 @@ export default async function Dashboard({
           ? db.select().from(recurringTemplates).where(and(eq(recurringTemplates.orgId, o.id), eq(recurringTemplates.active, true)))
           : Promise.resolve([]),
       ]);
+
+    // Non-financial CRM snapshot for a role without "financials" (Marketer) —
+    // her own assigned contacts, follow-ups, and campaigns sent, none of it
+    // a money figure, so the dashboard isn't blank once every $ widget above
+    // is hidden.
+    let myContacts: { id: number; nextFollowUpAt: string | null }[] = [];
+    let myCampaignsSent = 0;
+    if (!showFinancials && access?.perms.has("contacts") && access.memberId) {
+      [myContacts, myCampaignsSent] = await Promise.all([
+        db.select({ id: contacts.id, nextFollowUpAt: contacts.nextFollowUpAt }).from(contacts).where(and(eq(contacts.orgId, o.id), eq(contacts.archived, false), eq(contacts.assignedMemberId, access.memberId))),
+        db.select({ id: campaigns.id }).from(campaigns).where(and(eq(campaigns.orgId, o.id), eq(campaigns.createdByMemberId, access.memberId), eq(campaigns.status, "sent"))).then((r) => r.length),
+      ]);
+    }
+    const followUpsDue = myContacts.filter((c) => c.nextFollowUpAt && c.nextFollowUpAt <= today).length;
+    const followUpsUpToDate = myContacts.length - followUpsDue;
 
     const years = [thisYear, String(Number(thisYear) - 1), String(Number(thisYear) - 2)];
 
@@ -201,6 +216,35 @@ export default async function Dashboard({
             <div className="card p-5">
               <div className="text-[13px] font-semibold text-[var(--color-ink-900)] mb-3">Invoice mix</div>
               <InvoiceStatusDonut counts={overview.inv} />
+            </div>
+          </div>
+        )}
+
+        {!showFinancials && access?.perms.has("contacts") && (
+          <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-4 mt-4">
+            <div className="card p-4 flex flex-col justify-center">
+              <div className="text-[11px] font-medium text-[var(--color-ink-400)] uppercase tracking-wide">Your contacts</div>
+              <div className="text-[26px] font-semibold tnum mt-1">{myContacts.length}</div>
+            </div>
+            <div className="card p-4 flex flex-col justify-center">
+              <div className="text-[11px] font-medium text-[var(--color-ink-400)] uppercase tracking-wide">Follow-ups due</div>
+              <div className={`text-[26px] font-semibold tnum mt-1 ${followUpsDue > 0 ? "text-[var(--color-bad)]" : ""}`}>{followUpsDue}</div>
+            </div>
+            <div className="card p-4 flex flex-col justify-center">
+              <div className="text-[11px] font-medium text-[var(--color-ink-400)] uppercase tracking-wide">Campaigns sent</div>
+              <div className="text-[26px] font-semibold tnum mt-1">{myCampaignsSent}</div>
+            </div>
+            <div className="card p-5 sm:col-span-3 lg:col-span-2">
+              <div className="text-[13px] font-semibold text-[var(--color-ink-900)] mb-3">Follow-up health</div>
+              <CountDonut
+                centerLabel={String(myContacts.length)}
+                centerSub="contacts"
+                emptyLabel="No contacts assigned to you yet."
+                segments={[
+                  { key: "due", label: "Follow-up due", value: followUpsDue, color: "#dc2626" },
+                  { key: "ok", label: "Up to date", value: followUpsUpToDate, color: "#0f766e" },
+                ]}
+              />
             </div>
           </div>
         )}
