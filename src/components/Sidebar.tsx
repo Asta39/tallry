@@ -93,7 +93,11 @@ interface SidebarProps {
   /** Strictly owner/admin — audit logs are never role-toggleable, unlike every other module. */
   isAdmin?: boolean;
   /** Tailwind top-offset class for the mobile fixed bar, e.g. "top-9" when an announcement banner is showing above it. */
-  topOffsetClass?: string;
+  /** Server-computed fallback (px) for before the client-measured banner
+   *  stack height (--mobile-banner-offset, set by BannerStack) kicks in —
+   *  only knows about the super-admin announcement, since team announcements'
+   *  visible count depends on client-side dismiss state. */
+  topOffsetPx?: number;
   /** Which of the org's paid modules to show — admin-toggled on the org detail
    *  page (org.crmEnabled/accountingEnabled/payrollEnabled). This is UI
    *  visibility only: everything keeps posting/calculating in the background
@@ -104,7 +108,7 @@ interface SidebarProps {
   payrollEnabled?: boolean;
 }
 
-export function Sidebar({ orgName, orgEmail, logoUrl, perms, roleLabel, timeTrackingEnabled, isAdmin, topOffsetClass = "top-0", crmEnabled = true, accountingEnabled = true, payrollEnabled = true }: SidebarProps) {
+export function Sidebar({ orgName, orgEmail, logoUrl, perms, roleLabel, timeTrackingEnabled, isAdmin, topOffsetPx = 0, crmEnabled = true, accountingEnabled = true, payrollEnabled = true }: SidebarProps) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
@@ -209,7 +213,10 @@ export function Sidebar({ orgName, orgEmail, logoUrl, perms, roleLabel, timeTrac
   return (
     <>
       {/* Mobile top bar — floating pill: hamburger left, org name + role centered */}
-      <div className={`md:hidden no-print fixed ${topOffsetClass} inset-x-0 z-40 px-3 pt-3`}>
+      <div
+        className="md:hidden no-print fixed inset-x-0 z-40 px-3 pt-3"
+        style={{ top: `var(--mobile-banner-offset, ${topOffsetPx}px)` }}
+      >
         <div className="relative sidebar-chrome rounded-[32px] shadow-[0_2px_14px_rgba(0,0,0,0.08)] border border-[var(--color-ink-100)]/70 h-16 flex items-center justify-center">
           <button
             onClick={() => setOpen(true)}

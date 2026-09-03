@@ -14,6 +14,7 @@ import { db, announcements, teamAnnouncements } from "@/db";
 import { eq, desc, and } from "drizzle-orm";
 import Link from "next/link";
 import { TeamAnnouncementBanner } from "@/components/TeamAnnouncementBanner";
+import { BannerStack } from "@/components/BannerStack";
 import { BlurProvider } from "@/components/BlurContext";
 import { BlurToggleSwitch } from "@/components/BlurToggleSwitch";
 import { BlurScope } from "@/components/BlurScope";
@@ -106,15 +107,17 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <>
-      {announcement && (
-        <div className={`no-print h-9 flex items-center justify-center px-4 text-center text-[12.5px] font-medium md:relative md:h-auto md:py-2 fixed top-0 inset-x-0 z-50 md:static ${
-          announcement.tone === "warn" ? "bg-amber-100 text-amber-900" : "bg-[var(--color-accent-500)] text-white"
-        }`}>
-          <span className="truncate">{announcement.message}</span>
-        </div>
-      )}
-      <TeamAnnouncementBanner announcements={pinnedTeamAnnouncements} />
-      {isImpersonating && <ImpersonationBanner orgName={access.orgRow.name} />}
+      <BannerStack>
+        {announcement && (
+          <div className={`no-print h-9 flex items-center justify-center px-4 text-center text-[12.5px] font-medium md:h-auto md:py-2 ${
+            announcement.tone === "warn" ? "bg-amber-100 text-amber-900" : "bg-[var(--color-accent-500)] text-white"
+          }`}>
+            <span className="truncate">{announcement.message}</span>
+          </div>
+        )}
+        <TeamAnnouncementBanner announcements={pinnedTeamAnnouncements} />
+        {isImpersonating && <ImpersonationBanner orgName={access.orgRow.name} />}
+      </BannerStack>
       <div className="flex min-h-screen" style={access.orgRow.brandColor ? { "--color-brand": access.orgRow.brandColor } as React.CSSProperties : undefined}>
         <InstallPrompt />
         <Sidebar
@@ -125,16 +128,18 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           roleLabel={access.isOwner ? "Owner" : roleLabels[access.role]}
           isAdmin={access.isOwner || access.role === "admin"}
           timeTrackingEnabled={access.orgRow.timeTrackingEnabled}
-          topOffsetClass={announcement ? "top-9" : "top-0"}
+          topOffsetPx={announcement ? 36 : 0}
           crmEnabled={access.orgRow.crmEnabled}
           accountingEnabled={access.orgRow.accountingEnabled}
           payrollEnabled={access.orgRow.payrollEnabled}
         />
         <BlurProvider>
         <main className="flex-1 min-w-0 flex flex-col h-screen overflow-y-auto">
-          {announcement && <div className="h-9 md:hidden shrink-0 no-print" />}
-          <div className="h-[76px] md:hidden shrink-0 no-print" />
-          <div className="sticky top-[76px] md:top-0 z-30 bg-white/80 backdrop-blur-md border-b border-[var(--color-ink-100)] px-4 py-3 md:py-0 md:px-8 md:h-14 flex items-center justify-between no-print gap-4">
+          <div
+            className="md:hidden shrink-0 no-print"
+            style={{ height: `calc(var(--mobile-banner-offset, ${announcement ? 36 : 0}px) + 76px)` }}
+          />
+          <div className="sticky top-[calc(var(--mobile-banner-offset,0px)+76px)] md:top-0 z-30 bg-white/80 backdrop-blur-md border-b border-[var(--color-ink-100)] px-4 py-3 md:py-0 md:px-8 md:h-14 flex items-center justify-between no-print gap-4">
             <div className="flex-1 hidden md:flex items-center gap-3 max-w-[150px]">
               <Link
                 href="/settings/billing"
