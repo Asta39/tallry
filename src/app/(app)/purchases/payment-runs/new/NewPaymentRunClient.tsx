@@ -78,6 +78,7 @@ export function NewPaymentRunClient({ bills, banks }: { bills: Bill[]; banks: { 
           <select value={method} onChange={(e) => setMethod(e.target.value)} className={inputCls + " mt-1 block"}>
             <option value="bank">Bank transfer</option>
             <option value="mpesa">M-Pesa</option>
+            <option value="pochi">Pochi la Biashara</option>
             <option value="cash">Cash</option>
             <option value="cheque">Cheque</option>
           </select>

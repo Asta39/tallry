@@ -3,7 +3,7 @@ import { getOrg } from "@/lib/org";
 import { db, payments, documents, contacts, paymentEvents, documentAssignments, journalEntries, expenseClaims } from "@/db";
 import { eq, and, desc, inArray, count, exists, or } from "drizzle-orm";
 import { PageHeader, TableCard, Th, Td } from "@/components/ui";
-import { fmtKES } from "@/lib/money";
+import { fmtKES, formatPaymentMethod } from "@/lib/money";
 import Link from "next/link";
 import { getAccessCached, canViewAllData } from "@/lib/access";
 
@@ -141,7 +141,7 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
                     </span>
                   )}
                 </Td>
-                <Td className="capitalize">{row.payment.method || "—"}</Td>
+                <Td>{row.payment.method ? formatPaymentMethod(row.payment.method) : "—"}</Td>
                 <Td right className={`tnum font-medium ${direction === "in" ? "text-[var(--color-good)]" : "text-[var(--color-bad)]"}`}>
                   {direction === "in" ? "+" : "-"}{fmtKES(row.payment.amountCents)}
                 </Td>

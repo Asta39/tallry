@@ -535,7 +535,7 @@ export const payments = pgTable("payments", {
   date: text("date").notNull(),
   amountCents: money("amount_cents").notNull(), // gross amount applied to the document
   whtCents: money("wht_cents").notNull().default(0), // withheld income tax portion
-  method: text("method").notNull().default("mpesa"), // mpesa | bank | cash | card | cheque
+  method: text("method").notNull().default("mpesa"), // mpesa | pochi | bank | cash | card | cheque
   bankAccountId: integer("bank_account_id"),
   reference: text("reference"),
   journalEntryId: integer("journal_entry_id"),

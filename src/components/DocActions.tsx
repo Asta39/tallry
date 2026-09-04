@@ -29,6 +29,7 @@ const danger = `${btn} text-[var(--color-bad)] hover:bg-red-50`;
  *  happens to sort first. */
 const METHOD_TO_KIND: Record<string, string> = {
   mpesa: "mpesa",
+  pochi: "mpesa",
   bank: "bank",
   cash: "cash",
   cheque: "bank",
@@ -391,6 +392,7 @@ export function DocActions({
               }}
             >
               <option value="mpesa">M-Pesa</option>
+              <option value="pochi">Pochi la Biashara</option>
               <option value="bank">Bank transfer</option>
               <option value="cash">Cash</option>
               <option value="cheque">Cheque</option>

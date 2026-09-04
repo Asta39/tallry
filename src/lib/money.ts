@@ -33,3 +33,18 @@ export function todayISO(): string {
 export function nowISO(): string {
   return new Date().toISOString();
 }
+
+const PAYMENT_METHOD_LABELS: Record<string, string> = {
+  mpesa: "M-Pesa",
+  pochi: "Pochi la Biashara",
+  bank: "Bank transfer",
+  cash: "Cash",
+  cheque: "Cheque",
+  card: "Card",
+};
+
+/** Human label for a payments.method value — falls back to a capitalized
+ *  version of the raw string for anything not in the known list. */
+export function formatPaymentMethod(method: string): string {
+  return PAYMENT_METHOD_LABELS[method] ?? method.charAt(0).toUpperCase() + method.slice(1);
+}

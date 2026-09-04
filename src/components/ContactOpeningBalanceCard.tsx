@@ -257,6 +257,7 @@ export function ContactOpeningBalanceCard({
               <span className="text-[12px] font-medium text-[var(--color-ink-600)]">Method</span>
               <select value={payMethod} onChange={(e) => setPayMethod(e.target.value)} className={inputCls + " mt-1"}>
                 <option value="mpesa">M-Pesa</option>
+                <option value="pochi">Pochi la Biashara</option>
                 <option value="bank">Bank</option>
                 <option value="cash">Cash</option>
                 <option value="card">Card</option>

@@ -2,7 +2,7 @@ import { db, documents, contacts, payments, org } from "@/db";
 import { eq, and } from "drizzle-orm";
 import { sendEmail } from "./resend";
 import PaymentReceipt from "./templates/PaymentReceipt";
-import { fmtKES } from "@/lib/money";
+import { fmtKES, formatPaymentMethod } from "@/lib/money";
 import { getOrCreateReceiptToken, receiptUrl } from "@/lib/receipts/tokens";
 
 export async function sendPaymentReceipt(paymentId: number) {
@@ -31,7 +31,7 @@ export async function sendPaymentReceipt(paymentId: number) {
     customerName: contact.displayName || contact.companyName || "Customer",
     amount: fmtKES(payment.amountCents),
     invoiceNumber: doc.number,
-    paymentMethod: payment.method,
+    paymentMethod: formatPaymentMethod(payment.method),
     receiptNumber: `RCPT-${payment.id}`,
     reference: payment.reference,
     date: payment.date,
