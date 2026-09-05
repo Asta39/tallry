@@ -116,6 +116,54 @@ export async function updateAccountAction(id: number, data: {
   });
 }
 
+const MONEY_ACCOUNT_KINDS = ["bank", "mpesa", "cash", "card"] as const;
+type MoneyAccountKind = (typeof MONEY_ACCOUNT_KINDS)[number];
+
+/**
+ * Adds a new money account (Bank & M-Pesa) — e.g. a second M-Pesa-type
+ * account like Pochi la Biashara, kept separate from the till so its
+ * balance, reconciliation and reporting are distinct. There was previously
+ * no way to add one after org signup; the three seeded accounts (Main Bank,
+ * M-Pesa Till, Petty Cash) were it. Creates the linked Chart-of-Accounts
+ * asset account the same way onboarding does (src/lib/org.ts), slotting its
+ * code into the 1000-1049 cash/bank block reserved by SEED_ACCOUNTS.
+ */
+export async function createMoneyAccountAction(data: { name: string; kind: MoneyAccountKind }) {
+  return withOrg(async () => {
+    const access = await requirePerm("banking");
+    if (!access.isOwner && access.role !== "admin" && access.role !== "accountant") {
+      throw new Error("Only the owner, an admin, or an accountant can add a money account");
+    }
+    const orgId = currentOrgId();
+    const name = data.name.trim();
+    if (!name) throw new Error("Account name is required");
+    if (!MONEY_ACCOUNT_KINDS.includes(data.kind)) throw new Error("Invalid account type");
+
+    const existingCodes = (await db.select({ code: accounts.code }).from(accounts).where(eq(accounts.orgId, orgId)))
+      .map((a) => Number(a.code))
+      .filter((n) => Number.isFinite(n) && n >= 1000 && n < 1050);
+    let code = existingCodes.length > 0 ? Math.max(...existingCodes) + 10 : 1030;
+    // Guard against landing on/past the next reserved block (Undeposited
+    // Funds, 1050) or an already-used code from a non-standard import.
+    const taken = new Set((await db.select({ code: accounts.code }).from(accounts).where(eq(accounts.orgId, orgId))).map((a) => a.code));
+    while (code >= 1050 || taken.has(String(code))) code++;
+
+    const [account] = await db.insert(accounts).values({
+      orgId,
+      code: String(code),
+      name,
+      type: "asset",
+      subtype: data.kind === "cash" ? "cash" : "bank",
+      description: `Money account added from Bank & M-Pesa (${name}).`,
+    }).returning();
+
+    const [bank] = await db.insert(bankAccounts).values({ orgId, name, kind: data.kind, accountId: account.id }).returning();
+
+    revalidatePath("/banking");
+    return { id: bank.id };
+  });
+}
+
 export async function archiveAccountAction(id: number, archived: boolean) {
   return withOrg(async () => {
     await requirePerm("accountant");

@@ -36,8 +36,14 @@ const METHOD_TO_KIND: Record<string, string> = {
   card: "bank",
 };
 
-function bestBankIdForMethod(banks: { id: number; kind?: string }[], method: string): number | "" {
+function bestBankIdForMethod(banks: { id: number; kind?: string; label?: string }[], method: string): number | "" {
   const wantKind = METHOD_TO_KIND[method];
+  // Pochi la Biashara shares the "mpesa" kind with a regular M-Pesa till —
+  // kind alone can't tell them apart, so prefer a name match first.
+  if (method === "pochi") {
+    const named = banks.find((b) => b.label?.toLowerCase().includes("pochi"));
+    if (named) return named.id;
+  }
   const match = banks.find((b) => b.kind === wantKind);
   return match?.id ?? banks[0]?.id ?? "";
 }

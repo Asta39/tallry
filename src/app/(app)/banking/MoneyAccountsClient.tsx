@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Modal } from "@/components/Modal";
 import { fmtKES, todayISO } from "@/lib/money";
 import { setMoneyAccountOpeningBalanceAction } from "@/lib/actions";
+import { createMoneyAccountAction } from "@/lib/chart-of-accounts";
 
 const inputCls =
   "w-full rounded-lg border border-[var(--color-ink-200)] bg-white px-3 py-2 text-[13px] outline-none focus:border-[var(--color-accent-500)] focus:ring-2 focus:ring-[var(--color-accent-100)] transition-all";
@@ -26,6 +27,12 @@ export function MoneyAccountsClient({ banks }: { banks: MoneyAccount[] }) {
   const [amount, setAmount] = useState("");
   const [date, setDate] = useState(todayISO());
   const [memo, setMemo] = useState("");
+
+  const [addingAccount, setAddingAccount] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newKind, setNewKind] = useState("mpesa");
+  const [addPending, startAdd] = useTransition();
+  const [addError, setAddError] = useState<string | null>(null);
 
   const openingSummary = useMemo(() => {
     if (!selected) return null;
@@ -51,6 +58,15 @@ export function MoneyAccountsClient({ banks }: { banks: MoneyAccount[] }) {
 
   return (
     <>
+      <div className="flex justify-end mb-3">
+        <button
+          type="button"
+          onClick={() => { setAddingAccount(true); setAddError(null); setNewName(""); setNewKind("mpesa"); }}
+          className="rounded-lg border border-[var(--color-ink-200)] bg-white hover:bg-[var(--color-ink-50)] text-[12.5px] font-medium px-3 py-1.5"
+        >
+          + New account
+        </button>
+      </div>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {banks.map((b) => (
           <div key={b.id} className="card px-5 py-4">
@@ -179,6 +195,75 @@ export function MoneyAccountsClient({ banks }: { banks: MoneyAccount[] }) {
             </div>
           </form>
         )}
+      </Modal>
+
+      <Modal
+        open={addingAccount}
+        onClose={() => { if (!addPending) setAddingAccount(false); }}
+        title="New money account"
+        busy={addPending}
+        maxWidthClass="max-w-md"
+      >
+        <form
+          className="p-5 space-y-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            setAddError(null);
+            if (!newName.trim()) return setAddError("Give the account a name");
+            startAdd(async () => {
+              try {
+                await createMoneyAccountAction({ name: newName.trim(), kind: newKind as "bank" | "mpesa" | "cash" | "card" });
+                setAddingAccount(false);
+                router.refresh();
+              } catch (err: any) {
+                setAddError(err?.message || "Could not create account");
+              }
+            });
+          }}
+        >
+          <p className="text-[12.5px] text-[var(--color-ink-500)]">
+            Creates a new money account with its own ledger balance, separate from your existing accounts — e.g. a second M-Pesa number like Pochi la Biashara, kept distinct from your till.
+          </p>
+
+          <label className="block">
+            <span className="text-[12px] font-medium text-[var(--color-ink-600)]">Account name</span>
+            <input
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              className={inputCls + " mt-1"}
+              placeholder="Pochi la Biashara"
+            />
+          </label>
+
+          <label className="block">
+            <span className="text-[12px] font-medium text-[var(--color-ink-600)]">Type</span>
+            <select value={newKind} onChange={(e) => setNewKind(e.target.value)} className={inputCls + " mt-1"}>
+              <option value="mpesa">M-Pesa</option>
+              <option value="bank">Bank</option>
+              <option value="cash">Cash</option>
+              <option value="card">Card</option>
+            </select>
+          </label>
+
+          {addError && <p className="text-[12.5px] text-[var(--color-bad)]">{addError}</p>}
+
+          <div className="flex items-center gap-3 pt-1">
+            <button
+              type="submit"
+              disabled={addPending}
+              className="rounded-lg bg-[var(--color-accent-500)] hover:bg-[var(--color-accent-600)] disabled:opacity-60 text-white text-[13px] font-medium px-4 py-2 transition-colors"
+            >
+              {addPending ? "Creating…" : "Create account"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setAddingAccount(false)}
+              className="text-[13px] text-[var(--color-ink-500)] hover:underline"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
       </Modal>
     </>
   );
