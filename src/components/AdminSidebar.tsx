@@ -52,8 +52,8 @@ export function AdminSidebar({ userEmail }: { userEmail: string }) {
     <>
       <div className="px-4 pt-5 pb-3">
         <div className="flex items-center gap-2.5">
-          <div className="shrink-0 w-14 h-14 rounded-xl overflow-hidden flex items-center justify-center bg-red-600 shadow-[0_1px_3px_rgba(0,0,0,0.12)]">
-            <span className="text-white text-[18px] font-bold">SA</span>
+          <div className="shrink-0 w-14 h-14 rounded-xl overflow-hidden flex items-center justify-center bg-white shadow-[0_1px_3px_rgba(0,0,0,0.12)] border border-[var(--color-ink-100)]">
+            <img src="/admin-logo.jpg" alt="Zeno" width={56} height={56} className="object-contain w-full h-full" />
           </div>
           <div className="min-w-0">
             <div className="text-[13.5px] font-semibold tracking-tight truncate leading-tight">Super Admin</div>
