@@ -3,12 +3,13 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { db, superAdmins, subscriptions, billingPayments, org, announcements, members } from "@/db";
+import { db, superAdmins, subscriptions, billingPayments, org, announcements, members, platformSettings } from "@/db";
 import { eq, and, sql } from "drizzle-orm";
 import { requireSuperAdmin } from "@/lib/super-admin";
 import { logAdminAction } from "@/lib/admin-audit";
 import { endOfMonthISO, nextMonthEndISO } from "@/lib/billing";
-import { getPlatformSettings } from "@/lib/platform-settings";
+import { getPlatformSettings, ensurePlatformSettingsRow, PLATFORM_SETTINGS_ID } from "@/lib/platform-settings";
+import { nowISO } from "@/lib/money";
 import { runAndStoreAllOrgChecks } from "@/lib/ledger-integrity";
 import { runOrgBackup, runAllOrgBackups, getBackupDownloadUrl } from "@/lib/org-backup";
 import { reconcileUnconfirmedKopoKopoPayouts } from "@/lib/payments/webhook";
@@ -434,4 +435,26 @@ export async function toggleFeatureFlagAction(orgId: number, flag: string) {
   });
   revalidatePath(`/admin/orgs/${orgId}`);
   return { success: true, enabled: !existing };
+}
+
+export async function updatePlatformSettingsAction(data: {
+  trialDays: number;
+  perStaffMonthlyFeeCents: number;
+  platformOrgId: number | null;
+}) {
+  const user = await requireSuperAdmin();
+  if (!Number.isInteger(data.trialDays) || data.trialDays < 1) throw new Error("Trial days must be a positive whole number");
+  if (!Number.isInteger(data.perStaffMonthlyFeeCents) || data.perStaffMonthlyFeeCents < 0) throw new Error("Per-seat fee must be a non-negative amount");
+
+  await ensurePlatformSettingsRow();
+  await db.update(platformSettings).set({
+    trialDays: data.trialDays,
+    perStaffMonthlyFeeCents: data.perStaffMonthlyFeeCents,
+    platformOrgId: data.platformOrgId,
+    updatedAt: nowISO(),
+    updatedByEmail: user.email ?? null,
+  }).where(eq(platformSettings.id, PLATFORM_SETTINGS_ID));
+
+  revalidatePath("/admin/settings");
+  return { success: true };
 }
