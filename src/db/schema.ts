@@ -1234,6 +1234,23 @@ export const aiMessages = pgTable("ai_messages", {
 }));
 
 /** Platform-wide announcements shown as a banner in every tenant's app. */
+/**
+ * Platform-wide configuration, singleton — always exactly one row (id 1).
+ * Previously these lived as hardcoded constants in src/lib/billing.ts
+ * (TRIAL_DAYS, PER_STAFF_MONTHLY_FEE_CENTS) or an env var
+ * (PLATFORM_ORG_ID) — a super admin can now edit them without a deploy.
+ */
+export const platformSettings = pgTable("platform_settings", {
+  id: integer("id").primaryKey(),
+  trialDays: integer("trial_days").notNull().default(30),
+  perStaffMonthlyFeeCents: integer("per_staff_monthly_fee_cents").notNull().default(100_000),
+  /** Which org auto-invoices every other active client for their maintenance
+   *  fee — see src/lib/platform-invoicing.ts. Null = feature off. */
+  platformOrgId: integer("platform_org_id"),
+  updatedAt: text("updated_at").notNull(),
+  updatedByEmail: text("updated_by_email"),
+});
+
 export const announcements = pgTable("announcements", {
   id: serial("id").primaryKey(),
   message: text("message").notNull(),

@@ -7,7 +7,8 @@ import { db, superAdmins, subscriptions, billingPayments, org, announcements, me
 import { eq, and, sql } from "drizzle-orm";
 import { requireSuperAdmin } from "@/lib/super-admin";
 import { logAdminAction } from "@/lib/admin-audit";
-import { endOfMonthISO, nextMonthEndISO, PER_STAFF_MONTHLY_FEE_CENTS } from "@/lib/billing";
+import { endOfMonthISO, nextMonthEndISO } from "@/lib/billing";
+import { getPlatformSettings } from "@/lib/platform-settings";
 import { runAndStoreAllOrgChecks } from "@/lib/ledger-integrity";
 import { runOrgBackup, runAllOrgBackups, getBackupDownloadUrl } from "@/lib/org-backup";
 import { reconcileUnconfirmedKopoKopoPayouts } from "@/lib/payments/webhook";
@@ -174,8 +175,9 @@ export async function activateOrgAction(orgId: number, formData: FormData) {
   let monthlyFeeCents = Number.isFinite(submittedFee) && submittedFee >= 0 ? submittedFee : NaN;
   if (!Number.isFinite(monthlyFeeCents)) {
     const [{ count }] = await db.select({ count: sql<number>`count(*)`.mapWith(Number) }).from(members).where(and(eq(members.orgId, orgId), eq(members.active, true)));
+    const { perStaffMonthlyFeeCents } = await getPlatformSettings();
     // +1 for the owner — see the matching note in orgs/[id]/page.tsx.
-    monthlyFeeCents = (count + 1) * PER_STAFF_MONTHLY_FEE_CENTS;
+    monthlyFeeCents = (count + 1) * perStaffMonthlyFeeCents;
   }
 
   const today = new Date().toISOString().slice(0, 10);
@@ -394,7 +396,7 @@ export async function createAnnouncementAction(formData: FormData) {
     createdAt: new Date().toISOString(),
   });
   await logAdminAction({ actorEmail: user.email!, action: "announcement_publish", detail: `[${tone}] ${message}` });
-  revalidatePath("/admin/announcements");
+  revalidatePath("/admin/settings");
   return { success: true };
 }
 
@@ -402,7 +404,7 @@ export async function deactivateAnnouncementAction(id: number) {
   const user = await requireSuperAdmin();
   await db.update(announcements).set({ active: false }).where(eq(announcements.id, id));
   await logAdminAction({ actorEmail: user.email!, action: "announcement_retract", targetId: id });
-  revalidatePath("/admin/announcements");
+  revalidatePath("/admin/settings");
   return { success: true };
 }
 

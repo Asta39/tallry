@@ -1015,3 +1015,20 @@ CREATE INDEX IF NOT EXISTS idx_campaign_recipients_campaign ON campaign_recipien
 -- A role without "financials" only sees their own calendar events on Home —
 -- everyone else's tend to be financial reminders (VAT filing, bill payments).
 ALTER TABLE events ADD COLUMN IF NOT EXISTS created_by_member_id INTEGER;
+
+-- Platform-wide config, singleton row — a super admin can now edit trial
+-- length, per-seat fee, and the platform-operator org id from Settings
+-- instead of a code deploy or an env var. Seeded with today's real values
+-- (TRIAL_DAYS=30, PER_STAFF_MONTHLY_FEE_CENTS=100000, PLATFORM_ORG_ID=30)
+-- so this migration changes nothing about current behavior on its own.
+CREATE TABLE IF NOT EXISTS platform_settings (
+  id INTEGER PRIMARY KEY,
+  trial_days INTEGER NOT NULL DEFAULT 30,
+  per_staff_monthly_fee_cents INTEGER NOT NULL DEFAULT 100000,
+  platform_org_id INTEGER,
+  updated_at TEXT NOT NULL,
+  updated_by_email TEXT
+);
+INSERT INTO platform_settings (id, trial_days, per_staff_monthly_fee_cents, platform_org_id, updated_at)
+VALUES (1, 30, 100000, 30, now()::text)
+ON CONFLICT (id) DO NOTHING;

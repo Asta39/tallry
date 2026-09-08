@@ -3,7 +3,8 @@ import { eq, and, desc, count, sql, gte, inArray } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { fmtKES } from "@/lib/money";
-import { resolveBillingAccess, PER_STAFF_MONTHLY_FEE_CENTS, TRIAL_DAYS } from "@/lib/billing";
+import { resolveBillingAccess } from "@/lib/billing";
+import { getPlatformSettings } from "@/lib/platform-settings";
 import { BillingPanel } from "./BillingPanel";
 import { ModuleAccessPanel } from "./ModuleAccessPanel";
 import { ImpersonateButton } from "../ImpersonateButton";
@@ -48,9 +49,10 @@ export default async function AdminOrgDetailPage({ params }: { params: Promise<{
 
   const owner = (ownerRows as unknown as { email: string; joined: string; last_login: string }[])[0];
   const today = new Date().toISOString().slice(0, 10);
+  const { trialDays, perStaffMonthlyFeeCents } = await getPlatformSettings();
   const billing = sub
     ? resolveBillingAccess(sub)
-    : { status: "trial" as const, trialEndsAt: today, trialDaysLeft: TRIAL_DAYS, monthlyFeeCents: 0, nextMaintenanceDueAt: null };
+    : { status: "trial" as const, trialEndsAt: today, trialDaysLeft: trialDays, monthlyFeeCents: 0, nextMaintenanceDueAt: null };
   // Activation isn't gated on the trial having actually run out any more —
   // an org can pay the setup fee and go active any time, including mid-trial.
   const needsActivation = sub?.billingStatus === "trial";
@@ -58,7 +60,7 @@ export default async function AdminOrgDetailPage({ params }: { params: Promise<{
   // are still a real seat using the org, so a brand-new org with no staff
   // invited yet correctly suggests KSh 1,000, not KSh 0/"Not set yet".
   const activeStaffCount = memberList.filter((m) => m.active).length + 1;
-  const suggestedMonthlyFeeCents = activeStaffCount * PER_STAFF_MONTHLY_FEE_CENTS;
+  const suggestedMonthlyFeeCents = activeStaffCount * perStaffMonthlyFeeCents;
 
   const Row = ({ k, v }: { k: string; v: React.ReactNode }) => (
     <div className="flex justify-between gap-4 py-2 border-t border-[var(--color-ink-100)] first:border-t-0 text-[13px]">

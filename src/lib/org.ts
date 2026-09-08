@@ -94,14 +94,16 @@ export async function seedOrgDefaults(orgId: number) {
   if (existing.length > 0) return;
 
   const { subscriptions, itemTypes } = await import("@/db");
-  const { addDaysISO, TRIAL_DAYS } = await import("./billing");
+  const { addDaysISO } = await import("./billing");
+  const { getPlatformSettings } = await import("./platform-settings");
   const now = new Date().toISOString();
   const today = now.slice(0, 10);
+  const { trialDays } = await getPlatformSettings();
 
   await db.insert(subscriptions).values({
     orgId,
     billingStatus: "trial",
-    trialEndsAt: addDaysISO(today, TRIAL_DAYS),
+    trialEndsAt: addDaysISO(today, trialDays),
     createdAt: now,
   });
 

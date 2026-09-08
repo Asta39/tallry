@@ -1,6 +1,7 @@
 import { db, subscriptions, members } from "@/db";
 import { eq, and, sql } from "drizzle-orm";
-import { Entitlements, resolveBillingAccess, addDaysISO, PER_STAFF_MONTHLY_FEE_CENTS, TRIAL_DAYS } from "./billing";
+import { Entitlements, resolveBillingAccess, addDaysISO } from "./billing";
+import { getPlatformSettings } from "./platform-settings";
 
 export async function getEntitlements(orgId: number): Promise<Entitlements> {
   const [sub] = await db
@@ -22,9 +23,10 @@ export async function getEntitlements(orgId: number): Promise<Entitlements> {
   // hitting this at once) is safely ignored rather than erroring.
   const now = new Date().toISOString();
   const today = now.slice(0, 10);
+  const { trialDays } = await getPlatformSettings();
   await db
     .insert(subscriptions)
-    .values({ orgId, billingStatus: "trial", trialEndsAt: addDaysISO(today, TRIAL_DAYS), createdAt: now })
+    .values({ orgId, billingStatus: "trial", trialEndsAt: addDaysISO(today, trialDays), createdAt: now })
     .onConflictDoNothing({ target: subscriptions.orgId });
 
   const [healed] = await db.select().from(subscriptions).where(eq(subscriptions.orgId, orgId)).limit(1);
@@ -49,7 +51,8 @@ export async function syncSeatFee(orgId: number): Promise<void> {
     .from(members)
     .where(and(eq(members.orgId, orgId), eq(members.active, true)));
   const seats = count + 1; // +1 for the owner, who never gets a members row
-  const monthlyFeeCents = seats * PER_STAFF_MONTHLY_FEE_CENTS;
+  const { perStaffMonthlyFeeCents } = await getPlatformSettings();
+  const monthlyFeeCents = seats * perStaffMonthlyFeeCents;
 
   if (monthlyFeeCents !== sub.monthlyFeeCents) {
     await db.update(subscriptions).set({ monthlyFeeCents }).where(eq(subscriptions.id, sub.id));

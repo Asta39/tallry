@@ -1,14 +1,14 @@
-import { TRIAL_DAYS } from "@/lib/billing";
+import { getPlatformSettings } from "@/lib/platform-settings";
 
 export const dynamic = "force-dynamic";
 
 const SUPPORT_PHONE = "+254115706542";
 const SUPPORT_PHONE_WA = "254115706542";
 
-const FAQS = [
+const faqs = (trialDays: number) => [
   {
     q: "My trial ended and everything's locked — what now?",
-    a: `That's expected once the ${TRIAL_DAYS}-day trial is over. Call or WhatsApp us below and we'll get your account activated the same day.`,
+    a: `That's expected once the ${trialDays}-day trial is over. Call or WhatsApp us below and we'll get your account activated the same day.`,
   },
   {
     q: "I did bank reconciliation but my new statement balance wasn't used.",
@@ -41,6 +41,8 @@ const FAQS = [
 ];
 
 export default async function SupportPage() {
+  const { trialDays } = await getPlatformSettings();
+  const FAQS = faqs(trialDays);
   return (
     <div className="space-y-16 pb-12">
       {/* Hero */}

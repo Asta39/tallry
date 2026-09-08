@@ -19,13 +19,14 @@ import { db, org, subscriptions, contacts, recurringTemplates } from "@/db";
 import { eq } from "drizzle-orm";
 import { advance, endOfMonthISO } from "./recurring";
 import { nowISO, todayISO } from "./money";
+import { getPlatformSettings } from "./platform-settings";
 import type { DocLineInput } from "./actions";
 
-export function getPlatformOrgId(): number | null {
-  const raw = process.env.PLATFORM_ORG_ID;
-  if (!raw) return null;
-  const id = Number(raw);
-  return Number.isFinite(id) && id > 0 ? id : null;
+/** Which org auto-invoices every other active client — now a super-admin
+ *  Settings field (platform_settings.platform_org_id), not an env var. */
+export async function getPlatformOrgId(): Promise<number | null> {
+  const { platformOrgId } = await getPlatformSettings();
+  return platformOrgId && platformOrgId > 0 ? platformOrgId : null;
 }
 
 function maintenanceLine(monthlyFeeCents: number): DocLineInput {
@@ -45,7 +46,7 @@ function maintenanceLine(monthlyFeeCents: number): DocLineInput {
  * operator can't invoice itself).
  */
 export async function ensurePlatformContactAndTemplate(clientOrgId: number): Promise<void> {
-  const platformOrgId = getPlatformOrgId();
+  const platformOrgId = await getPlatformOrgId();
   if (!platformOrgId || clientOrgId === platformOrgId) return;
 
   const [sub] = await db.select().from(subscriptions).where(eq(subscriptions.orgId, clientOrgId)).limit(1);

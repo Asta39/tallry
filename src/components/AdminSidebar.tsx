@@ -21,7 +21,7 @@ const groups = [
       { href: "/admin/orgs", label: "Organizations", icon: "🏢" },
       { href: "/admin/users", label: "Users", icon: "👥" },
       { href: "/admin/team", label: "Super Admins", icon: "🛡️" },
-      { href: "/admin/announcements", label: "Announcements", icon: "📣" },
+      { href: "/admin/settings", label: "Settings", icon: "⚙️" },
     ],
   },
   {
