@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { db, org, documents, contacts, portalOtps, portalSessions, reminderLog } from "@/db";
+import { db, org, documents, contacts, portalOtps, portalSessions, reminderLog, subscriptions, adminChurnEvents } from "@/db";
 import { and, eq, lt, inArray, sql } from "drizzle-orm";
 import { sendEmail } from "@/lib/email/resend";
 import InvoiceReminder from "@/lib/email/templates/InvoiceReminder";
@@ -83,11 +83,28 @@ export async function GET(request: Request) {
       sent++;
     }
 
+    // 3. Detect trials that lapsed without ever being activated — one row
+    // per org, ever (unique index on org_id+kind makes re-detection a
+    // no-op), so the churn trend chart reads real first-detected history.
+    const lapsedTrials = await db
+      .select({ orgId: subscriptions.orgId })
+      .from(subscriptions)
+      .where(and(eq(subscriptions.billingStatus, "trial"), lt(subscriptions.trialEndsAt, today)));
+    let churnEventsLogged = 0;
+    for (const t of lapsedTrials) {
+      const [claimed] = await db.insert(adminChurnEvents)
+        .values({ orgId: t.orgId, kind: "trial_lapsed", occurredAt: now, createdAt: now })
+        .onConflictDoNothing()
+        .returning({ id: adminChurnEvents.id });
+      if (claimed) churnEventsLogged++;
+    }
+
     return NextResponse.json({
       success: true,
       purgedOtps: otps.length,
       purgedSessions: sessions.length,
       remindersSent: sent,
+      churnEventsLogged,
     });
   } catch (error) {
     console.error("Cron daily error:", error);

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { SignOutButton } from "./SignOutButton";
+import { AdminGlobalSearch } from "./AdminGlobalSearch";
 
 const groups = [
   {
@@ -59,6 +60,9 @@ export function AdminSidebar({ userEmail }: { userEmail: string }) {
             <div className="text-[13.5px] font-semibold tracking-tight truncate leading-tight">Super Admin</div>
             <div className="text-[10.5px] text-[var(--color-ink-400)] mt-0.5">Zeno Platform</div>
           </div>
+        </div>
+        <div className="mt-3">
+          <AdminGlobalSearch />
         </div>
       </div>
 

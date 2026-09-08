@@ -1,7 +1,8 @@
 import { db, org, members, subscriptions, paymentEvents } from "@/db";
-import { sql, eq, count, desc } from "drizzle-orm";
-import { fmtKES } from "@/lib/money";
-import { resolveBillingAccess } from "@/lib/billing";
+import { sql, eq, and, count, desc, gte, lte, lt, inArray } from "drizzle-orm";
+import { fmtKES, todayISO } from "@/lib/money";
+import { resolveBillingAccess, addDaysISO } from "@/lib/billing";
+import { getUnresolvedFindings } from "@/lib/ledger-integrity";
 import { SignupsChart, PlanDonut, MpesaVolumeChart } from "@/components/AdminCharts";
 import Link from "next/link";
 
@@ -25,6 +26,8 @@ export default async function AdminDashboard() {
   const thisMonthKey = months[months.length - 1].key;
   const today = new Date().toISOString().slice(0, 10);
 
+  const soon = addDaysISO(today, 3);
+
   const [
     [orgCount],
     [userCount],
@@ -35,6 +38,9 @@ export default async function AdminDashboard() {
     mpesaMonthly,
     recentOrgs,
     recentEvents,
+    trialsExpiringSoon,
+    overdueMaintenance,
+    unresolvedFindings,
   ] = await Promise.all([
     db.select({ count: count() }).from(org),
     db.select({ count: count() }).from(members),
@@ -72,7 +78,24 @@ export default async function AdminDashboard() {
       createdAt: paymentEvents.createdAt,
       orgName: org.name,
     }).from(paymentEvents).leftJoin(org, eq(paymentEvents.orgId, org.id)).orderBy(desc(paymentEvents.createdAt)).limit(6),
+    db.select({ orgId: subscriptions.orgId, orgName: org.name, trialEndsAt: subscriptions.trialEndsAt })
+      .from(subscriptions)
+      .innerJoin(org, eq(subscriptions.orgId, org.id))
+      .where(and(eq(subscriptions.billingStatus, "trial"), gte(subscriptions.trialEndsAt, today), lte(subscriptions.trialEndsAt, soon)))
+      .orderBy(subscriptions.trialEndsAt),
+    db.select({ orgId: subscriptions.orgId, orgName: org.name, nextMaintenanceDueAt: subscriptions.nextMaintenanceDueAt })
+      .from(subscriptions)
+      .innerJoin(org, eq(subscriptions.orgId, org.id))
+      .where(and(eq(subscriptions.billingStatus, "active"), sql`${subscriptions.nextMaintenanceDueAt} IS NOT NULL`, lt(subscriptions.nextMaintenanceDueAt, today)))
+      .orderBy(subscriptions.nextMaintenanceDueAt),
+    getUnresolvedFindings(5),
   ]);
+
+  const findingOrgIds = [...new Set(unresolvedFindings.map((f) => f.orgId))];
+  const findingOrgs = findingOrgIds.length > 0
+    ? await db.select({ id: org.id, name: org.name }).from(org).where(inArray(org.id, findingOrgIds))
+    : [];
+  const findingOrgName = (id: number) => findingOrgs.find((o) => o.id === id)?.name || `Org #${id}`;
 
   const signupsByMonth = new Map((signupRows as unknown as { month: string; signups: number }[]).map((r) => [r.month, Number(r.signups)]));
   const signupSeries = months.map((m) => ({ label: m.label, signups: signupsByMonth.get(m.key) || 0 }));
@@ -131,6 +154,64 @@ export default async function AdminDashboard() {
         </div>
         <div className="text-[11.5px] text-[var(--color-ink-400)] shrink-0 pb-1">
           {new Date().toLocaleDateString("en-KE", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
+        </div>
+      </div>
+
+      {/* Needs attention */}
+      <div className="bg-white rounded-xl border border-[var(--color-ink-200)] shadow-sm p-5">
+        <h2 className="text-[13.5px] font-semibold mb-4">Needs attention</h2>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+          <div>
+            <div className="text-[11px] font-medium text-[var(--color-ink-400)] uppercase tracking-wide mb-2">
+              Trial expiring · {trialsExpiringSoon.length}
+            </div>
+            {trialsExpiringSoon.length === 0 ? (
+              <div className="text-[12px] text-[var(--color-ink-400)]">Nothing needs attention.</div>
+            ) : (
+              <ul className="space-y-1.5">
+                {trialsExpiringSoon.map((t) => (
+                  <li key={t.orgId} className="text-[12.5px] flex justify-between gap-2">
+                    <Link href={`/admin/orgs/${t.orgId}`} className="text-red-700 hover:underline truncate">{t.orgName || `Org #${t.orgId}`}</Link>
+                    <span className="text-[var(--color-ink-400)] tnum shrink-0">{t.trialEndsAt}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          <div>
+            <div className="text-[11px] font-medium text-[var(--color-ink-400)] uppercase tracking-wide mb-2">
+              Maintenance overdue · {overdueMaintenance.length}
+            </div>
+            {overdueMaintenance.length === 0 ? (
+              <div className="text-[12px] text-[var(--color-ink-400)]">Nothing needs attention.</div>
+            ) : (
+              <ul className="space-y-1.5">
+                {overdueMaintenance.map((m) => (
+                  <li key={m.orgId} className="text-[12.5px] flex justify-between gap-2">
+                    <Link href={`/admin/orgs/${m.orgId}`} className="text-red-700 hover:underline truncate">{m.orgName || `Org #${m.orgId}`}</Link>
+                    <span className="text-[var(--color-bad)] tnum shrink-0">{m.nextMaintenanceDueAt}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          <div>
+            <div className="text-[11px] font-medium text-[var(--color-ink-400)] uppercase tracking-wide mb-2">
+              Ledger findings · {unresolvedFindings.length}
+            </div>
+            {unresolvedFindings.length === 0 ? (
+              <div className="text-[12px] text-[var(--color-ink-400)]">Nothing needs attention.</div>
+            ) : (
+              <ul className="space-y-1.5">
+                {unresolvedFindings.map((f) => (
+                  <li key={f.id} className="text-[12.5px]">
+                    <Link href={`/admin/orgs/${f.orgId}`} className="text-red-700 hover:underline truncate">{findingOrgName(f.orgId)}</Link>
+                    <div className="text-[11px] text-[var(--color-ink-400)] truncate">{f.message}</div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </div>
       </div>
 

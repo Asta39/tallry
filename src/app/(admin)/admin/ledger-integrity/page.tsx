@@ -1,7 +1,8 @@
-import { db, ledgerIntegrityFindings, org, cronRuns } from "@/db";
-import { and, isNull, desc, eq, inArray } from "drizzle-orm";
+import { db, org, cronRuns } from "@/db";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import Link from "next/link";
 import { RunNowButton } from "./RunNowButton";
+import { getUnresolvedFindings } from "@/lib/ledger-integrity";
 
 export const dynamic = "force-dynamic";
 
@@ -10,11 +11,7 @@ function hoursAgo(iso: string): number {
 }
 
 export default async function LedgerIntegrityPage() {
-  const findings = await db
-    .select()
-    .from(ledgerIntegrityFindings)
-    .where(isNull(ledgerIntegrityFindings.resolvedAt))
-    .orderBy(desc(ledgerIntegrityFindings.severity), desc(ledgerIntegrityFindings.lastSeenAt));
+  const findings = await getUnresolvedFindings();
 
   const orgIds = [...new Set(findings.map((f) => f.orgId))];
   const orgs = orgIds.length > 0

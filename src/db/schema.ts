@@ -1461,3 +1461,29 @@ export const ledgerIntegrityFindings = pgTable("ledger_integrity_findings", {
   orgCheckUnique: uniqueIndex("idx_ledger_integrity_org_check").on(t.orgId, t.checkKey),
   unresolvedIdx: index("idx_ledger_integrity_unresolved").on(t.resolvedAt),
 }));
+
+/** Freeform internal notes a super admin leaves against an org — "spoke to
+ *  owner, paying Friday" — append-only, same shape as the contacts/deals
+ *  `activities` pattern but platform-side. */
+export const orgAdminNotes = pgTable("org_admin_notes", {
+  id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
+  authorEmail: text("author_email").notNull(),
+  content: text("content").notNull(),
+  createdAt: text("created_at").notNull(),
+}, (t) => ({
+  orgIdx: index("idx_org_admin_notes_org").on(t.orgId),
+}));
+
+/** Discrete churn events — logged once per org per kind (unique index makes
+ *  re-detection a no-op, not a duplicate), so a trend chart reads real
+ *  history instead of a fabricated snapshot. */
+export const adminChurnEvents = pgTable("admin_churn_events", {
+  id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
+  kind: text("kind").notNull(), // suspended | trial_lapsed
+  occurredAt: text("occurred_at").notNull(),
+  createdAt: text("created_at").notNull(),
+}, (t) => ({
+  orgKindUnique: uniqueIndex("idx_admin_churn_events_org_kind").on(t.orgId, t.kind),
+}));

@@ -1032,3 +1032,24 @@ CREATE TABLE IF NOT EXISTS platform_settings (
 INSERT INTO platform_settings (id, trial_days, per_staff_monthly_fee_cents, platform_org_id, updated_at)
 VALUES (1, 30, 100000, 30, now()::text)
 ON CONFLICT (id) DO NOTHING;
+
+-- Internal notes a super admin leaves against an org.
+CREATE TABLE IF NOT EXISTS org_admin_notes (
+  id SERIAL PRIMARY KEY,
+  org_id INTEGER NOT NULL REFERENCES org(id),
+  author_email TEXT NOT NULL,
+  content TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_org_admin_notes_org ON org_admin_notes (org_id);
+
+-- Discrete churn events (suspended / trial lapsed) for a real trend chart,
+-- not a snapshot. Unique per (org, kind) so re-detection is a no-op.
+CREATE TABLE IF NOT EXISTS admin_churn_events (
+  id SERIAL PRIMARY KEY,
+  org_id INTEGER NOT NULL REFERENCES org(id),
+  kind TEXT NOT NULL,
+  occurred_at TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_admin_churn_events_org_kind ON admin_churn_events (org_id, kind);

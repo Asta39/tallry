@@ -46,6 +46,28 @@ export function SignupsChart({ data }: { data: { label: string; signups: number 
   );
 }
 
+/** Weekly churn events (suspended + trial-lapsed) over the last N weeks —
+ *  a real event trend, not a current-state snapshot. */
+export function ChurnTrendChart({ data }: { data: { label: string; suspended: number; trialLapsed: number }[] }) {
+  const mounted = useMounted();
+  if (!mounted) return <div className="h-48 w-full bg-[var(--color-ink-50)]/40 rounded-lg animate-pulse" />;
+
+  return (
+    <div className="h-48 w-full">
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={data} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e8e8ed" />
+          <XAxis dataKey="label" axisLine={false} tickLine={false} tick={axisTick} dy={8} />
+          <YAxis axisLine={false} tickLine={false} tick={axisTick} allowDecimals={false} width={30} />
+          <Tooltip cursor={{ fill: "#f5f5f7" }} contentStyle={tooltipStyle} />
+          <Bar dataKey="trialLapsed" name="Trial lapsed" stackId="churn" fill="#d2d2d7" radius={[0, 0, 0, 0]} />
+          <Bar dataKey="suspended" name="Suspended" stackId="churn" fill="#dc2626" radius={[4, 4, 0, 0]} />
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
 const PLAN_COLORS: Record<string, string> = {
   active: "#0f766e",
   trial: "#5eead4",

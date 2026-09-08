@@ -1,6 +1,18 @@
 import { db, accounts, documents, documentLines, journalEntries, journalLines, payments, expenseClaims, bankAccounts, bankTransactions, org, ledgerIntegrityFindings } from "@/db";
-import { and, eq, inArray, ne, isNull, notInArray, sql } from "drizzle-orm";
+import { and, eq, inArray, ne, isNull, notInArray, sql, desc } from "drizzle-orm";
 import { fmtKES } from "@/lib/money";
+
+/** Every currently-unresolved finding, worst severity/most-recent first —
+ *  shared by the Ledger Integrity page and the Overview needs-attention
+ *  panel so both read the exact same definition of "unresolved". */
+export async function getUnresolvedFindings(limit?: number) {
+  const q = db
+    .select()
+    .from(ledgerIntegrityFindings)
+    .where(isNull(ledgerIntegrityFindings.resolvedAt))
+    .orderBy(desc(ledgerIntegrityFindings.severity), desc(ledgerIntegrityFindings.lastSeenAt));
+  return limit ? q.limit(limit) : q;
+}
 
 export type IntegrityFinding = {
   checkKey: string;

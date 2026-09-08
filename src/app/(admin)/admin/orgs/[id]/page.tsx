@@ -7,7 +7,9 @@ import { resolveBillingAccess } from "@/lib/billing";
 import { getPlatformSettings } from "@/lib/platform-settings";
 import { BillingPanel } from "./BillingPanel";
 import { ModuleAccessPanel } from "./ModuleAccessPanel";
+import { OrgNotesPanel } from "./OrgNotesPanel";
 import { ImpersonateButton } from "../ImpersonateButton";
+import { listOrgNotes } from "@/lib/admin-notes";
 
 export const dynamic = "force-dynamic";
 
@@ -32,6 +34,7 @@ export default async function AdminOrgDetailPage({ params }: { params: Promise<{
     recentEvents,
     [lastDoc],
     billingHistory,
+    notes,
   ] = await Promise.all([
     o.userId
       ? db.execute(sql`select email, substr(created_at::text, 1, 10) as joined, substr(coalesce(last_sign_in_at::text, ''), 1, 10) as last_login from auth.users where id::text = ${o.userId}`)
@@ -45,6 +48,7 @@ export default async function AdminOrgDetailPage({ params }: { params: Promise<{
     db.select().from(paymentEvents).where(eq(paymentEvents.orgId, orgId)).orderBy(desc(paymentEvents.createdAt)).limit(5),
     db.select({ createdAt: documents.createdAt }).from(documents).where(eq(documents.orgId, orgId)).orderBy(desc(documents.createdAt)).limit(1),
     db.select().from(billingPayments).where(eq(billingPayments.orgId, orgId)).orderBy(desc(billingPayments.createdAt)),
+    listOrgNotes(orgId),
   ]);
 
   const owner = (ownerRows as unknown as { email: string; joined: string; last_login: string }[])[0];
@@ -223,6 +227,10 @@ export default async function AdminOrgDetailPage({ params }: { params: Promise<{
           )}
         </Card>
       </div>
+
+      <Card title="Internal notes">
+        <OrgNotesPanel orgId={o.id} notes={notes} />
+      </Card>
     </div>
   );
 }

@@ -3,11 +3,11 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { db, superAdmins, subscriptions, billingPayments, org, announcements, members, platformSettings } from "@/db";
-import { eq, and, sql } from "drizzle-orm";
+import { db, superAdmins, subscriptions, billingPayments, org, announcements, members, platformSettings, adminChurnEvents, orgAdminNotes } from "@/db";
+import { eq, and, sql, inArray } from "drizzle-orm";
 import { requireSuperAdmin } from "@/lib/super-admin";
 import { logAdminAction } from "@/lib/admin-audit";
-import { endOfMonthISO, nextMonthEndISO } from "@/lib/billing";
+import { endOfMonthISO, nextMonthEndISO, addDaysISO } from "@/lib/billing";
 import { getPlatformSettings, ensurePlatformSettingsRow, PLATFORM_SETTINGS_ID } from "@/lib/platform-settings";
 import { nowISO } from "@/lib/money";
 import { runAndStoreAllOrgChecks } from "@/lib/ledger-integrity";
@@ -343,6 +343,7 @@ export async function suspendOrgAction(orgId: number) {
   await db.update(subscriptions).set({ billingStatus: "suspended" }).where(eq(subscriptions.id, existing.id));
   // A suspended client shouldn't keep accumulating draft maintenance invoices.
   await setPlatformTemplateActive(orgId, false);
+  await db.insert(adminChurnEvents).values({ orgId, kind: "suspended", occurredAt: nowISO(), createdAt: nowISO() }).onConflictDoNothing();
   await logAdminAction({
     actorEmail: user.email!,
     action: "suspend_org",
@@ -457,4 +458,36 @@ export async function updatePlatformSettingsAction(data: {
 
   revalidatePath("/admin/settings");
   return { success: true };
+}
+
+export async function addOrgNoteAction(orgId: number, content: string) {
+  const user = await requireSuperAdmin();
+  const trimmed = content.trim();
+  if (!trimmed) throw new Error("Write something first");
+  await db.insert(orgAdminNotes).values({ orgId, authorEmail: user.email!, content: trimmed, createdAt: nowISO() });
+  revalidatePath(`/admin/orgs/${orgId}`);
+  return { success: true };
+}
+
+/** Extends trialEndsAt for every selected org currently on trial — active/
+ *  suspended orgs in the same batch are silently skipped, since a mixed
+ *  selection is the expected case, not an error. */
+export async function bulkExtendTrialAction(orgIds: number[], days: number) {
+  const user = await requireSuperAdmin();
+  if (!Number.isInteger(days) || days < 1) throw new Error("Days must be a positive whole number");
+  if (orgIds.length === 0) throw new Error("Select at least one org");
+
+  const rows = await db.select().from(subscriptions).where(inArray(subscriptions.orgId, orgIds));
+  const trialRows = rows.filter((r) => r.billingStatus === "trial");
+  for (const r of trialRows) {
+    await db.update(subscriptions).set({ trialEndsAt: addDaysISO(r.trialEndsAt, days) }).where(eq(subscriptions.id, r.id));
+  }
+
+  await logAdminAction({
+    actorEmail: user.email!,
+    action: "bulk_extend_trial",
+    detail: `Extended ${trialRows.length}/${orgIds.length} selected org(s) by ${days}d (skipped non-trial orgs)`,
+  });
+  revalidatePath("/admin/orgs");
+  return { success: true, extended: trialRows.length, skipped: orgIds.length - trialRows.length };
 }

@@ -2,14 +2,29 @@ import { db, paymentEvents, recurringTemplates, smsLog, org } from "@/db";
 import { sql, eq, and, desc, lt, inArray } from "drizzle-orm";
 import Link from "next/link";
 import { fmtKES } from "@/lib/money";
+import { ChurnTrendChart } from "@/components/AdminCharts";
 
 export const dynamic = "force-dynamic";
+
+// Monday-anchored, to match Postgres's date_trunc('week', ...) (ISO weeks).
+function weekKeys(n: number): { key: string; label: string }[] {
+  const out: { key: string; label: string }[] = [];
+  const now = new Date();
+  const mondayOffset = (now.getDay() + 6) % 7;
+  for (let i = n - 1; i >= 0; i--) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - i * 7 - mondayOffset);
+    out.push({ key: d.toISOString().slice(0, 10), label: d.toLocaleDateString("en-KE", { month: "short", day: "numeric" }) });
+  }
+  return out;
+}
 
 export default async function AdminHealthPage() {
   const today = new Date().toISOString().slice(0, 10);
   const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString();
+  const weeks = weekKeys(12);
 
-  const [failedEvents, overdueRecurring, failedSms, stuckOnboarding] = await Promise.all([
+  const [failedEvents, overdueRecurring, failedSms, stuckOnboarding, churnRows] = await Promise.all([
     db.select({
       id: paymentEvents.id,
       orgName: org.name,
@@ -48,9 +63,28 @@ export default async function AdminHealthPage() {
       where o.name = '' and u.created_at < ${sevenDaysAgo}::timestamptz
       order by u.created_at desc limit 10
     `),
+    db.execute(sql`
+      select to_char(date_trunc('week', occurred_at::timestamptz), 'YYYY-MM-DD') as week, kind, count(*)::int as n
+      from admin_churn_events
+      where occurred_at::timestamptz >= now() - interval '12 weeks'
+      group by 1, 2
+    `),
   ]);
 
   const stuck = stuckOnboarding as unknown as { id: number; email: string; joined: string }[];
+  const churnRaw = churnRows as unknown as { week: string; kind: string; n: number }[];
+  const churnByWeek = new Map<string, { suspended: number; trialLapsed: number }>();
+  for (const r of churnRaw) {
+    const cur = churnByWeek.get(r.week) || { suspended: 0, trialLapsed: 0 };
+    if (r.kind === "suspended") cur.suspended = r.n;
+    else if (r.kind === "trial_lapsed") cur.trialLapsed = r.n;
+    churnByWeek.set(r.week, cur);
+  }
+  const churnSeries = weeks.map((w) => ({
+    label: w.label,
+    suspended: churnByWeek.get(w.key)?.suspended || 0,
+    trialLapsed: churnByWeek.get(w.key)?.trialLapsed || 0,
+  }));
   const issueCount = failedEvents.length + overdueRecurring.length + failedSms.length + stuck.length;
 
   const Section = ({ title, count, tone, children }: { title: string; count: number; tone: "bad" | "warn"; children: React.ReactNode }) => (
@@ -83,6 +117,14 @@ export default async function AdminHealthPage() {
           <span className={`h-2 w-2 rounded-full ${issueCount === 0 ? "bg-emerald-500" : "bg-amber-500"}`} />
           {issueCount === 0 ? "All clear" : `${issueCount} item${issueCount === 1 ? "" : "s"} need attention`}
         </span>
+      </div>
+
+      <div className="bg-white rounded-xl border border-[var(--color-ink-200)] shadow-sm p-5">
+        <div className="flex items-baseline justify-between mb-3">
+          <h2 className="text-[13.5px] font-semibold">Churn trend</h2>
+          <span className="text-[11.5px] text-[var(--color-ink-400)]">last 12 weeks · suspended + trial lapsed</span>
+        </div>
+        <ChurnTrendChart data={churnSeries} />
       </div>
 
       <Section title="Failed / Unmatched M-Pesa Events" count={failedEvents.length} tone="bad">
