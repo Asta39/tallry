@@ -12,7 +12,7 @@ export default async function WelcomeTrialPage() {
 
   const access = await getAccess();
   if (!access || !access.orgRow.name) redirect("/onboarding");
-  if (access.orgRow.trialWelcomeSeenAt) redirect("/");
+  if (access.orgRow.trialWelcomeSeenAt) redirect("/home");
 
   const { trialDays, perStaffMonthlyFeeCents } = await getPlatformSettings();
 

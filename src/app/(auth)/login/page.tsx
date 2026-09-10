@@ -26,7 +26,7 @@ export default function LoginPage() {
           : error.message);
         return;
       }
-      router.push("/");
+      router.push("/home");
       router.refresh();
     });
   }

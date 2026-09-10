@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 export default async function StaffPage() {
   const access = await getAccess();
   if (!access) redirect("/login");
-  if (access.role !== "admin") redirect("/");
+  if (access.role !== "admin") redirect("/home");
 
   const [orgRow] = await db.select().from(org).where(eq(org.id, access.orgId)).limit(1);
   const staff = await db.select().from(members).where(eq(members.orgId, access.orgId));

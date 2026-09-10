@@ -21,7 +21,7 @@ function fmtTime(iso: string | null): string {
 
 export default async function TimeTrackingPage({ searchParams }: { searchParams: Promise<{ from?: string; to?: string }> }) {
   const o = await getOrg();
-  if (!o.timeTrackingEnabled) redirect("/");
+  if (!o.timeTrackingEnabled) redirect("/home");
 
   const access = await getAccess();
   const canSeeTeam = !!access?.perms.has("payroll");

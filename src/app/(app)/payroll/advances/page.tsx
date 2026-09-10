@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 export default async function SalaryAdvancesPage() {
   const access = await getAccess();
   if (!access) redirect("/login");
-  if (!access.perms.has("salary_advances")) redirect("/");
+  if (!access.perms.has("salary_advances")) redirect("/home");
 
   const canManage = access.perms.has("payroll");
 

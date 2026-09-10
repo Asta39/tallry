@@ -33,7 +33,7 @@ export function WelcomeTrialClient({ orgName, trialDays, perStaffFeeKes }: { org
     startTransition(async () => {
       try {
         await completeWelcomeTrialAction(pref);
-        router.push("/");
+        router.push("/home");
         router.refresh();
       } catch (err) {
         setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");

@@ -15,7 +15,7 @@ const groups: {
   {
     label: null,
     items: [
-      { href: "/", label: "Home", icon: "🏠", perm: "dashboard" },
+      { href: "/home", label: "Home", icon: "🏠", perm: "dashboard" },
       { href: "/announcements", label: "Announcements", icon: "📣", perm: "announcements" },
       { href: "/time-tracking", label: "Time Tracking", icon: "⏱️", perm: "dashboard" },
       { href: "/leave-requests", label: "Leave Requests", icon: "🌴", perm: "leave_requests" },
@@ -129,8 +129,7 @@ export function Sidebar({ orgName, orgEmail, logoUrl, perms, roleLabel, timeTrac
     }))
     .filter((g) => g.items.length > 0);
 
-  const active = (href: string) =>
-    href === "/" ? pathname === "/" : pathname.startsWith(href);
+  const active = (href: string) => pathname.startsWith(href);
 
   const displayName = orgName || "My Business";
   const initials = displayName

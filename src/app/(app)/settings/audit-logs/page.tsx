@@ -33,7 +33,7 @@ export default async function AuditLogsPage({
   if (!access) redirect("/login");
   // Admin-only, deliberately not a toggleable module perm — an org owner
   // should never be able to grant a staff role visibility into who-did-what.
-  if (!access.isOwner && access.role !== "admin") redirect("/");
+  if (!access.isOwner && access.role !== "admin") redirect("/home");
 
   const sp = await searchParams;
   const str = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v) || "";

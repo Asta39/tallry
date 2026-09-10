@@ -5,6 +5,6 @@ import { getAccess } from "./access";
 export async function requirePerm(key: string) {
   const access = await getAccess();
   if (!access) redirect("/login");
-  if (!access.perms.has(key)) redirect("/");
+  if (!access.perms.has(key)) redirect("/home");
   return access;
 }

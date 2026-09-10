@@ -10,6 +10,11 @@ const PUBLIC_PATHS = [
   "/manifest.webmanifest", "/app-icon", "/sw.js",
 ];
 
+/** Exact-match public paths — startsWith would also match every real app
+ *  route (everything starts with "/"), so the marketing landing page needs
+ *  its own check instead of joining the prefix list above. */
+const PUBLIC_EXACT_PATHS = ["/"];
+
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
 
@@ -40,7 +45,7 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const { pathname } = request.nextUrl;
-  const isPublic = PUBLIC_PATHS.some((p) => pathname.startsWith(p));
+  const isPublic = PUBLIC_PATHS.some((p) => pathname.startsWith(p)) || PUBLIC_EXACT_PATHS.includes(pathname);
 
   if (!user && !isPublic) {
     // Not logged in → redirect to /login
@@ -49,10 +54,10 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  if (user && (pathname === "/login" || pathname === "/signup")) {
-    // Already logged in → redirect to dashboard
+  if (user && (pathname === "/login" || pathname === "/signup" || pathname === "/")) {
+    // Already logged in → redirect to the dashboard, not the marketing page
     const url = request.nextUrl.clone();
-    url.pathname = "/";
+    url.pathname = "/home";
     return NextResponse.redirect(url);
   }
 

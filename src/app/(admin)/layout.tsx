@@ -14,7 +14,7 @@ export default async function AdminLayout({
   }
 
   if (!(await isSuperAdmin(user.email))) {
-    redirect("/");
+    redirect("/home");
   }
 
   return (

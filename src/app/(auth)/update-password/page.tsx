@@ -31,7 +31,7 @@ export default function UpdatePasswordPage() {
         setError(error.message);
         return;
       }
-      router.push("/");
+      router.push("/home");
       router.refresh();
     });
   }
