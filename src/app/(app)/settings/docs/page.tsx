@@ -7,6 +7,11 @@ interface Step {
   desc: string;
 }
 
+interface Screenshot {
+  src: string;
+  caption: string;
+}
+
 interface DocSection {
   num: string;
   title: string;
@@ -20,6 +25,9 @@ interface DocSection {
   steps?: Step[];
   note?: string;
   seeAlso?: string[];
+  /** Real screens captured from a live account (public/docs/screenshots) —
+   *  same images embedded in the PDF, gated by the same perm as the section. */
+  screenshots?: Screenshot[];
 }
 
 const SECTIONS: DocSection[] = [
@@ -67,6 +75,7 @@ const SECTIONS: DocSection[] = [
       "The owner account always sees everything and can never be locked out, regardless of any toggle.",
     ],
     seeAlso: ["18"],
+    screenshots: [{ src: "/docs/screenshots/staff-roles.png", caption: "Staff & Roles — team list and the permission matrix, live." }],
   },
   {
     num: "04",
@@ -82,6 +91,7 @@ const SECTIONS: DocSection[] = [
       "A calendar surfaces upcoming due dates; a red banner surfaces anything overdue or needing attention today.",
     ],
     seeAlso: ["08", "15"],
+    screenshots: [{ src: "/docs/screenshots/home-dashboard.png", caption: "Home — KPI cards, invoice/quote overview." }],
   },
   {
     num: "05",
@@ -98,6 +108,10 @@ const SECTIONS: DocSection[] = [
       "Source, Assigned to, and Next follow-up are non-financial CRM fields — the contacts list has a \"Follow up due\" filter that becomes a daily worklist. A role without the Financials permission (the Marketer default) can create and follow up with contacts here but never sees their balances, document totals, or profitability — those tabs simply don't appear.",
     ],
     seeAlso: ["07", "08", "10", "21"],
+    screenshots: [
+      { src: "/docs/screenshots/contacts-list.png", caption: "Customers & Vendors — list with follow-up column." },
+      { src: "/docs/screenshots/contact-detail.png", caption: "A contact's own page — overview, documents, statement." },
+    ],
   },
   {
     num: "06",
@@ -111,6 +125,7 @@ const SECTIONS: DocSection[] = [
       "Entirely optional: you can quote or invoice a customer directly without ever creating a deal.",
     ],
     note: "Deals is deliberately kept separate and simple — it's for tracking a conversation, not for replacing the quote/invoice cycle itself.",
+    screenshots: [{ src: "/docs/screenshots/deals-pipeline.png", caption: "Deals — pipeline board." }],
   },
   {
     num: "07",
@@ -130,6 +145,7 @@ const SECTIONS: DocSection[] = [
       { title: "Convert once accepted", desc: "\"Convert to invoice →\" — every line, tax setting and heading carries straight across." },
     ],
     seeAlso: ["05", "08"],
+    screenshots: [{ src: "/docs/screenshots/quotes-list.png", caption: "Quotes — status totals and list." }],
   },
   {
     num: "08",
@@ -145,6 +161,12 @@ const SECTIONS: DocSection[] = [
       "Payments Received lists every payment ever applied to an invoice, whether entered manually or captured through a gateway.",
     ],
     seeAlso: ["02", "05", "13"],
+    screenshots: [
+      { src: "/docs/screenshots/invoices-list.png", caption: "Invoices — Draft/Pending/Partial/Overdue/Paid totals." },
+      { src: "/docs/screenshots/invoice-detail.png", caption: "An invoice's own page — status, payments, credit-note actions." },
+      { src: "/docs/screenshots/payments-received.png", caption: "Payments Received — every payment against every invoice." },
+      { src: "/docs/screenshots/credit-notes-list.png", caption: "Credit Notes — Available / Partly applied / Fully applied." },
+    ],
   },
   {
     num: "09",
@@ -159,6 +181,10 @@ const SECTIONS: DocSection[] = [
       "Once approved, a claim is payable via Record payment or Pay via gateway, straight to the employee's M-Pesa number.",
     ],
     seeAlso: ["12", "15"],
+    screenshots: [
+      { src: "/docs/screenshots/expenses-list.png", caption: "Expenses — list." },
+      { src: "/docs/screenshots/expense-claims.png", caption: "Expense Claims — submit and review." },
+    ],
   },
   {
     num: "10",
@@ -173,6 +199,10 @@ const SECTIONS: DocSection[] = [
       "Payment Runs batch-pay several outstanding bills together. Stuck Payouts (Gateway Payouts permission only) surfaces any gateway payout still pending confirmation.",
     ],
     seeAlso: ["05", "11"],
+    screenshots: [
+      { src: "/docs/screenshots/bills-list.png", caption: "Bills — list." },
+      { src: "/docs/screenshots/purchase-orders.png", caption: "Purchase Orders — list." },
+    ],
   },
   {
     num: "11",
@@ -186,6 +216,10 @@ const SECTIONS: DocSection[] = [
       "Multiple warehouses hold separate stock counts for the same item; Stock Transfers move quantity between them with its own record, distinct from a sale or purchase.",
     ],
     seeAlso: ["10", "13"],
+    screenshots: [
+      { src: "/docs/screenshots/items-stock.png", caption: "Items & Stock — catalog." },
+      { src: "/docs/screenshots/warehouses.png", caption: "Warehouses." },
+    ],
   },
   {
     num: "12",
@@ -200,6 +234,7 @@ const SECTIONS: DocSection[] = [
       "Transfer between accounts moves money between your own accounts without it looking like income or an expense.",
     ],
     seeAlso: ["08", "13"],
+    screenshots: [{ src: "/docs/screenshots/banking.png", caption: "Bank & M-Pesa — accounts, reconcile, transfer." }],
   },
   {
     num: "13",
@@ -214,6 +249,7 @@ const SECTIONS: DocSection[] = [
       "Every account is one of five types — asset, liability, equity, income, expense — and that type can never change after creation.",
     ],
     seeAlso: ["08", "12", "15"],
+    screenshots: [{ src: "/docs/screenshots/accountant.png", caption: "Chart of Accounts and journal tools." }],
   },
   {
     num: "14",
@@ -226,6 +262,7 @@ const SECTIONS: DocSection[] = [
       "Registering an asset without a paying account still saves it — marked \"Not recorded\" until \"Record purchase\" finishes posting it.",
       "Run Depreciation posts one period's straight-line entry at a time. Disposal (Sold, Scrapped, Traded in) asks which account received the proceeds.",
     ],
+    screenshots: [{ src: "/docs/screenshots/fixed-assets.png", caption: "Fixed Assets — register." }],
   },
   {
     num: "15",
@@ -240,6 +277,10 @@ const SECTIONS: DocSection[] = [
       "Analytics is the decision layer — revenue trend, top customers, top items/services, and quote conversion rate — with no locked or paywalled cards.",
     ],
     seeAlso: ["13"],
+    screenshots: [
+      { src: "/docs/screenshots/reports.png", caption: "Reports — trial balance, P&L, VAT." },
+      { src: "/docs/screenshots/analytics.png", caption: "Analytics — activity rings and invoice mix." },
+    ],
   },
   {
     num: "16",
@@ -255,6 +296,11 @@ const SECTIONS: DocSection[] = [
       "Loans is a longer-term staff loan recovered through payroll deductions over time. Salary Advances is the lighter, self-service version — a staff member can request one themselves, or a manager can issue one directly.",
     ],
     seeAlso: ["02", "12"],
+    screenshots: [
+      { src: "/docs/screenshots/payroll-runs.png", caption: "Payroll Runs." },
+      { src: "/docs/screenshots/employees.png", caption: "Employees." },
+      { src: "/docs/screenshots/salary-advances.png", caption: "Salary Advances." },
+    ],
   },
   {
     num: "17",
@@ -268,6 +314,7 @@ const SECTIONS: DocSection[] = [
       "\"Issue automatically\" sends it the moment it's generated; leave it off and it's created as a draft for review first.",
     ],
     seeAlso: ["08"],
+    screenshots: [{ src: "/docs/screenshots/recurring-templates.png", caption: "Recurring Templates." }],
   },
   {
     num: "18",
@@ -282,6 +329,7 @@ const SECTIONS: DocSection[] = [
       "Data Segregation (Settings) restricts staff to only documents assigned to them; the \"View org-wide documents\" permission grants a specific role full visibility even with segregation on.",
     ],
     seeAlso: ["03"],
+    screenshots: [{ src: "/docs/screenshots/staff-roles.png", caption: "Staff & Roles — the full permission matrix, live." }],
   },
   {
     num: "19",
@@ -296,6 +344,10 @@ const SECTIONS: DocSection[] = [
       "Payment Gateways connects M-Pesa Daraja or Kopo Kopo for automated, matched inbound payments — no manual reconciliation needed for gateway traffic.",
     ],
     seeAlso: ["18"],
+    screenshots: [
+      { src: "/docs/screenshots/settings.png", caption: "Settings." },
+      { src: "/docs/screenshots/billing.png", caption: "Billing." },
+    ],
   },
   {
     num: "20",
@@ -323,6 +375,7 @@ const SECTIONS: DocSection[] = [
       "SMS only for now — there's no programmatic WhatsApp sending (only the static click-to-chat link elsewhere in the app) and no email campaigns yet.",
     ],
     seeAlso: ["05"],
+    screenshots: [{ src: "/docs/screenshots/campaigns.png", caption: "Campaigns — compose and send." }],
   },
   {
     num: "22",
@@ -442,6 +495,22 @@ export default async function DocsPage() {
                   </li>
                 ))}
               </ul>
+
+              {s.screenshots && s.screenshots.length > 0 && (
+                <div className="mt-4 space-y-3">
+                  {s.screenshots.map((shot, i) => (
+                    <figure key={i} className="m-0">
+                      <img
+                        src={shot.src}
+                        alt={shot.caption}
+                        className="w-full rounded-lg border border-[var(--color-ink-200)] shadow-sm"
+                        loading="lazy"
+                      />
+                      <figcaption className="text-[11px] text-[var(--color-ink-400)] mt-1.5">{shot.caption}</figcaption>
+                    </figure>
+                  ))}
+                </div>
+              )}
 
               {s.steps && (
                 <>
