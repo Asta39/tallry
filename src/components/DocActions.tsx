@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   issueDocument,
   voidDoc,
+  deleteDraftDoc,
   markQuote,
   convertQuoteToInvoice,
   recordPayment,
@@ -34,6 +35,15 @@ const METHOD_TO_KIND: Record<string, string> = {
   cash: "cash",
   cheque: "bank",
   card: "bank",
+};
+
+const LIST_HREF: Record<string, string> = {
+  invoice: "/sales/invoices",
+  quote: "/sales/quotes",
+  credit_note: "/sales/credit-notes",
+  bill: "/purchases/bills",
+  purchase_order: "/purchases/orders",
+  expense: "/purchases/expenses",
 };
 
 function bestBankIdForMethod(banks: { id: number; kind?: string; label?: string }[], method: string): number | "" {
@@ -291,6 +301,29 @@ export function DocActions({
           doc.status !== "pending_approval" && (
           <button className={danger} disabled={pending} onClick={() => run(() => voidDoc(doc.id))}>
             Void
+          </button>
+        )}
+        {/* A draft never posted anything — nothing to reverse, so this is a
+            real delete, not a Void. Only offered while still a draft; once
+            issued, use Void (or a Credit Note for an invoice) instead. */}
+        {doc.status === "draft" && (
+          <button
+            className={danger}
+            disabled={pending}
+            onClick={() => {
+              if (!confirm("Delete this draft? This can't be undone.")) return;
+              setError(null);
+              start(async () => {
+                try {
+                  await deleteDraftDoc(doc.id);
+                  router.push(LIST_HREF[doc.type] || "/");
+                } catch (e) {
+                  setError(isStaleServerActionError(e) ? STALE_ACTION_MESSAGE : e instanceof Error ? e.message : "Failed");
+                }
+              });
+            }}
+          >
+            Delete draft
           </button>
         )}
       </div>

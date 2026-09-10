@@ -24,6 +24,8 @@ import {
   paymentGateways,
   paymentEvents,
   costCenters,
+  reminderLog,
+  approvalRequestTokens,
 } from "@/db";
 import { getGateway } from "@/lib/payments/gateway";
 import { notifyAccountantOfPayout } from "@/lib/payout-notify";
@@ -2132,6 +2134,37 @@ export async function voidDoc(docId: number) {
   const result = await withOrg(() => _voidDoc(docId));
   await logAudit({ action: "void", module: doc ? DOC_MODULE[doc.type] : "invoices", recordId: docId, recordLabel: doc?.number });
   return result;
+}
+
+/** Discards a draft that was never issued — nothing has posted yet (no
+ *  journal entry, no payment, no fiscal signature), so this is a real
+ *  delete, not a Void. Void reverses a document that already had a real
+ *  effect on the books; a draft never had one. Scoped strictly to
+ *  status === "draft" so an issued document can never be deleted this way —
+ *  once issued, the only reversal paths are Void (non-invoice types) or a
+ *  Credit Note (invoices), both of which preserve the record. */
+async function _deleteDraftDoc(docId: number) {
+  const orgId = currentOrgId();
+  const [doc] = await db.select().from(documents).where(and(eq(documents.orgId, orgId), eq(documents.id, docId))).limit(1);
+  if (!doc) throw new Error("Document not found");
+  if (doc.status !== "draft") throw new Error("Only a draft can be deleted — void or credit-note an issued document instead");
+  if (doc.paidCents > 0 || doc.creditedCents > 0) throw new Error("This draft already has a payment or credit applied — that shouldn't be possible, contact support");
+
+  await db.delete(documentAssignments).where(and(eq(documentAssignments.orgId, orgId), eq(documentAssignments.documentId, docId)));
+  await db.delete(reminderLog).where(and(eq(reminderLog.orgId, orgId), eq(reminderLog.documentId, docId)));
+  await db.delete(approvalRequestTokens).where(and(eq(approvalRequestTokens.orgId, orgId), eq(approvalRequestTokens.documentId, docId)));
+  await db.delete(documentLines).where(and(eq(documentLines.orgId, orgId), eq(documentLines.documentId, docId)));
+  await db.delete(documents).where(and(eq(documents.orgId, orgId), eq(documents.id, docId)));
+
+  revalidatePath("/sales");
+  revalidatePath("/purchases");
+}
+
+export async function deleteDraftDoc(docId: number) {
+  const [doc] = await db.select({ number: documents.number, type: documents.type }).from(documents).where(eq(documents.id, docId)).limit(1);
+  await withOrg(() => _deleteDraftDoc(docId));
+  await logAudit({ action: "delete", module: doc ? DOC_MODULE[doc.type] : "invoices", recordId: docId, recordLabel: doc?.number });
+  return { success: true };
 }
 export async function markQuote(docId: number, status: "accepted" | "declined") {
   const result = await withOrg(() => _markQuote(docId, status));
