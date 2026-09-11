@@ -270,16 +270,22 @@ export default function GlyphPortal({
     };
 
     const frame = (time?: number) => {
-      raf = 0;
-      if (disposed) return;
+      if (disposed) { raf = 0; return; }
       if (time !== undefined && !browserFrameSeen) {
         browserFrameSeen = true; stalled ||= performance.now() - mountedAt > 2500; dirty = true;
       }
       if (dirty) { dirty = false; layout(); }
       if (ready) paint(position());
+      // Self-perpetuating while in view, rather than a single-shot frame
+      // re-armed only by discrete scroll events: position() reads live
+      // geometry every tick, so a dropped scroll event or a stale `raf`
+      // guard (e.g. a fast fling racing the visibility observer's cancel)
+      // heals itself on the very next frame instead of freezing paint at
+      // whatever state it was mid-transition.
+      raf = active ? requestAnimationFrame(frame) : 0;
     };
     const schedule = () => { if (!raf && active) raf = requestAnimationFrame(frame); };
-    const resize = () => { cancelAnimationFrame(raf); dirty = true; frame(); };
+    const resize = () => { cancelAnimationFrame(raf); raf = 0; dirty = true; frame(); };
     const scroll = () => schedule();
     const choose = (event: Event) => {
       if (!choosing || position() >= .04) return;

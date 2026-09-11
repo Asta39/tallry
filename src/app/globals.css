@@ -42,7 +42,7 @@ html {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   color: var(--color-ink-900);
-  background: var(--color-ink-50);
+  background: #fefefe;
 }
 
 /* Hairline borders like macOS */
@@ -51,7 +51,7 @@ html {
 .hairline-t { border-top: 0.5px solid var(--color-ink-200); }
 
 .card {
-  background: white;
+  background: #fefefe;
   border-radius: var(--radius-card);
   box-shadow: var(--shadow-card);
   border: 0.5px solid var(--color-ink-100);
@@ -117,5 +117,5 @@ html {
 
 @media print {
   .no-print { display: none !important; }
-  html, body { background: white; }
+  html, body { background: #fefefe; }
 }
