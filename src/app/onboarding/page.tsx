@@ -177,7 +177,7 @@ export default function OnboardingPage() {
                 maxLength={11}
               />
               <p className="text-[11px] text-[var(--color-ink-400)] mt-1">
-                Appears on eTIMS invoices and VAT returns
+                Appears on invoices and VAT returns
               </p>
             </label>
           </div>

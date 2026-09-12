@@ -44,7 +44,7 @@ export default async function VatPage({
     <>
       <PageHeader
         title="VAT Return prep (VAT 3)"
-        subtitle="File by the 20th of the following month on iTax. Numbers must match your eTIMS transmissions."
+        subtitle="File by the 20th of the following month on iTax."
       />
       <PeriodPicker from={from} to={to} extra={
         <div className="flex gap-2">

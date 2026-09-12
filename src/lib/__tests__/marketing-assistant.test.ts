@@ -11,6 +11,7 @@ import {
   FALLBACK_ERROR_MESSAGE,
   MAX_MESSAGE_LENGTH,
   PRICING_FACTS,
+  PRODUCT_FACTS,
 } from "../ai/marketing-assistant-rules";
 import { RateLimiter, runMarketingAssistantTurn } from "../ai/marketing-assistant";
 import { classifyTopic } from "../ai/marketing-chat-memory";
@@ -178,6 +179,31 @@ test("PRICING_FACTS: explicitly rules out a tiered-plan structure", () => {
 test("buildSystemPrompt: includes the real pricing facts", () => {
   const prompt = buildSystemPrompt();
   assert.ok(prompt.includes(PRICING_FACTS));
+});
+
+// ---------------------------------------------------------------------
+// eTIMS honesty — src/lib/etims.ts is an explicitly-labeled simulator,
+// disabled by default (ETIMS_ENABLED=false). The assistant must never
+// claim a live KRA eTIMS/OSCU integration exists.
+// ---------------------------------------------------------------------
+
+test("PRODUCT_FACTS: states plainly there is no live eTIMS/OSCU integration", () => {
+  assert.match(PRODUCT_FACTS, /does NOT have a live KRA eTIMS/);
+  assert.match(PRODUCT_FACTS, /never claim eTIMS compliance/i);
+});
+
+test("buildSystemPrompt: includes the eTIMS honesty facts", () => {
+  const prompt = buildSystemPrompt();
+  assert.ok(prompt.includes(PRODUCT_FACTS));
+});
+
+test("ALLOWED_TOPICS: no longer advertises eTIMS as a supported integration", () => {
+  const prompt = buildSystemPrompt();
+  // The topic list itself shouldn't claim eTIMS as an integration/compliance
+  // feature — it's fine for PRODUCT_FACTS above to mention the word once,
+  // to explicitly deny it, so check for the specific old phrasing rather
+  // than the bare word.
+  assert.doesNotMatch(prompt, /integrations \(m-pesa, banks, etims\)/i);
 });
 
 // ---------------------------------------------------------------------

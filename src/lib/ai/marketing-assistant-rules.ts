@@ -24,12 +24,12 @@ export const ALLOWED_TOPICS = [
   "uptime and reliability",
   "security and data privacy practices (in general terms)",
   "customer support and how to reach it",
-  "integrations (M-Pesa, banks, eTIMS)",
+  "integrations (M-Pesa, banks)",
   "onboarding and account setup",
   "supported industries",
   "workflows and automation",
   "reporting and analytics capabilities",
-  "compliance (KRA, VAT, eTIMS, Kenya Data Protection Act) at a general/informational level",
+  "compliance (KRA, VAT, Kenya Data Protection Act) at a general/informational level",
   "the free trial and how billing works after it ends",
   "general troubleshooting of the marketing site or signup flow",
   "product availability (regions, plans, launch status)",
@@ -53,6 +53,21 @@ export const PRICING_FACTS =
   "prices — they're set per business during onboarding, so if asked for an exact number, say pricing is tailored " +
   "to which modules and team size a business needs and point them to support or the signup flow for an exact " +
   "quote, rather than stating a specific KES figure.";
+
+/**
+ * Ground-truth facts about a specific real capability gap — Zeno has no
+ * live KRA eTIMS/OSCU integration (see src/lib/etims.ts, which is an
+ * explicitly-labeled simulator, disabled by default). Called out
+ * separately from PRICING_FACTS because "eTIMS-ready" is exactly the kind
+ * of confident-sounding claim a model will otherwise infer from general
+ * training knowledge about Kenyan accounting software.
+ */
+export const PRODUCT_FACTS =
+  "Zeno calculates KRA VAT correctly on every invoice line (16% standard, zero-rated, exempt) and produces the " +
+  "reports needed to file a VAT return, but it does NOT have a live KRA eTIMS or OSCU/VSCU integration — never " +
+  "claim eTIMS compliance, eTIMS-readiness, or automatic KRA fiscal signing. If asked about eTIMS specifically, " +
+  "say plainly that Zeno doesn't have a live eTIMS integration yet and the business would need to fiscalize " +
+  "invoices through their own registered device/process, and point them to support for the current status.";
 
 export const REFUSAL_MESSAGE =
   "I can only help with general questions about Zeno — things like pricing, features, onboarding, security, integrations, or support. I don't have access to any account, organization, or financial data, so I can't help with that here. Try our in-app assistant once you're signed in, or reach support directly.";
@@ -172,6 +187,7 @@ export function buildSystemPrompt(): string {
     ", website " + WEBSITE_DOMAIN + ". Use these exact values whenever asked how to reach support or for the " +
     "website/contact info — never invent, guess, or alter a phone number, email address, or domain.\n\n" +
     PRICING_FACTS + "\n\n" +
+    PRODUCT_FACTS + "\n\n" +
     "You may ONLY discuss general, public information about Zeno: " +
     ALLOWED_TOPICS.join(", ") +
     ".\n\n" +

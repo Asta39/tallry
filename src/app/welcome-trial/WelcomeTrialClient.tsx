@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { completeWelcomeTrialAction, type ModulePreference } from "./actions";
 
 const TRIAL_FEATURES = [
-  { icon: "🧾", label: "Invoicing, quotes & credit notes", desc: "KRA-compliant VAT on every line, eTIMS-ready" },
+  { icon: "🧾", label: "Invoicing, quotes & credit notes", desc: "KRA-compliant VAT on every line" },
   { icon: "👥", label: "Customers, vendors & deals", desc: "Full contact history, pipeline, and account statements" },
   { icon: "📦", label: "Bills, purchase orders & inventory", desc: "FIFO costing, warehouses, stock transfers" },
   { icon: "🏦", label: "Bank & M-Pesa reconciliation", desc: "Match statements, categorize, mirror the real books" },
@@ -86,7 +86,7 @@ export function WelcomeTrialClient({ orgName, trialDays, perStaffFeeKes }: { org
         <div className="card p-6">
           <h2 className="text-[15px] font-bold text-[var(--color-ink-900)]">What happens when your trial ends</h2>
           <p className="text-[13px] text-[var(--color-ink-500)] mt-2 leading-relaxed">
-            After {trialDays} days, access pauses — every page shows a single screen with our contact details until we reactivate your account. Reactivation is a one-time setup fee, agreed directly with us, after which you're billed KSh {perStaffFeeKes.toLocaleString("en-KE")} per seat per month (you plus every staff member you add) — covers hosting, backups, KRA/eTIMS compliance updates and support, and you can pay it in-app or have us record it for you. Nothing you enter during the trial is lost — it's all still there the moment you're reactivated.
+            After {trialDays} days, access pauses — every page shows a single screen with our contact details until we reactivate your account. Reactivation is a one-time setup fee, agreed directly with us, after which you're billed KSh {perStaffFeeKes.toLocaleString("en-KE")} per seat per month (you plus every staff member you add) — covers hosting, backups, KRA compliance updates and support, and you can pay it in-app or have us record it for you. Nothing you enter during the trial is lost — it's all still there the moment you're reactivated.
           </p>
         </div>
 

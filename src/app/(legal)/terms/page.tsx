@@ -52,7 +52,6 @@ export default function TermsPage() {
       <h2>5. Tax and compliance</h2>
       <ul>
         <li>You remain solely responsible for your tax filings and obligations to the Kenya Revenue Authority.</li>
-        <li>Until connected to a live KRA eTIMS control unit, invoice fiscal signatures in the Service are <strong>simulated</strong> and not valid for fiscal purposes.</li>
         <li>Reports (VAT, payroll deductions, etc.) are prepared from the data you enter; verify before filing.</li>
       </ul>
 

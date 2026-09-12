@@ -17,7 +17,7 @@ export default async function InvoicesPage({ searchParams }: { searchParams: Pro
       basePath="/sales/invoices"
       newLabel="+ New invoice"
       emptyTitle="No invoices yet"
-      emptyBody="Create an invoice and it will carry KRA eTIMS details automatically — VAT, CU number and a verification QR code."
+      emptyBody="Create an invoice and it will calculate KRA VAT automatically, line by line."
     />
     </>
   );

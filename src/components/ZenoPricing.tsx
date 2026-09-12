@@ -13,7 +13,7 @@ import { PRICING_PACKAGES, type PricingPackage } from "@/lib/pricing-packages";
 
 const FEATURES = [
   "Invoices & quotes with KRA VAT built in",
-  "eTIMS-ready, compliant out of the box",
+  "Recurring invoices & bills, on a schedule",
   "M-Pesa & bank reconciliation",
   "Payroll — PAYE, NSSF, SHIF, AHL",
   "CRM pipeline from lead to invoice",

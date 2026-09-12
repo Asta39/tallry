@@ -16,7 +16,7 @@ interface PaymentRow {
 }
 
 const INCLUDED_FEATURES = [
-  { icon: "🧾", label: "Invoices, quotes, credit notes", desc: "KRA-compliant VAT on every line, eTIMS-ready" },
+  { icon: "🧾", label: "Invoices, quotes, credit notes", desc: "KRA-compliant VAT on every line" },
   { icon: "📦", label: "Bills, purchase orders & inventory", desc: "FIFO costing, warehouses, stock transfers" },
   { icon: "🏦", label: "Bank & M-Pesa reconciliation", desc: "Match statements, categorize, mirror the real books" },
   { icon: "💳", label: "Payment gateways & customer portal", desc: "M-Pesa/Daraja, Kopo Kopo, card checkout, self-service portal" },
@@ -31,13 +31,13 @@ const INCLUDED_FEATURES = [
 const MAINTENANCE_COVERS = [
   { icon: "☁️", label: "Hosting & uptime", desc: "Your books stay online and backed up, always" },
   { icon: "🛡️", label: "Security & data backups", desc: "Encrypted, regularly backed up, never lost" },
-  { icon: "🇰🇪", label: "KRA/tax compliance updates", desc: "VAT, eTIMS, PAYE rules kept current automatically" },
+  { icon: "🇰🇪", label: "KRA/tax compliance updates", desc: "VAT, PAYE rules kept current automatically" },
   { icon: "🛠️", label: "New features, at no extra cost", desc: "Every update ships to you the moment it's ready" },
   { icon: "📞", label: "Direct support", desc: "Call or WhatsApp us when something's not clear" },
 ];
 
 const WHY_US = [
-  { label: "Built for Kenya, not adapted to it", desc: "VAT, eTIMS, M-Pesa, PAYE/NSSF/SHIF/AHL — native, not bolted on." },
+  { label: "Built for Kenya, not adapted to it", desc: "VAT, M-Pesa, PAYE/NSSF/SHIF/AHL — native, not bolted on." },
   { label: "One person can run it", desc: "Calm, simple screens — no accounting degree or IT department required." },
   { label: "A real person answers", desc: "Onboarding and support from someone who knows your business, not a ticket queue." },
   { label: "Fair, predictable pricing", desc: "One setup fee, then a simple monthly fee per staff member — no feature paywalls." },

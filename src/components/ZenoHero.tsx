@@ -61,7 +61,7 @@ export function ZenoHero() {
           <div data-zeno-features>
             <div data-zeno-feature>
               <h3><span data-zeno-no>01</span>Invoices that file themselves</h3>
-              <p>KRA-compliant VAT on every line, eTIMS-ready, with quotes that convert to invoices in one click.</p>
+              <p>KRA-compliant VAT on every line, with quotes that convert to invoices in one click.</p>
             </div>
             <div data-zeno-feature>
               <h3><span data-zeno-no>02</span>M-Pesa that actually reconciles</h3>

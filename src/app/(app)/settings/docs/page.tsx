@@ -155,7 +155,7 @@ const SECTIONS: DocSection[] = [
     rolesLabel: "Admin / Owner · Accountant · Sales",
     desc: "Invoices are the billing document customers actually pay. Recording a payment updates its balance in real time; a credit note reverses part or all of one without deleting the record.",
     concepts: [
-      "Every invoice line carries KRA-compliant VAT and is eTIMS-ready. Status moves Draft → Awaiting payment → Partly paid → Paid, or Overdue once the due date passes.",
+      "Every invoice line carries KRA-compliant VAT. Status moves Draft → Awaiting payment → Partly paid → Paid, or Overdue once the due date passes.",
       "Record payment logs money already received outside the app; Request via Gateway sends a real M-Pesa STK prompt straight to the customer's phone.",
       "A Credit Note can be raised even on an invoice that's already fully paid — that's the most common real reason to issue one. Status reads Available → Partly applied → Fully applied, never \"awaiting payment\".",
       "Payments Received lists every payment ever applied to an invoice, whether entered manually or captured through a gateway.",
