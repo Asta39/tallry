@@ -163,81 +163,64 @@ function PurchaseModal({ pkg, onClose }: { pkg: PricingPackage; onClose: () => v
     }
   };
 
+  const inputClass =
+    "mt-1.5 w-full h-12 rounded-full border border-gray-200 bg-neutral-50 px-5 text-sm text-gray-900 outline-none placeholder:text-gray-400 transition-colors focus:border-black focus:bg-white focus:ring-2 focus:ring-black/10";
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl">
+      <div className="relative z-10 w-full max-w-sm rounded-3xl bg-white p-7 shadow-2xl">
         {state === "success" ? (
           <div className="text-center py-4">
-            <div className="mx-auto mb-3 flex size-12 items-center justify-center rounded-full bg-gradient-to-t from-neutral-900 via-neutral-800 to-neutral-900">
+            <div className="mx-auto mb-3 flex size-12 items-center justify-center rounded-full border-4 shadow-sm shadow-black border-black bg-gradient-to-t from-neutral-900 via-neutral-800 to-neutral-900">
               <CheckIcon />
             </div>
-            <h3 className="text-lg font-semibold text-gray-900">Request sent</h3>
+            <h3 className="text-xl font-semibold text-gray-900">Request sent</h3>
             <p className="mt-2 text-sm text-gray-600">
               We&apos;ll be in touch shortly to arrange payment and get {pkg.label} set up for you.
             </p>
             <button
               type="button"
               onClick={onClose}
-              className="mt-5 w-full rounded-full border-4 shadow-sm shadow-black border-black bg-gradient-to-t from-neutral-900 via-neutral-800 to-neutral-900 text-white text-sm font-semibold py-2.5"
+              className="mt-6 w-full h-12 rounded-full border-4 shadow-sm shadow-black border-black bg-gradient-to-t from-neutral-900 via-neutral-800 to-neutral-900 text-white text-sm font-semibold"
             >
               Close
             </button>
           </div>
         ) : (
           <form onSubmit={submit}>
-            <h3 className="text-lg font-semibold text-gray-900">One-time purchase</h3>
-            <p className="mt-1 text-sm text-gray-600">{pkg.label} — KSh {(pkg.amountCents / 100).toLocaleString("en-KE")}</p>
+            <h3 className="text-xl font-semibold text-gray-900">One-time purchase</h3>
+            <p className="mt-1 text-sm text-gray-600">{pkg.label} <span className="text-gray-400">—</span> KSh {(pkg.amountCents / 100).toLocaleString("en-KE")}</p>
 
-            <div className="mt-4 space-y-3">
+            <div className="mt-5 space-y-3">
               <label className="block">
-                <span className="text-xs font-medium text-gray-600">Full name</span>
-                <input
-                  required
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-                  placeholder="Your name"
-                />
+                <span className="text-xs font-medium text-gray-500">Full name</span>
+                <input required value={name} onChange={(e) => setName(e.target.value)} className={inputClass} placeholder="Your name" />
               </label>
               <label className="block">
-                <span className="text-xs font-medium text-gray-600">Phone number</span>
-                <input
-                  required
-                  type="tel"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-                  placeholder="07xx xxx xxx"
-                />
+                <span className="text-xs font-medium text-gray-500">Phone number</span>
+                <input required type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} className={inputClass} placeholder="07xx xxx xxx" />
               </label>
               <label className="block">
-                <span className="text-xs font-medium text-gray-600">Email address</span>
-                <input
-                  required
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-                  placeholder="you@company.co.ke"
-                />
+                <span className="text-xs font-medium text-gray-500">Email address</span>
+                <input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={inputClass} placeholder="you@company.co.ke" />
               </label>
             </div>
 
             {error && <p className="mt-3 text-xs text-red-600">{error}</p>}
 
-            <div className="mt-5 flex gap-2">
+            <div className="mt-6 flex gap-2">
               <button
                 type="button"
                 onClick={onClose}
-                className="flex-1 rounded-full border border-gray-200 text-gray-700 text-sm font-medium py-2.5 hover:bg-gray-50 transition-colors"
+                className="flex-1 h-12 rounded-full border border-gray-200 text-gray-700 text-sm font-medium hover:bg-gray-50 transition-colors"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={state === "submitting"}
-                className="flex-1 rounded-full border-4 shadow-sm shadow-black border-black bg-gradient-to-t from-neutral-900 via-neutral-800 to-neutral-900 text-white text-sm font-semibold py-2.5 disabled:opacity-60"
+                className="flex-1 h-12 rounded-full border-4 shadow-sm shadow-black border-black bg-gradient-to-t from-neutral-900 via-neutral-800 to-neutral-900 text-white text-sm font-semibold disabled:opacity-60"
               >
                 {state === "submitting" ? "Sending…" : "Submit request"}
               </button>
@@ -293,7 +276,7 @@ export function ZenoPricing() {
 
       <div className="px-4">
         <div className="max-w-6xl mx-auto">
-          <div className="grid sm:grid-cols-2 md:gap-12 gap-4 items-center">
+          <div className="grid sm:grid-cols-2 md:gap-12 gap-4 items-start">
             <div>
               <TimelineContent as="h3" animationNum={2} timelineRef={pricingRef} customVariants={revealVariants} className="text-3xl font-medium text-gray-900 mb-2">
                 What&apos;s inside
