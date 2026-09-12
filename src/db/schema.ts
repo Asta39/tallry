@@ -1502,3 +1502,22 @@ export const marketingChatTopics = pgTable("marketing_chat_topics", {
   topicIdx: index("idx_marketing_chat_topics_topic").on(t.topic),
   createdIdx: index("idx_marketing_chat_topics_created").on(t.createdAt),
 }));
+
+/** A prospective customer's one-time-purchase request from the public
+ *  pricing section — collected before any account exists, so it has no
+ *  orgId. An admin follows up for payment, then manually activates the
+ *  org the normal way once paid. */
+export const purchaseRequests = pgTable("purchase_requests", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  phone: text("phone").notNull(),
+  email: text("email").notNull(),
+  packageKey: text("package_key").notNull(), // crm | crm_accounting | crm_accounting_payroll | crm_payroll
+  packageLabel: text("package_label").notNull(),
+  amountCents: money("amount_cents").notNull(),
+  status: text("status").notNull().default("pending"), // pending | contacted | activated
+  createdAt: text("created_at").notNull(),
+}, (t) => ({
+  statusIdx: index("idx_purchase_requests_status").on(t.status),
+  createdIdx: index("idx_purchase_requests_created").on(t.createdAt),
+}));

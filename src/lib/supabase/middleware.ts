@@ -11,6 +11,9 @@ const PUBLIC_PATHS = [
   // Public marketing-site AI assistant — anonymous visitors on the landing
   // page hit this; it has no db/access/tools wiring (see marketing-assistant.ts)
   "/api/marketing-chat",
+  // Public pricing page's one-time-purchase lead form — submitted before
+  // any account/org exists.
+  "/api/purchase-request",
 ];
 
 /** Exact-match public paths — startsWith would also match every real app

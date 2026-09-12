@@ -1064,3 +1064,20 @@ CREATE TABLE IF NOT EXISTS marketing_chat_topics (
 );
 CREATE INDEX IF NOT EXISTS idx_marketing_chat_topics_topic ON marketing_chat_topics (topic);
 CREATE INDEX IF NOT EXISTS idx_marketing_chat_topics_created ON marketing_chat_topics (created_at);
+
+-- One-time-purchase requests from the public pricing section, collected
+-- before any org exists (no org_id). Admin follows up and activates
+-- manually once paid.
+CREATE TABLE IF NOT EXISTS purchase_requests (
+  id SERIAL PRIMARY KEY,
+  name TEXT NOT NULL,
+  phone TEXT NOT NULL,
+  email TEXT NOT NULL,
+  package_key TEXT NOT NULL,
+  package_label TEXT NOT NULL,
+  amount_cents BIGINT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_purchase_requests_status ON purchase_requests (status);
+CREATE INDEX IF NOT EXISTS idx_purchase_requests_created ON purchase_requests (created_at);

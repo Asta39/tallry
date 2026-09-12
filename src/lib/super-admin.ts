@@ -17,6 +17,15 @@ export async function isSuperAdmin(email: string | null | undefined): Promise<bo
   return !!row;
 }
 
+/** All current super-admin emails (env bootstrap list + the super_admins
+ *  table), deduped — used to know where platform-level notices go. */
+export async function getSuperAdminEmails(): Promise<string[]> {
+  const envAdmins = (process.env.SUPER_ADMIN_EMAILS || "").split(",").map((e) => e.trim().toLowerCase()).filter(Boolean);
+  const rows = await db.select({ email: superAdmins.email }).from(superAdmins);
+  const dbAdmins = rows.map((r) => r.email.trim().toLowerCase());
+  return [...new Set([...envAdmins, ...dbAdmins])];
+}
+
 /** Throws unless the current session belongs to a super admin. Returns the user. */
 export async function requireSuperAdmin() {
   const user = await getUser();
