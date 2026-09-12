@@ -26,6 +26,7 @@ export default function LoginPage() {
           : error.message);
         return;
       }
+      document.cookie = "zeno_returning=1; path=/; max-age=31536000; samesite=lax";
       router.push("/home");
       router.refresh();
     });

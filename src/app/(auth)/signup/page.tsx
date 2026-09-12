@@ -38,6 +38,7 @@ export default function SignupPage() {
         setError(error.message);
         return;
       }
+      document.cookie = "zeno_returning=1; path=/; max-age=31536000; samesite=lax";
       setSuccess(true);
     });
   }
