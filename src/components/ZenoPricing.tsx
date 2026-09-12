@@ -254,6 +254,18 @@ export function ZenoPricing() {
             "radial-gradient(125% 125% at 50% 0%, rgba(245,140,2,0.45) 0%, rgba(238,174,202,0.25) 30%, rgba(255,255,255,0) 70%)",
         }}
       />
+      {/* The gradient above is a paler wash over white, so at y=0 it still
+          jumps against the AI section's fully-opaque vivid edge color —
+          this strip straddles that exact seam with the real edge color,
+          blurred, to feather the boundary itself rather than just fade
+          the area below it. */}
+      <div
+        className="pointer-events-none absolute inset-x-0 -top-16 h-32 z-0 blur-2xl"
+        style={{
+          background:
+            "radial-gradient(120% 200% at 50% 0%, rgba(245,120,2,0.85) 0%, rgba(238,174,202,0.5) 45%, rgba(255,255,255,0) 80%)",
+        }}
+      />
 
       <div className="relative px-4 pt-16 pb-16">
         <div className="max-w-4xl mx-auto text-center relative">
