@@ -3,6 +3,8 @@ import { db, contacts, documents } from "@/db";
 import { ilike, or, eq, and } from "drizzle-orm";
 import { getAccess, canViewAllData } from "@/lib/access";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);

@@ -9,6 +9,8 @@ import { qrPngDataUrl } from "@/lib/receipts/qr";
 import { renderToBuffer } from "@react-pdf/renderer";
 import React from "react";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
   await requirePerm("invoices");
   const org = await getOrg();

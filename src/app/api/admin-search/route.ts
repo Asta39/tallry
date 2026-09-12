@@ -3,6 +3,8 @@ import { db, org } from "@/db";
 import { ilike, or } from "drizzle-orm";
 import { requireSuperAdmin } from "@/lib/super-admin";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);

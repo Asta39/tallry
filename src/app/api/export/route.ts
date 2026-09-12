@@ -15,6 +15,8 @@ function csv(rows: (string | number)[][]): string {
 
 const money = (cents: number) => (cents / 100).toFixed(2);
 
+export const dynamic = "force-dynamic";
+
 export async function GET(req: NextRequest) {
   const sp = req.nextUrl.searchParams;
   const report = sp.get("report") ?? "trial-balance";

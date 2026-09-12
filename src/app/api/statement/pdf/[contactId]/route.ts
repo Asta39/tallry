@@ -7,6 +7,8 @@ import { todayISO } from "@/lib/money";
 import { addDays } from "@/lib/recurring";
 import React from "react";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(req: NextRequest, props: { params: Promise<{ contactId: string }> }) {
   await requirePerm("contacts");
   const { contactId } = await props.params;
