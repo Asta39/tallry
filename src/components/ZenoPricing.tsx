@@ -258,18 +258,21 @@ export function ZenoPricing() {
   const selected = packageForSelection(hasAccounting, hasPayroll);
 
   return (
-    <div className="px-4 pt-10 w-full min-h-screen mx-auto relative" ref={pricingRef}>
-      <div className="bg-white py-16 px-4 relative overflow-hidden">
-        {/* Blends the AI section's warm bottom tones into this section
-            instead of the reference demo's blue radial, so the two
-            sections meet as a gradient instead of a hard edge. */}
-        <div
-          className="absolute inset-0 z-0"
-          style={{
-            background:
-              "radial-gradient(125% 125% at 50% 90%, #fff 40%, rgba(245,140,2,0.55) 100%)",
-          }}
-        />
+    <div className="w-full min-h-screen mx-auto relative" ref={pricingRef}>
+      {/* Blends the AI section's warm bottom tones into this section,
+          flush against the very top of it, so the two sections meet as a
+          gradient instead of a hard edge — replaces the reference demo's
+          blue radial (which sat 90% down its own box, tuned for that
+          demo's layout, not for a seam against the section above it). */}
+      <div
+        className="pointer-events-none absolute inset-x-0 top-0 h-[420px] z-0"
+        style={{
+          background:
+            "radial-gradient(125% 125% at 50% 0%, rgba(245,140,2,0.45) 0%, rgba(238,174,202,0.25) 30%, rgba(255,255,255,0) 70%)",
+        }}
+      />
+
+      <div className="relative px-4 pt-16 pb-16">
         <div className="max-w-4xl mx-auto text-center relative">
           <TimelineContent as="div" animationNum={0} timelineRef={pricingRef} customVariants={revealVariants} className="flex items-center justify-center mb-4">
             <SparkleIcon className="h-5 w-5 text-[#0f766e] mr-2" />
