@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { runMarketingAssistantTurn, marketingChatRateLimiter } from "@/lib/ai/marketing-assistant";
 import { RATE_LIMIT_MESSAGE } from "@/lib/ai/marketing-assistant-rules";
+import { classifyTopic, getTopTopicsHint, logTopic } from "@/lib/ai/marketing-chat-memory";
 
 /**
  * Public endpoint for the landing-page AI assistant. Unauthenticated by
  * design (it's on the marketing site) but intentionally has no access to
- * `@/db`, `@/lib/access`, or `@/lib/ai/tools` — see marketing-assistant.ts
- * for the rationale. Do not add any of those imports here.
+ * `@/lib/access` or `@/lib/ai/tools` — see marketing-assistant.ts for the
+ * rationale. The only db-backed import here is marketing-chat-memory,
+ * which touches nothing but its own aggregate-only, no-PII topics table —
+ * do not add any other db-backed import to this route.
  */
 
 export const dynamic = "force-dynamic";
@@ -36,6 +39,15 @@ export async function POST(req: NextRequest) {
 
   const { message, history } = body as { message?: unknown; history?: unknown };
 
-  const result = await runMarketingAssistantTurn(message, history);
+  const topicsHint = await getTopTopicsHint();
+  const result = await runMarketingAssistantTurn(message, history, topicsHint);
+
+  // Log after the fact, and only for a real answer — never for a refusal
+  // or error, so the aggregate topic counts reflect genuine product
+  // questions rather than injection attempts or empty/failed turns.
+  if (!result.refused && result.provider !== "none" && typeof message === "string") {
+    void logTopic(classifyTopic(message));
+  }
+
   return NextResponse.json({ reply: result.reply, refused: result.refused });
 }

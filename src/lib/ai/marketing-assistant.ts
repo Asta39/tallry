@@ -46,15 +46,29 @@ function sanitizeHistory(history: unknown): MarketingChatMessage[] {
   return cleaned;
 }
 
+/** Short, honest addendum built from real (never fabricated) aggregate
+ *  topic counts — see marketing-chat-memory.ts. Kept as plain text passed
+ *  in from the caller so this file never has to import `@/db` itself. */
+function topicsHintMessage(topicsHint: string | null | undefined): string | null {
+  if (!topicsHint) return null;
+  return (
+    "For light context only, not a fact to state outright: across recent visitors, the most common topics have " +
+    "been " + topicsHint + ". You may let this naturally shape which related detail you volunteer, but only when " +
+    "it's actually relevant to what THIS visitor asked — never announce this statistic to them directly."
+  );
+}
+
 /** Calls Groq. Throws on any failure (missing key, network error, rate
  *  limit, empty reply) so the caller can fall back to Gemini. */
-async function callGroq(message: string, history: MarketingChatMessage[]): Promise<string> {
+async function callGroq(message: string, history: MarketingChatMessage[], topicsHint: string | null | undefined): Promise<string> {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) throw new Error("GROQ_API_KEY missing");
 
   const client = new Groq({ apiKey });
+  const hint = topicsHintMessage(topicsHint);
   const messages: Groq.Chat.Completions.ChatCompletionMessageParam[] = [
     { role: "system", content: buildSystemPrompt() },
+    ...(hint ? [{ role: "system", content: hint } as Groq.Chat.Completions.ChatCompletionMessageParam] : []),
     ...history.map((h) => ({ role: h.role, content: h.content }) as Groq.Chat.Completions.ChatCompletionMessageParam),
     { role: "user", content: message },
   ];
@@ -77,10 +91,12 @@ async function callGroq(message: string, history: MarketingChatMessage[]): Promi
 /** Calls Gemini as the fallback provider when Groq is unavailable or
  *  overwhelmed. Same no-tools, no-db-access shape as callGroq — plain REST
  *  call, matching the pattern already used in src/lib/receipts/scan.ts. */
-async function callGemini(message: string, history: MarketingChatMessage[]): Promise<string> {
+async function callGemini(message: string, history: MarketingChatMessage[], topicsHint: string | null | undefined): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error("GEMINI_API_KEY missing");
 
+  const hint = topicsHintMessage(topicsHint);
+  const systemText = hint ? buildSystemPrompt() + "\n\n" + hint : buildSystemPrompt();
   const contents = [
     ...history.map((h) => ({ role: h.role === "assistant" ? "model" : "user", parts: [{ text: h.content }] })),
     { role: "user", parts: [{ text: message }] },
@@ -92,7 +108,7 @@ async function callGemini(message: string, history: MarketingChatMessage[]): Pro
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        systemInstruction: { parts: [{ text: buildSystemPrompt() }] },
+        systemInstruction: { parts: [{ text: systemText }] },
         contents,
         generationConfig: { temperature: 0.4, maxOutputTokens: 400 },
       }),
@@ -120,7 +136,8 @@ async function callGemini(message: string, history: MarketingChatMessage[]): Pro
  */
 export async function runMarketingAssistantTurn(
   rawMessage: unknown,
-  rawHistory: unknown
+  rawHistory: unknown,
+  topicsHint?: string | null
 ): Promise<MarketingChatResult> {
   const validated = validateMessage(rawMessage);
   if (!validated.ok || !validated.cleaned) {
@@ -138,11 +155,11 @@ export async function runMarketingAssistantTurn(
   let reply: string;
   let provider: "groq" | "gemini";
   try {
-    reply = await callGroq(message, history);
+    reply = await callGroq(message, history, topicsHint);
     provider = "groq";
   } catch {
     try {
-      reply = await callGemini(message, history);
+      reply = await callGemini(message, history, topicsHint);
       provider = "gemini";
     } catch {
       return { reply: FALLBACK_ERROR_MESSAGE, refused: false, provider: "none" };

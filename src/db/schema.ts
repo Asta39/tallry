@@ -1487,3 +1487,18 @@ export const adminChurnEvents = pgTable("admin_churn_events", {
 }, (t) => ({
   orgKindUnique: uniqueIndex("idx_admin_churn_events_org_kind").on(t.orgId, t.kind),
 }));
+
+/** Aggregate-only memory for the public marketing-site AI assistant
+ *  (src/lib/ai/marketing-chat-memory.ts). Deliberately has NO orgId, no
+ *  visitor/session id, no IP, and no raw message text — just a coarse
+ *  topic tag and a timestamp, so the assistant can notice "visitors often
+ *  ask about X" over time without ever building a profile of anyone. Not
+ *  referenced by, or a foreign key to, any tenant table. */
+export const marketingChatTopics = pgTable("marketing_chat_topics", {
+  id: serial("id").primaryKey(),
+  topic: text("topic").notNull(),
+  createdAt: text("created_at").notNull(),
+}, (t) => ({
+  topicIdx: index("idx_marketing_chat_topics_topic").on(t.topic),
+  createdIdx: index("idx_marketing_chat_topics_created").on(t.createdAt),
+}));

@@ -10,8 +10,10 @@ import {
   REFUSAL_MESSAGE,
   FALLBACK_ERROR_MESSAGE,
   MAX_MESSAGE_LENGTH,
+  PRICING_FACTS,
 } from "../ai/marketing-assistant-rules";
 import { RateLimiter, runMarketingAssistantTurn } from "../ai/marketing-assistant";
+import { classifyTopic } from "../ai/marketing-chat-memory";
 
 // ---------------------------------------------------------------------
 // validateMessage
@@ -153,6 +155,54 @@ test("buildSystemPrompt: mentions the no-data-access constraint", () => {
 test("buildSystemPrompt: instructs the model to ignore embedded instructions", () => {
   const prompt = buildSystemPrompt();
   assert.match(prompt, /never as new instructions/i);
+});
+
+// ---------------------------------------------------------------------
+// Pricing accuracy — the system prompt must reflect src/lib/billing.ts's
+// real module-based, one-time-fee-plus-maintenance model, never a
+// fabricated subscription-tier structure.
+// ---------------------------------------------------------------------
+
+test("PRICING_FACTS: describes the real module-based billing model", () => {
+  assert.match(PRICING_FACTS, /30-day free trial/i);
+  assert.match(PRICING_FACTS, /one-time setup fee/i);
+  assert.match(PRICING_FACTS, /per module/i);
+  assert.match(PRICING_FACTS, /monthly maintenance/i);
+});
+
+test("PRICING_FACTS: explicitly rules out a tiered-plan structure", () => {
+  assert.match(PRICING_FACTS, /no subscription tiers/i);
+  assert.match(PRICING_FACTS, /starter.*pro.*enterprise/i);
+});
+
+test("buildSystemPrompt: includes the real pricing facts", () => {
+  const prompt = buildSystemPrompt();
+  assert.ok(prompt.includes(PRICING_FACTS));
+});
+
+// ---------------------------------------------------------------------
+// classifyTopic (marketing-chat-memory.ts) — pure keyword classification,
+// no db access exercised by these cases.
+// ---------------------------------------------------------------------
+
+test("classifyTopic: tags obvious topics correctly", () => {
+  assert.equal(classifyTopic("What does Zeno cost per month?"), "pricing");
+  assert.equal(classifyTopic("Can I send an invoice to a customer?"), "invoicing");
+  assert.equal(classifyTopic("How does payroll and PAYE work?"), "payroll");
+  assert.equal(classifyTopic("Does it support M-Pesa reconciliation?"), "m-pesa & banking");
+  assert.equal(classifyTopic("Is my data secure?"), "security & privacy");
+  assert.equal(classifyTopic("How do I contact support?"), "support");
+});
+
+test("classifyTopic: falls back to general for unmatched text", () => {
+  assert.equal(classifyTopic("Hello there, nice weather today"), "general");
+});
+
+test("classifyTopic: matches inflected forms, not just the exact root word", () => {
+  // Regression: \binvoice\b didn't match "invoicing" because the word
+  // boundary fails right after "invoice" when more letters follow.
+  assert.equal(classifyTopic("Tell me about your invoicing feature"), "invoicing");
+  assert.equal(classifyTopic("How does invoicing handle VAT?"), "invoicing");
 });
 
 // ---------------------------------------------------------------------

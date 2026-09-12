@@ -1053,3 +1053,14 @@ CREATE TABLE IF NOT EXISTS admin_churn_events (
   created_at TEXT NOT NULL
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_admin_churn_events_org_kind ON admin_churn_events (org_id, kind);
+
+-- Aggregate-only memory for the public marketing-site AI assistant. No
+-- org_id, no visitor/session id, no raw message text — just a coarse
+-- topic tag and a timestamp.
+CREATE TABLE IF NOT EXISTS marketing_chat_topics (
+  id SERIAL PRIMARY KEY,
+  topic TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_marketing_chat_topics_topic ON marketing_chat_topics (topic);
+CREATE INDEX IF NOT EXISTS idx_marketing_chat_topics_created ON marketing_chat_topics (created_at);
