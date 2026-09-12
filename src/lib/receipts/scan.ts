@@ -29,7 +29,7 @@ async function callGemini(base64Image: string, mimeType: string): Promise<Scanne
   if (!apiKey) throw new Error("Receipt scanning isn't configured — GEMINI_API_KEY is missing.");
 
   const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${apiKey}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },

@@ -8,6 +8,9 @@ const PUBLIC_PATHS = [
   "/privacy", "/terms",
   // PWA assets must be reachable without auth
   "/manifest.webmanifest", "/app-icon", "/sw.js",
+  // Public marketing-site AI assistant — anonymous visitors on the landing
+  // page hit this; it has no db/access/tools wiring (see marketing-assistant.ts)
+  "/api/marketing-chat",
 ];
 
 /** Exact-match public paths — startsWith would also match every real app

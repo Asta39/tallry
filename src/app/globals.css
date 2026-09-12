@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "tw-animate-css";
 
 /*
   Design language: "Apple calm"
@@ -25,6 +26,23 @@
 
   --radius-card: 12px;
   --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 16px rgba(0, 0, 0, 0.04);
+
+  /* shadcn-style tokens — used only by components ported verbatim from
+     shadcn/21st.dev sources (e.g. src/components/ui/ai-chat-input.tsx) so
+     their bg-card/text-foreground/etc classes resolve. Additive only —
+     the rest of the app keeps using the ink/accent tokens above. */
+  --color-background: #ffffff;
+  --color-foreground: #0a0a0a;
+  --color-card: #ffffff;
+  --color-card-foreground: #0a0a0a;
+  --color-muted: #f4f4f5;
+  --color-muted-foreground: #71717a;
+  --color-border: #e4e4e7;
+  --color-ring: #a1a1aa;
+  --color-accent: #f4f4f5;
+  --color-accent-foreground: #18181b;
+  --color-primary: #18181b;
+  --color-primary-foreground: #fafafa;
 }
 
 @layer base {
