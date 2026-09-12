@@ -3,7 +3,7 @@
 import { useTransition } from "react";
 import { setPurchaseRequestStatus } from "./actions";
 
-const STATUSES = ["pending", "contacted", "activated"] as const;
+const STATUSES = ["pending", "contacted", "activated", "cancelled"] as const;
 
 export function StatusControl({ id, status }: { id: number; status: string }) {
   const [pending, startTransition] = useTransition();

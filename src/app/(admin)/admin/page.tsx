@@ -1,4 +1,4 @@
-import { db, org, members, subscriptions, paymentEvents } from "@/db";
+import { db, org, members, subscriptions, paymentEvents, purchaseRequests } from "@/db";
 import { sql, eq, and, count, desc, gte, lte, lt, inArray } from "drizzle-orm";
 import { fmtKES, todayISO } from "@/lib/money";
 import { resolveBillingAccess, addDaysISO } from "@/lib/billing";
@@ -41,6 +41,7 @@ export default async function AdminDashboard() {
     trialsExpiringSoon,
     overdueMaintenance,
     unresolvedFindings,
+    recentPurchaseRequests,
   ] = await Promise.all([
     db.select({ count: count() }).from(org),
     db.select({ count: count() }).from(members),
@@ -89,6 +90,11 @@ export default async function AdminDashboard() {
       .where(and(eq(subscriptions.billingStatus, "active"), sql`${subscriptions.nextMaintenanceDueAt} IS NOT NULL`, lt(subscriptions.nextMaintenanceDueAt, today)))
       .orderBy(subscriptions.nextMaintenanceDueAt),
     getUnresolvedFindings(5),
+    db.select({ id: purchaseRequests.id, name: purchaseRequests.name, packageLabel: purchaseRequests.packageLabel, amountCents: purchaseRequests.amountCents, createdAt: purchaseRequests.createdAt })
+      .from(purchaseRequests)
+      .where(eq(purchaseRequests.status, "pending"))
+      .orderBy(desc(purchaseRequests.createdAt))
+      .limit(5),
   ]);
 
   const findingOrgIds = [...new Set(unresolvedFindings.map((f) => f.orgId))];
@@ -160,7 +166,7 @@ export default async function AdminDashboard() {
       {/* Needs attention */}
       <div className="bg-white rounded-xl border border-[var(--color-ink-200)] shadow-sm p-5">
         <h2 className="text-[13.5px] font-semibold mb-4">Needs attention</h2>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-5">
           <div>
             <div className="text-[11px] font-medium text-[var(--color-ink-400)] uppercase tracking-wide mb-2">
               Trial expiring · {trialsExpiringSoon.length}
@@ -207,6 +213,23 @@ export default async function AdminDashboard() {
                   <li key={f.id} className="text-[12.5px]">
                     <Link href={`/admin/orgs/${f.orgId}`} className="text-red-700 hover:underline truncate">{findingOrgName(f.orgId)}</Link>
                     <div className="text-[11px] text-[var(--color-ink-400)] truncate">{f.message}</div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          <div>
+            <div className="text-[11px] font-medium text-[var(--color-ink-400)] uppercase tracking-wide mb-2">
+              Purchase requests · {recentPurchaseRequests.length}
+            </div>
+            {recentPurchaseRequests.length === 0 ? (
+              <div className="text-[12px] text-[var(--color-ink-400)]">Nothing needs attention.</div>
+            ) : (
+              <ul className="space-y-1.5">
+                {recentPurchaseRequests.map((p) => (
+                  <li key={p.id} className="text-[12.5px] flex justify-between gap-2">
+                    <Link href="/admin/purchase-requests" className="text-red-700 hover:underline truncate">{p.name} — {p.packageLabel}</Link>
+                    <span className="text-[var(--color-ink-400)] tnum shrink-0">{fmtKES(p.amountCents)}</span>
                   </li>
                 ))}
               </ul>
