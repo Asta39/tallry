@@ -8,6 +8,7 @@ import { TimelineContent } from "@/components/ui/timeline-animation";
 import { VerticalCutReveal } from "@/components/ui/vertical-cut-reveal";
 import NumberFlow from "@number-flow/react";
 import { cn } from "@/lib/utils";
+import { Confetti } from "@/components/ui/confetti";
 import { PRICING_PACKAGES, type PricingPackage } from "@/lib/pricing-packages";
 
 const FEATURES = [
@@ -169,20 +170,21 @@ function PurchaseModal({ pkg, onClose }: { pkg: PricingPackage; onClose: () => v
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-sm rounded-3xl bg-white p-7 shadow-2xl">
+      <div className="relative z-10 w-full max-w-sm overflow-hidden rounded-3xl bg-white p-7 shadow-2xl">
         {state === "success" ? (
-          <div className="text-center py-4">
-            <div className="mx-auto mb-3 flex size-12 items-center justify-center rounded-full border-4 shadow-sm shadow-black border-black bg-gradient-to-t from-neutral-900 via-neutral-800 to-neutral-900">
+          <div className="relative text-center py-4">
+            <Confetti className="pointer-events-none absolute inset-0 z-0 size-full" />
+            <div className="relative mx-auto mb-3 flex size-12 items-center justify-center rounded-full border-4 shadow-sm shadow-black border-black bg-gradient-to-t from-neutral-900 via-neutral-800 to-neutral-900">
               <CheckIcon />
             </div>
-            <h3 className="text-xl font-semibold text-gray-900">Request sent</h3>
-            <p className="mt-2 text-sm text-gray-600">
+            <h3 className="relative text-xl font-semibold text-gray-900">Request sent</h3>
+            <p className="relative mt-2 text-sm text-gray-600">
               We&apos;ll be in touch shortly to arrange payment and get {pkg.label} set up for you.
             </p>
             <button
               type="button"
               onClick={onClose}
-              className="mt-6 w-full h-12 rounded-full border-4 shadow-sm shadow-black border-black bg-gradient-to-t from-neutral-900 via-neutral-800 to-neutral-900 text-white text-sm font-semibold"
+              className="relative mt-6 w-full h-12 rounded-full border-4 shadow-sm shadow-black border-black bg-gradient-to-t from-neutral-900 via-neutral-800 to-neutral-900 text-white text-sm font-semibold"
             >
               Close
             </button>
