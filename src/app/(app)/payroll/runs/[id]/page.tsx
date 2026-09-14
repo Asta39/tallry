@@ -7,6 +7,7 @@ import { fmtKES } from "@/lib/money";
 import { notFound } from "next/navigation";
 import { PostRunForm } from "./PostRunForm";
 import { PayRunForm } from "./PayRunForm";
+import { PayTaxRemittanceForm } from "./PayTaxRemittanceForm";
 import { DeleteRunButton } from "./DeleteRunButton";
 import { RecoverRunButton } from "./RecoverRunButton";
 import Link from "next/link";
@@ -69,6 +70,16 @@ export default async function PayrollRunDetailsPage(props: { params: Promise<{ i
   const totalGross = slipsData.reduce((acc, curr) => acc + curr.gross, 0);
   const totalNet = slipsData.reduce((acc, curr) => acc + curr.net, 0);
   const totalTax = slipsData.reduce((acc, curr) => acc + curr.nssf + curr.shif + curr.ahl + curr.paye + curr.otherDeductions, 0);
+  // The actual statutory remittance total — matches payTaxRemittanceAction's
+  // computation exactly (employee-side statutory deductions plus any
+  // employer-borne match), unlike totalTax above which also folds in loan
+  // deductions and one-off adjustments that have nothing to do with KRA/NSSF/SHIF.
+  const totalStatutory = linesData.reduce((acc, row) => {
+    const { line } = row;
+    if (line.type === "employer_cost") return acc + line.amountCents;
+    if (line.type === "deduction" && line.subType !== "adjustment" && line.subType !== "loan") return acc + line.amountCents;
+    return acc;
+  }, 0);
 
   return (
     <>
@@ -87,8 +98,13 @@ export default async function PayrollRunDetailsPage(props: { params: Promise<{ i
                   liabilityAccounts={liabilityAccounts}
                 />
               </div>
-          ) : run.status === "posted" && !run.paidAt ? (
-            <PayRunForm runId={run.id} bankAccounts={bankAccounts} totalNetCents={totalNet} />
+          ) : run.status === "posted" ? (
+            <div className="flex items-center gap-3">
+              {!run.paidAt && <PayRunForm runId={run.id} bankAccounts={bankAccounts} totalNetCents={totalNet} />}
+              {!run.taxPaidAt && totalStatutory > 0 && run.taxLiabilitiesAccountId && (
+                <PayTaxRemittanceForm runId={run.id} bankAccounts={bankAccounts} totalTaxCents={totalStatutory} />
+              )}
+            </div>
           ) : null
         }
       />
@@ -103,6 +119,11 @@ export default async function PayrollRunDetailsPage(props: { params: Promise<{ i
             {run.status === "posted" && (
               <span className={`inline-block mt-1 ml-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${run.paidAt ? 'bg-[var(--color-success-50)] text-[var(--color-success-700)] border-[var(--color-success-200)]' : 'bg-orange-50 text-orange-700 border-orange-200'}`}>
                 {run.paidAt ? `PAID ${run.paidAt}` : "NOT PAID"}
+              </span>
+            )}
+            {run.status === "posted" && totalStatutory > 0 && (
+              <span className={`inline-block mt-1 ml-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${run.taxPaidAt ? 'bg-[var(--color-success-50)] text-[var(--color-success-700)] border-[var(--color-success-200)]' : 'bg-orange-50 text-orange-700 border-orange-200'}`}>
+                {run.taxPaidAt ? `TAX REMITTED ${run.taxPaidAt}` : "TAX NOT REMITTED"}
               </span>
             )}
           </div>
@@ -131,6 +152,14 @@ export default async function PayrollRunDetailsPage(props: { params: Promise<{ i
               <p className="text-[12px] font-medium text-[var(--color-ink-500)]">Payment journal</p>
               <Link href={`/accountant/journal/${run.paidJournalEntryId}`} className="text-[16px] font-bold text-[var(--color-accent-600)] hover:underline mt-1 block">
                 #{run.paidJournalEntryId}
+              </Link>
+            </div>
+          )}
+          {run.taxPaidJournalEntryId && (
+            <div>
+              <p className="text-[12px] font-medium text-[var(--color-ink-500)]">Tax remittance journal</p>
+              <Link href={`/accountant/journal/${run.taxPaidJournalEntryId}`} className="text-[16px] font-bold text-[var(--color-accent-600)] hover:underline mt-1 block">
+                #{run.taxPaidJournalEntryId}
               </Link>
             </div>
           )}

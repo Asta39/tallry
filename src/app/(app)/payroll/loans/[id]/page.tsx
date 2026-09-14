@@ -1,12 +1,13 @@
 export const dynamic = "force-dynamic";
 
-import { db, employees, loanLedger, loanInstallments, payrollRuns } from "@/db";
+import { db, employees, loanLedger, loanInstallments, payrollRuns, loanManualRepayments, bankAccounts as bankAccountsTable } from "@/db";
 import { and, eq, asc } from "drizzle-orm";
 import { getOrg } from "@/lib/org";
 import { requirePerm } from "@/lib/guard";
 import { notFound } from "next/navigation";
 import { PageHeader, TableCard, Th, Td } from "@/components/ui";
 import { fmtKES } from "@/lib/money";
+import { RepayLoanForm } from "./RepayLoanForm";
 import Link from "next/link";
 
 export default async function LoanDetailPage(props: { params: Promise<{ id: string }> }) {
@@ -48,15 +49,33 @@ export default async function LoanDetailPage(props: { params: Promise<{ id: stri
     .where(eq(loanInstallments.loanId, loan.id))
     .orderBy(asc(loanInstallments.createdAt));
 
-  const totalPaid = installments
+  const manualRepayments = await db
+    .select()
+    .from(loanManualRepayments)
+    .where(eq(loanManualRepayments.loanId, loan.id))
+    .orderBy(asc(loanManualRepayments.createdAt));
+
+  const bankAccounts = await db
+    .select({ id: bankAccountsTable.id, name: bankAccountsTable.name })
+    .from(bankAccountsTable)
+    .where(and(eq(bankAccountsTable.orgId, o.id), eq(bankAccountsTable.archived, false)));
+  const bankNameById = new Map(bankAccounts.map((b) => [b.id, b.name]));
+
+  const totalPaidViaPayroll = installments
     .filter(i => i.runStatus === "posted")
     .reduce((sum, i) => sum + i.amountCents, 0);
+  const totalPaidDirectly = manualRepayments.reduce((sum, r) => sum + r.amountCents, 0);
+  const totalPaid = totalPaidViaPayroll + totalPaidDirectly;
 
   const pendingAmount = installments
     .filter(i => i.runStatus !== "posted")
     .reduce((sum, i) => sum + i.amountCents, 0);
 
-  const remainingBalance = loan.principalCents - totalPaid;
+  // loan.balanceCents is the ledger's own running balance (kept in sync by
+  // every payroll deduction and direct repayment as they post) — trust it
+  // over re-deriving from principal minus paid, which would double-count
+  // once both repayment paths exist.
+  const remainingBalance = loan.balanceCents;
 
   return (
     <div className="max-w-4xl mx-auto space-y-8">
@@ -65,16 +84,21 @@ export default async function LoanDetailPage(props: { params: Promise<{ id: stri
           title={`Loan #${loan.id} - ${loan.employeeName}`}
           subtitle={`Amortization & Schedule`}
         />
-        <a 
-          href={`/api/pdf/loan/${loan.id}?download=1`}
-          target="_blank"
-          className="inline-flex items-center gap-2 bg-white border border-[var(--color-ink-200)] text-[var(--color-ink-700)] hover:bg-[var(--color-ink-50)] px-3 py-1.5 rounded-lg text-[13px] font-medium shadow-sm transition-colors"
-        >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-          </svg>
-          Export Loan Statement
-        </a>
+        <div className="flex items-center gap-3">
+          {loan.status === "active" && (
+            <RepayLoanForm loanId={loan.id} bankAccounts={bankAccounts} balanceCents={remainingBalance} />
+          )}
+          <a
+            href={`/api/pdf/loan/${loan.id}?download=1`}
+            target="_blank"
+            className="inline-flex items-center gap-2 bg-white border border-[var(--color-ink-200)] text-[var(--color-ink-700)] hover:bg-[var(--color-ink-50)] px-3 py-1.5 rounded-lg text-[13px] font-medium shadow-sm transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            Export Loan Statement
+          </a>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -103,10 +127,11 @@ export default async function LoanDetailPage(props: { params: Promise<{ id: stri
         <div className="bg-white border border-[var(--color-ink-200)] p-4 rounded-xl shadow-sm text-center">
           <p className="text-[11px] font-medium text-[var(--color-ink-500)] uppercase tracking-wide">Status</p>
           <p className="mt-1">
-            {loan.status === "active" ? 
-              <span className="badge badge-warning">Active</span> : 
-              <span className="badge badge-success">Cleared</span>
-            }
+            {loan.status === "active" ? (
+              <span className="inline-block px-2.5 py-0.5 rounded-full text-[11px] font-semibold border bg-orange-50 text-orange-700 border-orange-200">Active</span>
+            ) : (
+              <span className="inline-block px-2.5 py-0.5 rounded-full text-[11px] font-semibold border bg-[var(--color-success-50)] text-[var(--color-success-700)] border-[var(--color-success-200)]">Cleared</span>
+            )}
           </p>
         </div>
       </div>
@@ -128,10 +153,11 @@ export default async function LoanDetailPage(props: { params: Promise<{ id: stri
                 <Td className="font-medium">{inst.month}</Td>
                 <Td>{fmtKES(inst.amountCents)}</Td>
                 <Td>
-                  {inst.runStatus === "posted" ? 
-                    <span className="badge badge-success badge-sm">Paid</span> : 
-                    <span className="badge badge-ghost badge-sm">Pending</span>
-                  }
+                  {inst.runStatus === "posted" ? (
+                    <span className="inline-block px-2 py-0.5 rounded-full text-[11px] font-semibold border bg-[var(--color-success-50)] text-[var(--color-success-700)] border-[var(--color-success-200)]">Paid</span>
+                  ) : (
+                    <span className="inline-block px-2 py-0.5 rounded-full text-[11px] font-semibold border bg-[var(--color-ink-50)] text-[var(--color-ink-500)] border-[var(--color-ink-200)]">Pending</span>
+                  )}
                 </Td>
                 <Td>
                   {inst.payrollRunId ? (
@@ -147,6 +173,36 @@ export default async function LoanDetailPage(props: { params: Promise<{ id: stri
           </tbody>
         </TableCard>
       </div>
+
+      {manualRepayments.length > 0 && (
+        <div>
+          <h3 className="text-[14px] font-semibold text-[var(--color-ink-900)] mb-4">Direct Repayments</h3>
+          <TableCard>
+            <thead className="hairline-b">
+              <tr>
+                <Th>Date</Th>
+                <Th>Amount</Th>
+                <Th>Received into</Th>
+                <Th>Journal</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {manualRepayments.map((r) => (
+                <tr key={r.id} className="hairline-t hover:bg-[var(--color-ink-50)]/60">
+                  <Td className="font-medium">{r.date}</Td>
+                  <Td>{fmtKES(r.amountCents)}</Td>
+                  <Td>{bankNameById.get(r.bankAccountId) || "-"}</Td>
+                  <Td>
+                    <Link href={`/accountant/journal/${r.journalEntryId}`} className="text-[var(--color-accent-600)] hover:underline">
+                      #{r.journalEntryId}
+                    </Link>
+                  </Td>
+                </tr>
+              ))}
+            </tbody>
+          </TableCard>
+        </div>
+      )}
     </div>
   );
 }

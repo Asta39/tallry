@@ -85,8 +85,8 @@ export async function updateEmployeeAction(employeeId: number, formData: FormDat
 
 export async function toggleEmployeeStatusAction(employeeId: number, isActive: boolean) {
   const access = await getAccess();
-  if (!access || access.role !== "admin") {
-    throw new Error("Only admins can suspend or activate employees");
+  if (!access || (access.role !== "admin" && access.role !== "hr")) {
+    throw new Error("Only admins and HR can suspend or activate employees");
   }
 
   await db.update(employees)

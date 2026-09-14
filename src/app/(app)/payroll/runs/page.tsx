@@ -48,7 +48,7 @@ export default async function PayrollRunsPage() {
               <tr key={r.id} className="hairline-t hover:bg-[var(--color-ink-50)]/60">
                 <Td className="font-medium">{r.month}</Td>
                 <Td>
-                  <span className={`badge badge-sm ${r.status === 'posted' ? 'badge-success badge-outline' : 'badge-warning badge-outline'}`}>
+                  <span className={`inline-block px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${r.status === 'posted' ? 'bg-[var(--color-success-50)] text-[var(--color-success-700)] border-[var(--color-success-200)]' : 'bg-orange-50 text-orange-700 border-orange-200'}`}>
                     {r.status}
                   </span>
                 </Td>

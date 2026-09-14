@@ -3,7 +3,9 @@
 import { getAccess } from "@/lib/access";
 import { orgContext } from "@/lib/org";
 import { redirect } from "next/navigation";
-import { issueStaffLoan } from "@/lib/staff-loans";
+import { revalidatePath } from "next/cache";
+import { issueStaffLoan, recordLoanRepayment } from "@/lib/staff-loans";
+import { todayISO } from "@/lib/money";
 
 export async function createLoanAction(formData: FormData) {
   const access = await getAccess();
@@ -38,4 +40,26 @@ async function _createLoan(access: NonNullable<Awaited<ReturnType<typeof getAcce
     disbursedFromBankAccountId,
     memoVerb: "Staff loan issued",
   });
+}
+
+/** A direct cash repayment against a loan, made outside payroll. */
+export async function recordLoanRepaymentAction(loanId: number, amountCents: number, bankAccountId: number) {
+  const access = await getAccess();
+  if (!access) throw new Error("Not logged in");
+  if (!amountCents || amountCents <= 0) throw new Error("Enter a valid amount");
+  if (!bankAccountId) throw new Error("Select an account");
+
+  await orgContext.run(access.orgId, () =>
+    recordLoanRepayment({
+      orgId: access.orgId,
+      loanId,
+      amountCents,
+      bankAccountId,
+      date: todayISO(),
+    })
+  );
+
+  revalidatePath(`/payroll/loans/${loanId}`);
+  revalidatePath("/payroll/loans");
+  revalidatePath("/banking");
 }

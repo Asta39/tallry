@@ -14,7 +14,12 @@ export default async function EmployeesPage() {
   await requirePerm("payroll");
   const o = await getOrg();
   const access = await getAccess();
-  const isAdmin = access?.role === "admin";
+  // HR manages staff records day-to-day and already has the "payroll" perm
+  // needed to reach this page at all — restricting the actual toggle to
+  // literal role "admin" meant HR could see the Status column but never
+  // had a working control on it, reported live as "the deactivating tab
+  // does not work." Mirrored in toggleEmployeeStatusAction's own guard.
+  const canManageStatus = access?.role === "admin" || access?.role === "hr";
   
   const allEmployees = await db.select().from(employees).where(
     eq(employees.orgId, o.id)
@@ -57,10 +62,10 @@ export default async function EmployeesPage() {
                 <Td>{e.shifNumber || "-"}</Td>
                 <Td right>{fmtKES(e.basicSalaryCents)}</Td>
                 <Td>
-                  {isAdmin ? (
+                  {canManageStatus ? (
                     <ToggleEmployeeStatusButton employeeId={e.id} isActive={e.isActive} />
                   ) : (
-                    <span className={`badge badge-sm ${e.isActive ? 'badge-success badge-outline' : 'badge-neutral'}`}>
+                    <span className={`inline-block px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${e.isActive ? 'bg-[var(--color-success-50)] text-[var(--color-success-700)] border-[var(--color-success-200)]' : 'bg-[var(--color-ink-50)] text-[var(--color-ink-500)] border-[var(--color-ink-200)]'}`}>
                       {e.isActive ? 'Active' : 'Suspended'}
                     </span>
                   )}

@@ -44,7 +44,7 @@ export default async function PayrollRulesPage() {
                     {rule.type}
                   </Link>
                 </Td>
-                <Td><div className="badge badge-ghost badge-sm">{rule.calculationType}</div></Td>
+                <Td><span className="inline-block px-2 py-0.5 rounded-full text-[11px] font-semibold border bg-[var(--color-ink-50)] text-[var(--color-ink-500)] border-[var(--color-ink-200)]">{rule.calculationType}</span></Td>
                 <Td>{rule.effectiveFrom}</Td>
                 <Td>{rule.effectiveTo || "Present"}</Td>
                 <Td className="text-[11px] font-mono text-[var(--color-ink-400)] max-w-[200px]">

@@ -1,8 +1,8 @@
 "use server";
 
-import { db, loanLedger, employees, bankAccounts, accounts } from "@/db";
+import { db, loanLedger, loanManualRepayments, employees, bankAccounts, accounts } from "@/db";
 import { and, eq } from "drizzle-orm";
-import { nowISO, todayISO } from "@/lib/money";
+import { nowISO, todayISO, fmtKES } from "@/lib/money";
 import { postEntry, mirrorBankTxn } from "@/lib/posting";
 
 /**
@@ -75,4 +75,74 @@ export async function issueStaffLoan(params: {
   }
 
   return created.id;
+}
+
+/**
+ * A direct cash repayment against a staff loan, made outside payroll — the
+ * employee hands over cash or pays via M-Pesa directly rather than it being
+ * deducted from a future payslip. Posts the exact reverse of issueStaffLoan's
+ * disbursement entry: DR the receiving bank/cash account · CR Accounts
+ * Receivable (1200), which is the account the loan balance actually lives
+ * against. Must run inside orgContext.run() — postEntry()/mirrorBankTxn()
+ * resolve the org via AsyncLocalStorage, not a parameter.
+ */
+export async function recordLoanRepayment(params: {
+  orgId: number;
+  loanId: number;
+  amountCents: number;
+  bankAccountId: number;
+  date: string;
+}): Promise<number> {
+  const { orgId, loanId, amountCents, bankAccountId, date } = params;
+  if (!amountCents || amountCents <= 0) throw new Error("Enter a valid amount");
+
+  const [loan] = await db.select().from(loanLedger).where(and(eq(loanLedger.orgId, orgId), eq(loanLedger.id, loanId))).limit(1);
+  if (!loan) throw new Error("Loan not found");
+  if (loan.status === "paid") throw new Error("This loan is already fully repaid");
+  if (amountCents > loan.balanceCents) throw new Error(`Amount exceeds the remaining balance of ${fmtKES(loan.balanceCents)}`);
+
+  const [employee] = await db.select().from(employees).where(and(eq(employees.orgId, orgId), eq(employees.id, loan.employeeId))).limit(1);
+  const [bank] = await db.select().from(bankAccounts).where(and(eq(bankAccounts.orgId, orgId), eq(bankAccounts.id, bankAccountId))).limit(1);
+  if (!bank) throw new Error("Bank/M-Pesa account not found");
+  const [ar] = await db.select().from(accounts).where(and(eq(accounts.orgId, orgId), eq(accounts.code, "1200"))).limit(1);
+  if (!ar) throw new Error("Accounts Receivable account (1200) not found");
+
+  const memo = `Loan repayment: ${employee?.name ?? "employee"}`;
+  const entryId = await postEntry({
+    date,
+    memo,
+    sourceType: "staff_loan_repayment",
+    sourceId: loanId,
+    lines: [
+      { accountId: bank.accountId, debitCents: amountCents },
+      { accountId: ar.id, creditCents: amountCents },
+    ],
+  });
+
+  await mirrorBankTxn({
+    bankAccountId: bank.id,
+    date,
+    description: memo,
+    amountCents,
+    journalEntryId: entryId,
+    externalRef: `staffloan-repay:${loanId}:${entryId}`,
+  });
+
+  const newBalance = Math.max(0, loan.balanceCents - amountCents);
+  await db.update(loanLedger).set({
+    balanceCents: newBalance,
+    status: newBalance === 0 ? "paid" : "active",
+  }).where(eq(loanLedger.id, loanId));
+
+  await db.insert(loanManualRepayments).values({
+    orgId,
+    loanId,
+    amountCents,
+    bankAccountId: bank.id,
+    journalEntryId: entryId,
+    date,
+    createdAt: nowISO(),
+  });
+
+  return entryId;
 }

@@ -1081,3 +1081,25 @@ CREATE TABLE IF NOT EXISTS purchase_requests (
 );
 CREATE INDEX IF NOT EXISTS idx_purchase_requests_status ON purchase_requests (status);
 CREATE INDEX IF NOT EXISTS idx_purchase_requests_created ON purchase_requests (created_at);
+
+-- Persist the Tax & Statutory Liabilities account chosen when posting a
+-- payroll run (previously used only transiently), plus who/when it was
+-- actually remitted to KRA/NSSF/SHIF — mirrors the existing paidFromBankAccountId
+-- / paidJournalEntryId / paidAt columns used for the net-pay side.
+ALTER TABLE payroll_runs ADD COLUMN IF NOT EXISTS tax_liabilities_account_id INTEGER;
+ALTER TABLE payroll_runs ADD COLUMN IF NOT EXISTS tax_paid_from_bank_account_id INTEGER;
+ALTER TABLE payroll_runs ADD COLUMN IF NOT EXISTS tax_paid_journal_entry_id INTEGER;
+ALTER TABLE payroll_runs ADD COLUMN IF NOT EXISTS tax_paid_at TEXT;
+
+-- A direct cash repayment against a staff loan, made outside payroll.
+CREATE TABLE IF NOT EXISTS loan_manual_repayments (
+  id SERIAL PRIMARY KEY,
+  org_id INTEGER NOT NULL REFERENCES org(id),
+  loan_id INTEGER NOT NULL REFERENCES loan_ledger(id),
+  amount_cents BIGINT NOT NULL,
+  bank_account_id INTEGER NOT NULL,
+  journal_entry_id INTEGER NOT NULL,
+  date TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_loan_manual_repayments_loan ON loan_manual_repayments (loan_id);

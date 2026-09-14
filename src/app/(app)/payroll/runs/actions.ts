@@ -217,7 +217,8 @@ export async function postPayrollRunAction(runId: number, formData: FormData) {
       await tx.update(payrollRuns).set({
         status: "posted",
         journalEntryId: entryId,
-        payablesAccountId
+        payablesAccountId,
+        taxLiabilitiesAccountId
       }).where(eq(payrollRuns.id, run.id));
 
       // Update loan balances
@@ -311,6 +312,81 @@ export async function payPayrollRunAction(runId: number, bankAccountId: number) 
       paidFromBankAccountId: bank.id,
       paidJournalEntryId: entryId,
       paidAt: date,
+    }).where(eq(payrollRuns.id, run.id));
+
+    revalidatePath(`/payroll/runs/${run.id}`);
+    revalidatePath("/payroll/runs");
+    revalidatePath("/banking");
+  });
+}
+
+/**
+ * Remit the accrued statutory liability (PAYE/NSSF/SHIF/AHL, plus any
+ * employer-borne match) to KRA/NSSF/SHIF from a real bank account — the tax
+ * counterpart of payPayrollRunAction. Posting a run only ever accrued this
+ * into taxLiabilitiesAccountId; nothing previously cleared it, so the
+ * liability just grew every month with no way to record actually paying it
+ * over. Reported live as "having paid for tax remittance for the month"
+ * having no effect on any account.
+ */
+export async function payTaxRemittanceAction(runId: number, bankAccountId: number) {
+  return withOrg(async () => {
+    await requirePerm("accountant");
+    const o = await getOrg();
+
+    const [run] = await db.select().from(payrollRuns).where(and(eq(payrollRuns.id, runId), eq(payrollRuns.orgId, o.id)));
+    if (!run) throw new Error("Not found");
+    if (run.status !== "posted") throw new Error("Post this run to the ledger before recording a tax remittance");
+    if (run.taxPaidAt) throw new Error("Already marked remitted");
+    if (!run.taxLiabilitiesAccountId) throw new Error("This run has no recorded tax liability account — it may predate this feature; clear the liability manually in the Accountant module instead");
+
+    const [bank] = await db.select().from(bankAccounts).where(and(eq(bankAccounts.orgId, o.id), eq(bankAccounts.id, bankAccountId)));
+    if (!bank) throw new Error("Bank account not found");
+
+    const lines = await db.select().from(payrollRunLineItems).where(eq(payrollRunLineItems.payrollRunId, runId));
+    let totalTax = 0;
+    for (const line of lines) {
+      if (line.type === "employer_cost") totalTax += line.amountCents;
+      else if (line.type === "deduction" && line.subType !== "adjustment" && line.subType !== "loan") totalTax += line.amountCents;
+    }
+    if (totalTax <= 0) throw new Error("Nothing to remit on this run");
+
+    const date = new Date().toISOString().slice(0, 10);
+    const entryId = await postEntry({
+      date,
+      memo: `Tax remittance — payroll run ${run.month}`,
+      sourceType: "payroll_tax_payment",
+      sourceId: run.id,
+      lines: [
+        { accountId: run.taxLiabilitiesAccountId, debitCents: totalTax },
+        { accountId: bank.accountId, creditCents: totalTax },
+      ],
+    });
+
+    await mirrorBankTxn({
+      bankAccountId: bank.id,
+      date,
+      description: `Statutory remittance — payroll run ${run.month}`,
+      amountCents: -totalTax,
+      journalEntryId: entryId,
+      externalRef: `payroll-tax-pay:${run.id}`,
+    });
+
+    if (await isKopoKopoRouted("", bank)) {
+      await postKopoKopoFee({
+        bankId: bank.id,
+        bankAccountId: bank.accountId,
+        date,
+        sourceType: "payroll_tax_payment",
+        sourceId: run.id,
+        memo: `Statutory remittance — payroll run ${run.month}`,
+      });
+    }
+
+    await db.update(payrollRuns).set({
+      taxPaidFromBankAccountId: bank.id,
+      taxPaidJournalEntryId: entryId,
+      taxPaidAt: date,
     }).where(eq(payrollRuns.id, run.id));
 
     revalidatePath(`/payroll/runs/${run.id}`);

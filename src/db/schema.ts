@@ -819,6 +819,17 @@ export const payrollRuns = pgTable("payroll_runs", {
   paidFromBankAccountId: integer("paid_from_bank_account_id"),
   paidJournalEntryId: integer("paid_journal_entry_id"),
   paidAt: text("paid_at"),
+  /** The Tax & Statutory Liabilities account picked on the ledger-posting
+   *  form — like payablesAccountId, remembered so the later "remit tax"
+   *  step knows exactly which liability to clear. Previously this value
+   *  was only ever used transiently at post time and never saved, so there
+   *  was no way to record actually paying PAYE/NSSF/SHIF/AHL over to KRA —
+   *  the liability just accrued forever with no way to clear it against a
+   *  real bank account. */
+  taxLiabilitiesAccountId: integer("tax_liabilities_account_id"),
+  taxPaidFromBankAccountId: integer("tax_paid_from_bank_account_id"),
+  taxPaidJournalEntryId: integer("tax_paid_journal_entry_id"),
+  taxPaidAt: text("tax_paid_at"),
   createdAt: text("created_at").notNull(),
 });
 
@@ -935,6 +946,24 @@ export const loanInstallments = pgTable("loan_installments", {
   loanId: integer("loan_id").notNull().references(() => loanLedger.id),
   payrollRunId: integer("payroll_run_id").notNull().references(() => payrollRuns.id),
   amountCents: money("amount_cents").notNull(),
+  createdAt: text("created_at").notNull(),
+});
+
+/**
+ * A direct cash repayment against a staff loan, made outside payroll (e.g.
+ * the employee hands over cash, or pays via M-Pesa) — separate from
+ * loanInstallments, which is strictly payroll-deduction-driven and requires
+ * a payrollRunId. Posts DR the bank/cash account · CR Accounts Receivable
+ * (1200), the exact reverse of issueStaffLoan's disbursement entry.
+ */
+export const loanManualRepayments = pgTable("loan_manual_repayments", {
+  id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
+  loanId: integer("loan_id").notNull().references(() => loanLedger.id),
+  amountCents: money("amount_cents").notNull(),
+  bankAccountId: integer("bank_account_id").notNull(),
+  journalEntryId: integer("journal_entry_id").notNull(),
+  date: text("date").notNull(),
   createdAt: text("created_at").notNull(),
 });
 
