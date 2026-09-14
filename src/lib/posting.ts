@@ -645,3 +645,36 @@ export async function voidDocument(docId: number, date: string): Promise<void> {
 
   await db.update(documents).set({ status: "void" }).where(and(eq(documents.orgId, orgId), eq(documents.id, docId)));
 }
+
+/**
+ * Void an issued invoice back to an editable draft, instead of the terminal
+ * "void" status — for the common case of "I issued the wrong invoice" before
+ * any money has touched it. Reuses voidDocument for the actual ledger
+ * reversal (reversing journal entry + FIFO stock restore), so the books
+ * effect is identical to a normal void; the only difference is where the
+ * document ends up afterwards.
+ *
+ * Scoped to status "open" (issued, awaiting payment, nothing applied) —
+ * voidDocument's own guard already throws if a payment or credit note has
+ * been applied, but that guard alone would also let a document further along
+ * (e.g. one that later dropped back to open) through, which isn't the case
+ * this exists for.
+ */
+export async function voidInvoiceToDraft(docId: number, date: string): Promise<void> {
+  const orgId = currentOrgId();
+  const [doc] = await db.select().from(documents).where(and(eq(documents.orgId, orgId), eq(documents.id, docId))).limit(1);
+  if (!doc) throw new Error("Document not found");
+  if (doc.type !== "invoice") throw new Error("Only invoices can be voided back to draft");
+  if (doc.status !== "open") throw new Error("Only an invoice awaiting payment (issued, nothing paid or credited yet) can be voided back to draft");
+
+  await voidDocument(docId, date);
+
+  // Reversal above leaves it terminally "void" — bring it back to a clean,
+  // re-issuable draft instead. Clearing journalEntryId and the eTIMS fields
+  // means re-issuing later posts a genuinely fresh entry rather than
+  // dragging along a reference to the reversed one.
+  await db
+    .update(documents)
+    .set({ status: "draft", journalEntryId: null, cuInvoiceNumber: null, cuSerial: null, qrUrl: null })
+    .where(and(eq(documents.orgId, orgId), eq(documents.id, docId)));
+}

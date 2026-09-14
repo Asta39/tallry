@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   issueDocument,
   voidDoc,
+  voidInvoiceToDraftAction,
   deleteDraftDoc,
   markQuote,
   convertQuoteToInvoice,
@@ -76,6 +77,7 @@ export function DocActions({
     status: string;
     totalCents: number;
     paidCents: number;
+    creditedCents?: number;
     payoutDestinationType?: string | null;
     payoutDestination?: string | null;
     payoutAccountNumber?: string | null;
@@ -283,6 +285,25 @@ export function DocActions({
           <a href={printHref} target="_blank" className={secondary}>
             Print
           </a>
+        )}
+        {/* The one exception to "no Void on invoices" below: an issued invoice
+            that's still awaiting payment (open, nothing paid or credited yet)
+            hasn't settled anything a customer could dispute — reverse the
+            journal entry and FIFO stock exactly like a real void, then hand
+            it back as an editable draft instead of a terminal void, so a
+            wrong invoice can just be fixed and reissued. */}
+        {doc.type === "invoice" && doc.status === "open" && doc.paidCents === 0 && (doc.creditedCents ?? 0) === 0 && (
+          <button
+            className={danger}
+            disabled={pending}
+            title="Reverses the posted journal entry and stock movement, then reopens this as a draft"
+            onClick={() => {
+              if (!confirm("Void this invoice back to draft? This reverses it in the books precisely — the journal entry and any stock movement are undone — and reopens it for editing.")) return;
+              run(() => voidInvoiceToDraftAction(doc.id));
+            }}
+          >
+            Void to draft
+          </button>
         )}
         {/* Void is not offered on invoices — an issued invoice is a fiscal
             document; reverse it with a credit note, or write it off from the

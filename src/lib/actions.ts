@@ -44,6 +44,7 @@ import {
   postEntry,
   reverseEntry,
   voidDocument,
+  voidInvoiceToDraft,
   acct,
   mirrorBankTxn,
   isKopoKopoRouted,
@@ -2134,6 +2135,21 @@ export async function voidDoc(docId: number) {
   const result = await withOrg(() => _voidDoc(docId));
   await logAudit({ action: "void", module: doc ? DOC_MODULE[doc.type] : "invoices", recordId: docId, recordLabel: doc?.number });
   return result;
+}
+
+/** Void an issued, unpaid invoice back to draft (see voidInvoiceToDraft in
+ *  posting.ts for the ledger-reversal detail) — the one exception to "invoices
+ *  don't get a Void button", scoped to before any payment has touched it. */
+export async function voidInvoiceToDraftAction(docId: number): Promise<{ success?: true; error?: string }> {
+  const [doc] = await db.select({ number: documents.number, type: documents.type }).from(documents).where(eq(documents.id, docId)).limit(1);
+  try {
+    await withOrg(() => voidInvoiceToDraft(docId, todayISO()), { requireWrite: true });
+    await logAudit({ action: "void_to_draft", module: "invoices", recordId: docId, recordLabel: doc?.number });
+    revalidatePath("/sales");
+    return { success: true };
+  } catch (err: any) {
+    return { error: err?.message || "Failed to void invoice" };
+  }
 }
 
 /** Discards a draft that was never issued — nothing has posted yet (no

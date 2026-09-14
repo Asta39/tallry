@@ -210,6 +210,7 @@ export async function DocDetail({ id, printHref }: { id: number; printHref?: str
           status: doc.status,
           totalCents: doc.totalCents,
           paidCents: doc.paidCents,
+          creditedCents: doc.creditedCents,
           payoutDestinationType: doc.payoutDestinationType,
           payoutDestination: doc.payoutDestination,
           payoutAccountNumber: doc.payoutAccountNumber,
