@@ -74,7 +74,7 @@ export function ZenoPerks() {
 
         <TimelineContent as="div" animationNum={7} timelineRef={perksRef} customVariants={revealVariants} className="mt-14 text-center">
           <Link
-            href="/vs/zoho-books"
+            href="/vs/competitors"
             className="inline-flex items-center justify-center h-12 px-6 rounded-full border-4 shadow-sm shadow-black border-black bg-gradient-to-t from-neutral-900 via-neutral-800 to-neutral-900 text-white text-sm font-semibold"
           >
             See a detailed comparison →

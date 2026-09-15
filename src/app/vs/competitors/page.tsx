@@ -9,8 +9,8 @@ const DESCRIPTION =
 export const metadata: Metadata = {
   title: TITLE,
   description: DESCRIPTION,
-  alternates: { canonical: "/vs/zoho-books" },
-  openGraph: { title: TITLE, description: DESCRIPTION, url: "/vs/zoho-books" },
+  alternates: { canonical: "/vs/competitors" },
+  openGraph: { title: TITLE, description: DESCRIPTION, url: "/vs/competitors" },
   twitter: { card: "summary_large_image", title: TITLE, description: DESCRIPTION },
 };
 
