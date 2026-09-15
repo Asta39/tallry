@@ -243,7 +243,7 @@ export function ZenoPricing() {
   const selected = packageForSelection(hasAccounting, hasPayroll);
 
   return (
-    <div className="w-full min-h-screen mx-auto relative" ref={pricingRef}>
+    <div id="pricing" className="w-full min-h-screen mx-auto relative" ref={pricingRef}>
       {/* Blends the AI section's warm bottom tones into this section,
           flush against the very top of it, so the two sections meet as a
           gradient instead of a hard edge — replaces the reference demo's

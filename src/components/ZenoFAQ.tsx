@@ -78,7 +78,7 @@ export function ZenoFAQ() {
   const faqRef = useRef<HTMLDivElement>(null);
 
   return (
-    <div className="w-full bg-white" ref={faqRef}>
+    <div id="faq" className="w-full bg-white" ref={faqRef}>
       <div className="max-w-3xl mx-auto px-4 py-20 sm:py-28">
         <div className="text-center mb-14">
           <TimelineContent as="p" animationNum={0} timelineRef={faqRef} customVariants={revealVariants} className="text-[#0f766e] font-medium mb-3">
