@@ -5,6 +5,8 @@ import { ZenoHero } from "@/components/ZenoHero";
 import { ZenoShowcase } from "@/components/ZenoShowcase";
 import { ZenoAI } from "@/components/ZenoAI";
 import { ZenoPricing } from "@/components/ZenoPricing";
+import { ZenoFAQ } from "@/components/ZenoFAQ";
+import { ZenoFooter } from "@/components/ZenoFooter";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +25,8 @@ export default async function LandingPage() {
       <ZenoShowcase />
       <ZenoAI />
       <ZenoPricing />
+      <ZenoFAQ />
+      <ZenoFooter />
     </main>
   );
 }
