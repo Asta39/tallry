@@ -6,6 +6,7 @@ import { ZenoHero } from "@/components/ZenoHero";
 import { ZenoShowcase } from "@/components/ZenoShowcase";
 import { ZenoAI } from "@/components/ZenoAI";
 import { ZenoPricing } from "@/components/ZenoPricing";
+import { ZenoPerks } from "@/components/ZenoPerks";
 import { ZenoFAQ } from "@/components/ZenoFAQ";
 import { ZenoFooter } from "@/components/ZenoFooter";
 import { PRICING_PACKAGES } from "@/lib/pricing-packages";
@@ -90,6 +91,7 @@ export default async function LandingPage() {
       <ZenoShowcase />
       <ZenoAI />
       <ZenoPricing />
+      <ZenoPerks />
       <ZenoFAQ />
       <ZenoFooter />
     </main>
