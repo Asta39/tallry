@@ -1,4 +1,8 @@
-export const metadata = { title: "Terms of Service — Zeno" };
+export const metadata = {
+  title: "Terms of Service — Zeno",
+  description: "The terms governing use of Zeno's accounting, CRM, and payroll platform for Kenyan businesses.",
+  alternates: { canonical: "/terms" },
+};
 
 const LAST_UPDATED = "31 August 2026";
 

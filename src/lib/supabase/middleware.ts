@@ -8,6 +8,10 @@ const PUBLIC_PATHS = [
   "/privacy", "/terms",
   // PWA assets must be reachable without auth
   "/manifest.webmanifest", "/app-icon", "/sw.js",
+  // Link-preview image for the homepage share card — same problem as
+  // robots.txt/sitemap.xml had: unauthenticated crawlers/link-unfurlers
+  // fetching this need real image bytes back, not a login redirect.
+  "/opengraph-image",
   // Public marketing-site AI assistant — anonymous visitors on the landing
   // page hit this; it has no db/access/tools wiring (see marketing-assistant.ts)
   "/api/marketing-chat",
@@ -18,8 +22,11 @@ const PUBLIC_PATHS = [
 
 /** Exact-match public paths — startsWith would also match every real app
  *  route (everything starts with "/"), so the marketing landing page needs
- *  its own check instead of joining the prefix list above. */
-const PUBLIC_EXACT_PATHS = ["/"];
+ *  its own check instead of joining the prefix list above. robots.txt and
+ *  sitemap.xml were falling through to this same auth gate and redirecting
+ *  crawlers to /login instead of serving actual robots/sitemap content —
+ *  the site had zero pages indexed by Google as a direct result. */
+const PUBLIC_EXACT_PATHS = ["/", "/robots.txt", "/sitemap.xml"];
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });

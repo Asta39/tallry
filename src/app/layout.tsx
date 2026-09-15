@@ -1,8 +1,11 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
+const SITE_URL = "https://www.zenobooks.co.ke";
+
 export const metadata: Metadata = {
-  title: "Zeno",
+  metadataBase: new URL(SITE_URL),
+  title: { default: "Zeno", template: "%s" },
   description: "Kenya-first accounting, CRM & inventory — calm and compliant.",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
@@ -16,6 +19,14 @@ export const metadata: Metadata = {
   },
   verification: {
     google: "gZJE073WRIN-J15WdFIVc3HRaNo-5JT7LfYyX-7LAp4",
+  },
+  openGraph: {
+    type: "website",
+    siteName: "Zeno",
+    url: SITE_URL,
+  },
+  twitter: {
+    card: "summary_large_image",
   },
 };
 

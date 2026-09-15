@@ -276,11 +276,11 @@ export function ZenoPricing() {
             <span className="text-[#0f766e] font-medium">Simple, one-time pricing</span>
           </TimelineContent>
 
-          <h1 className="md:text-5xl sm:text-4xl text-3xl font-semibold text-gray-900 mb-4 leading-[120%]">
+          <h2 className="md:text-5xl sm:text-4xl text-3xl font-semibold text-gray-900 mb-4 leading-[120%]">
             <VerticalCutReveal splitBy="words" staggerDuration={0.15} staggerFrom="first" reverse containerClassName="justify-center" transition={{ type: "spring", stiffness: 250, damping: 40, delay: 0.4 }}>
               Pick your modules, pay once
             </VerticalCutReveal>
-          </h1>
+          </h2>
 
           <TimelineContent as="p" animationNum={1} timelineRef={pricingRef} customVariants={revealVariants} className="text-xl text-gray-600">
             30 days free to try everything. Keep only what you need.

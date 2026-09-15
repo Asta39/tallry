@@ -26,7 +26,7 @@ export function ZenoHero() {
         @container(max-height:479px){[data-zeno-header]{top:18px;}[data-zeno-support]{top:calc(var(--gp-word-bottom,50%) + 14px);}[data-zeno-hero] [data-gp-caption]{top:calc(var(--gp-word-bottom,50%) + 58px);}[data-zeno-scroll]{display:none;}}
         [data-zeno-hero] [data-gp-content]{padding:5.5rem clamp(1.25rem,5cqw,5rem) 6.5rem;font-family:inherit;}
         [data-zeno-copy]{display:flex;width:min(100%,80rem);margin:auto;flex-direction:column;align-items:flex-start;gap:clamp(2rem,5svh,3.5rem);}
-        [data-zeno-copy] h2{max-width:44rem;margin:0;color:inherit;font-size:clamp(1.6rem,1.1rem + 1.8cqw,2.15rem);font-weight:400;line-height:1.28;letter-spacing:0;text-wrap:balance;}
+        [data-zeno-copy] h1{max-width:44rem;margin:0;color:inherit;font-size:clamp(1.6rem,1.1rem + 1.8cqw,2.15rem);font-weight:400;line-height:1.28;letter-spacing:0;text-wrap:balance;}
         [data-zeno-features]{display:grid;width:100%;grid-template-columns:1fr;gap:1.75rem;}
         [data-zeno-feature]{border-top:1px solid rgba(251,251,250,.2);padding-top:1.1rem;}
         [data-zeno-feature] h3{margin:0;color:inherit;font-size:1.0625rem;font-weight:600;line-height:1.25;letter-spacing:0;}
@@ -57,7 +57,7 @@ export function ZenoHero() {
         }
       >
         <div data-zeno-copy>
-          <h2>Everything your business needs to get paid, pay staff, and stay compliant.</h2>
+          <h1>Everything your business needs to get paid, pay staff, and stay compliant.</h1>
           <div data-zeno-features>
             <div data-zeno-feature>
               <h3><span data-zeno-no>01</span>Invoices that file themselves</h3>

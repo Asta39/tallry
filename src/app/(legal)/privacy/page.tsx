@@ -1,4 +1,8 @@
-export const metadata = { title: "Privacy Policy — Zeno" };
+export const metadata = {
+  title: "Privacy Policy — Zeno",
+  description: "How Zeno collects, stores, and protects your business data under the Kenya Data Protection Act.",
+  alternates: { canonical: "/privacy" },
+};
 
 const LAST_UPDATED = "31 August 2026";
 

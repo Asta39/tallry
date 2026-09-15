@@ -1,3 +1,5 @@
+import Image from "next/image";
+
 const CARDS = [
   {
     title: "Invoices that get paid faster.",
@@ -45,8 +47,7 @@ export function ZenoShowcase() {
         [data-zeno-card-copy]{display:flex;flex-direction:column;justify-content:center;min-height:9.5rem;padding:1.5rem 1.75rem;text-align:center;}
         [data-zeno-card-copy] h3{margin:0;color:#fff;font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;font-size:1.4rem;font-weight:800;line-height:1.2;letter-spacing:-.01em;}
         [data-zeno-card-copy] p{margin:.6rem auto 0;max-width:32ch;color:rgba(251,251,250,.72);font-size:.9rem;line-height:1.5;}
-        [data-zeno-card-media]{flex:0 0 auto;margin:0 .8rem;border-radius:14px 14px 0 0;overflow:hidden;background:#fefefe;aspect-ratio:16/10;}
-        [data-zeno-card-media] img{display:block;width:100%;height:100%;object-fit:fill;}
+        [data-zeno-card-media]{position:relative;flex:0 0 auto;margin:0 .8rem;border-radius:14px 14px 0 0;overflow:hidden;background:#fefefe;aspect-ratio:16/10;}
         @media(min-width:900px){
           [data-zeno-rail]{gap:2rem;scroll-padding-inline:6vw;padding-inline:6vw;}
           [data-zeno-card]{flex-basis:calc(100vw - 12vw - 4rem);max-width:1100px;}
@@ -68,7 +69,13 @@ export function ZenoShowcase() {
               <p>{card.copy}</p>
             </div>
             <div data-zeno-card-media>
-              <img src={card.src} alt={card.title} />
+              <Image
+                src={card.src}
+                alt={card.title}
+                fill
+                sizes="(min-width: 900px) 1100px, 78vw"
+                style={{ objectFit: "fill" }}
+              />
             </div>
           </div>
         ))}

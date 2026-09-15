@@ -1,7 +1,13 @@
 "use client";
 
-import { FlutedGlass } from "@paper-design/shaders-react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
+
+// Code-split into its own chunk instead of the main bundle — this is a
+// WebGL shader library pulled in purely for a decorative, below-the-fold
+// background effect; every visitor was paying its parse/execute cost on
+// first load whether or not they ever scrolled this far.
+const FlutedGlass = dynamic(() => import("@paper-design/shaders-react").then((m) => m.FlutedGlass), { ssr: false });
 
 const companyName = "ZENO";
 const SUPPORT_EMAIL = "hello@zenobooks.co.ke";
@@ -41,9 +47,11 @@ export function ZenoFooter() {
     <footer className="w-full bg-white relative overflow-hidden antialiased [font-synthesis:none]">
       {/* Large Stroke Text Section */}
       <div className="relative w-full flex justify-center items-end pt-24 md:pt-32 pb-0 z-0">
-        <h1 className="text-[150px] sm:text-[210px] md:text-[280px] font-semibold text-transparent [-webkit-text-stroke:1px_rgba(0,0,0,0.4)] leading-[0.75] select-none -mb-4 md:-mb-6 opacity-50">
+        {/* Decorative wordmark, not a heading — the page's one real <h1> is
+            the hero statement; this is purely a visual flourish. */}
+        <div aria-hidden="true" className="text-[150px] sm:text-[210px] md:text-[280px] font-semibold text-transparent [-webkit-text-stroke:1px_rgba(0,0,0,0.4)] leading-[0.75] select-none -mb-4 md:-mb-6 opacity-50">
           {companyName}
-        </h1>
+        </div>
       </div>
 
       {/* Green Panel Section — same fluted-glass shader as the reference,
