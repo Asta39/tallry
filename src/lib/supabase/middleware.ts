@@ -6,6 +6,8 @@ const PUBLIC_PATHS = [
   "/login", "/signup", "/auth/callback", "/forgot-password", "/update-password",
   // Legal pages — must be readable by anyone (Kenya DPA transparency)
   "/privacy", "/terms",
+  // Public comparison/landing pages — same marketing surface as "/"
+  "/vs",
   // PWA assets must be reachable without auth
   "/manifest.webmanifest", "/app-icon", "/sw.js",
   // Link-preview image for the homepage share card — same problem as
