@@ -44,15 +44,20 @@ export function ZenoFooter() {
           (#0b332f), instead of the reference's blue, so the footer reads as
           this site's own brand color, not a borrowed one. */}
       <div className="relative w-full z-10 min-h-[380px]" style={{ backgroundColor: "#0b332f" }}>
-        {/* Soft diagonal sheen in place of the reference's shader package —
-            same "glass panel catching light" feel via a couple of layered
-            gradients, no extra dependency. */}
+        {/* Fluted-glass panel in place of the reference's shader package —
+            vertical reeded lines plus alternating light/shadow "flute"
+            columns for the paper-like ribbed depth, and a soft diffused
+            highlight where the light catches the glass. No extra dependency. */}
         <div
-          className="absolute inset-0 z-0 pointer-events-none opacity-60"
+          className="absolute inset-0 z-0 pointer-events-none"
           style={{
             background:
-              "radial-gradient(60% 80% at 15% 0%, rgba(255,255,255,0.10) 0%, transparent 60%), " +
-              "repeating-linear-gradient(115deg, rgba(255,255,255,0.035) 0px, rgba(255,255,255,0.035) 1px, transparent 1px, transparent 42px)",
+              // Diffused paper-light glow, upper-left, where the reference's sheen sits.
+              "radial-gradient(55% 70% at 20% 10%, rgba(255,255,255,0.16) 0%, rgba(255,255,255,0.05) 45%, transparent 75%), " +
+              // Alternating flute shading — wide soft columns of light/shadow, the glass's ribbed body.
+              "repeating-linear-gradient(90deg, rgba(255,255,255,0.05) 0px, rgba(255,255,255,0.05) 20px, rgba(0,0,0,0.05) 20px, rgba(0,0,0,0.05) 40px), " +
+              // Crisp vertical lines marking each flute edge.
+              "repeating-linear-gradient(90deg, rgba(255,255,255,0.16) 0px, rgba(255,255,255,0.16) 1px, transparent 1px, transparent 40px)",
           }}
         />
 
