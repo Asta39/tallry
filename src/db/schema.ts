@@ -67,6 +67,11 @@ export const org = pgTable("org", {
   blockInsufficientStock: boolean("block_insufficient_stock").notNull().default(false),
   /** Books lock: journal entries dated on/before this date are rejected. */
   lockDate: text("lock_date"),
+  /** When on, completing a bank/M-Pesa reconciliation checks whether every
+   *  active bank/M-Pesa account is now reconciled through the same month
+   *  and, if so, auto-advances lockDate to that month's end. Opt-in and
+   *  forward-only — never moves lockDate earlier on its own. */
+  autoLockOnReconciliation: boolean("auto_lock_on_reconciliation").notNull().default(false),
   /** When on, posting a bill requires an accountant/admin to approve it first. */
   requireBillApproval: boolean("require_bill_approval").notNull().default(false),
   /** Optional per-accountant cap for spend approvals; null means accountants can approve any amount. */

@@ -3,8 +3,18 @@
 import { useState, useRef, useEffect, useTransition } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
+import { sectionForPathname } from "@/lib/search-sections";
 
 interface SearchResult {
+  type: string;
+  title: string;
+  subtitle: string;
+  href: string;
+  exactMatch?: boolean;
+  sectionMatch?: boolean;
+}
+
+interface RelatedRecord {
   type: string;
   title: string;
   subtitle: string;
@@ -15,11 +25,13 @@ export function GlobalSearch() {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
+  const [related, setRelated] = useState<RelatedRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [pending, startTransition] = useTransition();
   const ref = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const pathname = usePathname();
+  const section = sectionForPathname(pathname);
 
   useEffect(() => {
     setOpen(false);
@@ -39,17 +51,19 @@ export function GlobalSearch() {
   useEffect(() => {
     if (query.trim().length < 2) {
       setResults([]);
+      setRelated([]);
       setOpen(false);
       return;
     }
 
     const timer = setTimeout(() => {
       setLoading(true);
-      fetch(`/api/search?q=${encodeURIComponent(query)}`)
+      fetch(`/api/search?q=${encodeURIComponent(query)}&section=${section}`)
         .then((res) => res.json())
         .then((data) => {
           if (data.results) {
             setResults(data.results);
+            setRelated(data.related || []);
             setOpen(true);
           }
         })
@@ -57,7 +71,7 @@ export function GlobalSearch() {
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [query]);
+  }, [query, section]);
 
   return (
     <div className="relative w-full max-w-md mx-auto sm:mx-0 sm:ml-auto md:ml-0 md:mr-auto" ref={ref}>
@@ -79,21 +93,46 @@ export function GlobalSearch() {
       </div>
 
       {open && results.length > 0 && (
-        <div className="absolute top-full mt-2 w-full bg-white rounded-lg shadow-[0_4px_20px_-4px_rgba(0,0,0,0.1)] border border-[var(--color-ink-100)] py-1.5 z-50 overflow-hidden">
+        <div className="absolute top-full mt-2 w-full bg-white rounded-lg shadow-[0_4px_20px_-4px_rgba(0,0,0,0.1)] border border-[var(--color-ink-100)] py-1.5 z-50 overflow-hidden max-h-[70vh] overflow-y-auto">
           {results.map((r, i) => (
             <Link
               key={i}
               href={r.href}
-              className="flex flex-col px-4 py-2 hover:bg-[var(--color-ink-50)] transition-colors"
+              className="flex items-center gap-2 px-4 py-2 hover:bg-[var(--color-ink-50)] transition-colors"
             >
-              <div className="text-[13px] font-medium text-[var(--color-ink-900)] truncate">
-                {r.title}
+              <div className="min-w-0 flex-1">
+                <div className="text-[13px] font-medium text-[var(--color-ink-900)] truncate">
+                  {r.title}
+                </div>
+                <div className="text-[11px] text-[var(--color-ink-400)] truncate mt-0.5">
+                  {r.subtitle}
+                </div>
               </div>
-              <div className="text-[11px] text-[var(--color-ink-400)] truncate mt-0.5">
-                {r.subtitle}
-              </div>
+              {r.exactMatch && (
+                <span className="shrink-0 text-[10px] font-medium text-[var(--color-accent-600)] bg-[var(--color-accent-50)] px-1.5 py-0.5 rounded">
+                  Exact match
+                </span>
+              )}
             </Link>
           ))}
+
+          {related.length > 0 && (
+            <>
+              <div className="px-4 pt-2 pb-1 mt-1 border-t border-[var(--color-ink-100)] text-[10.5px] font-semibold uppercase tracking-wide text-[var(--color-ink-400)]">
+                Related
+              </div>
+              {related.map((r, i) => (
+                <Link
+                  key={i}
+                  href={r.href}
+                  className="flex flex-col px-4 py-1.5 hover:bg-[var(--color-ink-50)] transition-colors"
+                >
+                  <div className="text-[12.5px] text-[var(--color-ink-800)] truncate">{r.title}</div>
+                  <div className="text-[10.5px] text-[var(--color-ink-400)] truncate">{r.subtitle}</div>
+                </Link>
+              ))}
+            </>
+          )}
         </div>
       )}
       

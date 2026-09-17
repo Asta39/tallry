@@ -1103,3 +1103,7 @@ CREATE TABLE IF NOT EXISTS loan_manual_repayments (
   created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_loan_manual_repayments_loan ON loan_manual_repayments (loan_id);
+
+-- Opt-in: auto-advance the books lock once every active bank/M-Pesa account
+-- is reconciled through the same month.
+ALTER TABLE org ADD COLUMN IF NOT EXISTS auto_lock_on_reconciliation BOOLEAN NOT NULL DEFAULT false;

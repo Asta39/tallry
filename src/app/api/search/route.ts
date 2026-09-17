@@ -1,84 +1,41 @@
 import { NextResponse } from "next/server";
-import { db, contacts, documents } from "@/db";
-import { ilike, or, eq, and } from "drizzle-orm";
-import { getAccess, canViewAllData } from "@/lib/access";
+import { getAccess } from "@/lib/access";
+import { runSearch } from "@/lib/search";
+import { getRelatedRecords } from "@/lib/related-records";
+import type { SearchSection } from "@/lib/search-sections";
 
 export const dynamic = "force-dynamic";
+
+const VALID_SECTIONS = new Set(["contacts", "sales", "purchases", "items", "payroll", "other"]);
 
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const q = searchParams.get("q");
-    if (!q || q.length < 2) return NextResponse.json({ results: [] });
+    if (!q || q.length < 2) return NextResponse.json({ results: [], related: [] });
+
+    const rawSection = searchParams.get("section") || "other";
+    const section: SearchSection = (VALID_SECTIONS.has(rawSection) ? rawSection : "other") as SearchSection;
 
     const access = await getAccess();
     if (!access) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    
-    const orgId = access.orgId;
 
-    const [matchedContacts, matchedDocs] = await Promise.all([
-      db
-        .select({ id: contacts.id, name: contacts.displayName, kind: contacts.kind })
-        .from(contacts)
-        .where(
-          and(
-            eq(contacts.orgId, orgId),
-            or(ilike(contacts.displayName, `%${q}%`), ilike(contacts.email, `%${q}%`))
-          )
-        )
-        .limit(5),
-      db
-        .select({ id: documents.id, number: documents.number, type: documents.type, contactName: contacts.displayName })
-        .from(documents)
-        .leftJoin(contacts, eq(documents.contactId, contacts.id))
-        .where(
-          and(
-            eq(documents.orgId, orgId),
-            or(ilike(documents.number, `%${q}%`), ilike(contacts.displayName, `%${q}%`))
-          )
-        )
-        .limit(5),
-    ]);
+    const results = await runSearch(access, q, section);
 
-    // Same segregation rule every document list uses (canViewAllData) — was
-    // previously re-derived inline here and missed the view_all_documents
-    // permission override, so a role granted that override still had its
-    // search results silently filtered.
-    let finalDocs = matchedDocs;
-    if (!canViewAllData(access)) {
-       // Just fetch assignments for these matched docs
-       if (finalDocs.length > 0) {
-         const { documentAssignments } = await import("@/db");
-         const { inArray } = await import("drizzle-orm");
-         const docIds = finalDocs.map(d => d.id);
-         const assignments = await db.select().from(documentAssignments).where(
-           and(
-             inArray(documentAssignments.documentId, docIds),
-             eq(documentAssignments.memberId, access.memberId!)
-           )
-         );
-         const assignedIds = new Set(assignments.map(a => a.documentId));
-         finalDocs = finalDocs.filter(d => assignedIds.has(d.id));
-       }
-    }
+    // Related suggestions only for a clear top match — an exact hit (e.g.
+    // typing an invoice number) — not for a broad, ambiguous result list.
+    const top = results[0];
+    const related = top?.exactMatch
+      ? await getRelatedRecords(access.orgId, top.type, extractIdFromHref(top.href))
+      : [];
 
-    const results = [
-      ...matchedContacts.map(c => ({
-        type: c.kind, // "customer" | "vendor"
-        title: c.name,
-        subtitle: c.kind === "customer" ? "Customer" : "Vendor",
-        href: `/contacts/${c.id}`
-      })),
-      ...finalDocs.map(d => ({
-        type: d.type, // "invoice", "quote", etc.
-        title: d.number,
-        subtitle: `${d.type.charAt(0).toUpperCase() + d.type.slice(1)} • ${d.contactName || "No contact"}`,
-        href: `/${d.type === "quote" ? "sales/quotes" : d.type === "invoice" ? "sales/invoices" : d.type === "bill" ? "purchases/bills" : d.type === "expense" ? "purchases/expenses" : d.type === "credit_note" ? "sales/credit-notes" : "purchases/orders"}/${d.id}`
-      }))
-    ];
-
-    return NextResponse.json({ results });
+    return NextResponse.json({ results, related });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
+}
+
+function extractIdFromHref(href: string): number {
+  const match = href.match(/(\d+)$/);
+  return match ? Number(match[1]) : 0;
 }

@@ -23,6 +23,8 @@ import { SYS } from "./coa";
 import { saveDocument, issueDocument, type DocLineInput } from "./actions";
 import { advance, dueRuns, addDays, endOfMonthISO, type Frequency } from "./recurring";
 import { notifyOrg } from "./notifications";
+import { maybeAutoLockPeriod } from "./period-lock";
+import { logAudit } from "./audit";
 
 function revalidatePath(path: string) {
   try {
@@ -324,7 +326,9 @@ export async function completeReconciliation(recId: number) {
       .update(bankReconciliations)
       .set({ status: "completed", completedAt: nowISO() })
       .where(and(eq(bankReconciliations.orgId, orgId), eq(bankReconciliations.id, recId)));
+    await maybeAutoLockPeriod(orgId);
     revalidatePath("/banking");
+    revalidatePath("/accounting/period-lock");
   });
 }
 
@@ -737,13 +741,71 @@ export async function recordDrawings(bankAccountId: number, amountCents: number,
   });
 }
 
-/** Set/clear the books lock date. Admin only. */
+/** Set or extend the books lock date. Admin only. Refuses to move the lock
+ *  *earlier* than it already is — that's reopening a period, which goes
+ *  through reopenBooksLock instead so it always requires a reason and gets
+ *  logged distinctly from routine lock maintenance. */
 export async function setBooksLock(lockDate: string | null) {
   const access = await getAccess();
   if (!access) throw new Error("Not signed in");
   if (access.role !== "admin") throw new Error("Only admins can lock/unlock the books");
+
+  const [current] = await db.select({ lockDate: org.lockDate }).from(org).where(eq(org.id, access.orgId)).limit(1);
+  if (current?.lockDate && lockDate && lockDate < current.lockDate) {
+    throw new Error("That date is earlier than the current lock — use Reopen a period instead, which requires a reason.");
+  }
+
   await db.update(org).set({ lockDate }).where(eq(org.id, access.orgId));
+  await logAudit({
+    action: "lock",
+    module: "period_lock",
+    detail: `${current?.lockDate ?? "(unlocked)"} → ${lockDate ?? "(unlocked)"}`,
+  });
   revalidatePath("/accountant");
+  revalidatePath("/accounting/period-lock");
+}
+
+/** Move the books lock date earlier (or clear it) — reopening a period that
+ *  was already closed. Admin only, and always requires a reason: unlike
+ *  setBooksLock this loosens historical integrity, so it must be
+ *  deliberate and auditable, not a one-field form anyone could resubmit. */
+export async function reopenBooksLock(newLockDate: string | null, reason: string) {
+  const access = await getAccess();
+  if (!access) throw new Error("Not signed in");
+  if (access.role !== "admin") throw new Error("Only admins can reopen a locked period");
+  if (!reason.trim()) throw new Error("A reason is required to reopen a locked period");
+
+  const [current] = await db.select({ lockDate: org.lockDate }).from(org).where(eq(org.id, access.orgId)).limit(1);
+  if (!current?.lockDate) throw new Error("The books aren't currently locked");
+  if (newLockDate && newLockDate >= current.lockDate) {
+    throw new Error("That date doesn't loosen the lock — use Extend lock instead");
+  }
+
+  await db.update(org).set({ lockDate: newLockDate }).where(eq(org.id, access.orgId));
+  await logAudit({
+    action: "reopen",
+    module: "period_lock",
+    detail: `${current.lockDate} → ${newLockDate ?? "(unlocked)"}: ${reason.trim()}`,
+  });
+  revalidatePath("/accountant");
+  revalidatePath("/accounting/period-lock");
+}
+
+/** Toggle whether completing a bank/M-Pesa reconciliation can auto-advance
+ *  the books lock. Admin only, same as the lock date itself. */
+export async function setAutoLockOnReconciliation(enabled: boolean) {
+  const access = await getAccess();
+  if (!access) throw new Error("Not signed in");
+  if (access.role !== "admin") throw new Error("Only admins can change this setting");
+  await db.update(org).set({ autoLockOnReconciliation: enabled }).where(eq(org.id, access.orgId));
+  await logAudit({
+    action: enabled ? "enable_auto_lock" : "disable_auto_lock",
+    module: "period_lock",
+    detail: enabled
+      ? "Auto-lock enabled — the books will lock automatically once every bank/M-Pesa account is reconciled through the same month"
+      : "Auto-lock disabled",
+  });
+  revalidatePath("/accounting/period-lock");
 }
 
 /* =========================================================================
