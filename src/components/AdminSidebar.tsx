@@ -1,10 +1,24 @@
 "use client";
 
-import Link from "next/link";
-import { useState, useEffect } from "react";
+import { PanelLeft } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { SignOutButton } from "./SignOutButton";
 import { AdminGlobalSearch } from "./AdminGlobalSearch";
+import {
+  AnimatedSidebar,
+  AnimatedSidebarClose,
+  AnimatedSidebarContent,
+  AnimatedSidebarFooter,
+  AnimatedSidebarGroup,
+  AnimatedSidebarGroupContent,
+  AnimatedSidebarGroupLabel,
+  AnimatedSidebarHeader,
+  AnimatedSidebarMenu,
+  AnimatedSidebarMenuButton,
+  AnimatedSidebarMenuItem,
+  AnimatedSidebarRail,
+  AnimatedSidebarTrigger,
+} from "@/components/motion/animated-sidebar";
 
 const groups = [
   {
@@ -41,83 +55,27 @@ const groups = [
   },
 ];
 
+/** Must render inside a PersistentSidebarProvider (see (admin)/layout.tsx). */
 export function AdminSidebar({ userEmail }: { userEmail: string }) {
   const pathname = usePathname();
-  const [open, setOpen] = useState(false);
 
-  useEffect(() => setOpen(false), [pathname]);
-
-  const active = (href: string) =>
-    href === "/admin" ? pathname === "/admin" : pathname.startsWith(href);
-
-  const nav = (
-    <>
-      <div className="px-4 pt-5 pb-3">
-        <div className="flex items-center gap-2.5">
-          <div className="shrink-0 w-14 h-14 rounded-xl overflow-hidden flex items-center justify-center bg-white shadow-[0_1px_3px_rgba(0,0,0,0.12)] border border-[var(--color-ink-100)]">
-            <img src="/admin-logo.jpg" alt="Zeno" width={56} height={56} className="object-contain w-full h-full" />
-          </div>
-          <div className="min-w-0">
-            <div className="text-[13.5px] font-semibold tracking-tight truncate leading-tight">Super Admin</div>
-            <div className="text-[10.5px] text-[var(--color-ink-400)] mt-0.5">Zeno Platform</div>
-          </div>
-        </div>
-        <div className="mt-3">
-          <AdminGlobalSearch />
-        </div>
-      </div>
-
-      <nav className="flex-1 overflow-y-auto px-3 py-2 space-y-4">
-        {groups.map((g, gi) => (
-          <div key={gi}>
-            {g.label && (
-              <div className="px-2 pb-1 text-[10.5px] font-semibold uppercase tracking-wider text-[var(--color-ink-400)]">
-                {g.label}
-              </div>
-            )}
-            <ul className="space-y-0.5">
-              {g.items.map((it) => (
-                <li key={it.href}>
-                  <Link
-                    href={it.href}
-                    className={`flex items-center gap-2.5 rounded-md px-2 py-[7px] text-[13px] transition-colors ${
-                      active(it.href)
-                        ? "bg-white/80 text-red-700 font-medium shadow-[0_1px_2px_rgba(0,0,0,0.05)]"
-                        : "text-[var(--color-ink-600)] hover:bg-white/50"
-                    }`}
-                  >
-                    <span className="w-4 text-center opacity-70">{it.icon}</span>
-                    {it.label}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ))}
-      </nav>
-
-      <div className="hairline-t px-4 py-3 flex items-center justify-between">
-        <div className="min-w-0">
-          <div className="text-[11.5px] text-[var(--color-ink-600)] truncate">{userEmail}</div>
-        </div>
-        <SignOutButton />
-      </div>
-    </>
-  );
+  // "/admin" only matches itself; every other item matches by prefix, and the
+  // longest match wins so the shared sliding pill has a single target.
+  const activeHref = groups
+    .flatMap((g) => g.items)
+    .filter((it) => (it.href === "/admin" ? pathname === "/admin" : pathname.startsWith(it.href)))
+    .sort((a, b) => b.href.length - a.href.length)[0]?.href;
 
   return (
     <>
       <div className="md:hidden no-print fixed top-0 inset-x-0 z-40 px-3 pt-3">
         <div className="relative sidebar-chrome rounded-[32px] shadow-[0_2px_14px_rgba(0,0,0,0.08)] border border-[var(--color-ink-100)]/70 h-16 flex items-center justify-center">
-          <button
-            onClick={() => setOpen(true)}
+          <AnimatedSidebarTrigger
             aria-label="Open menu"
-            className="absolute left-2.5 w-10 h-10 flex flex-col items-center justify-center gap-[5px] rounded-full hover:bg-white/60"
+            className="absolute left-2.5 size-10 rounded-full text-[var(--color-ink-900)] hover:bg-white/60"
           >
-            <span className="block w-5 h-[1.5px] bg-[var(--color-ink-900)]" />
-            <span className="block w-5 h-[1.5px] bg-[var(--color-ink-900)]" />
-            <span className="block w-5 h-[1.5px] bg-[var(--color-ink-900)]" />
-          </button>
+            <PanelLeft aria-hidden="true" className="size-5" />
+          </AnimatedSidebarTrigger>
           <div className="flex flex-col items-center leading-tight max-w-[55vw]">
             <span className="text-[14px] font-semibold tracking-tight truncate">Zeno Platform</span>
             <span className="text-[11px] text-[var(--color-ink-400)] mt-0.5 truncate">Super Admin</span>
@@ -125,24 +83,75 @@ export function AdminSidebar({ userEmail }: { userEmail: string }) {
         </div>
       </div>
 
-      {open && (
-        <div className="md:hidden no-print fixed inset-0 z-50">
-          <div className="absolute inset-0 bg-black/30" onClick={() => setOpen(false)} />
-          <aside className="absolute left-0 top-0 h-full w-[270px] max-w-[85vw] bg-[var(--color-ink-50)] flex flex-col shadow-xl">
-            <button
-              onClick={() => setOpen(false)}
-              className="absolute top-4 right-3 w-8 h-8 rounded-full hover:bg-white/70 text-[18px] text-[var(--color-ink-600)]"
+      <AnimatedSidebar
+        ariaLabel="Admin navigation"
+        collapsible="icon"
+        className="no-print"
+        panelClassName="bg-[rgba(245,245,247,0.85)] backdrop-blur-[20px] backdrop-saturate-[1.4] border-[var(--color-ink-100)]"
+      >
+        <AnimatedSidebarHeader className="px-4 pt-5 pb-3 group-data-[state=collapsed]/sidebar:px-3">
+          <div className="flex items-center gap-2.5 group-data-[state=collapsed]/sidebar:flex-col">
+            <div className="shrink-0 w-14 h-14 group-data-[state=collapsed]/sidebar:size-11 rounded-xl overflow-hidden flex items-center justify-center bg-white shadow-[0_1px_3px_rgba(0,0,0,0.12)] border border-[var(--color-ink-100)]">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/admin-logo.jpg" alt="Zeno" width={56} height={56} className="object-contain w-full h-full" />
+            </div>
+            <div className="min-w-0 flex-1 group-data-[state=collapsed]/sidebar:hidden">
+              <div className="text-[13.5px] font-semibold tracking-tight truncate leading-tight">Super Admin</div>
+              <div className="text-[10.5px] text-[var(--color-ink-400)] mt-0.5">Zeno Platform</div>
+            </div>
+            <AnimatedSidebarTrigger
+              aria-label="Toggle sidebar (Ctrl/⌘ B)"
+              title="Toggle sidebar (Ctrl/⌘ B)"
+              className="hidden md:inline-flex size-8 rounded-lg text-[var(--color-ink-400)] hover:bg-white/60 hover:text-[var(--color-ink-800)]"
             >
+              <PanelLeft aria-hidden="true" className="size-4" />
+            </AnimatedSidebarTrigger>
+            <AnimatedSidebarClose className="ml-auto size-8 text-[18px] text-[var(--color-ink-600)] hover:bg-white/70 md:hidden">
               ×
-            </button>
-            {nav}
-          </aside>
-        </div>
-      )}
+            </AnimatedSidebarClose>
+          </div>
+          <div className="mt-3 group-data-[state=collapsed]/sidebar:hidden">
+            <AdminGlobalSearch />
+          </div>
+        </AnimatedSidebarHeader>
 
-      <aside className="hidden md:flex sidebar-chrome no-print w-[230px] shrink-0 sticky top-0 h-screen flex-col border-r border-[var(--color-ink-100)]">
-        {nav}
-      </aside>
+        <AnimatedSidebarContent className="px-3 py-2">
+          {groups.map((g, gi) => (
+            <AnimatedSidebarGroup key={gi} className="px-0 py-1">
+              {g.label && <AnimatedSidebarGroupLabel className="h-6 text-[10.5px] font-semibold tracking-wider">{g.label}</AnimatedSidebarGroupLabel>}
+              <AnimatedSidebarGroupContent>
+                <AnimatedSidebarMenu>
+                  {g.items.map((it) => (
+                    <AnimatedSidebarMenuItem key={it.href}>
+                      <AnimatedSidebarMenuButton
+                        href={it.href}
+                        isActive={it.href === activeHref}
+                        icon={<span className="text-[14px] leading-none opacity-80">{it.icon}</span>}
+                        className={`min-h-[34px] rounded-md text-[13px] ${
+                          it.href === activeHref ? "text-red-700" : "text-[var(--color-ink-600)]"
+                        }`}
+                      >
+                        {it.label}
+                      </AnimatedSidebarMenuButton>
+                    </AnimatedSidebarMenuItem>
+                  ))}
+                </AnimatedSidebarMenu>
+              </AnimatedSidebarGroupContent>
+            </AnimatedSidebarGroup>
+          ))}
+        </AnimatedSidebarContent>
+
+        <AnimatedSidebarFooter className="hairline-t border-t-0 px-4 py-3 group-data-[state=collapsed]/sidebar:px-1">
+          <div className="flex items-center justify-between group-data-[state=collapsed]/sidebar:justify-center">
+            <div className="min-w-0 group-data-[state=collapsed]/sidebar:hidden">
+              <div className="text-[11.5px] text-[var(--color-ink-600)] truncate">{userEmail}</div>
+            </div>
+            <SignOutButton />
+          </div>
+        </AnimatedSidebarFooter>
+
+        <AnimatedSidebarRail />
+      </AnimatedSidebar>
     </>
   );
 }

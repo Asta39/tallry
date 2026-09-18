@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { getUser } from "@/lib/supabase/server";
 import { getAccessCached, MODULES } from "@/lib/access";
 import { Sidebar } from "@/components/Sidebar";
+import { PersistentSidebarProvider } from "@/components/motion/persistent-sidebar-provider";
 import { NotificationBell } from "@/components/NotificationBell";
 import { GlobalSearch } from "@/components/GlobalSearch";
 import { InstallPrompt } from "@/components/InstallPrompt";
@@ -118,7 +119,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <TeamAnnouncementBanner announcements={pinnedTeamAnnouncements} />
         {isImpersonating && <ImpersonationBanner orgName={access.orgRow.name} />}
       </BannerStack>
-      <div className="flex min-h-screen" style={access.orgRow.brandColor ? { "--color-brand": access.orgRow.brandColor } as React.CSSProperties : undefined}>
+      <PersistentSidebarProvider storageKey="zeno-sidebar-app" className="min-h-screen" style={access.orgRow.brandColor ? { "--color-brand": access.orgRow.brandColor } as React.CSSProperties : undefined}>
         <InstallPrompt />
         <Sidebar
           orgName={access.orgRow.name}
@@ -173,7 +174,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </div>
         </main>
         </BlurProvider>
-      </div>
+      </PersistentSidebarProvider>
       <AiAssistantPill initialBriefCount={brief?.count ?? 0} brandColor={access.orgRow.brandColor} />
     </>
   );

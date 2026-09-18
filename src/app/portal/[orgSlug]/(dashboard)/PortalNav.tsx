@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { motion } from "motion/react";
+import { SPRING_LAYOUT } from "@/lib/ease";
 
 const ITEMS = [
   { href: "dashboard", label: "Overview" },
@@ -44,13 +46,20 @@ export function PortalNav({ orgSlug }: { orgSlug: string }) {
           <Link
             key={item.href}
             href={href}
-            className={`shrink-0 px-3.5 py-1.5 rounded-full text-[13.5px] font-medium whitespace-nowrap transition-colors ${
+            className={`relative shrink-0 px-3.5 py-1.5 rounded-full text-[13.5px] font-medium whitespace-nowrap transition-colors ${
               active
-                ? "bg-white text-[var(--color-ink-900)] shadow-sm"
+                ? "text-[var(--color-ink-900)]"
                 : "text-[var(--color-ink-600)] hover:text-[var(--color-ink-900)]"
             }`}
           >
-            {item.label}
+            {active && (
+              <motion.span
+                layoutId="portal-nav-active"
+                transition={SPRING_LAYOUT}
+                className="absolute inset-0 rounded-full bg-white shadow-sm"
+              />
+            )}
+            <span className="relative z-10">{item.label}</span>
           </Link>
         );
       })}

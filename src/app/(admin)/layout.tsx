@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getUser } from "@/lib/supabase/server";
 import { isSuperAdmin } from "@/lib/super-admin";
 import { AdminSidebar } from "@/components/AdminSidebar";
+import { PersistentSidebarProvider } from "@/components/motion/persistent-sidebar-provider";
 
 export default async function AdminLayout({
   children,
@@ -18,7 +19,7 @@ export default async function AdminLayout({
   }
 
   return (
-    <div className="flex min-h-screen bg-[var(--color-ink-50)] text-[var(--color-ink-900)]">
+    <PersistentSidebarProvider storageKey="zeno-sidebar-admin" className="min-h-screen bg-[var(--color-ink-50)] text-[var(--color-ink-900)]">
       <AdminSidebar userEmail={user.email} />
       <main className="flex-1 min-w-0 flex flex-col h-screen overflow-hidden">
         <div className="flex-1 overflow-y-auto">
@@ -28,6 +29,6 @@ export default async function AdminLayout({
           </div>
         </div>
       </main>
-    </div>
+    </PersistentSidebarProvider>
   );
 }
