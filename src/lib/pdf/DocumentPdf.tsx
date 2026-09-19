@@ -629,8 +629,10 @@ export function DocumentPdf({
           </View>
         ) : null}
 
-        {/* Payment info + Terms & Conditions — bold headings, normal-weight body */}
-        {["invoice", "quote", "credit_note"].includes(doc.type) && (org.paymentInfoText || org.termsText) ? (
+        {/* Payment info + Terms & Conditions — bold headings, normal-weight body.
+            Not on quotes: a quotation isn't a payment request, so how-to-pay
+            details and payment terms there are premature (accountant request). */}
+        {["invoice", "credit_note"].includes(doc.type) && (org.paymentInfoText || org.termsText) ? (
           <View style={s.docFooterText}>
             {org.termsText ? (
               <View>
