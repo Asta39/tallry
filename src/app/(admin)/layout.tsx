@@ -4,6 +4,9 @@ import { isSuperAdmin } from "@/lib/super-admin";
 import { AdminSidebar } from "@/components/AdminSidebar";
 import { PersistentSidebarProvider } from "@/components/motion/persistent-sidebar-provider";
 
+// Every admin page needs the signed-in super-admin (cookies) — never prerender.
+export const dynamic = "force-dynamic";
+
 export default async function AdminLayout({
   children,
 }: {
