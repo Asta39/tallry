@@ -14,12 +14,11 @@ export default async function EmployeesPage() {
   await requirePerm("payroll");
   const o = await getOrg();
   const access = await getAccess();
-  // HR manages staff records day-to-day and already has the "payroll" perm
-  // needed to reach this page at all — restricting the actual toggle to
-  // literal role "admin" meant HR could see the Status column but never
-  // had a working control on it, reported live as "the deactivating tab
-  // does not work." Mirrored in toggleEmployeeStatusAction's own guard.
-  const canManageStatus = access?.role === "admin" || access?.role === "hr";
+  // Anyone who can open payroll (admin, HR, accountant, custom roles granted
+  // it) may suspend/activate — restricting this to admin/HR locked the
+  // accountant out (their click hit a server-side rejection). Mirrors
+  // toggleEmployeeStatusAction's own guard.
+  const canManageStatus = access?.role === "admin" || !!access?.perms.has("payroll");
   
   const allEmployees = await db.select().from(employees).where(
     eq(employees.orgId, o.id)

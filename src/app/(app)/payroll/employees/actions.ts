@@ -83,10 +83,16 @@ export async function updateEmployeeAction(employeeId: number, formData: FormDat
   revalidatePath("/payroll/employees");
 }
 
-export async function toggleEmployeeStatusAction(employeeId: number, isActive: boolean) {
+/** Suspend/activate an employee. Anyone who can open payroll (admin, HR,
+ *  accountant, or any custom role granted "payroll") may do this. Returns
+ *  errors as a value rather than throwing: a thrown error from a server
+ *  action is redacted to a generic "error occurred in the Server Components
+ *  render" message in production, which hid the real reason from users. */
+export async function toggleEmployeeStatusAction(employeeId: number, isActive: boolean): Promise<{ error?: string }> {
   const access = await getAccess();
-  if (!access || (access.role !== "admin" && access.role !== "hr")) {
-    throw new Error("Only admins and HR can suspend or activate employees");
+  if (!access) return { error: "You're signed out — please sign in again." };
+  if (access.role !== "admin" && !access.perms.has("payroll")) {
+    return { error: "Your role doesn't have access to payroll, so you can't suspend or activate employees." };
   }
 
   await db.update(employees)
@@ -94,4 +100,6 @@ export async function toggleEmployeeStatusAction(employeeId: number, isActive: b
     .where(and(eq(employees.id, employeeId), eq(employees.orgId, access.orgId)));
 
   revalidatePath("/payroll/employees");
+  revalidatePath(`/payroll/employees/${employeeId}`);
+  return {};
 }

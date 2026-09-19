@@ -18,8 +18,9 @@ export function ToggleEmployeeStatusButton({ employeeId, isActive }: { employeeI
             setError(null);
             start(async () => {
               try {
-                await toggleEmployeeStatusAction(employeeId, !isActive);
-                router.refresh();
+                const res = await toggleEmployeeStatusAction(employeeId, !isActive);
+                if (res.error) setError(res.error);
+                else router.refresh();
               } catch (e) {
                 setError(e instanceof Error ? e.message : "Failed to update status");
               }
