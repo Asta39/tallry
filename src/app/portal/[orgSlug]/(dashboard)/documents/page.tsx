@@ -1,10 +1,11 @@
 import { getClientSession } from "@/lib/client-portal/auth";
-import { db, documents, payments } from "@/db";
+import { db, documents, payments, contacts } from "@/db";
 import { eq, and, desc, inArray } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { PageHeader } from "@/components/ui";
 import { ClientDocuments } from "./ClientDocuments";
 import { StatementTab } from "@/components/StatementTab";
+import { getStatementOpeningBalance } from "@/lib/statement-opening";
 
 export const dynamic = "force-dynamic";
 
@@ -40,6 +41,13 @@ export default async function ClientPortalDocuments({
       )
     );
 
+  const [portalContact] = await db
+    .select()
+    .from(contacts)
+    .where(and(eq(contacts.orgId, session.orgId), eq(contacts.id, session.contactId)))
+    .limit(1);
+  const statementOpening = portalContact ? await getStatementOpeningBalance(session.orgId, portalContact) : null;
+
   const viewDocs = allDocs.filter(d => tab === "quotes" ? d.type === "quote" : tab === "invoices" ? d.type === "invoice" : false);
 
   return (
@@ -66,7 +74,14 @@ export default async function ClientPortalDocuments({
 
       <div className="max-w-5xl">
         {tab === "statement" ? (
-          <StatementTab contact={{ id: session.contactId, displayName: "You" } as any} docs={allDocs} pays={allPayments} portalSlug={orgSlug} />
+          <StatementTab
+            contact={{ id: session.contactId, displayName: "You", kind: portalContact?.kind ?? "customer" } as any}
+            docs={allDocs}
+            pays={allPayments}
+            portalSlug={orgSlug}
+            openingBalanceCents={statementOpening?.cents}
+            openingBalanceDate={statementOpening?.date}
+          />
         ) : (
           <ClientDocuments slug={orgSlug} tab={tab} documents={viewDocs} payments={allPayments} />
         )}

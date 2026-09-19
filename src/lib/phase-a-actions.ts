@@ -25,6 +25,7 @@ import { advance, dueRuns, addDays, endOfMonthISO, type Frequency } from "./recu
 import { notifyOrg } from "./notifications";
 import { maybeAutoLockPeriod } from "./period-lock";
 import { logAudit } from "./audit";
+import { getStatementOpeningBalance } from "./statement-opening";
 
 function revalidatePath(path: string) {
   try {
@@ -868,6 +869,11 @@ export async function getStatementData(contactId: number, from: string, to: stri
           )
       : [];
 
+    // Original B/F amount (from its journal entry), not the remaining
+    // contacts.openingBalanceCents — payments against it are listed below as
+    // ordinary payments, so the row must carry the full figure.
+    const openingBf = await getStatementOpeningBalance(orgId, contact);
+
     type Ev = { date: string; ref: string; description: string; d: number; c: number };
     const events: Ev[] = [
       // "d" grows the running balance (what's owed, either direction),
@@ -875,12 +881,12 @@ export async function getStatementData(contactId: number, from: string, to: stri
       // notes (c) are tagged below, so opening balance sits consistently on
       // the same side as the document type it's standing in for (an
       // invoice-shaped debt for a customer, a bill-shaped one for a vendor).
-      ...(contact.openingBalanceCents !== 0 && contact.openingBalanceDate
+      ...(openingBf
         ? [{
-            date: contact.openingBalanceDate,
+            date: openingBf.date,
             ref: "OB",
             description: "Balance brought forward",
-            d: contact.openingBalanceCents,
+            d: openingBf.cents,
             c: 0,
           }]
         : []),

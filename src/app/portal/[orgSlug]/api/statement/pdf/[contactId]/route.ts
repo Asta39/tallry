@@ -8,6 +8,7 @@ import { StatementPdf } from "@/lib/pdf/StatementPdf";
 import { todayISO } from "@/lib/money";
 import { addDays } from "@/lib/recurring";
 import type { StatementLine } from "@/lib/phase-a-actions";
+import { getStatementOpeningBalance } from "@/lib/statement-opening";
 
 export const dynamic = "force-dynamic";
 
@@ -59,14 +60,19 @@ export async function GET(
       and(eq(payments.orgId, session.orgId), eq(payments.contactId, cid), eq(payments.direction, "in"))
     );
 
+  // Original B/F amount from its journal entry — payments against it are in
+  // `pays`, so using the remaining contacts.openingBalanceCents would drop
+  // the row (or double-subtract) once part/all of it has been settled.
+  const openingBf = await getStatementOpeningBalance(session.orgId, contact);
+
   type Ev = { date: string; ref: string; description: string; d: number; c: number };
   const events: Ev[] = [
-    ...(contact.openingBalanceCents !== 0 && contact.openingBalanceDate
+    ...(openingBf
       ? [{
-          date: contact.openingBalanceDate,
+          date: openingBf.date,
           ref: "OB",
           description: "Balance brought forward",
-          d: contact.openingBalanceCents,
+          d: openingBf.cents,
           c: 0,
         }]
       : []),

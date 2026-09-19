@@ -16,6 +16,7 @@ import { resolvePeriod } from "@/lib/report-period";
 import { ReportFilters } from "@/components/ReportFilters";
 import { ClientPortalTab } from "@/components/ClientPortalTab";
 import { ContactOpeningBalanceCard } from "@/components/ContactOpeningBalanceCard";
+import { getStatementOpeningBalance } from "@/lib/statement-opening";
 
 export const dynamic = "force-dynamic";
 
@@ -157,6 +158,11 @@ export default async function ContactDetail({
     ? await db.select().from(payments).where(and(eq(payments.orgId, o.id), eq(payments.contactId, cid)))
     : contactPayments;
   const [portalUser] = await db.select().from(portalUsers).where(and(eq(portalUsers.orgId, o.id), eq(portalUsers.contactId, cid))).limit(1);
+
+  // Statement opens with the ORIGINAL brought-forward amount (from its journal
+  // entry); c.openingBalanceCents is only what's still unpaid, and payments
+  // against it already appear as payment rows.
+  const statementOpening = await getStatementOpeningBalance(o.id, c);
 
   const isPayableContact = c.kind === "vendor";
   const owedToYou =
@@ -420,8 +426,8 @@ export default async function ContactDetail({
               contact={c}
               docs={statementDocs}
               pays={statementPayments}
-              openingBalanceCents={c.openingBalanceCents}
-              openingBalanceDate={c.openingBalanceDate}
+              openingBalanceCents={statementOpening?.cents}
+              openingBalanceDate={statementOpening?.date}
             />
           )}
 
