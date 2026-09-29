@@ -74,7 +74,7 @@ export function AdvanceReviewRow({
           placeholder="Monthly deduction (KSh)"
           className={`${inputCls} w-40`}
         />
-        <select name="disbursedFromBankAccountId" value={bankId} onChange={(e) => setBankId(e.target.value ? Number(e.target.value) : "")} className={inputCls}>
+        <select name="disbursedFrom" required value={bankId} onChange={(e) => setBankId(e.target.value ? Number(e.target.value) : "")} className={inputCls}>
           <option value="">Paid from…</option>
           {banks.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
         </select>

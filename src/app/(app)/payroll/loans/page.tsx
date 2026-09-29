@@ -71,6 +71,11 @@ export default async function PayrollLoansPage() {
                   >
                     {row.loan.status}
                   </span>
+                  {!row.loan.disbursementJournalEntryId && (
+                    <span className="ml-1.5 inline-block rounded-full px-2 py-0.5 text-[10.5px] font-medium bg-amber-50 text-amber-800" title="Issued without recording where the money came from — open it to fix">
+                      disbursement missing
+                    </span>
+                  )}
                 </Td>
                 <Td right>
                   {row.loan.status === "active" && (

@@ -6,7 +6,7 @@ import { getAccess } from "@/lib/access";
 import { orgContext } from "@/lib/org";
 import { redirect } from "next/navigation";
 import { nowISO } from "@/lib/money";
-import { issueStaffLoan } from "@/lib/staff-loans";
+import { issueStaffLoan, parseDisbursementSource, type LoanDisbursementSource } from "@/lib/staff-loans";
 import { revalidatePath } from "next/cache";
 
 /** Resolve the logged-in member's own employee record — needed for every
@@ -53,10 +53,13 @@ export async function approveAdvanceRequestAction(formData: FormData) {
 
   const requestId = Number(formData.get("requestId"));
   const installmentCents = Math.round(Number(formData.get("installment")) * 100);
-  const disbursedFromBankAccountId = formData.get("disbursedFromBankAccountId") ? Number(formData.get("disbursedFromBankAccountId")) : null;
+  // An approved request is new money paid out now — always a real account,
+  // never "brought forward".
+  const disbursedFrom = parseDisbursementSource(formData.get("disbursedFrom"));
   if (!installmentCents || installmentCents <= 0) throw new Error("Enter a monthly deduction amount greater than zero");
+  if (typeof disbursedFrom !== "number") throw new Error("Choose the account the advance was paid from");
 
-  await orgContext.run(access.orgId, () => _approve(access, requestId, installmentCents, disbursedFromBankAccountId));
+  await orgContext.run(access.orgId, () => _approve(access, requestId, installmentCents, disbursedFrom));
   revalidatePath("/payroll/advances");
   redirect("/payroll/advances");
 }
@@ -65,7 +68,7 @@ async function _approve(
   access: NonNullable<Awaited<ReturnType<typeof getAccess>>>,
   requestId: number,
   installmentCents: number,
-  disbursedFromBankAccountId: number | null
+  disbursedFrom: LoanDisbursementSource
 ) {
   const [req] = await db.select().from(salaryAdvanceRequests).where(and(eq(salaryAdvanceRequests.orgId, access.orgId), eq(salaryAdvanceRequests.id, requestId))).limit(1);
   if (!req) throw new Error("Request not found");
@@ -78,7 +81,7 @@ async function _approve(
     installmentCents,
     type: "amortizing",
     kind: "advance",
-    disbursedFromBankAccountId,
+    disbursedFrom,
     memoVerb: "Salary advance issued",
   });
 
@@ -113,8 +116,8 @@ export async function createAdvanceDirectAction(formData: FormData) {
   const employeeId = Number(formData.get("employeeId"));
   const principalCents = Math.round(Number(formData.get("principal")) * 100);
   const installmentCents = Math.round(Number(formData.get("installment")) * 100);
-  const disbursedFromBankAccountId = formData.get("disbursedFromBankAccountId") ? Number(formData.get("disbursedFromBankAccountId")) : null;
-  if (!employeeId || principalCents <= 0 || installmentCents <= 0) throw new Error("Invalid input");
+  const disbursedFrom = parseDisbursementSource(formData.get("disbursedFrom"));
+  if (!employeeId || principalCents <= 0 || installmentCents <= 0 || !disbursedFrom) throw new Error("Invalid input");
 
   await orgContext.run(access.orgId, () =>
     issueStaffLoan({
@@ -124,7 +127,7 @@ export async function createAdvanceDirectAction(formData: FormData) {
       installmentCents,
       type: "amortizing",
       kind: "advance",
-      disbursedFromBankAccountId,
+      disbursedFrom,
       memoVerb: "Salary advance issued",
     })
   );

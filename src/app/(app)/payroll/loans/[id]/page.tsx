@@ -8,6 +8,7 @@ import { notFound } from "next/navigation";
 import { PageHeader, TableCard, Th, Td } from "@/components/ui";
 import { fmtKES } from "@/lib/money";
 import { RepayLoanForm } from "./RepayLoanForm";
+import { RecordDisbursementForm } from "./RecordDisbursementForm";
 import Link from "next/link";
 
 export default async function LoanDetailPage(props: { params: Promise<{ id: string }> }) {
@@ -23,6 +24,7 @@ export default async function LoanDetailPage(props: { params: Promise<{ id: stri
       installmentCents: loanLedger.installmentCents,
       status: loanLedger.status,
       kind: loanLedger.kind,
+      disbursementJournalEntryId: loanLedger.disbursementJournalEntryId,
       createdAt: loanLedger.createdAt,
       employeeName: employees.name,
       employeeId: employees.id,
@@ -101,6 +103,15 @@ export default async function LoanDetailPage(props: { params: Promise<{ id: stri
           </a>
         </div>
       </div>
+
+      {!loan.disbursementJournalEntryId && (
+        <RecordDisbursementForm
+          loanId={loan.id}
+          principalCents={loan.principalCents}
+          defaultDate={loan.createdAt.slice(0, 10)}
+          bankAccounts={bankAccounts}
+        />
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-white border border-[var(--color-ink-200)] p-4 rounded-xl shadow-sm text-center">

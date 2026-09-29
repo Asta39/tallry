@@ -4,7 +4,7 @@ import { getAccess } from "@/lib/access";
 import { orgContext } from "@/lib/org";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { issueStaffLoan, recordLoanRepayment } from "@/lib/staff-loans";
+import { issueStaffLoan, recordLoanRepayment, recordMissingLoanDisbursement, parseDisbursementSource } from "@/lib/staff-loans";
 import { todayISO } from "@/lib/money";
 
 export async function createLoanAction(formData: FormData) {
@@ -24,9 +24,9 @@ async function _createLoan(access: NonNullable<Awaited<ReturnType<typeof getAcce
   const principalCents = Math.round(Number(formData.get("principal")) * 100);
   const installmentCents = Math.round(Number(formData.get("installment")) * 100);
   const type = String(formData.get("type")) || "amortizing";
-  const disbursedFromBankAccountId = formData.get("disbursedFromBankAccountId") ? Number(formData.get("disbursedFromBankAccountId")) : null;
+  const disbursedFrom = parseDisbursementSource(formData.get("disbursedFrom"));
 
-  if (!employeeId || principalCents <= 0 || installmentCents <= 0) {
+  if (!employeeId || principalCents <= 0 || installmentCents <= 0 || !disbursedFrom) {
     throw new Error("Invalid input");
   }
 
@@ -37,7 +37,7 @@ async function _createLoan(access: NonNullable<Awaited<ReturnType<typeof getAcce
     installmentCents,
     type,
     kind: "loan",
-    disbursedFromBankAccountId,
+    disbursedFrom,
     memoVerb: "Staff loan issued",
   });
 }
@@ -81,6 +81,41 @@ export async function recordLoanRepaymentAction(
     );
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Could not record the repayment" };
+  }
+
+  revalidatePath(`/payroll/loans/${loanId}`);
+  revalidatePath("/payroll/loans");
+  revalidatePath("/payroll/advances");
+  revalidatePath("/banking");
+  return {};
+}
+
+/**
+ * Records the missing disbursement of a loan/advance issued without one —
+ * see recordMissingLoanDisbursement. Returns an error rather than throwing
+ * (production redacts thrown server-action messages).
+ */
+export async function recordLoanDisbursementAction(
+  loanId: number,
+  disbursedFromRaw: string,
+  date: string
+): Promise<{ error?: string }> {
+  const access = await getAccess();
+  if (!access) return { error: "Not logged in" };
+  if (!access.isOwner && access.role !== "admin" && !access.perms.has("payroll")) {
+    return { error: "You need Payroll access to record a disbursement" };
+  }
+  const disbursedFrom = parseDisbursementSource(disbursedFromRaw);
+  if (!disbursedFrom) return { error: "Choose the account it was paid from, or mark it as a balance brought forward" };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { error: "Enter a valid date" };
+  if (date > todayISO()) return { error: "The date can't be in the future" };
+
+  try {
+    await orgContext.run(access.orgId, () =>
+      recordMissingLoanDisbursement({ orgId: access.orgId, loanId, disbursedFrom, date })
+    );
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Could not record the disbursement" };
   }
 
   revalidatePath(`/payroll/loans/${loanId}`);
