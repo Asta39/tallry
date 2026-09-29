@@ -4,13 +4,25 @@ import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { recordLoanRepaymentAction } from "../actions";
 import { PrimaryButton } from "@/components/ui";
-import { fmtKES, parseKES } from "@/lib/money";
+import { fmtKES, parseKES, todayISO } from "@/lib/money";
 
-export function RepayLoanForm({ loanId, bankAccounts, balanceCents }: { loanId: number; bankAccounts: { id: number; name: string }[]; balanceCents: number }) {
+export function RepayLoanForm({
+  loanId,
+  bankAccounts,
+  balanceCents,
+  compact = false,
+}: {
+  loanId: number;
+  bankAccounts: { id: number; name: string }[];
+  balanceCents: number;
+  /** Small outline trigger for use inside a table row (Loans / Salary Advances lists). */
+  compact?: boolean;
+}) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [amount, setAmount] = useState((balanceCents / 100).toFixed(2));
+  const [date, setDate] = useState(todayISO());
   const dialogRef = useRef<HTMLDialogElement>(null);
 
   async function handleRepay(formData: FormData) {
@@ -20,7 +32,8 @@ export function RepayLoanForm({ loanId, bankAccounts, balanceCents }: { loanId: 
       const bankAccountId = Number(formData.get("bankAccountId"));
       const amountCents = parseKES(amount);
       if (!amountCents || amountCents <= 0) throw new Error("Enter a valid amount");
-      await recordLoanRepaymentAction(loanId, amountCents, bankAccountId);
+      const res = await recordLoanRepaymentAction(loanId, amountCents, bankAccountId, date);
+      if (res?.error) throw new Error(res.error);
       dialogRef.current?.close();
       router.refresh();
     } catch (e: any) {
@@ -35,9 +48,19 @@ export function RepayLoanForm({ loanId, bankAccounts, balanceCents }: { loanId: 
 
   return (
     <>
-      <PrimaryButton onClick={() => dialogRef.current?.showModal()}>
-        Record Repayment
-      </PrimaryButton>
+      {compact ? (
+        <button
+          type="button"
+          onClick={() => dialogRef.current?.showModal()}
+          className="rounded-md border border-[var(--color-ink-200)] bg-white px-2.5 py-1 text-[12px] font-medium text-[var(--color-ink-700)] hover:bg-[var(--color-ink-50)] whitespace-nowrap"
+        >
+          Record repayment
+        </button>
+      ) : (
+        <PrimaryButton onClick={() => dialogRef.current?.showModal()}>
+          Record Repayment
+        </PrimaryButton>
+      )}
 
       <dialog
         ref={dialogRef}
@@ -47,14 +70,18 @@ export function RepayLoanForm({ loanId, bankAccounts, balanceCents }: { loanId: 
         }}
       >
         <div className="p-6 bg-white rounded-xl shadow-xl max-w-md w-[400px] border border-[var(--color-ink-100)]">
-          <h3 className="font-semibold text-[15px] mb-2 text-[var(--color-ink-900)]">Record Loan Repayment</h3>
-          <p className="text-[13px] text-[var(--color-ink-500)] mb-6">
+          <h3 className="font-semibold text-[15px] mb-2 text-[var(--color-ink-900)] text-left">Record Repayment</h3>
+          <p className="text-[13px] text-[var(--color-ink-500)] mb-6 text-left whitespace-normal">
             For cash or M-Pesa paid back directly, outside payroll. Remaining balance: <strong>{fmtKES(balanceCents)}</strong>.
           </p>
-          <form action={handleRepay} className="space-y-4">
+          <form action={handleRepay} className="space-y-4 text-left">
             <div>
               <label className="block text-[11.5px] font-medium text-[var(--color-ink-500)] mb-1">Amount (KSh)</label>
               <input className={inputCls} value={amount} onChange={(e) => setAmount(e.target.value)} />
+            </div>
+            <div>
+              <label className="block text-[11.5px] font-medium text-[var(--color-ink-500)] mb-1">Date received</label>
+              <input type="date" className={inputCls} value={date} max={todayISO()} onChange={(e) => setDate(e.target.value)} required />
             </div>
             <div>
               <label className="block text-[11.5px] font-medium text-[var(--color-ink-500)] mb-1">Received into</label>

@@ -6,6 +6,8 @@ import { PageHeader, TableCard, Th, Td, PrimaryButton, PrimaryLink } from "@/com
 import { fmtKES } from "@/lib/money";
 import { requestAdvanceAction } from "./actions";
 import { AdvanceReviewRow } from "./AdvanceReviewRow";
+import { RepayLoanForm } from "../loans/[id]/RepayLoanForm";
+import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
@@ -84,12 +86,19 @@ export default async function SalaryAdvancesPage() {
                 <Th right>Installment</Th>
                 <Th right>Balance</Th>
                 <Th>Status</Th>
+                <Th></Th>
               </tr>
             </thead>
             <tbody>
               {allAdvances.map((row) => (
                 <tr key={row.loan.id} className="hairline-t">
-                  <Td className="font-medium">{row.employeeName}</Td>
+                  <Td className="font-medium">
+                    {/* Advances live in loanLedger (kind "advance"), so the loan
+                        detail page shows their schedule and repayments too. */}
+                    <Link href={`/payroll/loans/${row.loan.id}`} className="text-[var(--color-accent-600)] hover:underline">
+                      {row.employeeName}
+                    </Link>
+                  </Td>
                   <Td right>{fmtKES(row.loan.principalCents)}</Td>
                   <Td right>{fmtKES(row.loan.installmentCents)}/mo</Td>
                   <Td right className="font-semibold">{fmtKES(row.loan.balanceCents)}</Td>
@@ -97,6 +106,11 @@ export default async function SalaryAdvancesPage() {
                     <span className={`inline-block rounded-full px-2.5 py-0.5 text-[11px] font-medium ${row.loan.status === "active" ? "bg-emerald-50 text-emerald-700" : "bg-[var(--color-ink-100)] text-[var(--color-ink-400)]"}`}>
                       {row.loan.status}
                     </span>
+                  </Td>
+                  <Td right>
+                    {row.loan.status === "active" && (
+                      <RepayLoanForm compact loanId={row.loan.id} bankAccounts={bankOptions} balanceCents={row.loan.balanceCents} />
+                    )}
                   </Td>
                 </tr>
               ))}

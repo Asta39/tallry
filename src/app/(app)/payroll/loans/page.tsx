@@ -1,10 +1,11 @@
 import { requirePerm } from "@/lib/guard";
 import { getOrg } from "@/lib/org";
-import { db, loanLedger, employees } from "@/db";
+import { db, loanLedger, employees, bankAccounts } from "@/db";
 import { and, eq } from "drizzle-orm";
 import { PageHeader, TableCard, Th, Td, PrimaryLink } from "@/components/ui";
 import { fmtKES } from "@/lib/money";
 import Link from "next/link";
+import { RepayLoanForm } from "./[id]/RepayLoanForm";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +21,10 @@ export default async function PayrollLoansPage() {
     .from(loanLedger)
     .innerJoin(employees, eq(loanLedger.employeeId, employees.id))
     .where(and(eq(loanLedger.orgId, o.id), eq(loanLedger.kind, "loan")));
+  const moneyAccounts = await db
+    .select({ id: bankAccounts.id, name: bankAccounts.name })
+    .from(bankAccounts)
+    .where(and(eq(bankAccounts.orgId, o.id), eq(bankAccounts.archived, false)));
 
   return (
     <>
@@ -43,6 +48,7 @@ export default async function PayrollLoansPage() {
               <Th right>Installment</Th>
               <Th right>Balance</Th>
               <Th>Status</Th>
+              <Th></Th>
             </tr>
           </thead>
           <tbody>
@@ -65,6 +71,11 @@ export default async function PayrollLoansPage() {
                   >
                     {row.loan.status}
                   </span>
+                </Td>
+                <Td right>
+                  {row.loan.status === "active" && (
+                    <RepayLoanForm compact loanId={row.loan.id} bankAccounts={moneyAccounts} balanceCents={row.loan.balanceCents} />
+                  )}
                 </Td>
               </tr>
             ))}

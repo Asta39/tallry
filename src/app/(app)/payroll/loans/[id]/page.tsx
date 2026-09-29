@@ -22,6 +22,7 @@ export default async function LoanDetailPage(props: { params: Promise<{ id: stri
       balanceCents: loanLedger.balanceCents,
       installmentCents: loanLedger.installmentCents,
       status: loanLedger.status,
+      kind: loanLedger.kind,
       createdAt: loanLedger.createdAt,
       employeeName: employees.name,
       employeeId: employees.id,
@@ -81,7 +82,7 @@ export default async function LoanDetailPage(props: { params: Promise<{ id: stri
     <div className="max-w-4xl mx-auto space-y-8">
       <div className="flex items-center justify-between">
         <PageHeader 
-          title={`Loan #${loan.id} - ${loan.employeeName}`}
+          title={`${loan.kind === "advance" ? "Salary advance" : "Loan"} #${loan.id} - ${loan.employeeName}`}
           subtitle={`Amortization & Schedule`}
         />
         <div className="flex items-center gap-3">
