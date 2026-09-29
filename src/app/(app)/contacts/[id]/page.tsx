@@ -74,12 +74,20 @@ export default async function ContactDetail({
   // and follow up with them, but sees none of their money: no balances, no
   // document totals, no profitability/spend/statement.
   const showFinancials = !access || access.perms.has("financials");
-  const FINANCIAL_TABS = ["invoices", "quotes", "credit_notes", "bills", "profitability", "spend", "statement"];
+  const FINANCIAL_TABS = ["profitability", "spend", "statement"];
+  // Document tabs follow the document module's own perm too: the Invoices/
+  // Quotes/… modules show the same totals to anyone holding that perm without
+  // checking "financials", so a role granted "invoices" but not "financials"
+  // (e.g. a custom Operations role) could open every invoice from the
+  // Invoices menu yet saw no Invoices tab on the customer. Holding
+  // "financials" still shows them, as before.
+  const DOC_TAB_PERM: Record<string, string> = { invoices: "invoices", quotes: "quotes", credit_notes: "credit_notes", bills: "bills" };
 
   const isVendor = c.kind === "vendor" || c.kind === "both";
   const isCustomer = c.kind === "customer" || c.kind === "both";
   const visibleTabs = TABS.filter((t) => {
     if (FINANCIAL_TABS.includes(t.key) && !showFinancials) return false;
+    if (t.key in DOC_TAB_PERM && !showFinancials && !access?.perms.has(DOC_TAB_PERM[t.key])) return false;
     if (["invoices", "quotes", "credit_notes", "portal", "profitability"].includes(t.key)) return isCustomer;
     if (["bills", "spend"].includes(t.key)) return isVendor;
     return true;
