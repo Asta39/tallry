@@ -972,6 +972,54 @@ export const loanManualRepayments = pgTable("loan_manual_repayments", {
   createdAt: text("created_at").notNull(),
 });
 
+/**
+ * Money the business itself has borrowed from an outside lender — bank,
+ * SACCO, M-Pesa loan product, asset financier, director. The liability
+ * lives on liabilityAccountId (Loans Payable 2400 by default); the
+ * outstanding balance is principalCents minus the principal part of every
+ * repayment. receiptJournalEntryId is null when the loan was already in the
+ * books (opening balance / manual journal) when it was registered here, so
+ * registering it doesn't double the liability.
+ */
+export const externalLoans = pgTable("external_loans", {
+  id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
+  lender: text("lender").notNull(),
+  reference: text("reference"),
+  liabilityAccountId: integer("liability_account_id").notNull(),
+  /** Default expense account for the interest part of repayments. */
+  interestAccountId: integer("interest_account_id"),
+  principalCents: money("principal_cents").notNull(),
+  startDate: text("start_date").notNull(),
+  receivedIntoBankAccountId: integer("received_into_bank_account_id"),
+  receiptJournalEntryId: integer("receipt_journal_entry_id"),
+  interestRateBp: integer("interest_rate_bp"), // informational, e.g. 1400 = 14% p.a.
+  notes: text("notes"),
+  status: text("status").notNull().default("active"), // active | closed
+  createdAt: text("created_at").notNull(),
+}, (t) => ({
+  orgIdx: index("idx_external_loans_org").on(t.orgId),
+}));
+
+/** A repayment against an externalLoans row: DR the loan's liability account
+ *  (principal) + DR interest expense (interest & charges) · CR the bank/
+ *  M-Pesa account it was paid from. */
+export const externalLoanRepayments = pgTable("external_loan_repayments", {
+  id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
+  loanId: integer("loan_id").notNull().references(() => externalLoans.id),
+  date: text("date").notNull(),
+  principalCents: money("principal_cents").notNull().default(0),
+  interestCents: money("interest_cents").notNull().default(0),
+  interestAccountId: integer("interest_account_id"),
+  bankAccountId: integer("bank_account_id").notNull(),
+  reference: text("reference"),
+  journalEntryId: integer("journal_entry_id").notNull(),
+  createdAt: text("created_at").notNull(),
+}, (t) => ({
+  loanIdx: index("idx_external_loan_repayments_loan").on(t.orgId, t.loanId),
+}));
+
 export const leaveRecords = pgTable("leave_records", {
   id: serial("id").primaryKey(),
   orgId: integer("org_id").notNull().references(() => org.id),

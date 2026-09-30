@@ -68,6 +68,7 @@ const groups: {
     items: [
       { href: "/banking", label: "Bank & M-Pesa", icon: "🏦", perm: "banking", module: "accounting" },
       { href: "/accountant", label: "Accountant", icon: "📚", perm: "accountant", module: "accounting" },
+      { href: "/accounting/loans", label: "Business Loans", icon: "🤝", perm: "accountant", module: "accounting" },
       { href: "/accounting/assets", label: "Fixed Assets", icon: "🏢", perm: "fixed_assets", module: "accounting" },
       { href: "/analytics", label: "Analytics", icon: "📊", perm: "reports", module: "accounting" },
       { href: "/reports", label: "Reports", icon: "📈", perm: "reports", module: "accounting" },

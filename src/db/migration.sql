@@ -1107,3 +1107,38 @@ CREATE INDEX IF NOT EXISTS idx_loan_manual_repayments_loan ON loan_manual_repaym
 -- Opt-in: auto-advance the books lock once every active bank/M-Pesa account
 -- is reconciled through the same month.
 ALTER TABLE org ADD COLUMN IF NOT EXISTS auto_lock_on_reconciliation BOOLEAN NOT NULL DEFAULT false;
+
+-- Business borrowings from outside lenders (bank, SACCO, M-Pesa loan, asset
+-- financier, director) and their principal/interest repayments.
+CREATE TABLE IF NOT EXISTS external_loans (
+  id SERIAL PRIMARY KEY,
+  org_id INTEGER NOT NULL REFERENCES org(id),
+  lender TEXT NOT NULL,
+  reference TEXT,
+  liability_account_id INTEGER NOT NULL,
+  interest_account_id INTEGER,
+  principal_cents BIGINT NOT NULL,
+  start_date TEXT NOT NULL,
+  received_into_bank_account_id INTEGER,
+  receipt_journal_entry_id INTEGER,
+  interest_rate_bp INTEGER,
+  notes TEXT,
+  status TEXT NOT NULL DEFAULT 'active',
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_external_loans_org ON external_loans (org_id);
+
+CREATE TABLE IF NOT EXISTS external_loan_repayments (
+  id SERIAL PRIMARY KEY,
+  org_id INTEGER NOT NULL REFERENCES org(id),
+  loan_id INTEGER NOT NULL REFERENCES external_loans(id),
+  date TEXT NOT NULL,
+  principal_cents BIGINT NOT NULL DEFAULT 0,
+  interest_cents BIGINT NOT NULL DEFAULT 0,
+  interest_account_id INTEGER,
+  bank_account_id INTEGER NOT NULL,
+  reference TEXT,
+  journal_entry_id INTEGER NOT NULL,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_external_loan_repayments_loan ON external_loan_repayments (org_id, loan_id);
