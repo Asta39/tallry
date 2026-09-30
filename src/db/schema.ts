@@ -994,6 +994,13 @@ export const externalLoans = pgTable("external_loans", {
   receivedIntoBankAccountId: integer("received_into_bank_account_id"),
   receiptJournalEntryId: integer("receipt_journal_entry_id"),
   interestRateBp: integer("interest_rate_bp"), // informational, e.g. 1400 = 14% p.a.
+  /** Total interest over the loan's term. It's added to the loan account up
+   *  front (DR Unexpired Loan Interest 2410 · CR loan account), so the
+   *  outstanding balance includes it, then expensed 1/termMonths each
+   *  month-end via externalLoanInterestSchedule. */
+  interestTotalCents: money("interest_total_cents").notNull().default(0),
+  termMonths: integer("term_months"),
+  interestSetupEntryId: integer("interest_setup_entry_id"),
   notes: text("notes"),
   status: text("status").notNull().default("active"), // active | closed
   createdAt: text("created_at").notNull(),
@@ -1001,17 +1008,33 @@ export const externalLoans = pgTable("external_loans", {
   orgIdx: index("idx_external_loans_org").on(t.orgId),
 }));
 
-/** A repayment against an externalLoans row: DR the loan's liability account
- *  (principal) + DR interest expense (interest & charges) · CR the bank/
- *  M-Pesa account it was paid from. */
+/** One month of a loan's interest, expensed at periodEnd (DR interest
+ *  expense · CR Unexpired Loan Interest). journalEntryId is null until the
+ *  daily cron (or loan setup, for months already past) posts it. */
+export const externalLoanInterestSchedule = pgTable("external_loan_interest_schedule", {
+  id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
+  loanId: integer("loan_id").notNull().references(() => externalLoans.id),
+  periodEnd: text("period_end").notNull(),
+  amountCents: money("amount_cents").notNull(),
+  journalEntryId: integer("journal_entry_id"),
+  postedAt: text("posted_at"),
+}, (t) => ({
+  loanPeriodIdx: uniqueIndex("uq_external_loan_interest_period").on(t.loanId, t.periodEnd),
+  dueIdx: index("idx_external_loan_interest_due").on(t.periodEnd),
+}));
+
+/** A payment against an externalLoans row: DR the loan account · CR the
+ *  bank/M-Pesa account it was paid from. It reduces the outstanding balance
+ *  (principal + interest); interest is expensed separately on the schedule.
+ *  (The table's legacy interest_cents / interest_account_id columns, from a
+ *  first version that split each payment, are unused and default to 0/null.) */
 export const externalLoanRepayments = pgTable("external_loan_repayments", {
   id: serial("id").primaryKey(),
   orgId: integer("org_id").notNull().references(() => org.id),
   loanId: integer("loan_id").notNull().references(() => externalLoans.id),
   date: text("date").notNull(),
-  principalCents: money("principal_cents").notNull().default(0),
-  interestCents: money("interest_cents").notNull().default(0),
-  interestAccountId: integer("interest_account_id"),
+  amountCents: money("principal_cents").notNull().default(0),
   bankAccountId: integer("bank_account_id").notNull(),
   reference: text("reference"),
   journalEntryId: integer("journal_entry_id").notNull(),

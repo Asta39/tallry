@@ -2,12 +2,13 @@ import { requirePerm } from "@/lib/guard";
 import { getOrg } from "@/lib/org";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { db, externalLoanRepayments } from "@/db";
-import { and, eq, desc } from "drizzle-orm";
+import { db, externalLoanRepayments, externalLoanInterestSchedule } from "@/db";
+import { and, eq, desc, asc } from "drizzle-orm";
 import { PageHeader, TableCard, Th, Td } from "@/components/ui";
 import { fmtKES } from "@/lib/money";
 import { loanFormOptions, loansWithBalances } from "../data";
 import { RepayExternalLoanForm } from "../RepayExternalLoanForm";
+import { InterestSetupForm } from "./InterestSetupForm";
 
 export const dynamic = "force-dynamic";
 
@@ -20,17 +21,27 @@ export default async function BusinessLoanDetail({ params }: { params: Promise<{
   const loan = loans.find((l) => l.id === loanId);
   if (!loan) notFound();
 
-  const repayments = await db
-    .select()
-    .from(externalLoanRepayments)
-    .where(and(eq(externalLoanRepayments.orgId, o.id), eq(externalLoanRepayments.loanId, loanId)))
-    .orderBy(desc(externalLoanRepayments.date), desc(externalLoanRepayments.id));
+  const [repayments, schedule] = await Promise.all([
+    db
+      .select()
+      .from(externalLoanRepayments)
+      .where(and(eq(externalLoanRepayments.orgId, o.id), eq(externalLoanRepayments.loanId, loanId)))
+      .orderBy(desc(externalLoanRepayments.date), desc(externalLoanRepayments.id)),
+    db
+      .select()
+      .from(externalLoanInterestSchedule)
+      .where(and(eq(externalLoanInterestSchedule.orgId, o.id), eq(externalLoanInterestSchedule.loanId, loanId)))
+      .orderBy(asc(externalLoanInterestSchedule.periodEnd)),
+  ]);
   const bankName = new Map(opts.bankAccounts.map((b) => [b.id, b.name]));
   const accName = new Map([...opts.liabilityAccounts, ...opts.interestAccounts].map((a) => [a.id, `${a.code} · ${a.name}`]));
 
   const facts: [string, string][] = [
     ["Date received", loan.startDate],
     ["Received into", loan.receivedIntoBankAccountId ? bankName.get(loan.receivedIntoBankAccountId) ?? "—" : "Already in the books"],
+    ["Term", loan.termMonths ? `${loan.termMonths} months` : "—"],
+    ["Monthly installment", loan.monthlyInstallment ? `about ${fmtKES(loan.monthlyInstallment)}` : "—"],
+    ["Interest expense account", loan.interestAccountId ? accName.get(loan.interestAccountId) ?? "—" : "—"],
     ["Interest rate", loan.interestRateBp != null ? `${loan.interestRateBp / 100}% p.a.` : "—"],
     ["Reference", loan.reference || "—"],
   ];
@@ -44,26 +55,35 @@ export default async function BusinessLoanDetail({ params }: { params: Promise<{
             loanId={loan.id}
             lender={loan.lender}
             outstandingCents={loan.outstanding}
+            suggestedCents={loan.monthlyInstallment}
             bankAccounts={opts.bankAccounts}
-            interestAccounts={opts.interestAccounts}
-            defaultInterestAccountId={loan.interestAccountId ?? opts.defaultInterestId}
           />
         )}
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {[
-          ["Borrowed", loan.principalCents],
-          ["Principal repaid", loan.repaidPrincipal],
-          ["Interest paid", loan.paidInterest],
-          ["Outstanding", loan.outstanding],
-        ].map(([label, cents]) => (
-          <div key={label as string} className="card px-4 py-3">
+        {([
+          ["Total repayable", loan.totalRepayable, `${fmtKES(loan.principalCents)} + ${fmtKES(loan.interestTotalCents)} interest`],
+          ["Paid", loan.paidCents, null],
+          ["Outstanding", loan.outstanding, "incl. interest"],
+          ["Interest expensed", loan.interestExpensed, loan.interestTotalCents ? `of ${fmtKES(loan.interestTotalCents)}` : null],
+        ] as [string, number, string | null][]).map(([label, cents, sub]) => (
+          <div key={label} className="card px-4 py-3">
             <p className="text-[11px] font-medium uppercase tracking-wide text-[var(--color-ink-500)]">{label}</p>
-            <p className="text-[18px] font-semibold tnum mt-1">{fmtKES(cents as number)}</p>
+            <p className="text-[18px] font-semibold tnum mt-1">{fmtKES(cents)}</p>
+            {sub && <p className="text-[11px] text-[var(--color-ink-400)] mt-0.5">{sub}</p>}
           </div>
         ))}
       </div>
+
+      {loan.status === "active" && loan.interestTotalCents === 0 && (
+        <InterestSetupForm
+          loanId={loan.id}
+          principalCents={loan.principalCents}
+          interestAccounts={opts.interestAccounts}
+          defaultInterestAccountId={loan.interestAccountId ?? opts.defaultInterestId}
+        />
+      )}
 
       <div className="card px-5 py-4 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-[13px]">
         <div className="flex justify-between gap-4">
@@ -82,9 +102,9 @@ export default async function BusinessLoanDetail({ params }: { params: Promise<{
       </div>
 
       <div>
-        <h3 className="text-[14px] font-semibold mb-3">Repayments</h3>
+        <h3 className="text-[14px] font-semibold mb-3">Payments</h3>
         {repayments.length === 0 ? (
-          <div className="card px-5 py-8 text-center text-[13px] text-[var(--color-ink-400)]">No repayments recorded yet.</div>
+          <div className="card px-5 py-8 text-center text-[13px] text-[var(--color-ink-400)]">No payments recorded yet.</div>
         ) : (
           <TableCard>
             <thead className="hairline-b">
@@ -92,9 +112,7 @@ export default async function BusinessLoanDetail({ params }: { params: Promise<{
                 <Th>Date</Th>
                 <Th>Paid from</Th>
                 <Th>Reference</Th>
-                <Th right>Principal</Th>
-                <Th right>Interest &amp; charges</Th>
-                <Th right>Total</Th>
+                <Th right>Amount</Th>
               </tr>
             </thead>
             <tbody>
@@ -103,15 +121,40 @@ export default async function BusinessLoanDetail({ params }: { params: Promise<{
                   <Td className="text-[var(--color-ink-500)]">{r.date}</Td>
                   <Td>{bankName.get(r.bankAccountId) ?? "—"}</Td>
                   <Td>{r.reference || "—"}</Td>
-                  <Td right>{fmtKES(r.principalCents)}</Td>
-                  <Td right>{fmtKES(r.interestCents)}</Td>
-                  <Td right className="font-medium">{fmtKES(r.principalCents + r.interestCents)}</Td>
+                  <Td right className="font-medium">{fmtKES(r.amountCents)}</Td>
                 </tr>
               ))}
             </tbody>
           </TableCard>
         )}
       </div>
+
+      {schedule.length > 0 && (
+        <div>
+          <h3 className="text-[14px] font-semibold mb-1">Interest schedule</h3>
+          <p className="text-[12px] text-[var(--color-ink-500)] mb-3">Each month&apos;s share is expensed automatically at month-end.</p>
+          <TableCard>
+            <thead className="hairline-b">
+              <tr>
+                <Th>Month</Th>
+                <Th right>Interest</Th>
+                <Th>Status</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {schedule.map((r) => (
+                <tr key={r.id} className="hairline-t">
+                  <Td>{r.periodEnd}</Td>
+                  <Td right>{fmtKES(r.amountCents)}</Td>
+                  <Td className={r.journalEntryId ? "text-[var(--color-good)]" : "text-[var(--color-ink-400)]"}>
+                    {r.journalEntryId ? "Expensed" : "Scheduled"}
+                  </Td>
+                </tr>
+              ))}
+            </tbody>
+          </TableCard>
+        </div>
+      )}
     </div>
   );
 }

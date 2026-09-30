@@ -1142,3 +1142,21 @@ CREATE TABLE IF NOT EXISTS external_loan_repayments (
   created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_external_loan_repayments_loan ON external_loan_repayments (org_id, loan_id);
+
+-- Business loans: interest is part of the outstanding balance and spread
+-- evenly over the term (monthly schedule, posted by the daily cron).
+ALTER TABLE external_loans ADD COLUMN IF NOT EXISTS interest_total_cents BIGINT NOT NULL DEFAULT 0;
+ALTER TABLE external_loans ADD COLUMN IF NOT EXISTS term_months INTEGER;
+ALTER TABLE external_loans ADD COLUMN IF NOT EXISTS interest_setup_entry_id INTEGER;
+CREATE TABLE IF NOT EXISTS external_loan_interest_schedule (
+  id SERIAL PRIMARY KEY,
+  org_id INTEGER NOT NULL REFERENCES org(id),
+  loan_id INTEGER NOT NULL REFERENCES external_loans(id),
+  period_end TEXT NOT NULL,
+  amount_cents BIGINT NOT NULL,
+  journal_entry_id INTEGER,
+  posted_at TEXT
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_external_loan_interest_period ON external_loan_interest_schedule (loan_id, period_end);
+CREATE INDEX IF NOT EXISTS idx_external_loan_interest_due ON external_loan_interest_schedule (period_end);
+

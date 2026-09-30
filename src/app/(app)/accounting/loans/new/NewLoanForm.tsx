@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createExternalLoanAction } from "../actions";
 import { PrimaryButton } from "@/components/ui";
-import { parseKES, todayISO } from "@/lib/money";
+import { fmtKES, parseKES, todayISO } from "@/lib/money";
 
 type Acc = { id: number; code: string; name: string };
 
@@ -23,14 +23,29 @@ export function NewLoanForm({
 }) {
   const router = useRouter();
   const [receivedInto, setReceivedInto] = useState("");
+  const [amount, setAmount] = useState("");
+  const [interest, setInterest] = useState("");
+  const [term, setTerm] = useState("");
+  const [rate, setRate] = useState("");
+  const principalCents = amount.trim() ? parseKES(amount) : 0;
+  const interestCents = interest.trim() ? parseKES(interest) : 0;
+  const months = Number(term);
+  const termOk = Number.isInteger(months) && months > 0;
+  // Flat-rate helper: principal × rate × months/12 — what most Kenyan lenders quote.
+  const rateNum = Number(rate);
+  const flatFromRate =
+    principalCents > 0 && termOk && rate.trim() && Number.isFinite(rateNum) && rateNum > 0
+      ? Math.round((principalCents * rateNum * months) / 1200)
+      : null;
+  const monthly = termOk && principalCents > 0 ? Math.ceil((principalCents + (interestCents > 0 ? interestCents : 0)) / months) : null;
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   async function submit(fd: FormData) {
     setError(null);
-    const principalCents = parseKES(String(fd.get("amount") || ""));
     if (!principalCents || principalCents <= 0) return setError("Enter the amount borrowed");
-    const rateRaw = String(fd.get("rate") || "").trim();
+    if (Number.isNaN(interestCents) || interestCents < 0) return setError("Enter a valid interest amount");
+    if (interestCents > 0 && !termOk) return setError("Enter the term in months to spread the interest over");
     setLoading(true);
     const res = await createExternalLoanAction({
       lender: String(fd.get("lender") || ""),
@@ -38,9 +53,11 @@ export function NewLoanForm({
       liabilityAccountId: Number(fd.get("liabilityAccountId")),
       interestAccountId: fd.get("interestAccountId") ? Number(fd.get("interestAccountId")) : null,
       principalCents,
+      interestTotalCents: interestCents > 0 ? interestCents : 0,
+      termMonths: termOk ? months : null,
       startDate: String(fd.get("startDate") || ""),
       receivedInto,
-      interestRatePct: rateRaw ? Number(rateRaw) : null,
+      interestRatePct: rate.trim() ? rateNum : null,
       notes: String(fd.get("notes") || ""),
     });
     setLoading(false);
@@ -61,8 +78,8 @@ export function NewLoanForm({
       </div>
       <div>
         <label className={labelCls}>Amount borrowed (KSh)</label>
-        <input name="amount" required inputMode="decimal" className={inputCls} placeholder="0.00" />
-        <p className={hintCls}>If it was already partly repaid before today, enter what&apos;s still owed.</p>
+        <input name="amount" required inputMode="decimal" className={inputCls} placeholder="0.00" value={amount} onChange={(e) => setAmount(e.target.value)} />
+        <p className={hintCls}>Principal only. If it was already partly repaid before today, enter the principal still owed.</p>
       </div>
       <div>
         <label className={labelCls}>Date received</label>
@@ -106,8 +123,33 @@ export function NewLoanForm({
       </div>
 
       <div>
-        <label className={labelCls}>Interest rate (% p.a., optional)</label>
-        <input name="rate" inputMode="decimal" className={inputCls} placeholder="e.g. 14" />
+        <label className={labelCls}>Term (months)</label>
+        <input inputMode="numeric" className={inputCls} placeholder="e.g. 12" value={term} onChange={(e) => setTerm(e.target.value)} />
+      </div>
+      <div>
+        <label className={labelCls}>Interest rate (% p.a. flat, optional)</label>
+        <input inputMode="decimal" className={inputCls} placeholder="e.g. 14" value={rate} onChange={(e) => setRate(e.target.value)} />
+      </div>
+      <div className="sm:col-span-2">
+        <label className={labelCls}>Total interest over the loan (KSh)</label>
+        <input inputMode="decimal" className={inputCls} placeholder="0.00 — leave blank if interest-free" value={interest} onChange={(e) => setInterest(e.target.value)} />
+        <p className={hintCls}>
+          Added to the outstanding balance and expensed evenly each month over the term.
+          {flatFromRate != null && (
+            <>
+              {" "}At {rateNum}% flat that&apos;s {fmtKES(flatFromRate)} —{" "}
+              <button type="button" className="text-[var(--color-accent-600)] hover:underline" onClick={() => setInterest((flatFromRate / 100).toFixed(2))}>
+                use this
+              </button>
+              .
+            </>
+          )}
+        </p>
+        {monthly != null && (
+          <p className="text-[12px] text-[var(--color-ink-600)] mt-1.5">
+            Total repayable {fmtKES(principalCents + (interestCents > 0 ? interestCents : 0))} · about {fmtKES(monthly)}/month
+          </p>
+        )}
       </div>
       <div>
         <label className={labelCls}>Loan / account reference (optional)</label>

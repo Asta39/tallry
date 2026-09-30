@@ -4,6 +4,7 @@ import { and, eq, lt, inArray, sql } from "drizzle-orm";
 import { sendEmail } from "@/lib/email/resend";
 import InvoiceReminder from "@/lib/email/templates/InvoiceReminder";
 import { fmtKES } from "@/lib/money";
+import { postDueLoanInterestAllOrgs } from "@/lib/external-loans";
 
 export const dynamic = "force-dynamic";
 
@@ -99,8 +100,20 @@ export async function GET(request: Request) {
       if (claimed) churnEventsLogged++;
     }
 
+    // 4. Expense each business loan's monthly interest once its month ends.
+    // Separate try so a loan posting problem never blocks the jobs above.
+    let loanInterest: { posted: number; failed: string[] } = { posted: 0, failed: [] };
+    try {
+      loanInterest = await postDueLoanInterestAllOrgs(today);
+      if (loanInterest.failed.length) console.error("Loan interest not posted:", loanInterest.failed);
+    } catch (e) {
+      console.error("Loan interest cron error:", e);
+    }
+
     return NextResponse.json({
       success: true,
+      loanInterestPosted: loanInterest.posted,
+      loanInterestFailed: loanInterest.failed.length,
       purgedOtps: otps.length,
       purgedSessions: sessions.length,
       remindersSent: sent,

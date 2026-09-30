@@ -5,7 +5,7 @@ import { getAccess } from "@/lib/access";
 import { orgContext } from "@/lib/org";
 import { logAudit } from "@/lib/audit";
 import { fmtKES, todayISO } from "@/lib/money";
-import { createExternalLoan, recordExternalLoanRepayment, parseReceiptSource } from "@/lib/external-loans";
+import { createExternalLoan, recordExternalLoanRepayment, setupExternalLoanInterest, parseReceiptSource } from "@/lib/external-loans";
 
 // Both actions return { error } instead of throwing: production Next redacts
 // thrown server-action messages, so the accountant would only ever see a
@@ -32,6 +32,8 @@ export async function createExternalLoanAction(input: {
   liabilityAccountId: number;
   interestAccountId?: number | null;
   principalCents: number;
+  interestTotalCents?: number;
+  termMonths?: number | null;
   startDate: string;
   receivedInto: string;
   interestRatePct?: number | null;
@@ -55,10 +57,13 @@ export async function createExternalLoanAction(input: {
         liabilityAccountId: input.liabilityAccountId,
         interestAccountId: input.interestAccountId || null,
         principalCents: input.principalCents,
+        interestTotalCents: input.interestTotalCents ?? 0,
+        termMonths: input.termMonths ?? null,
         startDate: input.startDate,
         receivedInto,
         interestRateBp: rate != null ? Math.round(rate * 100) : null,
         notes: input.notes,
+        asOf: todayISO(),
       })
     );
     await logAudit({
@@ -66,7 +71,7 @@ export async function createExternalLoanAction(input: {
       module: "loans",
       recordId: id,
       recordLabel: input.lender,
-      detail: `Business loan ${fmtKES(input.principalCents)} from ${input.lender}${receivedInto === "already_recorded" ? " (already in the books — no entry posted)" : ""}`,
+      detail: `Business loan ${fmtKES(input.principalCents)} from ${input.lender}${input.interestTotalCents ? ` + ${fmtKES(input.interestTotalCents)} interest over ${input.termMonths} months` : ""}${receivedInto === "already_recorded" ? " (principal already in the books — not posted again)" : ""}`,
     });
     revalidatePath("/accounting/loans");
     revalidatePath("/banking");
@@ -79,9 +84,7 @@ export async function createExternalLoanAction(input: {
 export async function recordExternalLoanRepaymentAction(input: {
   loanId: number;
   date: string;
-  principalCents: number;
-  interestCents: number;
-  interestAccountId?: number | null;
+  amountCents: number;
   bankAccountId: number;
   reference?: string;
 }): Promise<{ error?: string }> {
@@ -97,9 +100,7 @@ export async function recordExternalLoanRepaymentAction(input: {
         orgId: a.access.orgId,
         loanId: input.loanId,
         date: input.date,
-        principalCents: input.principalCents,
-        interestCents: input.interestCents,
-        interestAccountId: input.interestAccountId || null,
+        amountCents: input.amountCents,
         bankAccountId: input.bankAccountId,
         reference: input.reference,
       })
@@ -108,7 +109,7 @@ export async function recordExternalLoanRepaymentAction(input: {
       action: "update",
       module: "loans",
       recordId: input.loanId,
-      detail: `Loan repayment on ${input.date}: principal ${fmtKES(input.principalCents)}, interest ${fmtKES(input.interestCents)}`,
+      detail: `Loan repayment of ${fmtKES(input.amountCents)} on ${input.date}`,
     });
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Could not record the repayment" };
@@ -116,5 +117,41 @@ export async function recordExternalLoanRepaymentAction(input: {
   revalidatePath("/accounting/loans");
   revalidatePath(`/accounting/loans/${input.loanId}`);
   revalidatePath("/banking");
+  return {};
+}
+
+/** Adds interest + term to a loan registered without them (e.g. one entered
+ *  before interest was part of the outstanding balance). */
+export async function setupExternalLoanInterestAction(input: {
+  loanId: number;
+  interestTotalCents: number;
+  termMonths: number;
+  interestAccountId: number | null;
+}): Promise<{ error?: string }> {
+  const a = await loanAccess();
+  if ("error" in a) return { error: a.error };
+  if (!input.interestTotalCents || input.interestTotalCents <= 0) return { error: "Enter the total interest" };
+  try {
+    await orgContext.run(a.access.orgId, () =>
+      setupExternalLoanInterest({
+        orgId: a.access.orgId,
+        loanId: input.loanId,
+        interestTotalCents: input.interestTotalCents,
+        termMonths: input.termMonths,
+        interestAccountId: input.interestAccountId,
+        asOf: todayISO(),
+      })
+    );
+    await logAudit({
+      action: "update",
+      module: "loans",
+      recordId: input.loanId,
+      detail: `Added ${fmtKES(input.interestTotalCents)} interest over ${input.termMonths} months`,
+    });
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Could not add the interest" };
+  }
+  revalidatePath("/accounting/loans");
+  revalidatePath(`/accounting/loans/${input.loanId}`);
   return {};
 }

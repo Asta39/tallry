@@ -1,8 +1,8 @@
 /**
- * Integration tests for business borrowings (external loans) and their
- * principal/interest repayments. Runs against the live database inside
- * org 1's context (same convention as ledger.test.ts); every row written
- * here is deleted in a finally block.
+ * Integration tests for business borrowings (external loans): interest in the
+ * outstanding balance, monthly interest expensing, and payments. Runs against
+ * the live database inside org 1's context (same convention as
+ * ledger.test.ts); every row written here is deleted in a finally block.
  *
  * Run: npm test
  */
@@ -10,8 +10,21 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { orgContext } from "../org";
 import { acct } from "../posting";
-import { createExternalLoan, recordExternalLoanRepayment, externalLoanOutstanding, parseReceiptSource } from "../external-loans";
-import { db, externalLoans, externalLoanRepayments, journalEntries, journalLines, bankAccounts, bankTransactions } from "@/db";
+import { addDays } from "../recurring";
+import {
+  createExternalLoan,
+  recordExternalLoanRepayment,
+  setupExternalLoanInterest,
+  postDueLoanInterest,
+  externalLoanOutstanding,
+  interestSchedule,
+  parseReceiptSource,
+  UNEXPIRED_INTEREST_CODE,
+} from "../external-loans";
+import {
+  db, accounts, externalLoans, externalLoanRepayments, externalLoanInterestSchedule,
+  journalEntries, journalLines, bankAccounts, bankTransactions,
+} from "@/db";
 import { and, eq } from "drizzle-orm";
 
 const ORG = 1;
@@ -21,7 +34,8 @@ function inOrg<T>(fn: () => Promise<T>): Promise<T> {
   return orgContext.run(ORG, fn);
 }
 
-async function deleteEntry(entryId: number) {
+async function deleteEntry(entryId: number | null | undefined) {
+  if (!entryId) return;
   await db.delete(bankTransactions).where(eq(bankTransactions.journalEntryId, entryId));
   await db.delete(journalLines).where(eq(journalLines.entryId, entryId));
   await db.delete(journalEntries).where(eq(journalEntries.id, entryId));
@@ -31,9 +45,24 @@ async function cleanupLoan(loanId: number) {
   const reps = await db.select().from(externalLoanRepayments).where(eq(externalLoanRepayments.loanId, loanId));
   await db.delete(externalLoanRepayments).where(eq(externalLoanRepayments.loanId, loanId));
   for (const r of reps) await deleteEntry(r.journalEntryId);
+  const sched = await db.select().from(externalLoanInterestSchedule).where(eq(externalLoanInterestSchedule.loanId, loanId));
+  await db.delete(externalLoanInterestSchedule).where(eq(externalLoanInterestSchedule.loanId, loanId));
+  for (const r of sched) await deleteEntry(r.journalEntryId);
   const [loan] = await db.select().from(externalLoans).where(eq(externalLoans.id, loanId));
   await db.delete(externalLoans).where(eq(externalLoans.id, loanId));
-  if (loan?.receiptJournalEntryId) await deleteEntry(loan.receiptJournalEntryId);
+  await deleteEntry(loan?.receiptJournalEntryId);
+  await deleteEntry(loan?.interestSetupEntryId);
+}
+
+/** The Unexpired Loan Interest account is created on first use; drop it again
+ *  if this test run created it (all its journal lines are deleted above). */
+async function withUnexpiredCleanup(fn: () => Promise<void>) {
+  const [before] = await db.select().from(accounts).where(and(eq(accounts.orgId, ORG), eq(accounts.code, UNEXPIRED_INTEREST_CODE)));
+  try {
+    await fn();
+  } finally {
+    if (!before) await db.delete(accounts).where(and(eq(accounts.orgId, ORG), eq(accounts.code, UNEXPIRED_INTEREST_CODE)));
+  }
 }
 
 async function bank() {
@@ -44,6 +73,7 @@ async function bank() {
 
 const shape = (lines: { accountId: number; debitCents: number; creditCents: number }[]) =>
   lines.map((l) => [l.accountId, l.debitCents, l.creditCents]).sort();
+const linesOf = (entryId: number) => db.select().from(journalLines).where(eq(journalLines.entryId, entryId));
 
 test("parseReceiptSource accepts an account id or already_recorded only", () => {
   assert.equal(parseReceiptSource("already_recorded"), "already_recorded");
@@ -52,95 +82,133 @@ test("parseReceiptSource accepts an account id or already_recorded only", () => 
   assert.equal(parseReceiptSource("x"), null);
 });
 
-test("loan received into a bank posts DR bank / CR loan account; repayment splits principal and interest", async () => {
-  let loanId: number | undefined;
-  try {
-    await inOrg(async () => {
-      const b = await bank();
-      const loanAcc = await acct("2400");
-      const interestAcc = await acct("6075");
-      loanId = await createExternalLoan({
-        orgId: ORG, lender: "Test Bank", liabilityAccountId: loanAcc, interestAccountId: interestAcc,
-        principalCents: 100_000, startDate: TODAY, receivedInto: b.id,
-      });
-      const [loan] = await db.select().from(externalLoans).where(eq(externalLoans.id, loanId));
-      assert.ok(loan.receiptJournalEntryId);
-      assert.deepEqual(
-        shape(await db.select().from(journalLines).where(eq(journalLines.entryId, loan.receiptJournalEntryId!))),
-        shape([{ accountId: b.accountId, debitCents: 100_000, creditCents: 0 }, { accountId: loanAcc, debitCents: 0, creditCents: 100_000 }])
-      );
-      const inflow = await db.select().from(bankTransactions).where(eq(bankTransactions.journalEntryId, loan.receiptJournalEntryId!));
-      assert.equal(inflow[0]?.amountCents, 100_000);
+test("interestSchedule spreads interest evenly over month-ends, remainder in the last month", () => {
+  const s = interestSchedule("2026-09-25", 12, 60_000);
+  assert.equal(s.length, 12);
+  assert.equal(s[0].periodEnd, "2026-10-31");
+  assert.equal(s[11].periodEnd, "2027-09-30");
+  assert.ok(s.every((r) => r.amountCents === 5_000));
 
-      const repayEntry = await recordExternalLoanRepayment({
-        orgId: ORG, loanId, date: TODAY, principalCents: 30_000, interestCents: 2_500, bankAccountId: b.id, reference: "T1",
-      });
-      assert.deepEqual(
-        shape(await db.select().from(journalLines).where(eq(journalLines.entryId, repayEntry))),
-        shape([
-          { accountId: loanAcc, debitCents: 30_000, creditCents: 0 },
-          { accountId: interestAcc, debitCents: 2_500, creditCents: 0 },
-          { accountId: b.accountId, debitCents: 0, creditCents: 32_500 },
-        ])
-      );
-      const outflow = await db.select().from(bankTransactions).where(eq(bankTransactions.journalEntryId, repayEntry));
-      assert.equal(outflow[0]?.amountCents, -32_500);
-      assert.equal(await externalLoanOutstanding(ORG, loanId), 70_000);
-
-      await assert.rejects(
-        recordExternalLoanRepayment({ orgId: ORG, loanId, date: TODAY, principalCents: 70_001, interestCents: 0, bankAccountId: b.id }),
-        /exceeds what's still owed/
-      );
-      await assert.rejects(
-        recordExternalLoanRepayment({ orgId: ORG, loanId, date: TODAY, principalCents: 0, interestCents: 0, bankAccountId: b.id }),
-        /principal and\/or interest/
-      );
-
-      // Interest-only payment leaves the balance; final principal closes the loan.
-      await recordExternalLoanRepayment({ orgId: ORG, loanId, date: TODAY, principalCents: 0, interestCents: 1_000, bankAccountId: b.id });
-      assert.equal(await externalLoanOutstanding(ORG, loanId), 70_000);
-      await recordExternalLoanRepayment({ orgId: ORG, loanId, date: TODAY, principalCents: 70_000, interestCents: 0, bankAccountId: b.id });
-      const [closed] = await db.select().from(externalLoans).where(eq(externalLoans.id, loanId));
-      assert.equal(closed.status, "closed");
-    });
-  } finally {
-    if (loanId) await cleanupLoan(loanId);
-  }
+  assert.deepEqual(interestSchedule("2026-01-01", 3, 100).map((r) => r.amountCents), [33, 33, 34]);
+  assert.equal(interestSchedule("2026-09-01", 2, 100)[0].periodEnd, "2026-09-30");
+  assert.deepEqual(interestSchedule("2026-01-31", 2, 100).map((r) => r.periodEnd), ["2026-02-28", "2026-03-31"]);
+  assert.deepEqual(interestSchedule("2026-01-01", 0, 100), []);
+  assert.deepEqual(interestSchedule("2026-01-01", 3, 0), []);
 });
 
-test("a loan already in the books registers without posting a receipt", async () => {
+test("loan with interest: outstanding includes interest, past months are expensed, payments reduce outstanding", async () => {
   let loanId: number | undefined;
-  try {
-    await inOrg(async () => {
-      loanId = await createExternalLoan({
-        orgId: ORG, lender: "Test SACCO", liabilityAccountId: await acct("2400"),
-        principalCents: 50_000, startDate: TODAY, receivedInto: "already_recorded",
-      });
-      const [loan] = await db.select().from(externalLoans).where(eq(externalLoans.id, loanId));
-      assert.equal(loan.receiptJournalEntryId, null);
-      assert.equal(loan.receivedIntoBankAccountId, null);
-      assert.equal(await externalLoanOutstanding(ORG, loanId), 50_000);
-    });
-  } finally {
-    if (loanId) await cleanupLoan(loanId);
-  }
-});
-
-test("createExternalLoan rejects a non-liability loan account and an interest charge with no account", async () => {
-  await inOrg(async () => {
-    await assert.rejects(
-      createExternalLoan({ orgId: ORG, lender: "X", liabilityAccountId: await acct("6075"), principalCents: 1_000, startDate: TODAY, receivedInto: "already_recorded" }),
-      /liability account/
-    );
-    let loanId: number | undefined;
+  await withUnexpiredCleanup(async () => {
     try {
-      loanId = await createExternalLoan({ orgId: ORG, lender: "Test no-interest-acct", liabilityAccountId: await acct("2400"), principalCents: 1_000, startDate: TODAY, receivedInto: "already_recorded" });
-      await assert.rejects(
-        recordExternalLoanRepayment({ orgId: ORG, loanId, date: TODAY, principalCents: 0, interestCents: 100, bankAccountId: (await bank()).id }),
-        /expense account for the interest/
-      );
+      await inOrg(async () => {
+        const b = await bank();
+        const loanAcc = await acct("2400");
+        const interestAcc = await acct("6075");
+        const start = addDays(TODAY, -75); // ~2 month-ends already past
+        loanId = await createExternalLoan({
+          orgId: ORG, lender: "Test Bank", liabilityAccountId: loanAcc, interestAccountId: interestAcc,
+          principalCents: 120_000, interestTotalCents: 12_000, termMonths: 6,
+          startDate: start, receivedInto: b.id, asOf: TODAY,
+        });
+        const unexpired = await acct(UNEXPIRED_INTEREST_CODE);
+        const [loan] = await db.select().from(externalLoans).where(eq(externalLoans.id, loanId));
+
+        // Principal in, interest onto the loan account up front.
+        assert.deepEqual(shape(await linesOf(loan.receiptJournalEntryId!)), shape([
+          { accountId: b.accountId, debitCents: 120_000, creditCents: 0 },
+          { accountId: loanAcc, debitCents: 0, creditCents: 120_000 },
+        ]));
+        assert.deepEqual(shape(await linesOf(loan.interestSetupEntryId!)), shape([
+          { accountId: unexpired, debitCents: 12_000, creditCents: 0 },
+          { accountId: loanAcc, debitCents: 0, creditCents: 12_000 },
+        ]));
+        assert.equal(await externalLoanOutstanding(ORG, loanId), 132_000);
+
+        // Months whose month-end has passed are expensed; the rest wait.
+        const sched = await db.select().from(externalLoanInterestSchedule).where(eq(externalLoanInterestSchedule.loanId, loanId));
+        assert.equal(sched.length, 6);
+        for (const r of sched) {
+          assert.equal(!!r.journalEntryId, r.periodEnd <= TODAY, `month ${r.periodEnd}`);
+          if (r.journalEntryId) {
+            assert.deepEqual(shape(await linesOf(r.journalEntryId)), shape([
+              { accountId: interestAcc, debitCents: 2_000, creditCents: 0 },
+              { accountId: unexpired, debitCents: 0, creditCents: 2_000 },
+            ]));
+          }
+        }
+        assert.ok(sched.some((r) => r.journalEntryId), "at least one past month posted");
+        // Re-running is a no-op (claimed rows aren't posted twice).
+        assert.equal((await postDueLoanInterest(ORG, TODAY, loanId)).posted, 0);
+
+        // A payment is one amount: DR loan · CR bank, reduces outstanding.
+        const payEntry = await recordExternalLoanRepayment({ orgId: ORG, loanId, date: TODAY, amountCents: 22_000, bankAccountId: b.id, reference: "T1" });
+        assert.deepEqual(shape(await linesOf(payEntry)), shape([
+          { accountId: loanAcc, debitCents: 22_000, creditCents: 0 },
+          { accountId: b.accountId, debitCents: 0, creditCents: 22_000 },
+        ]));
+        const out = await db.select().from(bankTransactions).where(eq(bankTransactions.journalEntryId, payEntry));
+        assert.equal(out[0]?.amountCents, -22_000);
+        assert.equal(await externalLoanOutstanding(ORG, loanId), 110_000);
+
+        await assert.rejects(
+          recordExternalLoanRepayment({ orgId: ORG, loanId, date: TODAY, amountCents: 110_001, bankAccountId: b.id }),
+          /more than is still owed/
+        );
+        await recordExternalLoanRepayment({ orgId: ORG, loanId, date: TODAY, amountCents: 110_000, bankAccountId: b.id });
+        const [closed] = await db.select().from(externalLoans).where(eq(externalLoans.id, loanId));
+        assert.equal(closed.status, "closed");
+      });
     } finally {
       if (loanId) await cleanupLoan(loanId);
     }
+  });
+});
+
+test("interest can be added once to a loan registered as already in the books", async () => {
+  let loanId: number | undefined;
+  await withUnexpiredCleanup(async () => {
+    try {
+      await inOrg(async () => {
+        loanId = await createExternalLoan({
+          orgId: ORG, lender: "Test SACCO", liabilityAccountId: await acct("2400"),
+          principalCents: 50_000, startDate: TODAY, receivedInto: "already_recorded", asOf: TODAY,
+        });
+        const [before] = await db.select().from(externalLoans).where(eq(externalLoans.id, loanId));
+        assert.equal(before.receiptJournalEntryId, null, "principal already in the books: nothing posted");
+        assert.equal(await externalLoanOutstanding(ORG, loanId), 50_000);
+
+        await setupExternalLoanInterest({ orgId: ORG, loanId, interestTotalCents: 6_000, termMonths: 3, interestAccountId: await acct("6075"), asOf: TODAY });
+        assert.equal(await externalLoanOutstanding(ORG, loanId), 56_000);
+        const sched = await db.select().from(externalLoanInterestSchedule).where(eq(externalLoanInterestSchedule.loanId, loanId));
+        assert.equal(sched.length, 3);
+        assert.ok(sched.every((r) => !r.journalEntryId), "future months only scheduled");
+
+        await assert.rejects(
+          setupExternalLoanInterest({ orgId: ORG, loanId, interestTotalCents: 1_000, termMonths: 3, interestAccountId: await acct("6075"), asOf: TODAY }),
+          /already set up/
+        );
+      });
+    } finally {
+      if (loanId) await cleanupLoan(loanId);
+    }
+  });
+});
+
+test("createExternalLoan validates the loan account and the interest inputs", async () => {
+  await inOrg(async () => {
+    await assert.rejects(
+      createExternalLoan({ orgId: ORG, lender: "X", liabilityAccountId: await acct("6075"), principalCents: 1_000, startDate: TODAY, receivedInto: "already_recorded", asOf: TODAY }),
+      /liability account/
+    );
+    await assert.rejects(
+      createExternalLoan({ orgId: ORG, lender: "X", liabilityAccountId: await acct("2400"), interestAccountId: await acct("6075"), principalCents: 1_000, interestTotalCents: 100, startDate: TODAY, receivedInto: "already_recorded", asOf: TODAY }),
+      /term in months/
+    );
+    await assert.rejects(
+      createExternalLoan({ orgId: ORG, lender: "X", liabilityAccountId: await acct("2400"), principalCents: 1_000, interestTotalCents: 100, termMonths: 3, startDate: TODAY, receivedInto: "already_recorded", asOf: TODAY }),
+      /interest expense account/
+    );
+    const leftovers = await db.select().from(externalLoans).where(and(eq(externalLoans.orgId, ORG), eq(externalLoans.lender, "X")));
+    assert.equal(leftovers.length, 0, "rejected loans aren't saved");
   });
 });

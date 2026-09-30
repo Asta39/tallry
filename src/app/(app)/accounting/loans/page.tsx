@@ -59,10 +59,10 @@ export default async function BusinessLoansPage() {
           <thead className="hairline-b">
             <tr>
               <Th>Lender</Th>
-              <Th>Account</Th>
               <Th right>Borrowed</Th>
-              <Th right>Principal repaid</Th>
-              <Th right>Interest paid</Th>
+              <Th right>Interest</Th>
+              <Th right>Total repayable</Th>
+              <Th right>Paid</Th>
               <Th right>Outstanding</Th>
               <Th>Status</Th>
               <Th></Th>
@@ -75,12 +75,14 @@ export default async function BusinessLoansPage() {
                   <Link href={`/accounting/loans/${l.id}`} className="text-[var(--color-accent-600)] hover:underline">
                     {l.lender}
                   </Link>
-                  {l.reference && <span className="block text-[11px] text-[var(--color-ink-400)]">{l.reference}</span>}
+                  <span className="block text-[11px] text-[var(--color-ink-400)]">
+                    {[accName.get(l.liabilityAccountId), l.termMonths ? `${l.termMonths} months` : null, l.reference].filter(Boolean).join(" · ")}
+                  </span>
                 </Td>
-                <Td className="text-[var(--color-ink-500)]">{accName.get(l.liabilityAccountId) ?? "—"}</Td>
                 <Td right>{fmtKES(l.principalCents)}</Td>
-                <Td right>{fmtKES(l.repaidPrincipal)}</Td>
-                <Td right>{fmtKES(l.paidInterest)}</Td>
+                <Td right>{l.interestTotalCents ? fmtKES(l.interestTotalCents) : "—"}</Td>
+                <Td right>{fmtKES(l.totalRepayable)}</Td>
+                <Td right>{fmtKES(l.paidCents)}</Td>
                 <Td right className="font-semibold">{fmtKES(l.outstanding)}</Td>
                 <Td>
                   <span className={`inline-block rounded-full px-2.5 py-0.5 text-[11px] font-medium ${l.status === "active" ? "bg-emerald-50 text-emerald-700" : "bg-[var(--color-ink-100)] text-[var(--color-ink-400)]"}`}>
@@ -94,9 +96,8 @@ export default async function BusinessLoansPage() {
                       loanId={l.id}
                       lender={l.lender}
                       outstandingCents={l.outstanding}
+                      suggestedCents={l.monthlyInstallment}
                       bankAccounts={opts.bankAccounts}
-                      interestAccounts={opts.interestAccounts}
-                      defaultInterestAccountId={l.interestAccountId ?? opts.defaultInterestId}
                     />
                   )}
                 </Td>

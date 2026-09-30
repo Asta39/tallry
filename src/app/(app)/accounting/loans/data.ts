@@ -1,5 +1,5 @@
-import { db, accounts, bankAccounts, externalLoans, externalLoanRepayments, journalLines } from "@/db";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { db, accounts, bankAccounts, externalLoans, externalLoanRepayments, externalLoanInterestSchedule, journalLines } from "@/db";
+import { and, eq, inArray, isNotNull, sql } from "drizzle-orm";
 
 /** Shared lookups for the Business Loans pages. */
 export async function loanFormOptions(orgId: number) {
@@ -28,23 +28,35 @@ export async function loanFormOptions(orgId: number) {
   return { liabilityAccounts, interestAccounts, bankAccounts: banks, defaultLiabilityId, defaultInterestId };
 }
 
-/** Every loan with its repaid principal/interest and outstanding balance. */
+/** Every loan with what's been paid, interest expensed so far, and the
+ *  outstanding balance (principal + total interest − payments). */
 export async function loansWithBalances(orgId: number) {
   const loans = await db.select().from(externalLoans).where(eq(externalLoans.orgId, orgId)).orderBy(externalLoans.startDate);
-  const sums = await db
-    .select({
-      loanId: externalLoanRepayments.loanId,
-      principal: sql<number>`coalesce(sum(${externalLoanRepayments.principalCents}), 0)`,
-      interest: sql<number>`coalesce(sum(${externalLoanRepayments.interestCents}), 0)`,
-    })
-    .from(externalLoanRepayments)
-    .where(eq(externalLoanRepayments.orgId, orgId))
-    .groupBy(externalLoanRepayments.loanId);
-  const byLoan = new Map(sums.map((s) => [s.loanId, s]));
+  const [paidRows, expensedRows] = await Promise.all([
+    db
+      .select({ loanId: externalLoanRepayments.loanId, paid: sql<number>`coalesce(sum(${externalLoanRepayments.amountCents}), 0)` })
+      .from(externalLoanRepayments)
+      .where(eq(externalLoanRepayments.orgId, orgId))
+      .groupBy(externalLoanRepayments.loanId),
+    db
+      .select({ loanId: externalLoanInterestSchedule.loanId, expensed: sql<number>`coalesce(sum(${externalLoanInterestSchedule.amountCents}), 0)` })
+      .from(externalLoanInterestSchedule)
+      .where(and(eq(externalLoanInterestSchedule.orgId, orgId), isNotNull(externalLoanInterestSchedule.journalEntryId)))
+      .groupBy(externalLoanInterestSchedule.loanId),
+  ]);
+  const paid = new Map(paidRows.map((r) => [r.loanId, Number(r.paid)]));
+  const expensed = new Map(expensedRows.map((r) => [r.loanId, Number(r.expensed)]));
   return loans.map((l) => {
-    const s = byLoan.get(l.id);
-    const repaidPrincipal = Number(s?.principal ?? 0);
-    return { ...l, repaidPrincipal, paidInterest: Number(s?.interest ?? 0), outstanding: l.principalCents - repaidPrincipal };
+    const totalRepayable = l.principalCents + l.interestTotalCents;
+    const paidCents = paid.get(l.id) ?? 0;
+    return {
+      ...l,
+      totalRepayable,
+      paidCents,
+      interestExpensed: expensed.get(l.id) ?? 0,
+      outstanding: totalRepayable - paidCents,
+      monthlyInstallment: l.termMonths ? Math.ceil(totalRepayable / l.termMonths) : null,
+    };
   });
 }
 
