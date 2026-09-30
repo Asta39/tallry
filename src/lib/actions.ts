@@ -1085,6 +1085,12 @@ async function _recordPayment(data: {
 }) {
   const [doc] = await db.select().from(documents).where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, data.documentId))).limit(1);
   if (!doc) throw new Error("Document not found");
+  // amountCents is the gross cleared off the document; WHT is the part the
+  // customer kept back, so the bank gets amount − WHT. It can't exceed the
+  // gross (negative bank receipt) and only applies to customer receipts.
+  const whtCents = data.whtCents ?? 0;
+  if (!Number.isInteger(whtCents) || whtCents < 0 || whtCents > data.amountCents) throw new Error("Enter a valid WHT amount");
+  if (whtCents > 0 && data.direction !== "in") throw new Error("WHT only applies to customer payments");
   const [p] = await db
     .insert(payments)
     .values({ orgId: currentOrgId(),
@@ -1094,7 +1100,7 @@ async function _recordPayment(data: {
       documentId: data.documentId,
       date: data.date,
       amountCents: data.amountCents,
-      whtCents: data.whtCents ?? 0,
+      whtCents,
       method: data.method,
       bankAccountId: data.bankAccountId,
       reference: data.reference,

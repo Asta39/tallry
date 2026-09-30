@@ -14,6 +14,7 @@ import { LineDescription } from "@/components/LineDescription";
 import { ETIMS_ENABLED } from "@/lib/features";
 import { canApproveSpend, isSpendApprovalType } from "@/lib/spend-approvals";
 import { DocRealtimeRefresh } from "@/components/DocRealtimeRefresh";
+import { withholdingVatDueCents, remainingWithholdingCents } from "@/lib/wht";
 
 const typeLabels: Record<string, string> = {
   invoice: "Invoice",
@@ -221,6 +222,14 @@ export async function DocDetail({ id, printHref }: { id: number; printHref?: str
         gateways={gateways.map(g => ({ id: g.gatewayId, name: g.gatewayId === "mpesa_daraja" ? "M-Pesa Daraja" : "Kopo Kopo" }))}
         preferredGatewayId={org.billPayoutGatewayId}
         contactPhone={contact?.phone || ""}
+        whtSuggestionCents={
+          doc.type === "invoice" && contact?.isWithholdingAgent
+            ? remainingWithholdingCents(
+                withholdingVatDueCents(lines.filter((l) => !l.isHeading)),
+                pays.reduce((s, p) => s + p.whtCents, 0)
+              )
+            : null
+        }
         canApprove={canApprove}
         canEditIssuedInvoice={canEditIssuedInvoiceNow}
         poLines={doc.type === "purchase_order" ? lines.map((l) => ({ id: l.id, description: l.description, qty: l.qty, billedQty: l.billedQty })) : undefined}

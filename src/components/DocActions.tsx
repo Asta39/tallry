@@ -70,6 +70,7 @@ export function DocActions({
   canEditIssuedInvoice,
   canPayout,
   poLines,
+  whtSuggestionCents,
 }: {
   doc: {
     id: number;
@@ -103,6 +104,10 @@ export function DocActions({
    *  rather than "you need this permission granted". */
   canPayout?: boolean;
   poLines?: { id: number; description: string; qty: number; billedQty: number }[];
+  /** Invoices to a KRA withholding agent: the 2% withholding VAT still
+   *  expected (computed server-side from the VAT-able lines, less WHT already
+   *  recorded). Null for everyone else. */
+  whtSuggestionCents?: number | null;
 }) {
   const [rejectNote, setRejectNote] = useState("");
   const [showReject, setShowReject] = useState(false);
@@ -110,8 +115,15 @@ export function DocActions({
   const router = useRouter();
   const [pending, start] = useTransition();
   const [showPay, setShowPay] = useState(false);
-  const [amount, setAmount] = useState(((doc.totalCents - doc.paidCents) / 100).toFixed(2));
-  const [wht, setWht] = useState("0");
+  // Invoices: "amount" is what actually arrived (net of WHT); received + WHT
+  // is what clears off the invoice. It used to be the gross cleared, so
+  // typing the net received plus the WHT left the invoice "partial" by
+  // exactly the WHT and under-stated the bank line by it too.
+  const balanceDue = doc.totalCents - doc.paidCents;
+  const initialWht = doc.type === "invoice" ? Math.min(whtSuggestionCents ?? 0, Math.max(0, balanceDue)) : 0;
+  const [amount, setAmount] = useState(((balanceDue - initialWht) / 100).toFixed(2));
+  const [amountTouched, setAmountTouched] = useState(false);
+  const [wht, setWht] = useState((initialWht / 100).toFixed(2));
   const [method, setMethod] = useState("mpesa");
   // Defaulting to bankAccounts[0] regardless of `method` meant selecting
   // "M-Pesa" here didn't necessarily point the actual ledger account at the
@@ -427,13 +439,32 @@ export function DocActions({
       {showPay && (
         <div className="card p-4 grid grid-cols-2 lg:grid-cols-5 gap-3 items-end">
           <label className="block">
-            <span className="text-[12px] font-medium text-[var(--color-ink-600)]">Amount (KSh)</span>
-            <input className={inputCls + " w-full mt-1"} value={amount} onChange={(e) => setAmount(e.target.value)} />
+            <span className="text-[12px] font-medium text-[var(--color-ink-600)]">{doc.type === "invoice" ? "Amount received (KSh)" : "Amount (KSh)"}</span>
+            <input
+              className={inputCls + " w-full mt-1"}
+              value={amount}
+              onChange={(e) => {
+                setAmount(e.target.value);
+                setAmountTouched(true);
+              }}
+            />
           </label>
           {doc.type === "invoice" && (
             <label className="block">
               <span className="text-[12px] font-medium text-[var(--color-ink-600)]">WHT withheld (KSh)</span>
-              <input className={inputCls + " w-full mt-1"} value={wht} onChange={(e) => setWht(e.target.value)} />
+              <input
+                className={inputCls + " w-full mt-1"}
+                value={wht}
+                onChange={(e) => {
+                  setWht(e.target.value);
+                  // Keep a full settlement by default: received follows the
+                  // WHT until the user types their own received amount.
+                  if (!amountTouched) {
+                    const w = parseKES(e.target.value) || 0;
+                    setAmount((Math.max(0, balanceDue - w) / 100).toFixed(2));
+                  }
+                }}
+              />
             </label>
           )}
           <label className="block">
@@ -489,13 +520,15 @@ export function DocActions({
               onClick={() =>
                 run(async () => {
                   const amt = parseKES(amount);
-                  const whtC = parseKES(wht) || 0;
+                  const whtC = doc.type === "invoice" ? parseKES(wht) || 0 : 0;
                   if (!amt || amt <= 0) throw new Error("Enter a valid amount");
+                  if (whtC < 0) throw new Error("WHT can't be negative");
                   await recordPayment({
                     direction: doc.type === "invoice" ? "in" : "out",
                     documentId: doc.id,
                     date: todayISO(),
-                    amountCents: amt,
+                    // Gross cleared off the invoice = received + withheld.
+                    amountCents: amt + whtC,
                     whtCents: whtC,
                     method,
                     bankAccountId: bankId === "" ? null : bankId,
@@ -508,8 +541,15 @@ export function DocActions({
               {pending ? "Saving…" : `Record ${fmtKES(parseKES(amount) || 0)}`}
             </button>
             <span className="text-[12px] text-[var(--color-ink-400)]">
-              Balance due: {fmtKES(doc.totalCents - doc.paidCents)}
-              {doc.type === "invoice" && " · If the customer withheld tax, enter the WHT amount — it counts as paid."}
+              Balance due: {fmtKES(balanceDue)}
+              {doc.type === "invoice" && (
+                <>
+                  {" · "}Clears {fmtKES((parseKES(amount) || 0) + (parseKES(wht) || 0))} (received + WHT)
+                  {whtSuggestionCents
+                    ? " · 2% withholding VAT filled in — this customer is a withholding agent"
+                    : " · If the customer withheld tax, enter the WHT — it counts as paid."}
+                </>
+              )}
             </span>
           </div>
         </div>
