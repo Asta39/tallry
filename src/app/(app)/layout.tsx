@@ -19,6 +19,7 @@ import { BannerStack } from "@/components/BannerStack";
 import { BlurProvider } from "@/components/BlurContext";
 import { BlurToggleSwitch } from "@/components/BlurToggleSwitch";
 import { BlurScope } from "@/components/BlurScope";
+import { BackButton } from "@/components/BackButton";
 
 const roleLabels: Record<string, string> = {
   admin: "Admin",
@@ -141,7 +142,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             style={{ height: `calc(var(--mobile-banner-offset, ${announcement ? 36 : 0}px) + 76px)` }}
           />
           <div className="sticky top-[calc(var(--mobile-banner-offset,0px)+76px)] md:top-0 z-30 bg-white/80 backdrop-blur-md border-b border-[var(--color-ink-100)] px-4 py-3 md:py-0 md:px-8 md:h-14 flex items-center justify-between no-print gap-4">
-            <div className="flex-1 hidden md:flex items-center gap-3 max-w-[150px]">
+            <div className="flex-1 hidden md:flex items-center gap-2 max-w-[190px]">
+              <BackButton />
               <Link
                 href="/settings/billing"
                 className={`inline-flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-full transition-colors ${
@@ -155,6 +157,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               </Link>
             </div>
             <div className="flex-1 flex items-center gap-2 max-w-md mx-auto md:hidden">
+              <BackButton />
               <div className="flex-1 min-w-0">
                 <GlobalSearch />
               </div>
