@@ -80,6 +80,7 @@ export async function fetchInitialData(docId: number) {
 
   return {
     id: doc.id,
+    type: doc.type,
     status: doc.status,
     contactId: doc.contactId ?? "",
     date: doc.date,
@@ -92,6 +93,10 @@ export async function fetchInitialData(docId: number) {
     assignedMemberIds: assignments.map(a => a.memberId),
     customerContactId: doc.customerContactId ?? "",
     relatedInvoiceId: doc.relatedInvoiceId ?? "",
+    isBillable: doc.isBillable,
+    payoutDestinationType: (doc.payoutDestinationType ?? undefined) as "phone" | "till" | "paybill" | undefined,
+    payoutDestination: doc.payoutDestination ?? undefined,
+    payoutAccountNumber: doc.payoutAccountNumber ?? undefined,
     lines: lines.map(l => ({
       itemId: l.itemId,
       description: l.description,

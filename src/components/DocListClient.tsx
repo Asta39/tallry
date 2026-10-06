@@ -6,6 +6,8 @@ import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { fmtKES, todayISO } from "@/lib/money";
 import { StatusPill, TableCard, Th, Td } from "@/components/ui";
 import { useRealtimeTable } from "@/lib/realtime/useRealtimeTable";
+import { mergeQuotesAction } from "@/lib/actions";
+import { MERGEABLE_QUOTE_STATUSES } from "@/lib/quote-merge";
 
 interface Row {
   doc: any;
@@ -98,6 +100,36 @@ export function DocListClient({
 
   const hasNextPage = currentPage * 50 < totalCount;
 
+  // Quotes: pick several for the same customer and merge them into one.
+  const canMerge = type === "quote" && !isTemplate;
+  const mergeable = (d: any) => (MERGEABLE_QUOTE_STATUSES as readonly string[]).includes(d.status);
+  const [selected, setSelected] = useState<number[]>([]);
+  const [mergeError, setMergeError] = useState<string | null>(null);
+  const [merging, startMerge] = useTransition();
+  // Drop selections that left the page (filter, search or page change).
+  useEffect(() => {
+    setSelected((s) => s.filter((id) => rows.some((r) => r.doc.id === id && mergeable(r.doc))));
+  }, [rows]);
+  const selectedRows = rows.filter((r) => selected.includes(r.doc.id));
+  const toggle = (id: number) => {
+    setMergeError(null);
+    setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
+  };
+  const sameCustomer = selectedRows.length > 0 && selectedRows.every((r) => r.doc.contactId === selectedRows[0].doc.contactId);
+  function merge() {
+    const numbers = selectedRows.map((r) => r.doc.number).join(", ");
+    if (!window.confirm(`Merge ${numbers} into one new quote? The originals will be marked "Merged" and can't be converted on their own.`)) return;
+    startMerge(async () => {
+      const res = await mergeQuotesAction(selected);
+      if (res.error || !res.id) {
+        setMergeError(res.error || "Couldn't merge those quotes");
+        return;
+      }
+      setSelected([]);
+      router.push(`${basePath}/${res.id}`);
+    });
+  }
+
   return (
     <div className="space-y-6 mt-6">
       {/* Stats Cards */}
@@ -150,6 +182,27 @@ export function DocListClient({
         {isPending && <span className="text-sm text-[var(--color-ink-400)]">Loading...</span>}
       </div>
 
+      {canMerge && selected.length > 0 && (
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-[var(--color-ink-200)] bg-white px-4 py-2.5 text-[13px]">
+          <span className="font-medium">{selected.length} selected</span>
+          {!sameCustomer && <span className="text-[var(--color-bad)]">Pick quotes for the same customer to merge them</span>}
+          {mergeError && <span className="text-[var(--color-bad)]">{mergeError}</span>}
+          <div className="ml-auto flex items-center gap-2">
+            <button type="button" onClick={() => { setSelected([]); setMergeError(null); }} className="px-3 py-1.5 text-[var(--color-ink-500)] hover:text-[var(--color-ink-900)]">
+              Clear
+            </button>
+            <button
+              type="button"
+              onClick={merge}
+              disabled={selected.length < 2 || !sameCustomer || merging}
+              className="rounded-lg bg-[var(--color-accent-500)] hover:bg-[var(--color-accent-600)] disabled:opacity-50 text-white font-medium px-4 py-1.5"
+            >
+              {merging ? "Merging…" : "Merge into one quote"}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Table */}
       {rows.length === 0 ? (
         <div className="py-12 text-center text-[var(--color-ink-400)] text-sm border rounded-lg bg-white border-dashed">
@@ -159,6 +212,7 @@ export function DocListClient({
         <TableCard>
           <thead className="hairline-b">
             <tr>
+              {canMerge && <Th><span className="sr-only">Select</span></Th>}
               <Th>Date</Th>
               <Th>Number</Th>
               <Th>{type === "bill" || type === "expense" || type === "purchase_order" ? "Vendor" : "Customer"}</Th>
@@ -170,6 +224,19 @@ export function DocListClient({
           <tbody className={isPending ? "opacity-50 transition-opacity" : ""}>
             {rows.map(({ doc: d, contactName }) => (
               <tr key={d.id} className="hairline-t hover:bg-[var(--color-ink-50)]/60">
+                {canMerge && (
+                  <Td className="w-8">
+                    <input
+                      type="checkbox"
+                      aria-label={`Select ${d.number}`}
+                      checked={selected.includes(d.id)}
+                      disabled={!mergeable(d)}
+                      title={mergeable(d) ? "Select to merge" : "Only draft, sent or accepted quotes can be merged"}
+                      onChange={() => toggle(d.id)}
+                      className="rounded border-[var(--color-ink-300)] text-[var(--color-accent-500)] focus:ring-[var(--color-accent-500)] disabled:opacity-30"
+                    />
+                  </Td>
+                )}
                 <Td className="text-[var(--color-ink-400)]">{d.date}</Td>
                 <Td>
                   <Link

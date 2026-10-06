@@ -26,11 +26,15 @@ import {
   costCenters,
   reminderLog,
   approvalRequestTokens,
+  stockLots,
+  paymentRuns,
+  paymentRunItems,
 } from "@/db";
 import { getGateway } from "@/lib/payments/gateway";
 import { notifyAccountantOfPayout } from "@/lib/payout-notify";
 import { shortRef } from "@/lib/payments/ref-format";
 import { canEditIssuedInvoice } from "@/lib/invoice-edit";
+import { MERGEABLE_QUOTE_STATUSES, mergeQuotesError, mergedQuoteLines, mergedQuoteNotes } from "@/lib/quote-merge";
 import { eq, and, ne, desc, isNull, sql, inArray } from "drizzle-orm";
 import { currentOrgId, withOrg, seedOrgDefaults, orgContext } from "@/lib/org";
 import { revalidatePath as nextRevalidatePath } from "next/cache";
@@ -726,7 +730,56 @@ async function _saveDocument(data: {
     }
   }
 
-  const docId = await db.transaction(async (tx) => {
+  // Editing a recorded (posted) bill before it's paid — e.g. the vendor
+  // delivers more goods later in the day. Same shape as the issued-invoice
+  // edit above: reverse the posting and this bill's stock receipt up front,
+  // save the new lines as a draft, then re-post (or send back for approval)
+  // once the transaction commits. Anything with money against it, or queued
+  // in a payment run, stays void-and-recreate only.
+  let repostBillId: number | null = null;
+  if (data.id) {
+    const [existingBill] = await db.select().from(documents).where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, data.id))).limit(1);
+    if (existingBill && existingBill.type === "bill" && existingBill.status !== "draft" && existingBill.status !== "pending_approval") {
+      if (existingBill.status !== "open" || existingBill.paidCents > 0 || existingBill.creditedCents > 0) {
+        throw new Error("Only a bill that hasn't been paid yet can be edited — this one already has a payment against it");
+      }
+      const [queued] = await db
+        .select({ id: paymentRunItems.id })
+        .from(paymentRunItems)
+        .innerJoin(paymentRuns, eq(paymentRuns.id, paymentRunItems.runId))
+        .where(and(eq(paymentRunItems.orgId, currentOrgId()), eq(paymentRunItems.billId, data.id), ne(paymentRuns.status, "posted")))
+        .limit(1);
+      if (queued) throw new Error("This bill is in a payment run — remove it from the run before editing");
+      if (existingBill.journalEntryId) {
+        // Reversed at the bill's own date so the original and the repost net
+        // out inside the same period (see the invoice edit above).
+        await reverseEntry(existingBill.journalEntryId, existingBill.date, `Reversed for edit: ${existingBill.number}`);
+      }
+      // Undo this bill's stock receipt. If none of it has been sold yet
+      // (the usual same-day case) remove its own lots exactly; otherwise
+      // take the quantities back out FIFO, the same way voiding a bill does.
+      const lots = await db
+        .select()
+        .from(stockLots)
+        .where(and(eq(stockLots.orgId, currentOrgId()), eq(stockLots.sourceType, "bill"), eq(stockLots.sourceId, data.id)));
+      if (lots.every((l) => l.remainingQty === l.qty)) {
+        if (lots.length) await db.delete(stockLots).where(and(eq(stockLots.orgId, currentOrgId()), inArray(stockLots.id, lots.map((l) => l.id))));
+      } else {
+        const oldLines = await db.select().from(documentLines).where(eq(documentLines.documentId, data.id));
+        const trackedIds = new Set(lots.map((l) => l.itemId));
+        for (const l of oldLines) {
+          if (l.itemId && trackedIds.has(l.itemId) && l.qty > 0) await consumeFifo(l.itemId, l.qty, l.warehouseId ?? undefined);
+        }
+      }
+      await db
+        .update(documents)
+        .set({ status: "draft", journalEntryId: null })
+        .where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, data.id)));
+      repostBillId = data.id;
+    }
+  }
+
+  const saveTx = () => db.transaction(async (tx) => {
     let savedDocId: number;
     if (data.id) {
       const [existing] = await tx.select().from(documents).where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, data.id))).limit(1);
@@ -736,6 +789,21 @@ async function _saveDocument(data: {
         if (existing.status !== "draft" && existing.status !== "open") throw new Error("Only draft or open quotes can be edited");
       } else if (existing.type === "invoice") {
         if (existing.status !== "draft") throw new Error("Issued invoices can't be edited — void and reissue instead");
+      } else if (existing.type === "bill") {
+        // Recorded-but-unpaid bills were already moved back to draft above.
+        if (existing.status !== "draft" && existing.status !== "pending_approval") throw new Error("Only a bill that hasn't been paid yet can be edited");
+      } else if (existing.type === "purchase_order") {
+        if (existing.status !== "draft" && existing.status !== "open") throw new Error("Only a purchase order that hasn't been billed yet can be edited");
+        if (existing.status === "open") {
+          // Lines are replaced wholesale below, which would wipe billedQty —
+          // so a PO can only change while nothing on it has been billed.
+          const [billed] = await tx
+            .select({ id: documentLines.id })
+            .from(documentLines)
+            .where(and(eq(documentLines.documentId, existing.id), sql`${documentLines.billedQty} > 0`))
+            .limit(1);
+          if (billed) throw new Error("Part of this purchase order is already billed — raise a new PO for the extra items");
+        }
       } else {
         if (existing.status !== "draft") throw new Error("Only drafts can be edited");
       }
@@ -759,6 +827,8 @@ async function _saveDocument(data: {
           payoutDestination: data.payoutDestination ?? null,
           payoutDestinationType: data.payoutDestinationType ?? null,
           payoutAccountNumber: data.payoutAccountNumber ?? null,
+          // The vendor's own bill number can be corrected while editing.
+          ...((existing.type === "bill" || existing.type === "expense") && data.billNumber?.trim() ? { number: data.billNumber.trim() } : {}),
         })
         .where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, data.id)));
       await tx.delete(documentLines).where(eq(documentLines.documentId, data.id));
@@ -866,10 +936,39 @@ async function _saveDocument(data: {
 
     return savedDocId;
   });
+  let docId: number;
+  try {
+    docId = await saveTx();
+  } catch (e) {
+    // The bill's posting was already reversed above; put it back exactly as
+    // it was (the transaction rolled back, so its old lines are untouched).
+    if (repostBillId) await postBill(repostBillId);
+    throw e;
+  }
 
   if (repostInvoiceId) {
     // postInvoice sets status back to "open" itself once the fresh entry posts.
     await postInvoice(repostInvoiceId);
+  }
+  if (repostBillId) {
+    // With approvals on, a changed amount needs approving again unless the
+    // person editing could approve it themselves.
+    const o = await getOrg();
+    const editor = await getAccess();
+    const [{ totalCents }] = await db.select({ totalCents: documents.totalCents }).from(documents).where(eq(documents.id, repostBillId)).limit(1);
+    const selfApproves =
+      !!editor?.perms.has("accountant") && canApproveSpend({ access: editor, totalCents, accountantApprovalLimitCents: o.accountantApprovalLimitCents });
+    if (o.requireBillApproval && !selfApproves) {
+      const [b] = await db
+        .update(documents)
+        .set({ status: "pending_approval", approvalNote: null })
+        .where(and(eq(documents.orgId, currentOrgId()), eq(documents.id, repostBillId)))
+        .returning({ number: documents.number });
+      await notifyOrg(currentOrgId(), ["admin", "accountant"], "Edited bill awaiting approval", `${b.number} (${fmtKES(totalCents)}) was changed and needs approval again before it posts.`, `/purchases/bills/${repostBillId}`);
+      await sendSpendApprovalSms(repostBillId).catch(() => null);
+    } else {
+      await postBill(repostBillId); // sets status back to "open"
+    }
   }
 
   revalidatePath("/sales");
@@ -2188,6 +2287,95 @@ export async function deleteDraftDoc(docId: number) {
   await logAudit({ action: "delete", module: doc ? DOC_MODULE[doc.type] : "invoices", recordId: docId, recordLabel: doc?.number });
   return { success: true };
 }
+/**
+ * Merge several quotes for the same customer into one new draft quote —
+ * each source's lines under a "From QT-…" heading — and mark the sources
+ * "merged" (linked to the new quote) so they can't also be converted.
+ */
+async function _mergeQuotes(quoteIds: number[]): Promise<number> {
+  const orgId = currentOrgId();
+  const ids = Array.from(new Set(quoteIds));
+  const found = await db.select().from(documents).where(and(eq(documents.orgId, orgId), inArray(documents.id, ids)));
+  const ordered = ids.map((id) => found.find((d) => d.id === id)).filter((d): d is (typeof found)[number] => !!d);
+  const problem = mergeQuotesError(ordered, ids.length);
+  if (problem) throw new Error(problem);
+
+  // Atomic claim, so a quote converted or merged by someone else a moment
+  // ago can't end up in two places.
+  const claimed = await db
+    .update(documents)
+    .set({ status: "merging" })
+    .where(and(eq(documents.orgId, orgId), eq(documents.type, "quote"), inArray(documents.id, ids), inArray(documents.status, [...MERGEABLE_QUOTE_STATUSES])))
+    .returning({ id: documents.id });
+  const restore = async () => {
+    for (const q of ordered) {
+      await db.update(documents).set({ status: q.status }).where(and(eq(documents.orgId, orgId), eq(documents.id, q.id), eq(documents.status, "merging")));
+    }
+  };
+  if (claimed.length !== ids.length) {
+    await restore();
+    throw new Error("One of those quotes was just changed by someone else — refresh and try again");
+  }
+
+  try {
+    const lineRows = await db
+      .select()
+      .from(documentLines)
+      .where(and(eq(documentLines.orgId, orgId), inArray(documentLines.documentId, ids)))
+      .orderBy(documentLines.position);
+    const assignments = await db
+      .select({ memberId: documentAssignments.memberId })
+      .from(documentAssignments)
+      .where(and(eq(documentAssignments.orgId, orgId), inArray(documentAssignments.documentId, ids)));
+    const lines = mergedQuoteLines(ordered.map((quote) => ({ quote, lines: lineRows.filter((l) => l.documentId === quote.id) })));
+    const memberIds = Array.from(new Set(assignments.map((a) => a.memberId)));
+
+    const mergedId = await saveDocument({
+      type: "quote",
+      contactId: ordered[0].contactId,
+      date: todayISO(),
+      dueDate: null,
+      taxInclusive: ordered[0].taxInclusive,
+      notes: mergedQuoteNotes(ordered),
+      assignedMemberIds: memberIds.length ? memberIds : undefined,
+      lines: lines.map((l) => ({
+        itemId: l.itemId,
+        description: l.description,
+        qty: l.qty,
+        unitPriceCents: l.unitPriceCents,
+        discountPct: l.discountPct,
+        taxClass: l.taxClass as TaxClass,
+        accountId: l.accountId,
+        customColumnValue: l.customColumnValue,
+        costCenterId: l.costCenterId,
+        warehouseId: l.warehouseId,
+        isHeading: l.isHeading,
+      })),
+    });
+    await db
+      .update(documents)
+      .set({ status: "merged", sourceDocId: mergedId })
+      .where(and(eq(documents.orgId, orgId), inArray(documents.id, ids), eq(documents.status, "merging")));
+    revalidatePath("/sales");
+    return mergedId;
+  } catch (e) {
+    await restore();
+    throw e;
+  }
+}
+
+export async function mergeQuotesAction(quoteIds: number[]): Promise<{ id?: number; error?: string }> {
+  try {
+    const id = await withOrg(() => _mergeQuotes(quoteIds), { requireWrite: true });
+    const [merged] = await db.select({ number: documents.number }).from(documents).where(eq(documents.id, id)).limit(1);
+    const sources = await db.select({ number: documents.number }).from(documents).where(and(eq(documents.sourceDocId, id), eq(documents.status, "merged")));
+    await logAudit({ action: "merge", module: "quotes", recordId: id, recordLabel: merged?.number, detail: `Merged from ${sources.map((q) => q.number).join(", ")}` });
+    return { id };
+  } catch (err: any) {
+    return { error: err?.message || "Couldn't merge those quotes" };
+  }
+}
+
 export async function markQuote(docId: number, status: "accepted" | "declined") {
   const result = await withOrg(() => _markQuote(docId, status));
   const [doc] = await db.select({ number: documents.number }).from(documents).where(eq(documents.id, docId)).limit(1);

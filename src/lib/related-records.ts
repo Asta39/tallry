@@ -57,7 +57,7 @@ async function getDocumentRelated(orgId: number, type: string, id: number): Prom
   if (doc.sourceDocId) {
     const [src] = await db.select({ id: documents.id, number: documents.number, type: documents.type })
       .from(documents).where(and(eq(documents.orgId, orgId), eq(documents.id, doc.sourceDocId))).limit(1);
-    if (src) related.push({ type: src.type, title: src.number, subtitle: `Originated from this ${src.type.replace("_", " ")}`, href: docHref(src.type, src.id) });
+    if (src) related.push({ type: src.type, title: src.number, subtitle: doc.status === "merged" ? "Combined quote this one was merged into" : `Originated from this ${src.type.replace("_", " ")}`, href: docHref(src.type, src.id) });
   }
 
   if (doc.relatedInvoiceId) {
@@ -67,10 +67,10 @@ async function getDocumentRelated(orgId: number, type: string, id: number): Prom
   }
 
   // Documents generated FROM this one (e.g. the invoice a quote converted to).
-  const derived = await db.select({ id: documents.id, number: documents.number, type: documents.type })
+  const derived = await db.select({ id: documents.id, number: documents.number, type: documents.type, status: documents.status })
     .from(documents).where(and(eq(documents.orgId, orgId), eq(documents.sourceDocId, id))).limit(3);
   for (const d of derived) {
-    related.push({ type: d.type, title: d.number, subtitle: `Converted from this ${doc.type.replace("_", " ")}`, href: docHref(d.type, d.id) });
+    related.push({ type: d.type, title: d.number, subtitle: d.status === "merged" ? "Merged into this quote" : `Converted from this ${doc.type.replace("_", " ")}`, href: docHref(d.type, d.id) });
   }
 
   // Other recent documents for the same contact.

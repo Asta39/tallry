@@ -209,6 +209,14 @@ export function DocActions({
             Edit
           </button>
         )}
+        {/* Bills stay editable until money goes against them; POs until any of it is billed. */}
+        {((doc.type === "bill" &&
+          (["draft", "pending_approval"].includes(doc.status) || (doc.status === "open" && doc.paidCents === 0 && (doc.creditedCents ?? 0) === 0))) ||
+          (doc.type === "purchase_order" && ["draft", "open"].includes(doc.status))) && (
+          <button className={secondary} disabled={pending} onClick={() => router.push(`/purchases/${doc.type === "bill" ? "bills" : "orders"}/${doc.id}/edit`)}>
+            Edit
+          </button>
+        )}
         {payable && (
           <button className={primary} disabled={pending} onClick={() => setShowPay((v) => !v)} title="Records a payment already made elsewhere — sends no money">
             Record payment
@@ -328,7 +336,7 @@ export function DocActions({
             the real document now. Other quote states (draft, open, declined)
             and other document types still use Void as their reversal path. */}
         {doc.type !== "invoice" &&
-          !(isQuote && (doc.status === "accepted" || doc.status === "converted")) &&
+          !(isQuote && (doc.status === "accepted" || doc.status === "converted" || doc.status === "merged")) &&
           doc.status !== "void" &&
           doc.status !== "draft" &&
           doc.status !== "pending_approval" && (

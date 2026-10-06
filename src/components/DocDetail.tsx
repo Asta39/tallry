@@ -84,7 +84,7 @@ export async function DocDetail({ id, printHref }: { id: number; printHref?: str
   const [convertedFrom] = doc.sourceDocId
     ? await db.select().from(documents).where(and(eq(documents.orgId, orgId), eq(documents.id, doc.sourceDocId))).limit(1)
     : [];
-  const convertedTo = doc.type === "purchase_order"
+  const convertedTo = doc.type === "purchase_order" || doc.type === "quote"
     ? await db.select().from(documents).where(and(eq(documents.orgId, orgId), eq(documents.sourceDocId, id))).limit(20)
     : [];
 
@@ -163,7 +163,7 @@ export async function DocDetail({ id, printHref }: { id: number; printHref?: str
         <div className="card p-4 mb-4 text-[13px] flex flex-wrap gap-x-8 gap-y-2">
           {convertedFrom && (
             <div>
-              <span className="text-[var(--color-ink-500)]">Converted from </span>
+              <span className="text-[var(--color-ink-500)]">{doc.status === "merged" ? "Merged into " : "Converted from "}</span>
               <Link href={docLinkHref(convertedFrom.type, convertedFrom.id)} className="font-medium hover:underline">
                 {typeLabels[convertedFrom.type] ?? convertedFrom.type} {convertedFrom.number}
               </Link>
@@ -171,7 +171,7 @@ export async function DocDetail({ id, printHref }: { id: number; printHref?: str
           )}
           {convertedTo.map((b) => (
             <div key={b.id}>
-              <span className="text-[var(--color-ink-500)]">Billed as </span>
+              <span className="text-[var(--color-ink-500)]">{b.type === "bill" ? "Billed as " : b.type === "quote" ? "Merged from " : "Invoiced as "}</span>
               <Link href={docLinkHref(b.type, b.id)} className="font-medium hover:underline">
                 {typeLabels[b.type] ?? b.type} {b.number}
               </Link>
