@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mergeQuotesError, mergedQuoteLines, mergedQuoteNotes } from "../quote-merge";
+import { mergeQuotesError, mergedQuoteLines, mergedQuoteNotes, mergedQuoteDiscount } from "../quote-merge";
 
 const q = (id: number, over: Partial<Parameters<typeof mergeQuotesError>[0][number]> = {}) => ({
   id,
@@ -74,4 +74,12 @@ test("merged lines keep every source line, each quote under its own heading", ()
 test("identical notes (e.g. default terms) appear once", () => {
   assert.equal(mergedQuoteNotes([q(1, { notes: "Valid 30 days" }), q(2, { notes: "Valid 30 days " }), q(3, { notes: "Deliver to site" })]), "Valid 30 days\n\nDeliver to site");
   assert.equal(mergedQuoteNotes([q(1), q(2, { notes: "  " })]), undefined);
+});
+
+test("merged quote keeps a shared percentage, otherwise sums the discounts", () => {
+  const d = (discountType: string | null, discountValue: number, discountCents: number) => ({ discountType, discountValue, discountCents });
+  assert.equal(mergedQuoteDiscount([d(null, 0, 0), d(null, 0, 0)]), null);
+  assert.deepEqual(mergedQuoteDiscount([d("percent", 10, 5_000), d("percent", 10, 2_000)]), { type: "percent", value: 10 });
+  assert.deepEqual(mergedQuoteDiscount([d("percent", 10, 5_000), d("percent", 5, 2_000)]), { type: "fixed", value: 7_000 });
+  assert.deepEqual(mergedQuoteDiscount([d("fixed", 3_000, 3_000), d(null, 0, 0)]), { type: "fixed", value: 3_000 });
 });

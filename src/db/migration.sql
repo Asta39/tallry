@@ -1160,3 +1160,8 @@ CREATE TABLE IF NOT EXISTS external_loan_interest_schedule (
 CREATE UNIQUE INDEX IF NOT EXISTS uq_external_loan_interest_period ON external_loan_interest_schedule (loan_id, period_end);
 CREATE INDEX IF NOT EXISTS idx_external_loan_interest_due ON external_loan_interest_schedule (period_end);
 
+
+-- Whole-document discount (percent or fixed), on top of per-line discounts.
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS discount_type TEXT;
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS discount_value DOUBLE PRECISION NOT NULL DEFAULT 0;
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS discount_cents BIGINT NOT NULL DEFAULT 0;

@@ -34,11 +34,11 @@ import { getGateway } from "@/lib/payments/gateway";
 import { notifyAccountantOfPayout } from "@/lib/payout-notify";
 import { shortRef } from "@/lib/payments/ref-format";
 import { canEditIssuedInvoice } from "@/lib/invoice-edit";
-import { MERGEABLE_QUOTE_STATUSES, mergeQuotesError, mergedQuoteLines, mergedQuoteNotes } from "@/lib/quote-merge";
+import { MERGEABLE_QUOTE_STATUSES, mergeQuotesError, mergedQuoteLines, mergedQuoteNotes, mergedQuoteDiscount } from "@/lib/quote-merge";
 import { eq, and, ne, desc, isNull, sql, inArray } from "drizzle-orm";
 import { currentOrgId, withOrg, seedOrgDefaults, orgContext } from "@/lib/org";
 import { revalidatePath as nextRevalidatePath } from "next/cache";
-import { computeDocument, type TaxClass, TAX_CLASSES } from "./tax";
+import { computeDocument, storedDiscount, type TaxClass, type DocumentDiscount, TAX_CLASSES } from "./tax";
 import {
   postInvoice,
   postCreditNote,
@@ -633,6 +633,8 @@ async function _saveDocument(data: {
    *  copies an invoice's lines wholesale) even when the credit note is
    *  built freehand for a partial amount instead. Only applied on create. */
   sourceInvoiceId?: number;
+  /** Discount on the whole document (percent or fixed), on top of line discounts. */
+  discount?: DocumentDiscount | null;
   lines: DocLineInput[];
 }): Promise<number> {
   // Cost attribution only applies to money going out. Silently drop it on sales
@@ -659,6 +661,12 @@ async function _saveDocument(data: {
     }
   }
 
+  if (data.discount) {
+    const { type, value } = data.discount;
+    if (type !== "percent" && type !== "fixed") throw new Error("Pick a percentage or a fixed amount for the discount");
+    if (!Number.isFinite(value) || value < 0) throw new Error("The discount can't be negative");
+    if (type === "percent" && value > 100) throw new Error("A percentage discount can't be more than 100%");
+  }
   const totals = computeDocument(
     data.lines.map((l) => ({
       qty: l.qty,
@@ -666,8 +674,14 @@ async function _saveDocument(data: {
       discountPct: l.discountPct,
       taxClass: l.taxClass,
     })),
-    data.taxInclusive
+    data.taxInclusive,
+    data.discount
   );
+  const discountFields = {
+    discountType: totals.documentDiscountCents > 0 ? data.discount!.type : null,
+    discountValue: totals.documentDiscountCents > 0 ? data.discount!.value : 0,
+    discountCents: totals.documentDiscountCents,
+  };
 
   // Editing an issued (non-draft) invoice: previously hard-blocked outright.
   // Now permitted — gated by org.restrictIssuedInvoiceEdit/issuedInvoiceEditRoles
@@ -819,6 +833,7 @@ async function _saveDocument(data: {
           subtotalCents: totals.subtotalCents,
           taxCents: totals.taxCents,
           totalCents: totals.totalCents,
+          ...discountFields,
           isTemplate: data.isTemplate || false,
           paidFromBankAccountId: data.paidFromBankAccountId,
           customerContactId: data.customerContactId ?? null,
@@ -852,6 +867,7 @@ async function _saveDocument(data: {
           subtotalCents: totals.subtotalCents,
           taxCents: totals.taxCents,
           totalCents: totals.totalCents,
+          ...discountFields,
           paidFromBankAccountId: data.paidFromBankAccountId,
           customerContactId: data.customerContactId ?? null,
           relatedInvoiceId: data.relatedInvoiceId ?? null,
@@ -1140,6 +1156,7 @@ async function _convertQuoteToInvoiceInner(quote: typeof documents.$inferSelect,
     dueDate: null,
     taxInclusive: quote.taxInclusive,
     notes: quote.notes ?? undefined,
+    discount: storedDiscount(quote),
     lines: lines.map((l) => ({
       itemId: l.itemId,
       description: l.description,
@@ -2337,6 +2354,7 @@ async function _mergeQuotes(quoteIds: number[]): Promise<number> {
       dueDate: null,
       taxInclusive: ordered[0].taxInclusive,
       notes: mergedQuoteNotes(ordered),
+      discount: mergedQuoteDiscount(ordered),
       assignedMemberIds: memberIds.length ? memberIds : undefined,
       lines: lines.map((l) => ({
         itemId: l.itemId,
@@ -2440,6 +2458,7 @@ async function _createCreditNoteFromInvoice(invoiceId: number): Promise<number> 
     contactId: inv.contactId,
     date: todayISO(),
     taxInclusive: inv.taxInclusive,
+    discount: storedDiscount(inv),
     notes: `Credit note for invoice ${inv.number}`,
     lines: lines.map((l) => ({
       itemId: l.itemId,

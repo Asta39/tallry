@@ -2,7 +2,7 @@
 import React from "react";
 import { Document, Page, Text, View, Image, StyleSheet, Link } from "@react-pdf/renderer";
 import { fmtKES } from "@/lib/money";
-import { TAX_CLASSES, type TaxClass } from "@/lib/tax";
+import { TAX_CLASSES, type TaxClass, computeLine, discountBreakdown } from "@/lib/tax";
 
 /**
  * Branded PDF for invoices, quotes and credit notes.
@@ -39,6 +39,7 @@ export interface PdfLine {
   netCents: number;
   taxCents: number;
   grossCents: number;
+  discountPct?: number | null;
   customColumnValue?: string | null;
   isHeading?: boolean;
 }
@@ -54,6 +55,9 @@ export interface PdfDoc {
   taxCents: number;
   totalCents: number;
   paidCents: number;
+  taxInclusive?: boolean;
+  discountType?: string | null;
+  discountValue?: number;
   cuInvoiceNumber?: string | null;
   cuSerial?: string | null;
   createdByName?: string | null;
@@ -275,6 +279,14 @@ export function DocumentPdf({
   if (doc.type === "invoice") template = org.invoiceTemplate || "default";
   else if (doc.type === "quote") template = org.quoteTemplate || "default";
   // "default", "classic", "modern", "bold"
+  // Each line's own amount (after its line discount); the whole-document
+  // discount is listed under the totals instead of shrinking every line.
+  const lineShown = (l: PdfLine) =>
+    computeLine({ qty: l.qty, unitPriceCents: l.unitPriceCents, discountPct: l.discountPct ?? 0, taxClass: l.taxClass as TaxClass }, !!doc.taxInclusive).grossCents;
+  const discounts = discountBreakdown(
+    { taxInclusive: !!doc.taxInclusive, discountType: doc.discountType ?? null, discountValue: doc.discountValue ?? 0 },
+    lines.map((l) => ({ ...l, discountPct: l.discountPct ?? 0 })),
+  );
   const byClass = new Map<string, { net: number; tax: number }>();
   for (const l of lines) {
     const b = byClass.get(l.taxClass) ?? { net: 0, tax: 0 };
@@ -549,7 +561,7 @@ export function DocumentPdf({
                       <Text style={s.cVat}>
                         {TAX_CLASSES[l.taxClass as TaxClass]?.etimsCode ?? ""} ({(l.taxRateBp / 100).toFixed(0)}%)
                       </Text>
-                      <Text style={s.cAmount}>{fmtKES(l.grossCents)}</Text>
+                      <Text style={s.cAmount}>{fmtKES(lineShown(l))}</Text>
                     </View>
                   );
                 }
@@ -576,7 +588,7 @@ export function DocumentPdf({
                   <Text style={s.cVat}>
                     {TAX_CLASSES[l.taxClass as TaxClass]?.etimsCode ?? ""} ({(l.taxRateBp / 100).toFixed(0)}%)
                   </Text>
-                  <Text style={s.cAmount}>{fmtKES(l.grossCents)}</Text>
+                  <Text style={s.cAmount}>{fmtKES(lineShown(l))}</Text>
                 </View>
               );
             });
@@ -594,8 +606,26 @@ export function DocumentPdf({
             ))}
           </View>
           <View style={s.totals}>
+            {discounts.hasDiscount && (
+              <View style={s.totalLine}>
+                <Text style={s.muted}>{doc.taxInclusive ? "Subtotal (incl. VAT)" : "Subtotal"}</Text>
+                <Text>{fmtKES(discounts.grossBeforeDiscountsCents)}</Text>
+              </View>
+            )}
+            {discounts.lineDiscountCents > 0 && (
+              <View style={s.totalLine}>
+                <Text style={s.muted}>Line discounts</Text>
+                <Text>− {fmtKES(discounts.lineDiscountCents)}</Text>
+              </View>
+            )}
+            {discounts.documentDiscountCents > 0 && (
+              <View style={s.totalLine}>
+                <Text style={s.muted}>{discounts.documentDiscountLabel}</Text>
+                <Text>− {fmtKES(discounts.documentDiscountCents)}</Text>
+              </View>
+            )}
             <View style={s.totalLine}>
-              <Text style={s.muted}>Subtotal</Text>
+              <Text style={s.muted}>{discounts.hasDiscount ? "Subtotal before VAT" : "Subtotal"}</Text>
               <Text>{fmtKES(doc.subtotalCents)}</Text>
             </View>
             <View style={s.totalLine}>

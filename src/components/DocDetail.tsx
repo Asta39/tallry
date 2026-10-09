@@ -7,7 +7,7 @@ import { getAccess } from "@/lib/access";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { fmtKES, todayISO } from "@/lib/money";
-import { TAX_CLASSES, type TaxClass } from "@/lib/tax";
+import { TAX_CLASSES, computeLine, discountBreakdown, type TaxClass } from "@/lib/tax";
 import { PageHeader, StatusPill, Th, Td } from "@/components/ui";
 import { DocActions } from "@/components/DocActions";
 import { LineDescription } from "@/components/LineDescription";
@@ -55,6 +55,9 @@ export async function DocDetail({ id, printHref }: { id: number; printHref?: str
   const result = await getInvoiceWithBillableExpenses(id, orgId);
   if (!result) notFound();
   const { doc, lines } = result;
+  const discounts = discountBreakdown(doc, lines);
+  // Each line's own amount; the whole-document discount is shown under the totals.
+  const shown = (l: (typeof lines)[number]) => computeLine({ ...l, taxClass: l.taxClass as TaxClass }, doc.taxInclusive);
   const contact = doc.contactId
     ? (await db.select().from(contacts).where(and(eq(contacts.orgId, orgId), eq(contacts.id, doc.contactId))).limit(1))[0]
     : null;
@@ -288,8 +291,8 @@ export async function DocDetail({ id, printHref }: { id: number; printHref?: str
                         </Td>
                         {showPosting && <Td className="text-[var(--color-ink-500)]">{("accountId" in l && l.accountId) ? accountsById[l.accountId] ?? "—" : "—"}</Td>}
                         {showPosting && <Td className="text-[var(--color-ink-500)]">{("costCenterId" in l && l.costCenterId) ? costCentersById[l.costCenterId] ?? "—" : "—"}</Td>}
-                        <Td right>{fmtKES(l.netCents)}</Td>
-                        <Td right className="font-medium">{fmtKES(l.grossCents)}</Td>
+                        <Td right>{fmtKES(shown(l).netCents)}</Td>
+                        <Td right className="font-medium">{fmtKES(shown(l).grossCents)}</Td>
                       </tr>
                     );
                   }
@@ -320,8 +323,8 @@ export async function DocDetail({ id, printHref }: { id: number; printHref?: str
                     </Td>
                     {showPosting && <Td className="text-[var(--color-ink-500)]">{("accountId" in l && l.accountId) ? accountsById[l.accountId] ?? "—" : "—"}</Td>}
                     {showPosting && <Td className="text-[var(--color-ink-500)]">{("costCenterId" in l && l.costCenterId) ? costCentersById[l.costCenterId] ?? "—" : "—"}</Td>}
-                    <Td right>{fmtKES(l.netCents)}</Td>
-                    <Td right className="font-medium">{fmtKES(l.grossCents)}</Td>
+                    <Td right>{fmtKES(shown(l).netCents)}</Td>
+                    <Td right className="font-medium">{fmtKES(shown(l).grossCents)}</Td>
                   </tr>
                 );
               });
@@ -329,9 +332,27 @@ export async function DocDetail({ id, printHref }: { id: number; printHref?: str
           </tbody>
         </table>
         <div className="hairline-t px-5 py-4 flex justify-end">
-          <div className="w-64 space-y-1 text-[13px]">
+          <div className="w-72 space-y-1 text-[13px]">
+            {discounts.hasDiscount && (
+              <div className="flex justify-between">
+                <span className="text-[var(--color-ink-600)]">{doc.taxInclusive ? "Subtotal (incl. VAT)" : "Subtotal"}</span>
+                <span className="tnum">{fmtKES(discounts.grossBeforeDiscountsCents)}</span>
+              </div>
+            )}
+            {discounts.lineDiscountCents > 0 && (
+              <div className="flex justify-between">
+                <span className="text-[var(--color-ink-600)]">Line discounts</span>
+                <span className="tnum">− {fmtKES(discounts.lineDiscountCents)}</span>
+              </div>
+            )}
+            {discounts.documentDiscountCents > 0 && (
+              <div className="flex justify-between">
+                <span className="text-[var(--color-ink-600)]">{discounts.documentDiscountLabel}</span>
+                <span className="tnum">− {fmtKES(discounts.documentDiscountCents)}</span>
+              </div>
+            )}
             <div className="flex justify-between">
-              <span className="text-[var(--color-ink-600)]">Subtotal</span>
+              <span className="text-[var(--color-ink-600)]">{discounts.hasDiscount ? "Subtotal before VAT" : "Subtotal"}</span>
               <span className="tnum">{fmtKES(doc.subtotalCents)}</span>
             </div>
             <div className="flex justify-between">

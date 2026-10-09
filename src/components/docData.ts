@@ -94,6 +94,8 @@ export async function fetchInitialData(docId: number) {
     customerContactId: doc.customerContactId ?? "",
     relatedInvoiceId: doc.relatedInvoiceId ?? "",
     isBillable: doc.isBillable,
+    discountType: (doc.discountType ?? null) as "percent" | "fixed" | null,
+    discountValue: doc.discountValue,
     payoutDestinationType: (doc.payoutDestinationType ?? undefined) as "phone" | "till" | "paybill" | undefined,
     payoutDestination: doc.payoutDestination ?? undefined,
     payoutAccountNumber: doc.payoutAccountNumber ?? undefined,

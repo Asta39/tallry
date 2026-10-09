@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { computeDocument, TAX_CLASSES, type TaxClass } from "@/lib/tax";
+import { computeDocument, computeLine, TAX_CLASSES, type TaxClass } from "@/lib/tax";
 import { fmtKES, parseKES, todayISO } from "@/lib/money";
 import { Tooltip } from "@/components/Tooltip";
 import { upsertDocumentAction, createItemFromLine, listCustomerInvoices, type DocLineInput } from "@/lib/actions";
@@ -82,6 +82,8 @@ export interface EditorInitialData {
   isBillable?: boolean;
   isTemplate?: boolean;
   status?: string;
+  discountType?: "percent" | "fixed" | null;
+  discountValue?: number;
   lines: EditorLine[];
 }
 
@@ -174,6 +176,15 @@ export function DocumentEditor({
   const [relatedInvoiceId, setRelatedInvoiceId] = useState<number | "">(initialData?.relatedInvoiceId ?? "");
   const [customerInvoices, setCustomerInvoices] = useState<{ id: number; number: string; date: string; totalCents: number; status: string }[]>([]);
   const [lines, setLines] = useState<EditorLine[]>(initialData?.lines ?? [emptyLine()]);
+  // Discount on the whole document (sales documents), on top of line discounts.
+  const [discountType, setDiscountType] = useState<"percent" | "fixed">(initialData?.discountType ?? "percent");
+  const [discountInput, setDiscountInput] = useState<string>(
+    initialData?.discountType && initialData.discountValue
+      ? initialData.discountType === "fixed"
+        ? (initialData.discountValue / 100).toFixed(2)
+        : String(initialData.discountValue)
+      : ""
+  );
 
   // Reload the invoice list whenever the tagged customer changes. Any invoice
   // already selected belongs to the previous customer, so it's cleared unless
@@ -219,6 +230,12 @@ export function DocumentEditor({
     [lines]
   );
 
+  const documentDiscount = useMemo(() => {
+    const v = Number(discountInput);
+    if (!isSale || !discountInput.trim() || !Number.isFinite(v) || v <= 0) return null;
+    return discountType === "percent" ? { type: "percent" as const, value: v } : { type: "fixed" as const, value: Math.round(v * 100) };
+  }, [isSale, discountInput, discountType]);
+
   const totals = useMemo(
     () =>
       computeDocument(
@@ -228,9 +245,10 @@ export function DocumentEditor({
           discountPct: l.discountPct,
           taxClass: l.taxClass,
         })),
-        taxInclusive
+        taxInclusive,
+        documentDiscount
       ),
-    [parsedLines, taxInclusive]
+    [parsedLines, taxInclusive, documentDiscount]
   );
 
   function update(i: number, patch: Partial<EditorLine>) {
@@ -362,6 +380,7 @@ export function DocumentEditor({
           saveAsTemplate,
           issue: issue && !isAlreadyIssued,
           sourceInvoiceId: type === "credit_note" && !initialData?.id ? sourceInvoiceId : undefined,
+          discount: documentDiscount,
           lines: finalLines,
         });
         if (res.error || !res.id) throw new Error(res.error || "Could not save document");
@@ -881,7 +900,8 @@ export function DocumentEditor({
                     </td>
                   )}
                   <td className="px-4 py-3.5 text-right text-[13px] tnum">
-                    {t ? fmtKES(t.grossCents) : "—"}
+                    {/* The line's own amount — the whole-document discount is shown under the totals. */}
+                    {t ? fmtKES(computeLine(parsedLines[i], taxInclusive).grossCents) : "—"}
                   </td>
                   <td className="pr-2 py-3">
                     <Tooltip text="Remove line">
@@ -967,6 +987,39 @@ export function DocumentEditor({
           />
         </label>
         <div className="card px-5 py-4 self-start">
+          {(totals.lineDiscountCents > 0 || totals.documentDiscountCents > 0) && (
+            <Row label={taxInclusive ? "Subtotal (incl. VAT)" : "Subtotal"} v={fmtKES(totals.grossBeforeDiscountsCents)} />
+          )}
+          {totals.lineDiscountCents > 0 && <Row label="Line discounts" v={`− ${fmtKES(totals.lineDiscountCents)}`} />}
+          {isSale && (
+            <div className="flex items-center justify-between gap-3 py-1 text-[13px]">
+              <span className="text-[var(--color-ink-600)]">Discount</span>
+              <div className="flex items-center gap-1.5">
+                <input
+                  inputMode="decimal"
+                  aria-label="Discount on the whole document"
+                  className="w-24 rounded-md border border-[var(--color-ink-200)] bg-white px-2 py-1 text-right text-[13px] tnum outline-none focus:border-[var(--color-accent-500)]"
+                  value={discountInput}
+                  onChange={(e) => setDiscountInput(e.target.value.replace(/[^0-9.]/g, ""))}
+                  placeholder="0"
+                />
+                <div className="inline-flex rounded-md border border-[var(--color-ink-200)] overflow-hidden" role="group" aria-label="Discount type">
+                  {(["percent", "fixed"] as const).map((k) => (
+                    <button
+                      key={k}
+                      type="button"
+                      onClick={() => setDiscountType(k)}
+                      aria-pressed={discountType === k}
+                      className={`px-2 py-1 text-[12px] font-medium ${discountType === k ? "bg-[var(--color-ink-900)] text-white" : "bg-white text-[var(--color-ink-500)] hover:bg-[var(--color-ink-50)]"}`}
+                    >
+                      {k === "percent" ? "%" : "KSh"}
+                    </button>
+                  ))}
+                </div>
+                <span className="tnum w-24 text-right">{totals.documentDiscountCents > 0 ? `− ${fmtKES(totals.documentDiscountCents)}` : "—"}</span>
+              </div>
+            </div>
+          )}
           <Row label="Subtotal (before VAT)" v={fmtKES(totals.subtotalCents)} />
           <Row label="VAT" v={fmtKES(totals.taxCents)} />
           <div className="hairline-t mt-2 pt-2 flex justify-between text-[15px] font-semibold">

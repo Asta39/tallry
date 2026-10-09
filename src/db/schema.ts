@@ -442,6 +442,14 @@ export const documents = pgTable("documents", {
   subtotalCents: money("subtotal_cents").notNull().default(0),
   taxCents: money("tax_cents").notNull().default(0),
   totalCents: money("total_cents").notNull().default(0),
+  /** Discount on the whole document, on top of per-line discounts: "percent"
+   *  (discountValue = 0–100) or "fixed" (discountValue = cents), in the
+   *  document's pricing terms. Already spread into each line's net/VAT, so
+   *  the ledger and VAT returns need nothing extra; discountCents is the
+   *  amount it came to, kept for display. */
+  discountType: text("discount_type"),
+  discountValue: doublePrecision("discount_value").notNull().default(0),
+  discountCents: money("discount_cents").notNull().default(0),
   paidCents: money("paid_cents").notNull().default(0),
   /** Sum of credit notes applied against this invoice — kept separate from paidCents
    * (real cash received) so cash-collected reports don't get inflated by non-cash credits. */

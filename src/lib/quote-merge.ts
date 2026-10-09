@@ -70,6 +70,22 @@ export function mergedQuoteLines(sources: { quote: QuoteForMerge; lines: LineFor
   return out;
 }
 
+/**
+ * The merged quote's whole-document discount. Same percentage on every
+ * source → keep it; otherwise add up what each quote's discount came to as
+ * one fixed amount, so the customer's total doesn't change.
+ */
+export function mergedQuoteDiscount(
+  quotes: { discountType: string | null; discountValue: number; discountCents: number }[],
+): { type: "percent" | "fixed"; value: number } | null {
+  if (quotes.every((q) => !q.discountCents)) return null;
+  const first = quotes[0];
+  if (first.discountType === "percent" && quotes.every((q) => q.discountType === "percent" && q.discountValue === first.discountValue)) {
+    return { type: "percent", value: first.discountValue };
+  }
+  return { type: "fixed", value: quotes.reduce((sum, q) => sum + (q.discountCents || 0), 0) };
+}
+
 /** Combined notes, without repeating identical notes (e.g. the default terms). */
 export function mergedQuoteNotes(quotes: QuoteForMerge[]): string | undefined {
   const seen = new Set<string>();
