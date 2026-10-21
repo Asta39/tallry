@@ -2,23 +2,12 @@
 
 import { requirePerm } from "@/lib/guard";
 import { getOrg, withOrg } from "@/lib/org";
-import { db, employees, payrollRuns, payrollRunLineItems, leaveRecords, payrollAdjustments, loanLedger, loanInstallments, statutoryRules, accounts, journalEntries, bankAccounts } from "@/db";
+import { db, employees, payrollRuns, payrollRunLineItems, payrollRunAttendance, leaveRecords, payrollAdjustments, loanLedger, loanInstallments, statutoryRules, accounts, journalEntries, bankAccounts } from "@/db";
 import { and, eq } from "drizzle-orm";
-import { runPayrollEngine, RuleDef } from "@/lib/payroll";
+import { runPayrollEngine, RuleDef, workingDaysInMonth } from "@/lib/payroll";
 import { postEntry, mirrorBankTxn, isKopoKopoRouted, postKopoKopoFee } from "@/lib/posting";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-
-/** Working days (Mon-Sat) in a "YYYY-MM" month — used to pro-rate unpaid leave, instead of a hardcoded 21. */
-function workingDaysInMonth(month: string): number {
-  const [y, m] = month.split("-").map(Number);
-  const daysInMonth = new Date(y, m, 0).getDate();
-  let count = 0;
-  for (let d = 1; d <= daysInMonth; d++) {
-    if (new Date(y, m - 1, d).getDay() !== 0) count++; // exclude Sundays only
-  }
-  return count;
-}
 
 /**
  * Pick the statutory rule effective for this pay period, one per exact `type`.
@@ -86,11 +75,23 @@ export async function createPayrollRunAction(formData: FormData) {
         loanId: l.id
       }));
 
+      // Days worked default to the month's working days less unpaid leave;
+      // the accountant can change them per employee while the run is a draft.
+      const daysWorked = Math.max(0, daysInMonth - empLeave);
+      await tx.insert(payrollRunAttendance).values({
+        orgId: o.id,
+        payrollRunId: run.id,
+        employeeId: emp.id,
+        daysWorked,
+        workingDays: daysInMonth,
+      });
+
       const lines = runPayrollEngine({
         employeeId: emp.id,
         basicSalaryCents: emp.basicSalaryCents,
         unpaidLeaveDays: empLeave,
         workingDaysInMonth: daysInMonth,
+        daysWorked,
         adjustments: empAdjs,
         loanInstallments: empLoans
       }, rules);
@@ -124,6 +125,88 @@ export async function createPayrollRunAction(formData: FormData) {
 
   revalidatePath("/payroll/runs");
   redirect(`/payroll/runs/${run.id}`);
+}
+
+/**
+ * Change how many days an employee worked in a draft run and recalculate
+ * their payslip: basic pay is pro-rated by days worked ÷ the month's working
+ * days, then PAYE, NSSF, SHIF and Housing Levy are worked out again on the new
+ * gross. Their adjustments and loan installment for this run are kept.
+ */
+export async function setDaysWorkedAction(runId: number, employeeId: number, daysWorked: number): Promise<{ error?: string }> {
+  try {
+    await requirePerm("accountant");
+    const o = await getOrg();
+    if (!Number.isFinite(daysWorked) || daysWorked < 0) return { error: "Days worked can't be negative" };
+    if (Math.round(daysWorked * 2) !== daysWorked * 2) return { error: "Use whole or half days (e.g. 20 or 20.5)" };
+
+    const [run] = await db.select().from(payrollRuns).where(and(eq(payrollRuns.id, runId), eq(payrollRuns.orgId, o.id)));
+    if (!run) return { error: "Payroll run not found" };
+    if (run.status !== "draft") return { error: "Days can only be changed before the run is posted" };
+    const [emp] = await db.select().from(employees).where(and(eq(employees.id, employeeId), eq(employees.orgId, o.id)));
+    if (!emp) return { error: "Employee not found" };
+
+    const [existing] = await db
+      .select()
+      .from(payrollRunAttendance)
+      .where(and(eq(payrollRunAttendance.payrollRunId, runId), eq(payrollRunAttendance.employeeId, employeeId)));
+    const workingDays = existing?.workingDays ?? workingDaysInMonth(run.month);
+    if (daysWorked > workingDays) return { error: `${run.month} has ${workingDays} working days (Monday–Saturday) — days worked can't be more than that` };
+
+    const rulesData = await db.select().from(statutoryRules).where(eq(statutoryRules.orgId, o.id));
+    const rules = selectEffectiveRules(rulesData as any, run.month);
+    const adjustments = await db
+      .select()
+      .from(payrollAdjustments)
+      .where(and(eq(payrollAdjustments.orgId, o.id), eq(payrollAdjustments.correctingRunId, run.id), eq(payrollAdjustments.employeeId, employeeId)));
+    const installments = await db
+      .select()
+      .from(loanInstallments)
+      .where(and(eq(loanInstallments.orgId, o.id), eq(loanInstallments.payrollRunId, run.id)));
+    const empLoanIds = new Set(
+      (await db.select({ id: loanLedger.id }).from(loanLedger).where(and(eq(loanLedger.orgId, o.id), eq(loanLedger.employeeId, employeeId)))).map((l) => l.id),
+    );
+    const empLoans = installments.filter((i) => empLoanIds.has(i.loanId)).map((i) => ({ amountCents: i.amountCents, loanId: i.loanId }));
+
+    const lines = runPayrollEngine({
+      employeeId,
+      basicSalaryCents: emp.basicSalaryCents,
+      unpaidLeaveDays: 0,
+      workingDaysInMonth: workingDays,
+      daysWorked,
+      adjustments: adjustments.map((a) => ({ amountCents: a.amountCents, isTaxable: a.isTaxable, isDeduction: a.isDeduction, reason: a.reason })),
+      loanInstallments: empLoans,
+    }, rules);
+
+    await db.transaction(async (tx) => {
+      // Re-check inside the transaction so a post that started meanwhile wins.
+      const [still] = await tx.select({ status: payrollRuns.status }).from(payrollRuns).where(eq(payrollRuns.id, runId));
+      if (still?.status !== "draft") throw new Error("Days can only be changed before the run is posted");
+      await tx.delete(payrollRunLineItems).where(and(eq(payrollRunLineItems.payrollRunId, runId), eq(payrollRunLineItems.employeeId, employeeId)));
+      for (const line of lines) {
+        await tx.insert(payrollRunLineItems).values({
+          orgId: o.id,
+          payrollRunId: runId,
+          employeeId,
+          type: line.type,
+          subType: line.subType,
+          amountCents: line.amountCents,
+          isDeduction: line.isDeduction,
+          statutoryRuleId: line.statutoryRuleId,
+        });
+      }
+      if (existing) {
+        await tx.update(payrollRunAttendance).set({ daysWorked }).where(eq(payrollRunAttendance.id, existing.id));
+      } else {
+        await tx.insert(payrollRunAttendance).values({ orgId: o.id, payrollRunId: runId, employeeId, daysWorked, workingDays });
+      }
+    });
+
+    revalidatePath(`/payroll/runs/${runId}`);
+    return {};
+  } catch (e: any) {
+    return { error: e?.message || "Couldn't update days worked" };
+  }
 }
 
 export async function postPayrollRunAction(runId: number, formData: FormData) {
@@ -405,6 +488,7 @@ export async function deletePayrollRunAction(runId: number) {
   if (run.status === "posting") throw new Error("This run is currently being posted — try again in a moment");
 
   await db.delete(payrollRunLineItems).where(eq(payrollRunLineItems.payrollRunId, runId));
+  await db.delete(payrollRunAttendance).where(eq(payrollRunAttendance.payrollRunId, runId));
   await db.delete(loanInstallments).where(eq(loanInstallments.payrollRunId, runId));
   await db.delete(payrollAdjustments).where(eq(payrollAdjustments.correctingRunId, runId));
   await db.delete(payrollRuns).where(eq(payrollRuns.id, runId));

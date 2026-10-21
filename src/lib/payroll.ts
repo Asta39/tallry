@@ -3,6 +3,17 @@
  * Amounts are handled in KES CENTS to avoid floating point issues.
  */
 
+/** Working days (Mon-Sat) in a "YYYY-MM" month — used to pro-rate unpaid leave, instead of a hardcoded 21. */
+export function workingDaysInMonth(month: string): number {
+  const [y, m] = month.split("-").map(Number);
+  const daysInMonth = new Date(y, m, 0).getDate();
+  let count = 0;
+  for (let d = 1; d <= daysInMonth; d++) {
+    if (new Date(y, m - 1, d).getDay() !== 0) count++; // exclude Sundays only
+  }
+  return count;
+}
+
 export interface RuleDef {
   id: number;
   type: string; // PAYE, SHIF, NSSF, AHL, RELIEF
@@ -15,6 +26,10 @@ export interface PayrollInput {
   basicSalaryCents: number;
   unpaidLeaveDays: number;
   workingDaysInMonth: number;
+  /** Days actually worked (half days allowed). When set, basic pay is
+   *  basic × daysWorked ÷ workingDaysInMonth and unpaidLeaveDays is ignored —
+   *  the days worked already account for any leave. */
+  daysWorked?: number;
   adjustments: { amountCents: number; isTaxable: boolean; isDeduction: boolean; reason: string }[];
   loanInstallments: { amountCents: number; loanId: number }[];
 }
@@ -32,7 +47,10 @@ export function runPayrollEngine(input: PayrollInput, rules: RuleDef[]): LineIte
 
   // 1. Calculate Gross Pay
   let grossCents = input.basicSalaryCents;
-  if (input.unpaidLeaveDays > 0 && input.workingDaysInMonth > 0) {
+  if (input.daysWorked !== undefined && input.workingDaysInMonth > 0) {
+    const days = Math.min(Math.max(input.daysWorked, 0), input.workingDaysInMonth);
+    grossCents = Math.round((input.basicSalaryCents * days) / input.workingDaysInMonth);
+  } else if (input.unpaidLeaveDays > 0 && input.workingDaysInMonth > 0) {
     const dailyRate = Math.floor(input.basicSalaryCents / input.workingDaysInMonth);
     grossCents = input.basicSalaryCents - (dailyRate * input.unpaidLeaveDays);
   }

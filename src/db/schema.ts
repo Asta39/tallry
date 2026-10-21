@@ -882,6 +882,20 @@ export const payrollRunLineItems = pgTable("payroll_run_line_items", {
   statutoryRuleId: integer("statutory_rule_id").references(() => statutoryRules.id),
 });
 
+/** Days each employee worked in a payroll run (half days allowed). Basic pay
+ *  is pro-rated by daysWorked ÷ workingDays; editable while the run is a
+ *  draft, defaulting to the month's working days less unpaid leave. */
+export const payrollRunAttendance = pgTable("payroll_run_attendance", {
+  id: serial("id").primaryKey(),
+  orgId: integer("org_id").notNull().references(() => org.id),
+  payrollRunId: integer("payroll_run_id").notNull().references(() => payrollRuns.id),
+  employeeId: integer("employee_id").notNull().references(() => employees.id),
+  daysWorked: doublePrecision("days_worked").notNull(),
+  workingDays: integer("working_days").notNull(),
+}, (t) => ({
+  runEmployeeIdx: uniqueIndex("uq_payroll_run_attendance").on(t.payrollRunId, t.employeeId),
+}));
+
 export const customRoles = pgTable("custom_roles", {
   id: serial("id").primaryKey(),
   orgId: integer("org_id").notNull().references(() => org.id),

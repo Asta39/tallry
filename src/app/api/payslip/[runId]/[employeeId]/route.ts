@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requirePerm } from "@/lib/guard";
 import { getOrg } from "@/lib/org";
-import { db, payrollRunLineItems, employees, payrollRuns } from "@/db";
+import { db, payrollRunLineItems, payrollRunAttendance, employees, payrollRuns } from "@/db";
 import { and, eq } from "drizzle-orm";
 import { renderToStream } from "@react-pdf/renderer";
 import { PayslipPdf, PdfPayslipData } from "@/lib/pdf/PayslipPdf";
@@ -32,6 +32,16 @@ export async function GET(req: Request, props: { params: Promise<{ runId: string
       return new NextResponse("Payslip not found", { status: 404 });
     }
 
+    const [attendance] = await db
+      .select()
+      .from(payrollRunAttendance)
+      .where(and(eq(payrollRunAttendance.payrollRunId, runId), eq(payrollRunAttendance.employeeId, employeeId)));
+    // Show the days only when pay was pro-rated, so full-month slips read as before.
+    const basicLabel =
+      attendance && attendance.daysWorked < attendance.workingDays
+        ? `Basic Salary (${attendance.daysWorked} of ${attendance.workingDays} days)`
+        : "Basic Salary";
+
     const lines: { label: string; amountCents: number; isDeduction: boolean }[] = [];
     let gross = 0;
     let net = 0;
@@ -42,7 +52,7 @@ export async function GET(req: Request, props: { params: Promise<{ runId: string
       
       if (item.type !== "net_pay") {
         let label = "Other";
-        if (item.type === "gross_pay") label = "Basic Salary";
+        if (item.type === "gross_pay") label = basicLabel;
         else if (item.subType === "PAYE") label = "PAYE (Tax)";
         else if (item.subType === "NSSF") label = "NSSF (Pension)";
         else if (item.subType === "SHIF") label = "SHIF (Health)";

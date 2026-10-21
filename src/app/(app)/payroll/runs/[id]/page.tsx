@@ -1,6 +1,6 @@
 import { requirePerm } from "@/lib/guard";
 import { getOrg } from "@/lib/org";
-import { db, payrollRuns, payrollRunLineItems, employees, accounts, bankAccounts as bankAccountsTable } from "@/db";
+import { db, payrollRuns, payrollRunLineItems, payrollRunAttendance, employees, accounts, bankAccounts as bankAccountsTable } from "@/db";
 import { and, eq } from "drizzle-orm";
 import { PageHeader, TableCard, Th, Td } from "@/components/ui";
 import { fmtKES } from "@/lib/money";
@@ -10,6 +10,8 @@ import { PayRunForm } from "./PayRunForm";
 import { PayTaxRemittanceForm } from "./PayTaxRemittanceForm";
 import { DeleteRunButton } from "./DeleteRunButton";
 import { RecoverRunButton } from "./RecoverRunButton";
+import { DaysWorkedCell } from "./DaysWorkedCell";
+import { workingDaysInMonth } from "@/lib/payroll";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
@@ -66,6 +68,15 @@ export default async function PayrollRunDetailsPage(props: { params: Promise<{ i
   }
 
   const slipsData = Array.from(empMap.values());
+
+  // Days worked per employee. Runs created before this was tracked have no
+  // rows — treat those employees as having worked the full month.
+  const attendance = await db.select().from(payrollRunAttendance).where(eq(payrollRunAttendance.payrollRunId, run.id));
+  const monthWorkingDays = workingDaysInMonth(run.month);
+  const daysFor = (employeeId: number) => {
+    const a = attendance.find((r) => r.employeeId === employeeId);
+    return a ? { daysWorked: a.daysWorked, workingDays: a.workingDays, tracked: true } : { daysWorked: monthWorkingDays, workingDays: monthWorkingDays, tracked: false };
+  };
 
   const totalGross = slipsData.reduce((acc, curr) => acc + curr.gross, 0);
   const totalNet = slipsData.reduce((acc, curr) => acc + curr.net, 0);
@@ -171,6 +182,7 @@ export default async function PayrollRunDetailsPage(props: { params: Promise<{ i
           <thead>
             <tr>
               <Th>Employee</Th>
+              <Th right>Days worked</Th>
               <Th right>Gross Pay</Th>
               <Th right>NSSF</Th>
               <Th right>SHIF</Th>
@@ -188,6 +200,15 @@ export default async function PayrollRunDetailsPage(props: { params: Promise<{ i
                   {row.employeeName}
                   <div className="text-[11px] text-[var(--color-ink-400)] font-normal">{row.employeePin || "No PIN"}</div>
                 </Td>
+                <Td right>
+                  {run.status === "draft" ? (
+                    <DaysWorkedCell runId={run.id} employeeId={row.employeeId} {...daysFor(row.employeeId)} />
+                  ) : daysFor(row.employeeId).tracked ? (
+                    <span className="tnum">{daysFor(row.employeeId).daysWorked} <span className="text-[var(--color-ink-400)]">of {daysFor(row.employeeId).workingDays}</span></span>
+                  ) : (
+                    <span className="text-[var(--color-ink-400)]">—</span>
+                  )}
+                </Td>
                 <Td right>{fmtKES(row.gross)}</Td>
                 <Td right className="text-[var(--color-ink-500)]">{fmtKES(row.nssf)}</Td>
                 <Td right className="text-[var(--color-ink-500)]">{fmtKES(row.shif)}</Td>
@@ -202,7 +223,7 @@ export default async function PayrollRunDetailsPage(props: { params: Promise<{ i
             ))}
             {slipsData.length === 0 && (
               <tr>
-                <td colSpan={9} className="text-center py-8 text-[13px] text-[var(--color-ink-500)]">No payslips found in this run.</td>
+                <td colSpan={10} className="text-center py-8 text-[13px] text-[var(--color-ink-500)]">No payslips found in this run.</td>
               </tr>
             )}
           </tbody>

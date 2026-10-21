@@ -1165,3 +1165,15 @@ CREATE INDEX IF NOT EXISTS idx_external_loan_interest_due ON external_loan_inter
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS discount_type TEXT;
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS discount_value DOUBLE PRECISION NOT NULL DEFAULT 0;
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS discount_cents BIGINT NOT NULL DEFAULT 0;
+
+-- Days worked per employee per payroll run (pro-rates basic pay).
+CREATE TABLE IF NOT EXISTS payroll_run_attendance (
+  id SERIAL PRIMARY KEY,
+  org_id INTEGER NOT NULL REFERENCES org(id),
+  payroll_run_id INTEGER NOT NULL REFERENCES payroll_runs(id),
+  employee_id INTEGER NOT NULL REFERENCES employees(id),
+  days_worked DOUBLE PRECISION NOT NULL,
+  working_days INTEGER NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_payroll_run_attendance ON payroll_run_attendance (payroll_run_id, employee_id);
+ALTER TABLE payroll_run_attendance ENABLE ROW LEVEL SECURITY;
