@@ -42,6 +42,7 @@ const SECTIONS: DocSection[] = [
       "Tags at the top of each section show which area of the business it belongs to — Sales, Money, Spending, Inventory, HR, Admin.",
       "The Roles line tells you who this section matters to. If your role isn't listed, you likely won't see that menu item at all — that's by design, not a mistake.",
       "This page only shows the sections your own role can actually access — nothing here documents a feature you can't use.",
+      "Every screen except Home has a Back button (‹) at the top left of the top bar. It returns you to the screen you were actually on; opened fresh from a link or bookmark, it goes up one level instead (e.g. from an invoice to the invoice list).",
     ],
     note: "Zeno is built around one idea: the ledger is the hub. Every module — quotes, invoices, bills, payroll, assets — ultimately posts to the same double-entry ledger, so the system reads as one connected story, not a list of separate tools.",
   },
@@ -138,6 +139,9 @@ const SECTIONS: DocSection[] = [
       "Line items can be real catalog items, custom one-off lines, or category headings — a heading is a bold divider with no price, useful for grouping a quote into sections.",
       "Converting a quote preserves everything, including category headings, onto the resulting invoice.",
       "Quote Templates save a reusable layout — line items, notes, terms — so a common package doesn't have to be rebuilt from scratch every time.",
+      "Merge quotes: tick two or more draft, sent or accepted quotes for the same customer in the Quotes list and click \"Merge into one quote\". You get one new draft quote with each original's lines under a \"From QT-…\" heading; the originals are marked Merged and link to it, so they can't also be converted.",
+      "Discount on the whole quote: next to the totals, type a percentage (%) or a fixed amount (KSh). It comes off before VAT, shows under the totals, and carries over when the quote becomes an invoice. When merging quotes with the same percentage it's kept; otherwise their discounts are added up as one fixed amount.",
+      "Quote PDFs don't show payment details or payment terms — those only appear on invoices.",
     ],
     steps: [
       { title: "Draft the quote", desc: "+ Create → Quote, pick the customer, add lines or a saved template." },
@@ -159,6 +163,8 @@ const SECTIONS: DocSection[] = [
       "Record payment logs money already received outside the app; Request via Gateway sends a real M-Pesa STK prompt straight to the customer's phone.",
       "A Credit Note can be raised even on an invoice that's already fully paid — that's the most common real reason to issue one. Status reads Available → Partly applied → Fully applied, never \"awaiting payment\".",
       "Payments Received lists every payment ever applied to an invoice, whether entered manually or captured through a gateway.",
+      "Two kinds of discount: a per-line Disc % on any line, and a discount on the whole invoice — a percentage (%) or a fixed amount (KSh) entered next to the totals. Both come off before VAT, so VAT is charged on the discounted price. The totals show Subtotal, Line discounts, Discount, Subtotal before VAT, VAT and Total, on screen and on the PDF.",
+      "Withholding VAT: when the customer is a KRA withholding agent, Record payment fills in the 2% withholding VAT automatically. Enter what actually arrived in the bank as the amount — the received amount plus the WHT clears the invoice in full, so it shows Paid, not Partly paid.",
     ],
     seeAlso: ["02", "05", "13"],
     screenshots: [
@@ -197,6 +203,8 @@ const SECTIONS: DocSection[] = [
       "Every bill line needs a category — except a tracked-inventory item, which posts to Inventory Asset automatically instead of showing a category picker.",
       "A Purchase Order converts into a bill once goods/services are received — partial receipt is supported, so one PO can convert across more than one bill.",
       "Payment Runs batch-pay several outstanding bills together. Stuck Payouts (Gateway Payouts permission only) surfaces any gateway payout still pending confirmation.",
+      "Bills can be edited until they're paid — while a draft, awaiting approval, or recorded but unpaid (e.g. the vendor delivers more later the same day). Saving a recorded bill re-posts it with the new amounts and stock; if bills need approval, it goes back for approval unless you can approve it yourself. Once a payment or credit is applied, or it's in a payment run, it's locked.",
+      "Purchase orders can be edited while a draft or sent, until any part of them is billed. After that, raise a new PO for the extra items.",
     ],
     seeAlso: ["05", "11"],
     screenshots: [
@@ -247,6 +255,7 @@ const SECTIONS: DocSection[] = [
     concepts: [
       "Chart of Accounts, journal entries, and Trial Balance live here, alongside Lock books, Cost centers, Uncategorized transactions and Budgets.",
       "Every account is one of five types — asset, liability, equity, income, expense — and that type can never change after creation.",
+      "Business Loans (Money the business has borrowed — bank, SACCO, M-Pesa loan, asset finance, director): record the amount, where it was received, and optionally a flat interest rate and term. The outstanding balance includes the interest, each month's share of interest is expensed automatically at month-end, and Record payment reduces the outstanding balance, splitting principal and interest.",
     ],
     seeAlso: ["08", "12", "15"],
     screenshots: [{ src: "/docs/screenshots/accountant.png", caption: "Chart of Accounts and journal tools." }],
@@ -294,6 +303,8 @@ const SECTIONS: DocSection[] = [
       "PAYE, NSSF, SHIF and AHL calculate automatically from Rules & Tax, which carries an effective-from date so a mid-year statutory change never retroactively rewrites an already-run month.",
       "Posting is two deliberate steps: \"Post to Ledger\" accrues the liability only; \"Record Salary Payment\" — appearing once posted — asks which account the net pay actually left from and clears it. A run stays flagged NOT PAID until that second step.",
       "Loans is a longer-term staff loan recovered through payroll deductions over time. Salary Advances is the lighter, self-service version — a staff member can request one themselves, or a manager can issue one directly.",
+      "Days worked: a draft payroll run has a Days worked column (e.g. \"20 of 26\"). Change it — half days allowed — and that employee's basic pay is pro-rated (basic × days worked ÷ working days, Monday–Saturday), with PAYE, NSSF, SHIF and Housing Levy recalculated on the new gross. It starts at the month's working days less unpaid leave, locks once the run is posted, and shows on the payslip as \"Basic Salary (20 of 26 days)\".",
+      "A staff loan repaid outside payroll (cash, M-Pesa, bank) is recorded from the loan's page with Record Repayment — it reduces the balance just like a payroll deduction. A loan issued without saying where the money came from is flagged \"Disbursement not recorded\" until fixed from its page.",
     ],
     seeAlso: ["02", "12"],
     screenshots: [

@@ -174,6 +174,7 @@ export async function activateOrgAction(orgId: number, formData: FormData) {
   });
   await db.update(subscriptions).set({
     billingStatus: "active",
+    suspendedFrom: null,
     activatedAt: today,
     monthlyFeeCents,
     nextMaintenanceDueAt: existing.nextMaintenanceDueAt ?? endOfMonthISO(today),
@@ -312,7 +313,9 @@ export async function setOrgModuleAccessAction(orgId: number, formData: FormData
   return { success: true };
 }
 
-/** Hard-suspend an org's access — explicit admin hard-stop (e.g. a churned client). */
+/** Hard-suspend (lock) an org's access — explicit admin hard-stop, for a
+ *  churned client or a trial that should end early. Remembers whether it was
+ *  on trial or active so reinstating puts it back where it was. */
 export async function suspendOrgAction(orgId: number) {
   const user = await requireSuperAdmin();
   const [o] = await db.select({ id: org.id, name: org.name }).from(org).where(eq(org.id, orgId)).limit(1);
@@ -320,22 +323,29 @@ export async function suspendOrgAction(orgId: number) {
   const [existing] = await db.select().from(subscriptions).where(eq(subscriptions.orgId, orgId)).limit(1);
   if (!existing) return { error: "No subscription record for this org" };
 
-  await db.update(subscriptions).set({ billingStatus: "suspended" }).where(eq(subscriptions.id, existing.id));
+  if (existing.billingStatus === "suspended") return { success: true };
+  const wasTrial = existing.billingStatus === "trial";
+
+  await db.update(subscriptions).set({ billingStatus: "suspended", suspendedFrom: existing.billingStatus }).where(eq(subscriptions.id, existing.id));
   // A suspended client shouldn't keep accumulating draft maintenance invoices.
   await setPlatformTemplateActive(orgId, false);
-  await db.insert(adminChurnEvents).values({ orgId, kind: "suspended", occurredAt: nowISO(), createdAt: nowISO() }).onConflictDoNothing();
+  // Churn is a paying client leaving — ending a trial early isn't one.
+  if (!wasTrial) {
+    await db.insert(adminChurnEvents).values({ orgId, kind: "suspended", occurredAt: nowISO(), createdAt: nowISO() }).onConflictDoNothing();
+  }
   await logAdminAction({
     actorEmail: user.email!,
     action: "suspend_org",
     targetType: "org",
     targetId: orgId,
-    detail: `${o.name || `Org #${orgId}`}: access suspended`,
+    detail: `${o.name || `Org #${orgId}`}: access locked${wasTrial ? ` during trial (trial ends ${existing.trialEndsAt})` : ""}`,
   });
   revalidatePath(`/admin/orgs/${orgId}`);
   return { success: true };
 }
 
-/** Reinstate a suspended org back to active, without touching its fee/due date. */
+/** Reinstate a suspended org to what it was before — back on its trial (same
+ *  end date) or active, without touching its fee/due date. */
 export async function reinstateOrgAction(orgId: number) {
   const user = await requireSuperAdmin();
   const [o] = await db.select({ id: org.id, name: org.name }).from(org).where(eq(org.id, orgId)).limit(1);
@@ -343,18 +353,23 @@ export async function reinstateOrgAction(orgId: number) {
   const [existing] = await db.select().from(subscriptions).where(eq(subscriptions.orgId, orgId)).limit(1);
   if (!existing) return { error: "No subscription record for this org" };
 
-  await db.update(subscriptions).set({ billingStatus: "active" }).where(eq(subscriptions.id, existing.id));
-  // Resume the operator's own maintenance invoice, and pick up any fee
-  // change made while suspended.
-  await ensurePlatformContactAndTemplate(orgId);
-  await setPlatformTemplateActive(orgId, true);
-  await syncPlatformInvoiceAmount(orgId);
+  if (existing.billingStatus !== "suspended") return { success: true };
+  const restoreTo = existing.suspendedFrom === "trial" ? "trial" : "active";
+
+  await db.update(subscriptions).set({ billingStatus: restoreTo, suspendedFrom: null }).where(eq(subscriptions.id, existing.id));
+  if (restoreTo === "active") {
+    // Resume the operator's own maintenance invoice, and pick up any fee
+    // change made while suspended.
+    await ensurePlatformContactAndTemplate(orgId);
+    await setPlatformTemplateActive(orgId, true);
+    await syncPlatformInvoiceAmount(orgId);
+  }
   await logAdminAction({
     actorEmail: user.email!,
     action: "reinstate_org",
     targetType: "org",
     targetId: orgId,
-    detail: `${o.name || `Org #${orgId}`}: access reinstated`,
+    detail: `${o.name || `Org #${orgId}`}: access reinstated${restoreTo === "trial" ? ` to trial (ends ${existing.trialEndsAt})` : ""}`,
   });
   revalidatePath(`/admin/orgs/${orgId}`);
   return { success: true };

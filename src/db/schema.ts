@@ -261,6 +261,10 @@ export const subscriptions = pgTable("subscriptions", {
   // trial | active | suspended — trial-expired is derived (today > trialEndsAt),
   // not stored; suspended is an explicit admin hard-stop. See src/lib/billing.ts.
   billingStatus: text("billing_status").notNull().default("trial"),
+  /** What billingStatus was before an admin suspended (locked) the org —
+   *  "trial" or "active" — so reinstating puts it back where it was instead
+   *  of turning a locked trial into a free paid account. Null when not suspended. */
+  suspendedFrom: text("suspended_from"),
   trialEndsAt: text("trial_ends_at").notNull(), // ISO date, createdAt + TRIAL_DAYS (src/lib/billing.ts)
   activatedAt: text("activated_at"), // ISO date — set when admin activates post-trial; null = never activated
   monthlyFeeCents: money("monthly_fee_cents").notNull().default(0), // admin-editable per-org maintenance fee

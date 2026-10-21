@@ -59,7 +59,8 @@ export default async function AdminOrgDetailPage({ params }: { params: Promise<{
     : { status: "trial" as const, trialEndsAt: today, trialDaysLeft: trialDays, monthlyFeeCents: 0, nextMaintenanceDueAt: null };
   // Activation isn't gated on the trial having actually run out any more —
   // an org can pay the setup fee and go active any time, including mid-trial.
-  const needsActivation = sub?.billingStatus === "trial";
+  // A trial org locked early still needs activating (with the setup fee) to become paid.
+  const needsActivation = sub?.billingStatus === "trial" || (sub?.billingStatus === "suspended" && sub.suspendedFrom === "trial");
   // +1 for the owner — they never get a `members` row (see access.ts) but
   // are still a real seat using the org, so a brand-new org with no staff
   // invited yet correctly suggests KSh 1,000, not KSh 0/"Not set yet".
@@ -139,6 +140,7 @@ export default async function AdminOrgDetailPage({ params }: { params: Promise<{
             nextMaintenanceDueAt={billing.nextMaintenanceDueAt}
             createdAt={sub?.createdAt?.slice(0, 10) || "—"}
             isSuspended={sub?.billingStatus === "suspended"}
+            suspendedFrom={sub?.suspendedFrom ?? null}
             history={billingHistory}
           />
         </Card>

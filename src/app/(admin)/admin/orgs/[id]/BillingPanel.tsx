@@ -33,6 +33,7 @@ export function BillingPanel({
   nextMaintenanceDueAt,
   createdAt,
   isSuspended,
+  suspendedFrom,
   history,
 }: {
   orgId: number;
@@ -46,6 +47,7 @@ export function BillingPanel({
   nextMaintenanceDueAt: string | null;
   createdAt: string;
   isSuspended: boolean;
+  suspendedFrom: string | null;
   history: PaymentRow[];
 }) {
   const [pending, startTransition] = useTransition();
@@ -76,7 +78,7 @@ export function BillingPanel({
   return (
     <div>
       <div className="mb-4">
-        <Row k="Status" v={status === "trial" ? `Trial (ends ${trialEndsAt})` : status === "locked" ? <span className="text-[var(--color-bad)]">Locked</span> : "Active"} />
+        <Row k="Status" v={status === "trial" ? `Trial (ends ${trialEndsAt})` : status === "locked" ? <span className="text-[var(--color-bad)]">{isSuspended ? (suspendedFrom === "trial" ? "Locked by admin (during trial)" : "Suspended by admin") : "Locked (trial ended)"}</span> : "Active"} />
         <Row k="Since" v={createdAt} />
         <Row k="Monthly fee" v={monthlyFeeCents > 0 ? fmtKES(monthlyFeeCents) : "Not set"} />
         {nextMaintenanceDueAt && <Row k="Next maintenance due" v={nextMaintenanceDueAt} />}
@@ -180,30 +182,35 @@ export function BillingPanel({
             </form>
           )}
 
-          <div>
-            {isSuspended ? (
-              <button
-                disabled={pending}
-                onClick={() => run(() => reinstateOrgAction(orgId), "Reinstated.")}
-                className="text-[12.5px] font-medium text-[var(--color-good)] hover:underline"
-              >
-                Reinstate access
-              </button>
-            ) : (
-              <button
-                disabled={pending}
-                onClick={() => {
-                  if (!confirm("Suspend this org's access? Every page will lock immediately.")) return;
-                  run(() => suspendOrgAction(orgId), "Suspended.");
-                }}
-                className="text-[12.5px] font-medium text-[var(--color-bad)] hover:underline"
-              >
-                Suspend access
-              </button>
-            )}
-          </div>
         </div>
       )}
+
+      {/* Lock / unlock — available on trial and active orgs alike. */}
+      <div className="pt-3 mt-3 border-t border-[var(--color-ink-100)]">
+        {isSuspended ? (
+          <button
+            disabled={pending}
+            onClick={() => run(() => reinstateOrgAction(orgId), suspendedFrom === "trial" ? "Unlocked — back on trial." : "Reinstated.")}
+            className="text-[12.5px] font-medium text-[var(--color-good)] hover:underline"
+          >
+            {suspendedFrom === "trial" ? `Unlock — back to trial (ends ${trialEndsAt})` : "Reinstate access"}
+          </button>
+        ) : (
+          <button
+            disabled={pending}
+            onClick={() => {
+              const msg = status === "trial"
+                ? "Lock this org now, before its trial ends? Every page will lock immediately. You can unlock it later and the trial continues."
+                : "Suspend this org's access? Every page will lock immediately.";
+              if (!confirm(msg)) return;
+              run(() => suspendOrgAction(orgId), status === "trial" ? "Locked." : "Suspended.");
+            }}
+            className="text-[12.5px] font-medium text-[var(--color-bad)] hover:underline"
+          >
+            {status === "trial" ? "Lock now (end trial early)" : "Suspend access"}
+          </button>
+        )}
+      </div>
 
       {error && <p className="mt-2 text-[12px] text-[var(--color-bad)]">{error}</p>}
       {success && <p className="mt-2 text-[12px] text-[var(--color-good)]">{success}</p>}

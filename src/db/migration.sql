@@ -1177,3 +1177,6 @@ CREATE TABLE IF NOT EXISTS payroll_run_attendance (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS uq_payroll_run_attendance ON payroll_run_attendance (payroll_run_id, employee_id);
 ALTER TABLE payroll_run_attendance ENABLE ROW LEVEL SECURITY;
+
+-- What an org's billing status was before an admin suspended it (trial | active).
+ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS suspended_from TEXT;
