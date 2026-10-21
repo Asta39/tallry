@@ -52,26 +52,6 @@ export async function runAllOrgBackupsNow() {
   return result;
 }
 
-export async function stopImpersonating() {
-  const user = await requireSuperAdmin();
-
-  const cookieStore = await cookies();
-  const orgId = cookieStore.get("impersonated_org_id")?.value;
-  cookieStore.delete("impersonated_org_id");
-  await logAdminAction({ actorEmail: user.email!, action: "impersonate_stop", targetType: "org", targetId: orgId });
-  return { success: true };
-}
-
-export async function impersonateOrg(orgId: number) {
-  const user = await requireSuperAdmin();
-
-  const cookieStore = await cookies();
-  // Auto-expires after 1 hour so an impersonation session can't linger forever
-  cookieStore.set("impersonated_org_id", String(orgId), { path: "/", maxAge: 60 * 60 });
-  await logAdminAction({ actorEmail: user.email!, action: "impersonate_start", targetType: "org", targetId: orgId });
-
-  return { success: true };
-}
 
 export async function addSuperAdminAction(formData: FormData) {
   const user = await requireSuperAdmin();

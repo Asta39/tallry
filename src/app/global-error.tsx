@@ -34,6 +34,7 @@ export default function GlobalError({
         <p className="text-xs text-gray-500 max-w-sm mt-1 mb-6">
           The system encountered a temporary error during reload. Please refresh to continue.
         </p>
+        {error.digest && <code className="-mt-3 mb-6 rounded-md bg-gray-100 px-2 py-1 text-xs text-gray-600 select-all">Ref: {error.digest}</code>}
         <div className="flex items-center gap-3">
           <button
             onClick={() => reset()}

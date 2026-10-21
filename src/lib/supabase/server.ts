@@ -1,6 +1,7 @@
 import { createServerClient as createSSRServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { unstable_rethrow } from "next/navigation";
+import { cache } from "react";
 
 export async function createServerClient() {
   const cookieStore = await cookies();
@@ -27,8 +28,8 @@ export async function createServerClient() {
   );
 }
 
-/** Returns the currently signed-in user, or null. */
-export async function getUser() {
+/** Asks Supabase Auth who's signed in (a network round trip). */
+async function getUserUncached() {
   try {
     const supabase = await createServerClient();
     const {
@@ -45,3 +46,10 @@ export async function getUser() {
     return null;
   }
 }
+
+/**
+ * Returns the currently signed-in user, or null. Memoized per request: the
+ * layout, getOrg, getAccess and the super-admin checks all ask, and each ask
+ * was a separate round trip to Supabase Auth.
+ */
+export const getUser = cache(getUserUncached);
