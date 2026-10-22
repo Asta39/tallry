@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Sparkles, X } from "lucide-react";
+import { X } from "lucide-react";
 import { ThinkingOrb } from "thinking-orbs";
 import { MorphingPillText } from "./MorphingPillText";
 import { PromptComposer } from "./spectrumui/blocks/ai-assistants/prompt-composer";
@@ -210,10 +210,7 @@ export function AiAssistantPill({ initialBriefCount = 0, brandColor }: { initial
                   </div>
                 </div>
               ) : (
-                <div key={i} className="flex gap-2.5 animate-[su-msg-in_220ms_cubic-bezier(0.23,1,0.32,1)_both]">
-                  <span className="mt-0.5 grid size-6 shrink-0 place-items-center rounded-lg border border-black/[0.07] bg-black/[0.02]">
-                    <Sparkles className="size-3 text-[var(--color-ink-500)]" />
-                  </span>
+                <div key={i} className="flex animate-[su-msg-in_220ms_cubic-bezier(0.23,1,0.32,1)_both]">
                   <div className="min-w-0 flex-1 text-[var(--color-ink-900)]">
                     <AssistantText text={m.content} />
                     {m.pendingAction && (
