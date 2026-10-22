@@ -3,7 +3,21 @@
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { Sparkles, X } from "lucide-react";
+import { ThinkingOrb } from "thinking-orbs";
 import { MorphingPillText } from "./MorphingPillText";
+import { PromptComposer } from "./spectrumui/blocks/ai-assistants/prompt-composer";
+import { ChatEmptyState } from "./spectrumui/blocks/ai-assistants/chat-empty-state";
+import type { SuggestedPrompt } from "./spectrumui/blocks/ai-assistants/types";
+
+/** Starter questions shown before the first message. */
+const SUGGESTIONS: SuggestedPrompt[] = [
+  { id: "brief", label: "Brief me on today" },
+  { id: "overdue", label: "Which invoices are overdue?" },
+  { id: "cash", label: "What's my cash position?" },
+  { id: "bills", label: "Bills due this week" },
+  { id: "top", label: "Top customers this month" },
+];
 
 const PILL_PHRASES = ["Ask Zeno", "Ask Invoices", "Ask Reports", "Ask Quotes", "Ask Bills", "Ask Payroll", "Ask Expenses"];
 
@@ -24,26 +38,35 @@ function AssistantText({ text }: { text: string }) {
 
 export function AiAssistantPill({ initialBriefCount = 0, brandColor }: { initialBriefCount?: number; brandColor?: string | null }) {
   const [open, setOpen] = useState(false);
-  const [loadedHistory, setLoadedHistory] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [badge, setBadge] = useState(initialBriefCount);
   const listRef = useRef<HTMLDivElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
+  // History is fetched once, as early as possible (hovering or focusing the
+  // bubble, or opening it) so the panel opens at full size straight away —
+  // the suggestions show immediately and past messages slot in if there are any.
+  const historyRequested = useRef(false);
+  function prefetchHistory() {
+    if (historyRequested.current) return;
+    historyRequested.current = true;
+    fetch("/api/assistant")
+      .then((r) => r.json())
+      .then((d) => {
+        // Don't overwrite a conversation the user already started meanwhile.
+        if (Array.isArray(d.messages) && d.messages.length) setMessages((m) => (m.length ? m : d.messages));
+      })
+      .catch(() => {
+        historyRequested.current = false; // let the next open retry
+      });
+  }
+
   useEffect(() => {
-    if (open && !loadedHistory) {
-      fetch("/api/assistant")
-        .then((r) => r.json())
-        .then((d) => {
-          if (Array.isArray(d.messages)) setMessages(d.messages);
-          setLoadedHistory(true);
-        })
-        .catch(() => setLoadedHistory(true));
-    }
-  }, [open, loadedHistory]);
+    if (open) prefetchHistory();
+  }, [open]);
 
   useEffect(() => {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" });
@@ -77,13 +100,15 @@ export function AiAssistantPill({ initialBriefCount = 0, brandColor }: { initial
     setBadge(0);
     const userMsg: ChatMessage = { role: "user", content: text };
     setMessages((m) => [...m, userMsg]);
-    setInput("");
     setBusy(true);
+    const controller = new AbortController();
+    abortRef.current = controller;
     try {
       const res = await fetch("/api/assistant", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: text }),
+        signal: controller.signal,
       });
       const data = await res.json();
       if (!res.ok) {
@@ -94,9 +119,14 @@ export function AiAssistantPill({ initialBriefCount = 0, brandColor }: { initial
         ...m,
         { role: "assistant", content: data.reply || (data.pendingAction ? `Proposed: ${data.pendingAction.humanSummary}` : ""), pendingAction: data.pendingAction ?? null },
       ]);
-    } catch {
-      setError("Couldn't reach the assistant — check your connection.");
+    } catch (e) {
+      if ((e as Error)?.name === "AbortError") {
+        setMessages((m) => [...m, { role: "assistant", content: "_Stopped._" }]);
+      } else {
+        setError("Couldn't reach the assistant — check your connection.");
+      }
     } finally {
+      abortRef.current = null;
       setBusy(false);
     }
   }
@@ -140,76 +170,104 @@ export function AiAssistantPill({ initialBriefCount = 0, brandColor }: { initial
     >
       {/* Panel — anchored directly above the pill, pill never disappears. */}
       {open && (
-        <div className="pointer-events-auto w-full max-w-xl max-h-[65vh] flex flex-col rounded-[28px] overflow-hidden border border-black/5 shadow-2xl animate-[zeno-pop_0.18s_ease-out]" style={{ background: "rgba(255,255,255,.92)", backdropFilter: "blur(28px) saturate(1.6)" }}>
-          <div ref={listRef} className="flex-1 overflow-y-auto px-5 py-5 space-y-4">
+        <div
+          className="pointer-events-auto w-full max-w-xl max-h-[70vh] flex flex-col rounded-[28px] overflow-hidden border border-black/[0.06] shadow-[0_24px_60px_-20px_rgba(0,0,0,0.25),0_8px_20px_-12px_rgba(0,0,0,0.12)] animate-[zeno-pop_0.18s_ease-out]"
+          style={{ background: "rgba(255,255,255,.94)", backdropFilter: "blur(28px) saturate(1.6)" }}
+        >
+          {/* Header */}
+          <div className="shrink-0 flex items-center justify-between px-5 pt-4 pb-2">
+            <div className="flex items-center gap-2">
+              <span className="text-[13px] font-semibold text-[var(--color-ink-900)]">Zeno</span>
+              <span className="text-[11.5px] text-[var(--color-ink-400)]">Ask about your books</span>
+            </div>
+            <button
+              type="button"
+              aria-label="Close"
+              onClick={() => setOpen(false)}
+              className="grid size-7 place-items-center rounded-lg text-[var(--color-ink-400)] transition-[color,background-color,transform] duration-150 hover:bg-black/[0.04] hover:text-[var(--color-ink-700)] active:scale-[0.94]"
+            >
+              <X className="size-3.5" />
+            </button>
+          </div>
+
+          {/* Conversation */}
+          <div ref={listRef} className="flex-1 overflow-y-auto px-5 pt-2 pb-4 space-y-4">
             {messages.length === 0 && !busy && (
-              <div className="text-[13px] text-[var(--color-ink-400)] text-center mt-6">
-                Ask about overdue invoices, cash position, or say &ldquo;brief me&rdquo; for today&rsquo;s to‑dos.
-              </div>
+              <ChatEmptyState
+                className="mx-auto py-4"
+                variant="Centered"
+                title="What do you want to know?"
+                subtitle="Ask about invoices, cash, bills or payroll — or start from one of these."
+                prompts={SUGGESTIONS}
+                onSelectPrompt={(p) => send(p.prompt ?? p.label)}
+              />
             )}
-            {messages.map((m, i) => (
-              <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-                <div
-                  className={`max-w-[85%] rounded-2xl px-4 py-2.5 ${
-                    m.role === "user"
-                      ? "bg-[var(--color-accent-500)] text-white text-[13.5px] leading-relaxed"
-                      : "bg-black/[0.04] text-[var(--color-ink-900)]"
-                  }`}
-                >
-                  {m.role === "assistant" ? <AssistantText text={m.content} /> : m.content}
-                  {m.pendingAction && (
-                    <div className="mt-2.5 pt-2.5 border-t border-black/10 flex gap-2">
-                      <button
-                        type="button"
-                        disabled={busy}
-                        onClick={() => respondToAction(i, true)}
-                        className="flex-1 rounded-lg bg-[var(--color-good)] text-white text-[12.5px] font-medium px-3 py-1.5 disabled:opacity-50"
-                      >
-                        Confirm
-                      </button>
-                      <button
-                        type="button"
-                        disabled={busy}
-                        onClick={() => respondToAction(i, false)}
-                        className="flex-1 rounded-lg bg-white border border-[var(--color-ink-200)] text-[var(--color-ink-700)] text-[12.5px] font-medium px-3 py-1.5 disabled:opacity-50"
-                      >
-                        Reject
-                      </button>
-                    </div>
-                  )}
+            {messages.map((m, i) =>
+              m.role === "user" ? (
+                <div key={i} className="flex justify-end animate-[su-msg-in_220ms_cubic-bezier(0.23,1,0.32,1)_both]">
+                  <div className="max-w-[85%] rounded-2xl rounded-br-md bg-[var(--color-ink-900)] px-3.5 py-2 text-[13.5px] leading-relaxed text-white whitespace-pre-wrap">
+                    {m.content}
+                  </div>
                 </div>
-              </div>
-            ))}
+              ) : (
+                <div key={i} className="flex gap-2.5 animate-[su-msg-in_220ms_cubic-bezier(0.23,1,0.32,1)_both]">
+                  <span className="mt-0.5 grid size-6 shrink-0 place-items-center rounded-lg border border-black/[0.07] bg-black/[0.02]">
+                    <Sparkles className="size-3 text-[var(--color-ink-500)]" />
+                  </span>
+                  <div className="min-w-0 flex-1 text-[var(--color-ink-900)]">
+                    <AssistantText text={m.content} />
+                    {m.pendingAction && (
+                      <div className="mt-3 rounded-xl border border-black/[0.08] bg-white p-3">
+                        <div className="text-[11px] font-medium uppercase tracking-wide text-[var(--color-ink-400)]">Needs your OK</div>
+                        <div className="mt-1 text-[13px] text-[var(--color-ink-800)]">{m.pendingAction.humanSummary}</div>
+                        <div className="mt-2.5 flex gap-2">
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => respondToAction(i, true)}
+                            className="flex-1 rounded-lg bg-[var(--color-ink-900)] text-white text-[12.5px] font-medium px-3 py-1.5 transition-transform active:scale-[0.97] disabled:opacity-50"
+                          >
+                            Confirm
+                          </button>
+                          <button
+                            type="button"
+                            disabled={busy}
+                            onClick={() => respondToAction(i, false)}
+                            className="flex-1 rounded-lg border border-black/[0.1] bg-white text-[var(--color-ink-700)] text-[12.5px] font-medium px-3 py-1.5 transition-transform active:scale-[0.97] hover:bg-black/[0.02] disabled:opacity-50"
+                          >
+                            Reject
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )
+            )}
             {busy && (
-              <div className="flex justify-start">
-                <div className="rounded-2xl px-4 py-2.5 bg-black/[0.04] text-[13px] text-[var(--color-ink-400)]">Thinking…</div>
+              <div className="flex items-center gap-3" aria-live="polite" aria-label="Zeno is thinking">
+                <ThinkingOrb state="searching" size={64} theme="light" />
+                <span className="text-[12.5px] text-[var(--color-ink-400)]">Thinking…</span>
               </div>
             )}
             {error && <div className="text-[12.5px] text-[var(--color-bad)] text-center">{error}</div>}
           </div>
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              send(input);
-            }}
-            className="shrink-0 border-t border-black/5 px-4 py-3 flex gap-2"
-          >
-            <input
+
+          {/* Composer (Spectrum UI Prompt Composer) */}
+          <div className="shrink-0 px-3 pb-3">
+            <PromptComposer
               autoFocus
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Ask Zeno…"
-              disabled={busy}
-              className="flex-1 rounded-full border border-black/10 bg-white px-4 py-2 text-[13.5px] outline-none focus:border-[var(--color-accent-500)] disabled:opacity-60"
+              className="max-w-none rounded-[20px] bg-white"
+              placeholder="Ask Zeno anything about your books…"
+              isGenerating={busy}
+              onSend={(text) => send(text)}
+              onStop={() => abortRef.current?.abort()}
+              maxLength={2000}
             />
-            <button
-              type="submit"
-              disabled={busy || !input.trim()}
-              className="rounded-full bg-[var(--color-accent-500)] hover:bg-[var(--color-accent-600)] disabled:opacity-50 text-white text-[13px] font-medium px-4 py-2"
-            >
-              Send
-            </button>
-          </form>
+            <div className="mt-1.5 text-center text-[10.5px] text-[var(--color-ink-400)]">
+              Enter to send · Shift + Enter for a new line · Zeno asks before changing anything
+            </div>
+          </div>
         </div>
       )}
 
@@ -217,6 +275,9 @@ export function AiAssistantPill({ initialBriefCount = 0, brandColor }: { initial
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
+        onPointerEnter={prefetchHistory}
+        onFocus={prefetchHistory}
+        onTouchStart={prefetchHistory}
         className="pointer-events-auto flex items-center gap-2 rounded-full px-4 py-2.5 shadow-lg border border-black/5 transition-transform hover:-translate-y-0.5"
         style={{ background: "rgba(245,245,247,.85)", backdropFilter: "blur(20px) saturate(1.4)" }}
       >

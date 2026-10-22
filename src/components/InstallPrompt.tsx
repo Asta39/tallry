@@ -21,9 +21,14 @@ export function InstallPrompt() {
   const [iosHint, setIosHint] = useState(false);
 
   useEffect(() => {
-    // register SW
+    // Register the SW in production only. In `next dev` the script URLs don't
+    // change between edits, so its cache-first rule kept serving stale code.
     if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("/sw.js").catch(() => {});
+      if (process.env.NODE_ENV === "production") {
+        navigator.serviceWorker.register("/sw.js").catch(() => {});
+      } else {
+        navigator.serviceWorker.getRegistrations().then((rs) => rs.forEach((r) => r.unregister())).catch(() => {});
+      }
     }
 
     // already installed (standalone) or previously dismissed → stay quiet
