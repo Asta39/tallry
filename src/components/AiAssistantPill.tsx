@@ -243,7 +243,7 @@ export function AiAssistantPill({ initialBriefCount = 0, brandColor }: { initial
             )}
             {busy && (
               <div className="flex items-center gap-3" aria-live="polite" aria-label="Zeno is thinking">
-                <ThinkingOrb state="searching" size={64} theme="light" />
+                <ThinkingOrb state="searching" size={32} theme="light" />
                 <span className="text-[12.5px] text-[var(--color-ink-400)]">Thinking…</span>
               </div>
             )}
