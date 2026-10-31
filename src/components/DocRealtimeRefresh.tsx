@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useRealtimeTable } from "@/lib/realtime/useRealtimeTable";
 
@@ -15,14 +16,22 @@ import { useRealtimeTable } from "@/lib/realtime/useRealtimeTable";
  */
 export function DocRealtimeRefresh({ docId }: { docId: number }) {
   const router = useRouter();
+  // A burst of updates (e.g. a payment touching the row several times) gets
+  // one re-render, not one per event — each refresh re-runs the whole page.
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const refresh = () => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => router.refresh(), 500);
+  };
+  useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
 
   useRealtimeTable(
     "documents",
     { column: "id", value: docId },
     {
-      onUpdate: () => router.refresh(),
-      onDelete: () => router.refresh(),
-      onUnreliable: () => router.refresh(),
+      onUpdate: refresh,
+      onDelete: refresh,
+      onUnreliable: refresh,
     }
   );
 

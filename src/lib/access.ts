@@ -72,7 +72,7 @@ export interface Access {
 }
 
 /** Resolve the signed-in user's org, role and effective permissions. */
-export async function getAccess(): Promise<Access | null> {
+async function getAccessUncached(): Promise<Access | null> {
   // Script/cron override (matches getOrg): no request cookies available, act
   // as the org owner/admin of BIASHARA_ORG_ID.
   if (process.env.BIASHARA_ORG_ID) {
@@ -205,7 +205,11 @@ export async function rolePermMap(orgId: number, role: string): Promise<Record<s
  * The layout and any server component calling this in the same render
  * share a single set of DB queries instead of each hitting the DB.
  */
-export const getAccessCached = cache(getAccess);
+/** Who's signed in, their org and role. Memoized per request: pages,
+ *  layouts and server actions call it repeatedly, and each call was several
+ *  sequential database round trips. */
+export const getAccess = cache(getAccessUncached);
+export const getAccessCached = getAccess;
 
 export function canViewAllData(access: Access): boolean {
   if (access.isOwner || access.role === "admin") return true;

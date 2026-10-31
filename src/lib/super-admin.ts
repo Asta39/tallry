@@ -1,6 +1,7 @@
 import { db, superAdmins } from "@/db";
 import { eq } from "drizzle-orm";
 import { getUser } from "@/lib/supabase/server";
+import { cache } from "react";
 
 /**
  * Super admin check — single source of truth.
@@ -8,7 +9,7 @@ import { getUser } from "@/lib/supabase/server";
  * so the first admin can never be locked out) OR in the super_admins table
  * (managed from the /admin panel).
  */
-export async function isSuperAdmin(email: string | null | undefined): Promise<boolean> {
+async function isSuperAdminUncached(email: string | null | undefined): Promise<boolean> {
   if (!email) return false;
   const normalized = email.trim().toLowerCase();
   const envAdmins = (process.env.SUPER_ADMIN_EMAILS || "").split(",").map((e) => e.trim().toLowerCase()).filter(Boolean);
@@ -16,6 +17,10 @@ export async function isSuperAdmin(email: string | null | undefined): Promise<bo
   const [row] = await db.select({ id: superAdmins.id }).from(superAdmins).where(eq(superAdmins.email, normalized)).limit(1);
   return !!row;
 }
+
+/** Memoized per request — layouts, getOrg, getAccess and admin checks all
+ *  ask, and each ask was a database round trip. */
+export const isSuperAdmin = cache(isSuperAdminUncached);
 
 /** All current super-admin emails (env bootstrap list + the super_admins
  *  table), deduped — used to know where platform-level notices go. */

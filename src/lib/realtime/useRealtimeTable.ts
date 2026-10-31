@@ -23,7 +23,13 @@ type Listener = ChangeHandlers<any>;
 type Registration = {
   channel: RealtimeChannel;
   listeners: Set<Listener>;
+  /** The channel dropped since it last subscribed — resync when it's back. */
+  dropped: boolean;
+  lastResync: number;
 };
+
+/** Never resync a channel's listeners more often than this. */
+const RESYNC_MIN_MS = 15_000;
 
 // Module-level registry so two components subscribing to the same
 // (table, org) — e.g. a notification badge in the header and the full
@@ -39,6 +45,7 @@ function getOrCreateChannel(table: string, column: string, value: string | numbe
 
   const supabase = createClient();
   const listeners = new Set<Listener>();
+  const reg = { listeners, dropped: false, lastResync: 0 } as Registration;
   const channel = supabase
     .channel(key)
     .on(
@@ -61,12 +68,26 @@ function getOrCreateChannel(table: string, column: string, value: string | numbe
       }
     )
     .subscribe((status: `${REALTIME_SUBSCRIBE_STATES}`) => {
-      if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
-        for (const l of listeners) l.onUnreliable?.();
+      // A drop (error/timeout) only means events MAY have been missed — and
+      // supabase-js keeps retrying every few seconds while it's down. Firing
+      // onUnreliable on every failed retry made every listener refetch (and
+      // pages router.refresh()) in a loop for as long as the socket was
+      // unhappy, e.g. a backgrounded tab — real server load for nothing.
+      // Instead: note the drop, and resync once when the channel is actually
+      // back, at most once per RESYNC_MIN_MS.
+      if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+        reg.dropped = true;
+      } else if (status === "SUBSCRIBED" && reg.dropped) {
+        reg.dropped = false;
+        const now = Date.now();
+        if (now - reg.lastResync >= RESYNC_MIN_MS) {
+          reg.lastResync = now;
+          for (const l of listeners) l.onUnreliable?.();
+        }
       }
     });
 
-  const reg = { channel, listeners };
+  reg.channel = channel;
   registry.set(key, reg);
   return reg;
 }
