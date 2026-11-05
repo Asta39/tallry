@@ -11,7 +11,8 @@ import { endOfMonthISO, nextMonthEndISO, addDaysISO } from "@/lib/billing";
 import { getPlatformSettings, ensurePlatformSettingsRow, PLATFORM_SETTINGS_ID } from "@/lib/platform-settings";
 import { nowISO } from "@/lib/money";
 import { runAndStoreAllOrgChecks } from "@/lib/ledger-integrity";
-import { runOrgBackup, runAllOrgBackups, getBackupDownloadUrl } from "@/lib/org-backup";
+import { runOrgBackup, runAllOrgBackups, getBackupDownloadUrl, loadOrgBackup } from "@/lib/org-backup";
+import { previewOrgRestore, restoreOrgFromBackup, type RestorePreviewRow } from "@/lib/org-restore";
 import { reconcileUnconfirmedKopoKopoPayouts } from "@/lib/payments/webhook";
 import { ensurePlatformContactAndTemplate, syncPlatformInvoiceAmount, setPlatformTemplateActive } from "@/lib/platform-invoicing";
 
@@ -29,6 +30,57 @@ export async function runLedgerIntegrityNow() {
   await logAdminAction({ actorEmail: user.email!, action: "ledger_integrity_run_now", detail: `${result.totalFindings} finding(s) across ${result.orgsChecked} org(s)` });
   revalidatePath("/admin/ledger-integrity");
   return result;
+}
+
+/** A snapshot path must belong to the org it's being used for. */
+function assertBackupPathForOrg(orgId: number, path: string) {
+  if (!path.startsWith(`${orgId}/`) || !/^\d+\/[\w.-]+\.json$/.test(path)) throw new Error("That backup doesn't belong to this org");
+}
+
+/** What restoring this snapshot would change, table by table. Read-only. */
+export async function previewRestoreAction(orgId: number, path: string): Promise<{ rows?: RestorePreviewRow[]; generatedAt?: string; error?: string }> {
+  try {
+    await requireSuperAdmin();
+    assertBackupPathForOrg(orgId, path);
+    const backup = await loadOrgBackup(path);
+    return { rows: await previewOrgRestore(orgId, backup), generatedAt: backup.generatedAt };
+  } catch (e: any) {
+    return { error: e?.message || "Couldn't read that backup" };
+  }
+}
+
+/**
+ * Restore one org from one of its snapshots, in place. Takes a fresh backup
+ * of the org's current state first (so this can itself be undone by
+ * restoring that one), requires the org's exact name as confirmation, and
+ * runs as a single transaction — on any failure nothing changes.
+ */
+export async function restoreOrgBackupAction(orgId: number, path: string, confirmName: string): Promise<{ ok?: true; safetyBackupPath?: string; restoredRows?: number; error?: string }> {
+  try {
+    const user = await requireSuperAdmin();
+    assertBackupPathForOrg(orgId, path);
+    const [o] = await db.select({ id: org.id, name: org.name }).from(org).where(eq(org.id, orgId)).limit(1);
+    if (!o) return { error: "Org not found" };
+    if (confirmName.trim() !== (o.name || "").trim()) return { error: "Type the organisation's name exactly to confirm" };
+
+    const backup = await loadOrgBackup(path);
+    const safety = await runOrgBackup(orgId, 60); // keep the pre-restore copy well inside retention
+    const restored = await restoreOrgFromBackup(orgId, backup);
+    const restoredRows = Object.values(restored).reduce((a, b) => a + b, 0);
+
+    await logAdminAction({
+      actorEmail: user.email!,
+      action: "org_restore",
+      targetType: "org",
+      targetId: orgId,
+      detail: `${o.name}: restored from ${path} (${restoredRows} rows). Pre-restore backup: ${safety.path}`,
+    });
+    revalidatePath("/admin/backups");
+    revalidatePath(`/admin/orgs/${orgId}`);
+    return { ok: true, safetyBackupPath: safety.path, restoredRows };
+  } catch (e: any) {
+    return { error: e?.message || "Restore failed — nothing was changed" };
+  }
 }
 
 export async function runOrgBackupNow(orgId: number) {

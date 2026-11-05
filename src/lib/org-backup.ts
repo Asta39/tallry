@@ -29,7 +29,29 @@ export const ORG_SCOPED_TABLES = [
   "knowledge_articles", "org_audit_log", "ai_messages", "feature_flags",
   "billing_payments", "expense_claims", "leave_requests", "time_shifts",
   "cost_centers", "payment_runs", "payment_run_items", "budgets", "budget_lines",
+  "external_loans", "external_loan_repayments", "external_loan_interest_schedule",
+  "loan_manual_repayments", "salary_advance_requests", "payroll_run_attendance",
+  "item_boms", "campaigns", "admin_churn_events", "org_admin_notes", "ledger_integrity_findings",
 ] as const;
+
+/** Org data in tables with no org_id of their own — they belong to an org
+ *  only through a parent row. Backed up by joining to that parent. Kept in
+ *  sync by the schema test in __tests__/org-backup.test.ts. */
+export const ORG_CHILD_TABLES = {
+  campaign_recipients: { parent: "campaigns", fk: "campaign_id" },
+} as const;
+
+/**
+ * Tables a restore leaves exactly as they are now rather than rolling back:
+ * platform billing/admin state (a restore must not undo a payment, a lock
+ * or an admin note), payment-gateway and SMS credentials (keys rotated after
+ * the backup must not come back), and short-lived portal sessions/codes.
+ */
+export const RESTORE_KEEP_CURRENT = new Set<string>([
+  "subscriptions", "billing_payments", "admin_churn_events", "org_admin_notes",
+  "ledger_integrity_findings", "feature_flags", "payment_gateways", "sms_settings",
+  "portal_sessions", "portal_otps",
+]);
 
 export type OrgBackup = {
   orgId: number;
@@ -51,6 +73,14 @@ export async function buildOrgBackup(orgId: number): Promise<OrgBackup> {
 
   for (const table of ORG_SCOPED_TABLES) {
     const result = await db.execute(sql`select * from ${sql.raw(table)} where org_id = ${orgId}`);
+    const rows = result as unknown as Record<string, unknown>[];
+    tables[table] = rows;
+    rowCounts[table] = rows.length;
+  }
+  for (const [table, { parent, fk }] of Object.entries(ORG_CHILD_TABLES)) {
+    const result = await db.execute(
+      sql`select c.* from ${sql.raw(table)} c join ${sql.raw(parent)} p on p.id = c.${sql.raw(fk)} where p.org_id = ${orgId}`
+    );
     const rows = result as unknown as Record<string, unknown>[];
     tables[table] = rows;
     rowCounts[table] = rows.length;
@@ -141,4 +171,13 @@ export async function getBackupDownloadUrl(path: string, expiresInSeconds = 300)
   const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(path, expiresInSeconds);
   if (error || !data) throw error || new Error("Could not create download link");
   return data.signedUrl;
+}
+
+/** Loads one stored snapshot (for preview/restore). Paths are always
+ *  "<orgId>/<file>.json" inside the private bucket. */
+export async function loadOrgBackup(path: string): Promise<OrgBackup> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase.storage.from(BUCKET).download(path);
+  if (error || !data) throw error || new Error("Backup file not found");
+  return JSON.parse(await data.text()) as OrgBackup;
 }

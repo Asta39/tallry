@@ -5,6 +5,8 @@ import { OrgBackupRow } from "./OrgBackupRow";
 import { BackupAllButton } from "./BackupAllButton";
 
 export const dynamic = "force-dynamic";
+// Restoring a large org (re-inserting every row) can take a while.
+export const maxDuration = 300;
 
 function hoursAgo(iso: string): number {
   return (Date.now() - new Date(iso).getTime()) / 3600000;

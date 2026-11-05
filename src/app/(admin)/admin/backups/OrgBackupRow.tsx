@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { runOrgBackupNow, downloadOrgBackupAction } from "../actions";
+import { RestorePanel } from "./RestorePanel";
 
 type Backup = { name: string; path: string; sizeBytes: number; createdAt: string | null };
 
@@ -30,6 +31,7 @@ export function OrgBackupRow({
   const [pending, start] = useTransition();
   const [downloading, setDownloading] = useState<string | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
+  const [restoring, setRestoring] = useState<string | null>(null);
 
   const latest = backups[0];
 
@@ -93,16 +95,25 @@ export function OrgBackupRow({
         <div className="border-t border-[var(--color-ink-100)] divide-y divide-[var(--color-ink-100)]">
           {backups.length === 0 && <div className="px-5 py-4 text-[12.5px] text-[var(--color-ink-400)]">No snapshots yet — click "Backup now".</div>}
           {backups.map((b) => (
-            <div key={b.path} className="flex items-center justify-between px-5 py-2.5 text-[12.5px]">
-              <span className="tnum">{b.createdAt?.slice(0, 19).replace("T", " ") || b.name}</span>
-              <span className="text-[var(--color-ink-400)] tnum">{fmtBytes(b.sizeBytes)}</span>
-              <button
-                disabled={downloading === b.path}
-                onClick={() => download(b.path)}
-                className="text-[var(--color-accent-600)] font-medium hover:underline disabled:opacity-60"
-              >
-                {downloading === b.path ? "Preparing…" : "Download"}
-              </button>
+            <div key={b.path}>
+              <div className="flex items-center justify-between gap-3 px-5 py-2.5 text-[12.5px]">
+                <span className="tnum flex-1">{b.createdAt?.slice(0, 19).replace("T", " ") || b.name}</span>
+                <span className="text-[var(--color-ink-400)] tnum">{fmtBytes(b.sizeBytes)}</span>
+                <button
+                  disabled={downloading === b.path}
+                  onClick={() => download(b.path)}
+                  className="text-[var(--color-accent-600)] font-medium hover:underline disabled:opacity-60"
+                >
+                  {downloading === b.path ? "Preparing…" : "Download"}
+                </button>
+                <button
+                  onClick={() => setRestoring(restoring === b.path ? null : b.path)}
+                  className="text-[var(--color-bad)] font-medium hover:underline"
+                >
+                  Restore…
+                </button>
+              </div>
+              {restoring === b.path && <RestorePanel orgId={orgId} orgName={orgName} path={b.path} onClose={() => setRestoring(null)} />}
             </div>
           ))}
         </div>
