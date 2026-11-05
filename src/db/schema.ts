@@ -451,6 +451,12 @@ export const documents = pgTable("documents", {
    *  document's pricing terms. Already spread into each line's net/VAT, so
    *  the ledger and VAT returns need nothing extra; discountCents is the
    *  amount it came to, kept for display. */
+  /** Display currency (KES default). For a foreign one, lines also keep the
+   *  typed foreign price (documentLines.fxUnitPriceCents) and every KES
+   *  column holds the converted amount at fxRate (KSh per 1 unit) — only KES
+   *  is ever posted, so the books stay in shillings. */
+  currency: text("currency").notNull().default("KES"),
+  fxRate: doublePrecision("fx_rate").notNull().default(1),
   discountType: text("discount_type"),
   discountValue: doublePrecision("discount_value").notNull().default(0),
   discountCents: money("discount_cents").notNull().default(0),
@@ -500,6 +506,8 @@ export const documentLines = pgTable("document_lines", {
   description: text("description").notNull(),
   qty: doublePrecision("qty").notNull().default(1),
   unitPriceCents: money("unit_price_cents").notNull().default(0),
+  /** Foreign-currency documents only: the unit price as typed, in that currency's cents. */
+  fxUnitPriceCents: money("fx_unit_price_cents"),
   discountPct: doublePrecision("discount_pct").notNull().default(0),
   taxClass: text("tax_class").notNull().default("B16"),
   taxRateBp: integer("tax_rate_bp").notNull().default(1600), // basis points ×100 = 16.00%

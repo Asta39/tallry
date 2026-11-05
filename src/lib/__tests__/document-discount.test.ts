@@ -113,3 +113,40 @@ test("converting a discounted quote keeps the discount on the invoice", async ()
     await cleanup(created);
   }
 });
+
+test("a USD invoice keeps dollar prices for display and posts shillings to the books", async () => {
+  const [customer] = await db.select({ id: contacts.id }).from(contacts).where(eq(contacts.orgId, ORG)).limit(1);
+  const created: number[] = [];
+  try {
+    // US$ 500.00 × 2 at 130.00 KSh/USD = KSh 130,000.00 net, VAT 20,800.
+    const id = await inOrg(() =>
+      saveDocument({
+        type: "invoice", contactId: customer.id, date: TODAY, dueDate: TODAY, taxInclusive: false,
+        currency: "USD", fxRate: 130,
+        lines: [{ description: "Consulting (USD)", qty: 2, unitPriceCents: 50_000, discountPct: 0, taxClass: "B16" }],
+      }),
+    );
+    created.push(id);
+    const [doc] = await db.select().from(documents).where(eq(documents.id, id));
+    assert.equal(doc.currency, "USD");
+    assert.equal(doc.fxRate, 130);
+    assert.equal(doc.subtotalCents, 13_000_000);
+    assert.equal(doc.totalCents, 15_080_000);
+    const [line] = await db.select().from(documentLines).where(eq(documentLines.documentId, id));
+    assert.equal(line.fxUnitPriceCents, 50_000, "typed dollar price kept");
+    assert.equal(line.unitPriceCents, 6_500_000, "KES price for the books");
+
+    const res = await inOrg(() => issueDocument(id));
+    assert.equal(res.error, undefined);
+    const [posted] = await db.select().from(documents).where(eq(documents.id, id));
+    const ar = await inOrg(() => acct(SYS.AR));
+    assert.equal(await postedAmount(posted.journalEntryId!, ar, "debit"), 15_080_000, "receivable in KES");
+
+    await assert.rejects(
+      inOrg(() => saveDocument({ type: "invoice", contactId: customer.id, date: TODAY, taxInclusive: false, currency: "USD", lines: [{ description: "x", qty: 1, unitPriceCents: 100, discountPct: 0, taxClass: "B16" }] })),
+      /exchange rate/,
+    );
+  } finally {
+    await cleanup(created);
+  }
+});

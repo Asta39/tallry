@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { computeDocument, computeLine, TAX_CLASSES, type TaxClass } from "@/lib/tax";
 import { fmtKES, parseKES, todayISO } from "@/lib/money";
+import { CURRENCIES, fmtMoney, toKesCents, type Currency } from "@/lib/currency";
 import { Tooltip } from "@/components/Tooltip";
 import { upsertDocumentAction, createItemFromLine, listCustomerInvoices, type DocLineInput } from "@/lib/actions";
 import { SearchableSelect } from "@/components/SearchableSelect";
@@ -84,6 +85,9 @@ export interface EditorInitialData {
   status?: string;
   discountType?: "percent" | "fixed" | null;
   discountValue?: number;
+  discountValueDisplay?: number;
+  currency?: string;
+  fxRate?: number;
   lines: EditorLine[];
 }
 
@@ -160,6 +164,22 @@ export function DocumentEditor({
   const [date, setDate] = useState(initialData?.date ?? todayISO());
   const [dueDate, setDueDate] = useState(initialData?.dueDate ?? "");
   const [taxInclusive, setTaxInclusive] = useState(initialData?.taxInclusive ?? false);
+  // Display currency for sales documents. Prices are typed in it; the books
+  // get KES at the rate below.
+  const [currency, setCurrency] = useState<Currency>(((initialData?.currency as Currency) || "KES"));
+  const [fxRateInput, setFxRateInput] = useState<string>(initialData?.currency && initialData.currency !== "KES" ? String(initialData.fxRate ?? "") : "");
+  const fxRate = Number(fxRateInput);
+  const foreign = currency !== "KES";
+  const money = (c: number) => fmtMoney(c, currency);
+  function pickCurrency(c: Currency) {
+    setCurrency(c);
+    if (c !== "KES" && !fxRateInput) {
+      try {
+        const last = localStorage.getItem(`zeno-fx-${c}`);
+        if (last) setFxRateInput(last);
+      } catch {}
+    }
+  }
   const [notes, setNotes] = useState(initialData?.notes ?? defaultNotes ?? "");
   const [billNumber, setBillNumber] = useState(initialData?.billNumber ?? "");
   const [payoutDestinationType, setPayoutDestinationType] = useState<"phone" | "till" | "paybill">(initialData?.payoutDestinationType ?? "phone");
@@ -181,7 +201,7 @@ export function DocumentEditor({
   const [discountInput, setDiscountInput] = useState<string>(
     initialData?.discountType && initialData.discountValue
       ? initialData.discountType === "fixed"
-        ? (initialData.discountValue / 100).toFixed(2)
+        ? ((initialData.discountValueDisplay ?? initialData.discountValue) / 100).toFixed(2)
         : String(initialData.discountValue)
       : ""
   );
@@ -381,9 +401,14 @@ export function DocumentEditor({
           issue: issue && !isAlreadyIssued,
           sourceInvoiceId: type === "credit_note" && !initialData?.id ? sourceInvoiceId : undefined,
           discount: documentDiscount,
+          currency: isSale ? currency : undefined,
+          fxRate: isSale && foreign ? fxRate : undefined,
           lines: finalLines,
         });
         if (res.error || !res.id) throw new Error(res.error || "Could not save document");
+        if (isSale && foreign && fxRate > 0) {
+          try { localStorage.setItem(`zeno-fx-${currency}`, String(fxRate)); } catch {}
+        }
         const id = res.id;
         router.push(detailHref ? `${detailHref}/${id}` : backHref);
         router.refresh();
@@ -514,6 +539,33 @@ export function DocumentEditor({
           />
           <span className="text-[12.5px] text-[var(--color-ink-600)]">Prices include VAT</span>
         </label>
+        {isSale && (
+          <div className="col-span-2 flex flex-wrap items-end gap-3">
+            <label className="block">
+              <span className="text-[12px] font-medium text-[var(--color-ink-600)]">Currency</span>
+              <select className={inputCls + " mt-1"} value={currency} onChange={(e) => pickCurrency(e.target.value as Currency)}>
+                {(Object.keys(CURRENCIES) as Currency[]).map((c) => (
+                  <option key={c} value={c}>{c} — {CURRENCIES[c].name}</option>
+                ))}
+              </select>
+            </label>
+            {foreign && (
+              <label className="block">
+                <span className="text-[12px] font-medium text-[var(--color-ink-600)]">Exchange rate (KSh per 1 {currency})</span>
+                <input
+                  inputMode="decimal"
+                  className={inputCls + " mt-1 w-40"}
+                  value={fxRateInput}
+                  onChange={(e) => setFxRateInput(e.target.value.replace(/[^0-9.]/g, ""))}
+                  placeholder="e.g. 129.50"
+                />
+              </label>
+            )}
+            {foreign && (
+              <span className="pb-2 text-[11.5px] text-[var(--color-ink-400)]">Prices below are in {currency}; the books record KSh at this rate.</span>
+            )}
+          </div>
+        )}
         {isSpend && (
           <div className="col-span-2 card p-3.5 bg-[var(--color-ink-50)] border border-[var(--color-ink-200)] rounded-xl space-y-3">
             <label className="flex items-center gap-3 cursor-pointer">
@@ -901,7 +953,7 @@ export function DocumentEditor({
                   )}
                   <td className="px-4 py-3.5 text-right text-[13px] tnum">
                     {/* The line's own amount — the whole-document discount is shown under the totals. */}
-                    {t ? fmtKES(computeLine(parsedLines[i], taxInclusive).grossCents) : "—"}
+                    {t ? money(computeLine(parsedLines[i], taxInclusive).grossCents) : "—"}
                   </td>
                   <td className="pr-2 py-3">
                     <Tooltip text="Remove line">
@@ -988,9 +1040,9 @@ export function DocumentEditor({
         </label>
         <div className="card px-5 py-4 self-start">
           {(totals.lineDiscountCents > 0 || totals.documentDiscountCents > 0) && (
-            <Row label={taxInclusive ? "Subtotal (incl. VAT)" : "Subtotal"} v={fmtKES(totals.grossBeforeDiscountsCents)} />
+            <Row label={taxInclusive ? "Subtotal (incl. VAT)" : "Subtotal"} v={money(totals.grossBeforeDiscountsCents)} />
           )}
-          {totals.lineDiscountCents > 0 && <Row label="Line discounts" v={`− ${fmtKES(totals.lineDiscountCents)}`} />}
+          {totals.lineDiscountCents > 0 && <Row label="Line discounts" v={`− ${money(totals.lineDiscountCents)}`} />}
           {isSale && (
             <div className="flex items-center justify-between gap-3 py-1 text-[13px]">
               <span className="text-[var(--color-ink-600)]">Discount</span>
@@ -1012,20 +1064,27 @@ export function DocumentEditor({
                       aria-pressed={discountType === k}
                       className={`px-2 py-1 text-[12px] font-medium ${discountType === k ? "bg-[var(--color-ink-900)] text-white" : "bg-white text-[var(--color-ink-500)] hover:bg-[var(--color-ink-50)]"}`}
                     >
-                      {k === "percent" ? "%" : "KSh"}
+                      {k === "percent" ? "%" : CURRENCIES[currency].symbol}
                     </button>
                   ))}
                 </div>
-                <span className="tnum w-24 text-right">{totals.documentDiscountCents > 0 ? `− ${fmtKES(totals.documentDiscountCents)}` : "—"}</span>
+                <span className="tnum w-24 text-right">{totals.documentDiscountCents > 0 ? `− ${money(totals.documentDiscountCents)}` : "—"}</span>
               </div>
             </div>
           )}
-          <Row label="Subtotal (before VAT)" v={fmtKES(totals.subtotalCents)} />
-          <Row label="VAT" v={fmtKES(totals.taxCents)} />
+          <Row label="Subtotal (before VAT)" v={money(totals.subtotalCents)} />
+          <Row label="VAT" v={money(totals.taxCents)} />
           <div className="hairline-t mt-2 pt-2 flex justify-between text-[15px] font-semibold">
             <span>Total</span>
-            <span className="tnum">{fmtKES(totals.totalCents)}</span>
+            <span className="tnum">{money(totals.totalCents)}</span>
           </div>
+          {foreign && (
+            <div className="mt-1.5 text-right text-[12px] text-[var(--color-ink-500)]">
+              {fxRate > 0
+                ? <>In the books: {fmtKES(toKesCents(totals.totalCents, fxRate))} at {fxRate} KSh/{currency}</>
+                : <span className="text-[var(--color-bad)]">Enter the exchange rate</span>}
+            </div>
+          )}
         </div>
       </div>
 

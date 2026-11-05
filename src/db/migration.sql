@@ -1180,3 +1180,8 @@ ALTER TABLE payroll_run_attendance ENABLE ROW LEVEL SECURITY;
 
 -- What an org's billing status was before an admin suspended it (trial | active).
 ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS suspended_from TEXT;
+
+-- Display currency on sales documents; KES stays the booking currency.
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS currency TEXT NOT NULL DEFAULT 'KES';
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS fx_rate DOUBLE PRECISION NOT NULL DEFAULT 1;
+ALTER TABLE document_lines ADD COLUMN IF NOT EXISTS fx_unit_price_cents BIGINT;

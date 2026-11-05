@@ -2,7 +2,9 @@
 import React from "react";
 import { Document, Page, Text, View, Image, StyleSheet, Link } from "@react-pdf/renderer";
 import { fmtKES } from "@/lib/money";
-import { TAX_CLASSES, type TaxClass, computeLine, discountBreakdown } from "@/lib/tax";
+import { TAX_CLASSES, type TaxClass } from "@/lib/tax";
+import { displayDocument } from "@/lib/doc-display";
+import { fmtMoney } from "@/lib/currency";
 
 /**
  * Branded PDF for invoices, quotes and credit notes.
@@ -40,6 +42,7 @@ export interface PdfLine {
   taxCents: number;
   grossCents: number;
   discountPct?: number | null;
+  fxUnitPriceCents?: number | null;
   customColumnValue?: string | null;
   isHeading?: boolean;
 }
@@ -58,6 +61,8 @@ export interface PdfDoc {
   taxInclusive?: boolean;
   discountType?: string | null;
   discountValue?: number;
+  currency?: string | null;
+  fxRate?: number | null;
   cuInvoiceNumber?: string | null;
   cuSerial?: string | null;
   createdByName?: string | null;
@@ -210,7 +215,9 @@ function makeStyles(brand: string) {
     cPrice: { width: "17%", textAlign: "right" },
     cVat: { width: "13%", textAlign: "center" },
     cAmount: { width: "20%", textAlign: "right" },
-    bottomRow: { flexDirection: "row", justifyContent: "space-between", marginTop: 18 },
+    bottomRow: { flexDirection: "row", justifyContent: "space-between", marginTop: 18, gap: 24 },
+    // Left column shrinks and wraps instead of running under the totals.
+    vatCol: { flex: 1, flexShrink: 1, minWidth: 0 },
     totals: { width: 200 },
     totalLine: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 2.5 },
     grandTotal: {
@@ -281,18 +288,26 @@ export function DocumentPdf({
   // "default", "classic", "modern", "bold"
   // Each line's own amount (after its line discount); the whole-document
   // discount is listed under the totals instead of shrinking every line.
-  const lineShown = (l: PdfLine) =>
-    computeLine({ qty: l.qty, unitPriceCents: l.unitPriceCents, discountPct: l.discountPct ?? 0, taxClass: l.taxClass as TaxClass }, !!doc.taxInclusive).grossCents;
-  const discounts = discountBreakdown(
-    { taxInclusive: !!doc.taxInclusive, discountType: doc.discountType ?? null, discountValue: doc.discountValue ?? 0 },
+  // Everything shown in the document's own currency (KES unless chosen
+  // otherwise); the KES figures stay in the books and the VAT note below.
+  const discounts = displayDocument(
+    { taxInclusive: !!doc.taxInclusive, discountType: doc.discountType ?? null, discountValue: doc.discountValue ?? 0, currency: doc.currency, fxRate: doc.fxRate },
     lines.map((l) => ({ ...l, discountPct: l.discountPct ?? 0 })),
   );
+  const foreignDoc = discounts.currency !== "KES";
+  const m = (c: number) => fmtMoney(c, discounts.currency);
+  const lineShown = (l: PdfLine) => discounts.line({ ...l, discountPct: l.discountPct ?? 0 }).grossCents;
+  const linePrice = (l: PdfLine) => discounts.line({ ...l, discountPct: l.discountPct ?? 0 }).unitPriceCents;
   const byClass = new Map<string, { net: number; tax: number }>();
-  for (const l of lines) {
-    const b = byClass.get(l.taxClass) ?? { net: 0, tax: 0 };
-    b.net += l.netCents;
-    b.tax += l.taxCents;
-    byClass.set(l.taxClass, b);
+  if (foreignDoc) {
+    for (const [cls, v] of Object.entries(discounts.byClass)) byClass.set(cls, { net: v!.netCents, tax: v!.taxCents });
+  } else {
+    for (const l of lines) {
+      const b = byClass.get(l.taxClass) ?? { net: 0, tax: 0 };
+      b.net += l.netCents;
+      b.tax += l.taxCents;
+      byClass.set(l.taxClass, b);
+    }
   }
 
   return (
@@ -557,11 +572,11 @@ export function DocumentPdf({
                       <Text style={s.cNum}>{seq}</Text>
                       <DescCell line={l} s={s} />
                       <Text style={s.cQty}>{l.qty}</Text>
-                      <Text style={s.cPrice}>{fmtKES(l.unitPriceCents)}</Text>
+                      <Text style={s.cPrice}>{m(linePrice(l))}</Text>
                       <Text style={s.cVat}>
                         {TAX_CLASSES[l.taxClass as TaxClass]?.etimsCode ?? ""} ({(l.taxRateBp / 100).toFixed(0)}%)
                       </Text>
-                      <Text style={s.cAmount}>{fmtKES(lineShown(l))}</Text>
+                      <Text style={s.cAmount}>{m(lineShown(l))}</Text>
                     </View>
                   );
                 }
@@ -584,11 +599,11 @@ export function DocumentPdf({
                   <Text style={s.cNum}>{seq}</Text>
                   <DescCell line={l} s={s} />
                   <Text style={s.cQty}>{l.qty}</Text>
-                  <Text style={s.cPrice}>{fmtKES(l.unitPriceCents)}</Text>
+                  <Text style={s.cPrice}>{m(linePrice(l))}</Text>
                   <Text style={s.cVat}>
                     {TAX_CLASSES[l.taxClass as TaxClass]?.etimsCode ?? ""} ({(l.taxRateBp / 100).toFixed(0)}%)
                   </Text>
-                  <Text style={s.cAmount}>{fmtKES(lineShown(l))}</Text>
+                  <Text style={s.cAmount}>{m(lineShown(l))}</Text>
                 </View>
               );
             });
@@ -597,54 +612,60 @@ export function DocumentPdf({
 
         {/* VAT summary + totals */}
         <View style={s.bottomRow}>
-          <View>
+          <View style={s.vatCol}>
             <Text style={s.sectionLabel}>VAT summary</Text>
             {[...byClass.entries()].map(([cls, v]) => (
               <Text key={cls} style={{ paddingVertical: 1.5 }}>
-                {TAX_CLASSES[cls as TaxClass]?.label ?? cls}: {fmtKES(v.net)} · VAT {fmtKES(v.tax)}
+                {TAX_CLASSES[cls as TaxClass]?.label ?? cls}: {m(v.net)} · VAT {m(v.tax)}
               </Text>
             ))}
+            {foreignDoc && (
+              <View style={{ paddingTop: 4 }}>
+                <Text style={s.muted}>Exchange rate: 1 {discounts.currency} = KSh {discounts.rate}</Text>
+                <Text style={s.muted}>In KES: VAT {fmtKES(doc.taxCents)} · Total {fmtKES(doc.totalCents)}</Text>
+              </View>
+            )}
           </View>
           <View style={s.totals}>
             {discounts.hasDiscount && (
               <View style={s.totalLine}>
                 <Text style={s.muted}>{doc.taxInclusive ? "Subtotal (incl. VAT)" : "Subtotal"}</Text>
-                <Text>{fmtKES(discounts.grossBeforeDiscountsCents)}</Text>
+                <Text>{m(discounts.grossBeforeDiscountsCents)}</Text>
               </View>
             )}
             {discounts.lineDiscountCents > 0 && (
               <View style={s.totalLine}>
                 <Text style={s.muted}>Line discounts</Text>
-                <Text>− {fmtKES(discounts.lineDiscountCents)}</Text>
+                <Text>− {m(discounts.lineDiscountCents)}</Text>
               </View>
             )}
             {discounts.documentDiscountCents > 0 && (
               <View style={s.totalLine}>
                 <Text style={s.muted}>{discounts.documentDiscountLabel}</Text>
-                <Text>− {fmtKES(discounts.documentDiscountCents)}</Text>
+                <Text>− {m(discounts.documentDiscountCents)}</Text>
               </View>
             )}
             <View style={s.totalLine}>
               <Text style={s.muted}>{discounts.hasDiscount ? "Subtotal before VAT" : "Subtotal"}</Text>
-              <Text>{fmtKES(doc.subtotalCents)}</Text>
+              <Text>{m(foreignDoc ? discounts.subtotalCents : doc.subtotalCents)}</Text>
             </View>
             <View style={s.totalLine}>
               <Text style={s.muted}>VAT</Text>
-              <Text>{fmtKES(doc.taxCents)}</Text>
+              <Text>{m(foreignDoc ? discounts.taxCents : doc.taxCents)}</Text>
             </View>
             <View style={s.grandTotal}>
               <Text style={s.grandText}>Total</Text>
-              <Text style={s.grandText}>{fmtKES(doc.totalCents)}</Text>
+              <Text style={s.grandText}>{m(foreignDoc ? discounts.totalCents : doc.totalCents)}</Text>
             </View>
             {doc.paidCents > 0 ? (
               <>
                 <View style={s.totalLine}>
                   <Text style={{ color: "#1f8a4c" }}>Paid</Text>
-                  <Text style={{ color: "#1f8a4c" }}>−{fmtKES(doc.paidCents)}</Text>
+                  <Text style={{ color: "#1f8a4c" }}>−{m(discounts.fromKes(doc.paidCents))}</Text>
                 </View>
                 <View style={s.totalLine}>
                   <Text style={s.bold}>Balance due</Text>
-                  <Text style={s.bold}>{fmtKES(doc.totalCents - doc.paidCents)}</Text>
+                  <Text style={s.bold}>{m(foreignDoc ? discounts.totalCents - discounts.fromKes(doc.paidCents) : doc.totalCents - doc.paidCents)}</Text>
                 </View>
               </>
             ) : null}

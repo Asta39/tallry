@@ -10,6 +10,8 @@ type QuoteForMerge = {
   contactId: number | null;
   taxInclusive: boolean;
   notes: string | null;
+  currency?: string;
+  fxRate?: number;
 };
 
 type LineForMerge = {
@@ -24,6 +26,7 @@ type LineForMerge = {
   costCenterId: number | null;
   warehouseId: number | null;
   isHeading: boolean;
+  fxUnitPriceCents?: number | null;
 };
 
 /** Why these quotes can't be merged, or null if they can. */
@@ -38,6 +41,9 @@ export function mergeQuotesError(quotes: QuoteForMerge[], requestedCount: number
   }
   const contact = quotes[0].contactId;
   if (!contact || quotes.some((q) => q.contactId !== contact)) return "Quotes can only be merged for the same customer";
+  if (quotes.some((q) => (q.currency ?? "KES") !== (quotes[0].currency ?? "KES") || (q.fxRate ?? 1) !== (quotes[0].fxRate ?? 1))) {
+    return "These quotes are in different currencies or exchange rates — make them match before merging";
+  }
   if (quotes.some((q) => q.taxInclusive !== quotes[0].taxInclusive)) {
     return "These quotes price VAT differently (inclusive vs exclusive) — make them match before merging";
   }

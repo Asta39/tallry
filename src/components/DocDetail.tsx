@@ -7,7 +7,9 @@ import { getAccess } from "@/lib/access";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { fmtKES, todayISO } from "@/lib/money";
-import { TAX_CLASSES, computeLine, discountBreakdown, type TaxClass } from "@/lib/tax";
+import { TAX_CLASSES, type TaxClass } from "@/lib/tax";
+import { displayDocument } from "@/lib/doc-display";
+import { fmtMoney } from "@/lib/currency";
 import { PageHeader, StatusPill, Th, Td } from "@/components/ui";
 import { DocActions } from "@/components/DocActions";
 import { LineDescription } from "@/components/LineDescription";
@@ -55,9 +57,11 @@ export async function DocDetail({ id, printHref }: { id: number; printHref?: str
   const result = await getInvoiceWithBillableExpenses(id, orgId);
   if (!result) notFound();
   const { doc, lines } = result;
-  const discounts = discountBreakdown(doc, lines);
+  const discounts = displayDocument(doc, lines);
+  const m = (c: number) => fmtMoney(c, discounts.currency);
+  const foreignDoc = discounts.currency !== "KES";
   // Each line's own amount; the whole-document discount is shown under the totals.
-  const shown = (l: (typeof lines)[number]) => computeLine({ ...l, taxClass: l.taxClass as TaxClass }, doc.taxInclusive);
+  const shown = (l: (typeof lines)[number]) => discounts.line(l);
   const contact = doc.contactId
     ? (await db.select().from(contacts).where(and(eq(contacts.orgId, orgId), eq(contacts.id, doc.contactId))).limit(1))[0]
     : null;
@@ -285,14 +289,14 @@ export async function DocDetail({ id, printHref }: { id: number; printHref?: str
                         <Td className="text-[var(--color-ink-400)]">{seq}</Td>
                         <Td><LineDescription itemName={l.itemName} description={l.description} /></Td>
                         <Td right>{l.qty}</Td>
-                        <Td right>{fmtKES(l.unitPriceCents)}</Td>
+                        <Td right>{m(shown(l).unitPriceCents)}</Td>
                         <Td className="text-[var(--color-ink-400)]">
                           {TAX_CLASSES[l.taxClass as TaxClass]?.label ?? l.taxClass}
                         </Td>
                         {showPosting && <Td className="text-[var(--color-ink-500)]">{("accountId" in l && l.accountId) ? accountsById[l.accountId] ?? "—" : "—"}</Td>}
                         {showPosting && <Td className="text-[var(--color-ink-500)]">{("costCenterId" in l && l.costCenterId) ? costCentersById[l.costCenterId] ?? "—" : "—"}</Td>}
-                        <Td right>{fmtKES(shown(l).netCents)}</Td>
-                        <Td right className="font-medium">{fmtKES(shown(l).grossCents)}</Td>
+                        <Td right>{m(shown(l).netCents)}</Td>
+                        <Td right className="font-medium">{m(shown(l).grossCents)}</Td>
                       </tr>
                     );
                   }
@@ -317,14 +321,14 @@ export async function DocDetail({ id, printHref }: { id: number; printHref?: str
                     <Td className="text-[var(--color-ink-400)]">{seq}</Td>
                     <Td><LineDescription itemName={l.itemName} description={l.description} /></Td>
                     <Td right>{l.qty}</Td>
-                    <Td right>{fmtKES(l.unitPriceCents)}</Td>
+                    <Td right>{m(shown(l).unitPriceCents)}</Td>
                     <Td className="text-[var(--color-ink-400)]">
                       {TAX_CLASSES[l.taxClass as TaxClass]?.label ?? l.taxClass}
                     </Td>
                     {showPosting && <Td className="text-[var(--color-ink-500)]">{("accountId" in l && l.accountId) ? accountsById[l.accountId] ?? "—" : "—"}</Td>}
                     {showPosting && <Td className="text-[var(--color-ink-500)]">{("costCenterId" in l && l.costCenterId) ? costCentersById[l.costCenterId] ?? "—" : "—"}</Td>}
-                    <Td right>{fmtKES(shown(l).netCents)}</Td>
-                    <Td right className="font-medium">{fmtKES(shown(l).grossCents)}</Td>
+                    <Td right>{m(shown(l).netCents)}</Td>
+                    <Td right className="font-medium">{m(shown(l).grossCents)}</Td>
                   </tr>
                 );
               });
@@ -336,50 +340,55 @@ export async function DocDetail({ id, printHref }: { id: number; printHref?: str
             {discounts.hasDiscount && (
               <div className="flex justify-between">
                 <span className="text-[var(--color-ink-600)]">{doc.taxInclusive ? "Subtotal (incl. VAT)" : "Subtotal"}</span>
-                <span className="tnum">{fmtKES(discounts.grossBeforeDiscountsCents)}</span>
+                <span className="tnum">{m(discounts.grossBeforeDiscountsCents)}</span>
               </div>
             )}
             {discounts.lineDiscountCents > 0 && (
               <div className="flex justify-between">
                 <span className="text-[var(--color-ink-600)]">Line discounts</span>
-                <span className="tnum">− {fmtKES(discounts.lineDiscountCents)}</span>
+                <span className="tnum">− {m(discounts.lineDiscountCents)}</span>
               </div>
             )}
             {discounts.documentDiscountCents > 0 && (
               <div className="flex justify-between">
                 <span className="text-[var(--color-ink-600)]">{discounts.documentDiscountLabel}</span>
-                <span className="tnum">− {fmtKES(discounts.documentDiscountCents)}</span>
+                <span className="tnum">− {m(discounts.documentDiscountCents)}</span>
               </div>
             )}
             <div className="flex justify-between">
               <span className="text-[var(--color-ink-600)]">{discounts.hasDiscount ? "Subtotal before VAT" : "Subtotal"}</span>
-              <span className="tnum">{fmtKES(doc.subtotalCents)}</span>
+              <span className="tnum">{m(foreignDoc ? discounts.subtotalCents : doc.subtotalCents)}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-[var(--color-ink-600)]">VAT</span>
-              <span className="tnum">{fmtKES(doc.taxCents)}</span>
+              <span className="tnum">{m(foreignDoc ? discounts.taxCents : doc.taxCents)}</span>
             </div>
             <div className="flex justify-between font-semibold text-[15px] pt-1 hairline-t mt-1">
               <span>Total</span>
-              <span className="tnum">{fmtKES(doc.totalCents)}</span>
+              <span className="tnum">{m(foreignDoc ? discounts.totalCents : doc.totalCents)}</span>
             </div>
+            {foreignDoc && (
+              <div className="text-right text-[11.5px] text-[var(--color-ink-500)]">
+                In the books: {fmtKES(doc.totalCents)} at {discounts.rate} KSh/{discounts.currency}
+              </div>
+            )}
             {(doc.paidCents > 0 || doc.creditedCents > 0) && (
               <>
                 {doc.paidCents > 0 && (
                   <div className="flex justify-between text-[var(--color-good)]">
                     <span>Paid</span>
-                    <span className="tnum">−{fmtKES(doc.paidCents)}</span>
+                    <span className="tnum">−{m(discounts.fromKes(doc.paidCents))}</span>
                   </div>
                 )}
                 {doc.creditedCents > 0 && (
                   <div className="flex justify-between text-[var(--color-good)]">
                     <span>Credited</span>
-                    <span className="tnum">−{fmtKES(doc.creditedCents)}</span>
+                    <span className="tnum">−{m(discounts.fromKes(doc.creditedCents))}</span>
                   </div>
                 )}
                 <div className="flex justify-between font-semibold">
                   <span>Balance due</span>
-                  <span className="tnum">{fmtKES(doc.totalCents - doc.paidCents - doc.creditedCents)}</span>
+                  <span className="tnum">{m(foreignDoc ? discounts.totalCents - discounts.fromKes(doc.paidCents + doc.creditedCents) : doc.totalCents - doc.paidCents - doc.creditedCents)}</span>
                 </div>
               </>
             )}

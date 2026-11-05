@@ -94,6 +94,10 @@ export async function fetchInitialData(docId: number) {
     customerContactId: doc.customerContactId ?? "",
     relatedInvoiceId: doc.relatedInvoiceId ?? "",
     isBillable: doc.isBillable,
+    currency: doc.currency,
+    fxRate: doc.fxRate,
+    // Fixed discounts are stored in KES; show them in the document's currency.
+    discountValueDisplay: doc.discountType === "fixed" && doc.currency !== "KES" && doc.fxRate > 0 ? Math.round(doc.discountValue / doc.fxRate) : doc.discountValue,
     discountType: (doc.discountType ?? null) as "percent" | "fixed" | null,
     discountValue: doc.discountValue,
     payoutDestinationType: (doc.payoutDestinationType ?? undefined) as "phone" | "till" | "paybill" | undefined,
@@ -103,7 +107,8 @@ export async function fetchInitialData(docId: number) {
       itemId: l.itemId,
       description: l.description,
       qty: String(l.qty),
-      price: (l.unitPriceCents / 100).toFixed(2),
+      // Foreign-currency documents are edited in their own currency.
+      price: ((doc.currency !== "KES" && l.fxUnitPriceCents != null ? l.fxUnitPriceCents : l.unitPriceCents) / 100).toFixed(2),
       discountPct: String(l.discountPct),
       taxClass: l.taxClass as import("@/lib/tax").TaxClass,
       accountId: l.accountId,

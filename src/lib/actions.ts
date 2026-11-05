@@ -38,6 +38,17 @@ import { MERGEABLE_QUOTE_STATUSES, mergeQuotesError, mergedQuoteLines, mergedQuo
 import { eq, and, ne, desc, isNull, sql, inArray } from "drizzle-orm";
 import { currentOrgId, withOrg, seedOrgDefaults, orgContext } from "@/lib/org";
 import { revalidatePath as nextRevalidatePath } from "next/cache";
+import { isForeign, toKesCents, fromKesCents } from "./currency";
+
+/** Copying a document: prices/discount in the source's own currency, since
+ *  _saveDocument converts foreign amounts to KES itself. */
+function sourcePrice(doc: { currency: string }, line: { unitPriceCents: number; fxUnitPriceCents: number | null }): number {
+  return isForeign(doc.currency) && line.fxUnitPriceCents != null ? line.fxUnitPriceCents : line.unitPriceCents;
+}
+function sourceDiscount(doc: { currency: string; fxRate: number; discountType: string | null; discountValue: number }): DocumentDiscount | null {
+  const d = storedDiscount(doc);
+  return d && d.type === "fixed" && isForeign(doc.currency) ? { type: "fixed", value: fromKesCents(d.value, doc.fxRate) } : d;
+}
 import { computeDocument, storedDiscount, type TaxClass, type DocumentDiscount, TAX_CLASSES } from "./tax";
 import {
   postInvoice,
@@ -635,8 +646,26 @@ async function _saveDocument(data: {
   sourceInvoiceId?: number;
   /** Discount on the whole document (percent or fixed), on top of line discounts. */
   discount?: DocumentDiscount | null;
+  /** Display currency (sales documents). For a foreign one, line prices and
+   *  a fixed discount arrive in that currency and are converted at fxRate. */
+  currency?: string;
+  fxRate?: number;
   lines: DocLineInput[];
 }): Promise<number> {
+  // Foreign currency: keep the typed prices for display, convert everything
+  // to KES for the books before anything else sees the lines.
+  const isSaleDoc = data.type === "invoice" || data.type === "quote" || data.type === "credit_note";
+  const currency = isSaleDoc && data.currency && isForeign(data.currency) ? data.currency : "KES";
+  const fxRate = currency === "KES" ? 1 : Number(data.fxRate);
+  if (currency !== "KES" && !(fxRate > 0)) throw new Error(`Enter the exchange rate (KSh per 1 ${currency})`);
+  const fxPrices = data.lines.map((l) => (currency === "KES" ? null : l.unitPriceCents));
+  if (currency !== "KES") {
+    data = {
+      ...data,
+      lines: data.lines.map((l) => ({ ...l, unitPriceCents: toKesCents(l.unitPriceCents, fxRate) })),
+      discount: data.discount?.type === "fixed" ? { type: "fixed", value: toKesCents(data.discount.value, fxRate) } : data.discount,
+    };
+  }
   // Cost attribution only applies to money going out. Silently drop it on sales
   // documents so a stale client payload can't write a nonsensical link.
   if (data.type !== "expense" && data.type !== "bill") {
@@ -677,6 +706,7 @@ async function _saveDocument(data: {
     data.taxInclusive,
     data.discount
   );
+  const currencyFields = { currency, fxRate };
   const discountFields = {
     discountType: totals.documentDiscountCents > 0 ? data.discount!.type : null,
     discountValue: totals.documentDiscountCents > 0 ? data.discount!.value : 0,
@@ -834,6 +864,7 @@ async function _saveDocument(data: {
           taxCents: totals.taxCents,
           totalCents: totals.totalCents,
           ...discountFields,
+          ...currencyFields,
           isTemplate: data.isTemplate || false,
           paidFromBankAccountId: data.paidFromBankAccountId,
           customerContactId: data.customerContactId ?? null,
@@ -868,6 +899,7 @@ async function _saveDocument(data: {
           taxCents: totals.taxCents,
           totalCents: totals.totalCents,
           ...discountFields,
+          ...currencyFields,
           paidFromBankAccountId: data.paidFromBankAccountId,
           customerContactId: data.customerContactId ?? null,
           relatedInvoiceId: data.relatedInvoiceId ?? null,
@@ -905,6 +937,7 @@ async function _saveDocument(data: {
           costCenterId: l.costCenterId || null,
           warehouseId: l.warehouseId || null,
           isHeading: l.isHeading ?? false,
+          fxUnitPriceCents: fxPrices[i],
         };
       })
     );
@@ -1156,12 +1189,12 @@ async function _convertQuoteToInvoiceInner(quote: typeof documents.$inferSelect,
     dueDate: null,
     taxInclusive: quote.taxInclusive,
     notes: quote.notes ?? undefined,
-    discount: storedDiscount(quote),
+    discount: sourceDiscount(quote), currency: quote.currency, fxRate: quote.fxRate,
     lines: lines.map((l) => ({
       itemId: l.itemId,
       description: l.description,
       qty: l.qty,
-      unitPriceCents: l.unitPriceCents,
+      unitPriceCents: sourcePrice(quote, l),
       discountPct: l.discountPct,
       taxClass: l.taxClass as TaxClass,
       accountId: l.accountId,
@@ -2354,13 +2387,13 @@ async function _mergeQuotes(quoteIds: number[]): Promise<number> {
       dueDate: null,
       taxInclusive: ordered[0].taxInclusive,
       notes: mergedQuoteNotes(ordered),
-      discount: mergedQuoteDiscount(ordered),
+      discount: ((d) => (d?.type === "fixed" && isForeign(ordered[0].currency) ? { type: "fixed" as const, value: fromKesCents(d.value, ordered[0].fxRate) } : d))(mergedQuoteDiscount(ordered)), currency: ordered[0].currency, fxRate: ordered[0].fxRate,
       assignedMemberIds: memberIds.length ? memberIds : undefined,
       lines: lines.map((l) => ({
         itemId: l.itemId,
         description: l.description,
         qty: l.qty,
-        unitPriceCents: l.unitPriceCents,
+        unitPriceCents: sourcePrice(ordered[0], { unitPriceCents: l.unitPriceCents, fxUnitPriceCents: l.fxUnitPriceCents ?? null }),
         discountPct: l.discountPct,
         taxClass: l.taxClass as TaxClass,
         accountId: l.accountId,
@@ -2458,13 +2491,13 @@ async function _createCreditNoteFromInvoice(invoiceId: number): Promise<number> 
     contactId: inv.contactId,
     date: todayISO(),
     taxInclusive: inv.taxInclusive,
-    discount: storedDiscount(inv),
+    discount: sourceDiscount(inv), currency: inv.currency, fxRate: inv.fxRate,
     notes: `Credit note for invoice ${inv.number}`,
     lines: lines.map((l) => ({
       itemId: l.itemId,
       description: l.description,
       qty: l.qty,
-      unitPriceCents: l.unitPriceCents,
+      unitPriceCents: sourcePrice(inv, l),
       discountPct: l.discountPct,
       taxClass: l.taxClass as TaxClass,
       accountId: l.accountId,
